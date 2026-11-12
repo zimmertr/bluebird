@@ -1141,6 +1141,861 @@
       },
       "credit": "Elevation and prominence, as Peakbagger.com ranks them",
       "crawled": "2026-11-11"
+    },
+    {
+      "id": "north-america-beckeys-great-peaks",
+      "name": "Beckey's Great Peaks of the Continent",
+      "description": "Thirty-five great mountains of North America, as Fred Beckey chose them.",
+      "region": "Nationwide",
+      "file": "north-america-beckeys-great-peaks.csv",
+      "peaks": 35,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5209",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5209"
+      },
+      "credit": "Fred Beckey",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "north-america-country-high-points",
+      "name": "North America Country High Points",
+      "description": "The highest point of each country in North America, Central America and the Caribbean.",
+      "region": "North America",
+      "file": "north-america-country-high-points.csv",
+      "peaks": 44,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1101",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1101"
+      },
+      "credit": "The highest point of each country",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-rockies-11000ers",
+      "name": "Canadian Rockies 11,000ers",
+      "description": "The summits of the Canadian Rockies over 11,000 ft, from Bill Corbett’s guidebook.",
+      "region": "Canada",
+      "file": "canada-rockies-11000ers.csv",
+      "peaks": 54,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5212",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5212"
+      },
+      "credit": "Bill Corbett",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-vancouver-island-qualifiers",
+      "name": "Island Qualifiers",
+      "description": "Nine Vancouver Island peaks set by the Alpine Club of Canada’s island section in 1977.",
+      "region": "Canada",
+      "file": "canada-vancouver-island-qualifiers.csv",
+      "peaks": 9,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "52180",
+        "url": "https://www.peakbagger.com/list.aspx?lid=52180"
+      },
+      "credit": "The Alpine Club of Canada's Vancouver Island Section",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-vancouver-island-ramblers-objectives",
+      "name": "Ramblers Lifetime Objectives",
+      "description": "Twenty Vancouver Island peaks the Island Mountain Ramblers club awards in three steps.",
+      "region": "Canada",
+      "file": "canada-vancouver-island-ramblers-objectives.csv",
+      "peaks": 20,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "52181",
+        "url": "https://www.peakbagger.com/list.aspx?lid=52181"
+      },
+      "credit": "The Island Mountain Ramblers",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-province-high-points",
+      "name": "Canada Province and Territory High Points",
+      "description": "The highest point of each of Canada’s ten provinces and three territories.",
+      "region": "Canada",
+      "file": "canada-province-high-points.csv",
+      "peaks": 13,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12002",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12002"
+      },
+      "credit": "The highest point of each province and territory",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "canada-4000m-peaks",
+      "name": "Canada 4000 m Peaks",
+      "description": "Canadian summits of 4,000 m or more.",
+      "region": "Canada",
+      "file": "canada-4000m-peaks.csv",
+      "peaks": 28,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "21101",
+        "url": "https://www.peakbagger.com/list.aspx?lid=21101"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "scotland-munros",
+      "name": "Munros",
+      "description": "Scotland’s 282 mountains over 3,000 ft, kept by the Scottish Mountaineering Club since Sir Hugh Munro’s list of 1891.",
+      "region": "Scotland",
+      "file": "scotland-munros.csv",
+      "peaks": 282,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5521",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5521"
+      },
+      "credit": "The Scottish Mountaineering Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "scotland-corbetts",
+      "name": "Corbetts",
+      "description": "Scotland’s 222 hills between 2,500 and 3,000 ft with a 500 ft drop on every side.",
+      "region": "Scotland",
+      "file": "scotland-corbetts.csv",
+      "peaks": 222,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5522",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5522"
+      },
+      "credit": "J. Rooke Corbett and the Scottish Mountaineering Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "scotland-grahams",
+      "name": "Grahams",
+      "description": "Scotland’s hills between 2,000 and 2,500 ft with a 150 m drop on every side.",
+      "region": "Scotland",
+      "file": "scotland-grahams.csv",
+      "peaks": 219,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5523",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5523"
+      },
+      "credit": "Fiona Graham and the Scottish Mountaineering Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "scotland-donalds",
+      "name": "Donalds",
+      "description": "The 89 hills of the Scottish Lowlands over 2,000 ft, from Percy Donald’s list of 1935.",
+      "region": "Scotland",
+      "file": "scotland-donalds.csv",
+      "peaks": 89,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5524",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5524"
+      },
+      "credit": "Percy Donald and the Scottish Mountaineering Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "scotland-munro-tops",
+      "name": "Munro Tops",
+      "description": "The subsidiary summits over 3,000 ft that stand beside the Munros.",
+      "region": "Scotland",
+      "file": "scotland-munro-tops.csv",
+      "peaks": 228,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "55210",
+        "url": "https://www.peakbagger.com/list.aspx?lid=55210"
+      },
+      "credit": "The Scottish Mountaineering Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "scotland-donald-tops",
+      "name": "Donald Tops",
+      "description": "The subsidiary summits that stand beside the Donalds.",
+      "region": "Scotland",
+      "file": "scotland-donald-tops.csv",
+      "peaks": 51,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "55240",
+        "url": "https://www.peakbagger.com/list.aspx?lid=55240"
+      },
+      "credit": "Percy Donald and the Scottish Mountaineering Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "scotland-council-high-points",
+      "name": "Scotland Council Area High Points",
+      "description": "The highest point of each of Scotland’s council areas.",
+      "region": "Scotland",
+      "file": "scotland-council-high-points.csv",
+      "peaks": 31,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "136201",
+        "url": "https://www.peakbagger.com/list.aspx?lid=136201"
+      },
+      "credit": "The highest point of each council area",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "england-wainwrights",
+      "name": "Wainwrights",
+      "description": "The 214 Lake District fells of Alfred Wainwright’s Pictorial Guides.",
+      "region": "England",
+      "file": "england-wainwrights.csv",
+      "peaks": 214,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5533",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5533"
+      },
+      "credit": "Alfred Wainwright",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "england-marilyns",
+      "name": "Marilyns of England",
+      "description": "England’s hills with a 150 m drop on every side, whatever their height.",
+      "region": "England",
+      "file": "england-marilyns.csv",
+      "peaks": 175,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5530",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5530"
+      },
+      "credit": "Alan Dawson",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "wales-marilyns",
+      "name": "Marilyns of Wales",
+      "description": "The hills of Wales with a 150 m drop on every side, whatever their height.",
+      "region": "Wales",
+      "file": "wales-marilyns.csv",
+      "peaks": 159,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5540",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5540"
+      },
+      "credit": "Alan Dawson",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "wales-hewitts",
+      "name": "Hewitts of Wales",
+      "description": "The hills of Wales over 2,000 ft with a 30 m drop on every side.",
+      "region": "Wales",
+      "file": "wales-hewitts.csv",
+      "peaks": 138,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5541",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5541"
+      },
+      "credit": "Alan Dawson",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "wales-nuttalls",
+      "name": "Nuttalls of Wales",
+      "description": "The summits of Wales over 2,000 ft with a 15 m drop, from John and Anne Nuttall’s guide.",
+      "region": "Wales",
+      "file": "wales-nuttalls.csv",
+      "peaks": 188,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5542",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5542"
+      },
+      "credit": "John and Anne Nuttall",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "wales-council-high-points",
+      "name": "Wales Council Area High Points",
+      "description": "The highest point of each of the 22 council areas of Wales.",
+      "region": "Wales",
+      "file": "wales-council-high-points.csv",
+      "peaks": 22,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "136202",
+        "url": "https://www.peakbagger.com/list.aspx?lid=136202"
+      },
+      "credit": "The highest point of each council area",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "ireland-marilyns",
+      "name": "Marilyns of Ireland",
+      "description": "Ireland’s hills with a 150 m drop on every side, whatever their height.",
+      "region": "Ireland",
+      "file": "ireland-marilyns.csv",
+      "peaks": 454,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5560",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5560"
+      },
+      "credit": "Alan Dawson",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "ireland-county-high-points",
+      "name": "Ireland County High Points",
+      "description": "The highest point of each county in Ireland.",
+      "region": "Ireland",
+      "file": "ireland-county-high-points.csv",
+      "peaks": 22,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12225",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12225"
+      },
+      "credit": "The highest point of each county",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "ireland-hewitts",
+      "name": "Hewitts of Ireland",
+      "description": "Ireland’s hills over 2,000 ft with a 30 m drop on every side.",
+      "region": "Ireland",
+      "file": "ireland-hewitts.csv",
+      "peaks": 209,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5561",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5561"
+      },
+      "credit": "Alan Dawson",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "ireland-twelve-bens",
+      "name": "Twelve Bens of Connemara",
+      "description": "The twelve peaks of the Twelve Bens range in Connemara.",
+      "region": "Ireland",
+      "file": "ireland-twelve-bens.csv",
+      "peaks": 12,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5568",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5568"
+      },
+      "credit": "Peakbagger.com",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "uk-trail-100",
+      "name": "Trail 100",
+      "description": "Trail magazine’s hundred greatest mountains of the United Kingdom.",
+      "region": "Across Britain and Ireland",
+      "file": "uk-trail-100.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5592",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5592"
+      },
+      "credit": "Trail magazine",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "alps-4000ers",
+      "name": "Alpine 4000ers",
+      "description": "The 82 Alpine summits over 4,000 m on the UIAA’s list of 1994.",
+      "region": "Alps",
+      "file": "alps-4000ers.csv",
+      "peaks": 82,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5410",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5410"
+      },
+      "credit": "The UIAA",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "switzerland-canton-high-points",
+      "name": "Switzerland Canton High Points",
+      "description": "The highest point of each Swiss canton.",
+      "region": "Alps",
+      "file": "switzerland-canton-high-points.csv",
+      "peaks": 25,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12260",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12260"
+      },
+      "credit": "The highest point of each canton",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "austria-stubai-seven-summits",
+      "name": "Stubai Seven Summits",
+      "description": "Seven peaks around Austria’s Stubai valley, a challenge set by its tourism board.",
+      "region": "Alps",
+      "file": "austria-stubai-seven-summits.csv",
+      "peaks": 7,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5431",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5431"
+      },
+      "credit": "The Stubai tourism board",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "austria-state-high-points",
+      "name": "Austria State High Points",
+      "description": "The highest point of each Austrian state.",
+      "region": "Alps",
+      "file": "austria-state-high-points.csv",
+      "peaks": 7,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12265",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12265"
+      },
+      "credit": "The highest point of each state",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "poland-crown-of-polish-mountains",
+      "name": "Crown of Polish Mountains",
+      "description": "The highest peak of each mountain range in Poland.",
+      "region": "Central Europe",
+      "file": "poland-crown-of-polish-mountains.csv",
+      "peaks": 30,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5461",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5461"
+      },
+      "credit": "Marek Więckowski and Wojciech Lewandowski",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "germany-state-high-points",
+      "name": "Germany State High Points",
+      "description": "The highest point of each of Germany’s 16 states.",
+      "region": "Central Europe",
+      "file": "germany-state-high-points.csv",
+      "peaks": 16,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12255",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12255"
+      },
+      "credit": "The highest point of each state",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "germany-top-100-prominence",
+      "name": "Germany Top 100 by Prominence",
+      "description": "The hundred most prominent peaks in Germany.",
+      "region": "Central Europe",
+      "file": "germany-top-100-prominence.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "4343",
+        "url": "https://www.peakbagger.com/list.aspx?lid=4343"
+      },
+      "credit": "Prominence, as Peakbagger.com ranks it",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "italy-apennine-2000ers",
+      "name": "Apennine 2000ers",
+      "description": "Apennine summits over 2,000 m, after the list of Italy’s Club 2000m.",
+      "region": "Southern Europe",
+      "file": "italy-apennine-2000ers.csv",
+      "peaks": 241,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5453",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5453"
+      },
+      "credit": "Club 2000m",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "spain-community-high-points",
+      "name": "Spain Autonomous Community High Points",
+      "description": "The highest point of each of Spain’s autonomous communities.",
+      "region": "Southern Europe",
+      "file": "spain-community-high-points.csv",
+      "peaks": 18,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12235",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12235"
+      },
+      "credit": "The highest point of each autonomous community",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "italy-region-high-points",
+      "name": "Italy Region High Points",
+      "description": "The highest point of each of Italy’s 20 regions.",
+      "region": "Southern Europe",
+      "file": "italy-region-high-points.csv",
+      "peaks": 20,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12270",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12270"
+      },
+      "credit": "The highest point of each region",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "europe-country-high-points",
+      "name": "Europe Country High Points",
+      "description": "The highest point of each European country.",
+      "region": "Across Europe",
+      "file": "europe-country-high-points.csv",
+      "peaks": 51,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1104",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1104"
+      },
+      "credit": "The highest point of each country",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "europe-4500m-peaks",
+      "name": "Europe 4500 m Peaks",
+      "description": "European summits of 4,500 m or more, in the Alps and the Caucasus.",
+      "region": "Across Europe",
+      "file": "europe-4500m-peaks.csv",
+      "peaks": 23,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "2301",
+        "url": "https://www.peakbagger.com/list.aspx?lid=2301"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "caucasus-4500m-peaks",
+      "name": "Caucasus 4500 m Peaks",
+      "description": "Caucasus summits of 4,500 m or more.",
+      "region": "Across Europe",
+      "file": "caucasus-4500m-peaks.csv",
+      "peaks": 18,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "2303",
+        "url": "https://www.peakbagger.com/list.aspx?lid=2303"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "japan-100-famous-mountains",
+      "name": "100 Famous Japanese Mountains",
+      "description": "The hundred mountains of Kyuya Fukada’s 1964 book, Nihon Hyakumeizan.",
+      "region": "Asia",
+      "file": "japan-100-famous-mountains.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5651",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5651"
+      },
+      "credit": "Kyūya Fukada",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "taiwan-100-peaks",
+      "name": "100 Peaks of Taiwan",
+      "description": "The Baiyue: a hundred peaks over 3,000 m, chosen by Taiwan’s 100 Peaks Club in 1972.",
+      "region": "Asia",
+      "file": "taiwan-100-peaks.csv",
+      "peaks": 100,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5638",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5638"
+      },
+      "credit": "Taiwan's 100 Peaks Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "himalaya-8000m-peaks",
+      "name": "8000 m Peaks",
+      "description": "The fourteen mountains over 8,000 m, in the Himalaya and the Karakoram.",
+      "region": "Asia",
+      "file": "himalaya-8000m-peaks.csv",
+      "peaks": 14,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "200",
+        "url": "https://www.peakbagger.com/list.aspx?lid=200"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "central-asia-snow-leopard-peaks",
+      "name": "Snow Leopard Peaks",
+      "description": "The five 7,000 m peaks of the former Soviet Union, climbed for the Snow Leopard award.",
+      "region": "Asia",
+      "file": "central-asia-snow-leopard-peaks.csv",
+      "peaks": 5,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5618",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5618"
+      },
+      "credit": "The Snow Leopard award",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "china-five-great-mountains",
+      "name": "Five Great Mountains of China",
+      "description": "The five sacred mountains of Taoism, one for each cardinal direction and the centre.",
+      "region": "Asia",
+      "file": "china-five-great-mountains.csv",
+      "peaks": 5,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5632",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5632"
+      },
+      "credit": "Peakbagger.com",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "australia-state-high-points",
+      "name": "Australia State and Territory High Points",
+      "description": "The highest point of each Australian state and territory.",
+      "region": "Australia and New Zealand",
+      "file": "australia-state-high-points.csv",
+      "peaks": 9,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12500",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12500"
+      },
+      "credit": "The highest point of each state and territory",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "australia-act-percys",
+      "name": "The Percys",
+      "description": "Hills over 1,000 m in the Australian Capital Territory, a Canberra bushwalker’s list.",
+      "region": "Australia and New Zealand",
+      "file": "australia-act-percys.csv",
+      "peaks": 68,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5806",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5806"
+      },
+      "credit": "The Canberra Bushwalking Club",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "andes-6000ers",
+      "name": "Andes 6000ers",
+      "description": "Andean summits of 6,000 m or more.",
+      "region": "South America",
+      "file": "andes-6000ers.csv",
+      "peaks": 99,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "2201",
+        "url": "https://www.peakbagger.com/list.aspx?lid=2201"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "chile-region-high-points",
+      "name": "Chile Region High Points",
+      "description": "The highest point of each of Chile’s 16 regions.",
+      "region": "South America",
+      "file": "chile-region-high-points.csv",
+      "peaks": 16,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12130",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12130"
+      },
+      "credit": "The highest point of each region",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "argentina-province-high-points",
+      "name": "Argentina Province High Points",
+      "description": "The highest point of each Argentine province.",
+      "region": "South America",
+      "file": "argentina-province-high-points.csv",
+      "peaks": 24,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "12140",
+        "url": "https://www.peakbagger.com/list.aspx?lid=12140"
+      },
+      "credit": "The highest point of each province",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "peru-cordillera-blanca-5500m-peaks",
+      "name": "Cordillera Blanca 5500 m Peaks",
+      "description": "Summits of 5,500 m or more in Peru’s Cordillera Blanca.",
+      "region": "South America",
+      "file": "peru-cordillera-blanca-5500m-peaks.csv",
+      "peaks": 43,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "2212",
+        "url": "https://www.peakbagger.com/list.aspx?lid=2212"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "south-america-country-high-points",
+      "name": "South America Country High Points",
+      "description": "The highest point of each South American country.",
+      "region": "South America",
+      "file": "south-america-country-high-points.csv",
+      "peaks": 15,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1102",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1102"
+      },
+      "credit": "The highest point of each country",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "malawi-mulanje-59-peaks",
+      "name": "Mulanje 59 Peaks",
+      "description": "The 59 peaks of Malawi’s Mulanje massif.",
+      "region": "Africa",
+      "file": "malawi-mulanje-59-peaks.csv",
+      "peaks": 59,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "5772",
+        "url": "https://www.peakbagger.com/list.aspx?lid=5772"
+      },
+      "credit": "Peakbagger.com",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "malawi-eastwood-mulanje-15",
+      "name": "Eastwood's Mulanje 15",
+      "description": "Fifteen Mulanje peaks picked out by the guidebook author Frank Eastwood.",
+      "region": "Africa",
+      "file": "malawi-eastwood-mulanje-15.csv",
+      "peaks": 15,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "57721",
+        "url": "https://www.peakbagger.com/list.aspx?lid=57721"
+      },
+      "credit": "Frank Eastwood",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "southern-africa-3300m-peaks",
+      "name": "Southern Africa 3300 m Peaks",
+      "description": "Summits of 3,300 m or more in South Africa and Lesotho.",
+      "region": "Africa",
+      "file": "southern-africa-3300m-peaks.csv",
+      "peaks": 38,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "2581",
+        "url": "https://www.peakbagger.com/list.aspx?lid=2581"
+      },
+      "credit": "Elevation and prominence, as Peakbagger.com ranks them",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "world-seven-summits",
+      "name": "Seven Summits",
+      "description": "The highest mountain on each continent, with Carstensz Pyramid for Oceania.",
+      "region": "Worldwide",
+      "file": "world-seven-summits.csv",
+      "peaks": 7,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1000",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1000"
+      },
+      "credit": "Reinhold Messner",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "world-seven-summits-bass",
+      "name": "Seven Summits (Bass List)",
+      "description": "The highest mountain on each continent, with Kosciuszko for Australia.",
+      "region": "Worldwide",
+      "file": "world-seven-summits-bass.csv",
+      "peaks": 7,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1001",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1001"
+      },
+      "credit": "Dick Bass",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "world-volcanic-seven-summits",
+      "name": "Volcanic Seven Summits",
+      "description": "The highest volcano on each continent.",
+      "region": "Worldwide",
+      "file": "world-volcanic-seven-summits.csv",
+      "peaks": 7,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "1002",
+        "url": "https://www.peakbagger.com/list.aspx?lid=1002"
+      },
+      "credit": "Peakbagger.com",
+      "crawled": "2026-11-12"
+    },
+    {
+      "id": "world-second-seven-summits",
+      "name": "Second Seven Summits",
+      "description": "The second-highest mountain on each continent.",
+      "region": "Worldwide",
+      "file": "world-second-seven-summits.csv",
+      "peaks": 7,
+      "source": {
+        "site": "peakbagger.com",
+        "listId": "601",
+        "url": "https://www.peakbagger.com/list.aspx?lid=601"
+      },
+      "credit": "Peakbagger.com",
+      "crawled": "2026-11-12"
     }
   ]
 }
