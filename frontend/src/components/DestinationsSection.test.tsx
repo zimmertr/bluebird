@@ -49,10 +49,11 @@ const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
 const noBox = () => screen.queryByRole('textbox', { name: /^Custom destination coordinates/ }) === null
-// The Coordinate list field, named by its name and what it reads: Select a
-// list at rest, a list's name or Custom coordinates otherwise.
+// The Coordinate list field, named by the List search heading over it and
+// what it reads (record 0288): Select a list at rest, a list's name or Custom
+// coordinates otherwise.
 const field = (reads?: string) =>
-  screen.getByRole('button', { name: `Coordinate list ${reads ?? 'Select a list'}` })
+  screen.getByRole('button', { name: `List search ${reads ?? 'Select a list'}` })
 // The box stands once Custom coordinates is picked (record 0263).
 async function openBox(user: ReturnType<typeof render>['user']) {
   await user.click(field())
@@ -449,7 +450,7 @@ describe('DestinationsSection', () => {
     const LIST = '46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'
     const arrives = () => vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: LIST })))
     const pickList = async (user: ReturnType<typeof render>['user']) => {
-      await user.click(screen.getByRole('button', { name: /^Coordinate list/ }))
+      await user.click(screen.getByRole('button', { name: /^List search/ }))
       await openRegion(user, PRESET_LISTS[0].region)
       await user.click(listRow(PRESET_LISTS[0]))
     }

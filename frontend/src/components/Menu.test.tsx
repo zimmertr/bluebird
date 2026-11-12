@@ -600,6 +600,34 @@ describe('MenuBrowse', () => {
     expect(field('The Bulger List').getAttribute('aria-labelledby')!.split(' ')).toHaveLength(2)
   })
 
+  // A visible heading can name the field instead (record 0288): the reader
+  // then hears the heading and what the field shows, and the label still
+  // names the dialog.
+  it('takes its name from a visible heading when given one', async () => {
+    const { user } = render(
+      <>
+        <h3 id="list-heading">List search</h3>
+        <MenuBrowse
+          label="Coordinate list"
+          placeholder="Select a list"
+          labelledBy="list-heading"
+          value=""
+          items={ITEMS}
+          groups={GROUPS}
+          other={OTHER}
+          onChange={() => {}}
+          starred={[]}
+          onToggleStar={() => {}}
+          widthRef={{ current: null }}
+          className="w-40"
+        />
+      </>,
+    )
+    const named = screen.getByRole('button', { name: 'List search Select a list' })
+    await user.click(named)
+    expect(screen.getByRole('dialog', { name: 'Coordinate list' })).toBeTruthy()
+  })
+
   it('opens on the search box with every group that holds a row, each shut and counted', async () => {
     const { user } = render(<Browse />)
     await user.click(field())

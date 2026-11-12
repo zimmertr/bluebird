@@ -317,6 +317,7 @@ export default function DestinationsSection({
           <MenuBrowse
             label="Coordinate list"
             placeholder="Select a list"
+            labelledBy={csvHeadingId}
             value={fieldValue}
             items={LIST_ITEMS}
             groups={LIST_GROUPS}

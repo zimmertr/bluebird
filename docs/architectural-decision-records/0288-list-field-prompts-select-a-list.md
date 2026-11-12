@@ -16,9 +16,10 @@ The common pattern for a dropdown with nothing picked is a short prompt in the f
 ## Decision
 
 - **The field reads `Select a list` while nothing is picked.** The list's name and `Custom coordinates` are unchanged.
-- **A screen reader hears the field's name and the prompt: `Coordinate list, Select a list`.** `MenuBrowse` names the field by its `label` and then the words it shows, at rest as after a pick, because WCAG 2.5.3 (Label in Name) wants a control's name to hold its visible text. Naming it by the label alone was tried first, and axe's `label-content-name-mismatch` failed it in the browser suite.
+- **A screen reader hears the heading over the field and then what the field shows**: `List search, Select a list` at rest, `List search, Munros` after a pick, `List search, Custom coordinates` over the reader's own rows. `MenuBrowse` takes the heading's id as `labelledBy`, so the reader hears only words on screen, and the name holds the words the field shows, which WCAG 2.5.3 (Label in Name) asks for. Two other names were tried: the label alone, `Coordinate list`, which axe's `label-content-name-mismatch` failed in the browser suite, and the label then the field's words, `Coordinate list, Select a list`, which passes but reads a name the screen no longer shows. The maintainer chose the heading on 2026-11-12, over reading the field's words alone, which leaves a pick as a bare list name.
 - The maintainer chose `Select a list` over `Choose a peak list`, `Pick a peak list` and keeping `Coordinate list`.
 
 ## Consequences
 
-- The phone sheet's heading stays `Coordinate list`.
+- `Coordinate list` stays the dialog's name and the phone sheet's heading.
+- The `Clear` beside the field was already named with the same heading.

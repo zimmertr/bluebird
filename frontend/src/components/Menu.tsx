@@ -314,10 +314,17 @@ export interface BrowseGroup {
 }
 
 interface MenuBrowseProps {
-  /** What the choice is called: the field's accessible name and a phone sheet's heading. */
+  /** What the choice is called: the field's accessible name (unless `labelledBy` gives one), the dialog's, and a phone sheet's heading. */
   label: string
   /** What the field reads while `value` names nothing. Unless it is the label, it joins the field's accessible name after the label, as a pick does, because a name must hold the words a control shows (WCAG 2.5.3; record 0288). */
   placeholder: string
+  /**
+   * The id of a visible heading that names the field (record 0288). When
+   * given, the field is named by that heading and then the words it shows,
+   * and `label` names only the dialog and a phone sheet's heading, so a
+   * screen reader hears nothing the screen does not show.
+   */
+  labelledBy?: string
   /** The picked row's id, `other`'s value, or anything else for neither. */
   value: string
   items: readonly BrowseItem[]
@@ -379,6 +386,7 @@ const BROWSE_ITEMS = '[data-browse-item]'
 export function MenuBrowse({
   label,
   placeholder,
+  labelledBy,
   value,
   items,
   groups,
@@ -565,7 +573,13 @@ export function MenuBrowse({
         shape="field"
         open={open}
         aria-haspopup="dialog"
-        aria-labelledby={showsPlaceholder && placeholder === label ? nameId : `${nameId} ${valueId}`}
+        aria-labelledby={
+          labelledBy !== undefined
+            ? `${labelledBy} ${valueId}`
+            : showsPlaceholder && placeholder === label
+              ? nameId
+              : `${nameId} ${valueId}`
+        }
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={(e) => {
           if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
