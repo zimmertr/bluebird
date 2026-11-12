@@ -533,6 +533,28 @@ describe('DestinationsSection', () => {
       expect(document.activeElement).not.toBe(coordinates())
     })
 
+    // A list abroad names its peaks in their own spelling (#892). The file is
+    // UTF-8 and arrives as bytes, so a name with a letter outside ASCII must
+    // reach the box, the parsed rows and the field exactly as the file spells
+    // it. The coordinates are placeholders; only the names are under test.
+    it('carries a name with an accent from the file to the box unchanged', async () => {
+      const ACCENTED = '47,12,Großglockner\n61,8,Galdhøpiggen\n45,6,Aiguille Verte d’Argentière'
+      vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: `${ACCENTED}\n` })))
+      const setCustomCsv = vi.fn()
+      const onCsvPasted = vi.fn()
+      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv, onCsvPasted })} />)
+      await pickList(user)
+      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(ACCENTED))
+      expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual([
+        'Großglockner',
+        'Galdhøpiggen',
+        'Aiguille Verte d’Argentière',
+      ])
+      rerender(<DestinationsSection {...props({ customCsv: ACCENTED, setCustomCsv, onCsvPasted })} />)
+      expect((coordinates() as HTMLTextAreaElement).value).toBe(ACCENTED)
+      expect(field(PRESET_LISTS[0].name)).toBeTruthy()
+    })
+
     // A list's description is the menu's, behind its row's info button and
     // under a search result (record 0283). The panel repeats it nowhere: the
     // field names the list and the box holds its rows.
