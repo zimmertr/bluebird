@@ -140,7 +140,9 @@ these providers.
   New Zealand Alpine Club's, Ivan Pugh's, Frank Eastwood's, Reinhold Messner's
   and Dick Bass's. The New Zealand 100 Peaks Challenge's membership was read
   from its peakbagger.com page on 2026-11-11, because no archived copy holds
-  it; its coordinates come from the archive like every other list's.
+  it, and UK County and Council High Points' on 2026-11-12, because the
+  archive's copy dates from 2023. The 476 peaks whose own pages have no
+  archived copy had their coordinates read from peakbagger.com the same way.
 
 ## Software
 
