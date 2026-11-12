@@ -64,7 +64,7 @@ const STYLE_LAYERS = [
 
 const OFF = { relief: false, contours: false, terrain: false }
 
-function setup({ pitch = 0, bearing = 0 } = {}) {
+function setup({ pitch = 0, bearing = 0, linkCamera = false } = {}) {
   const stub = stubMap({ styleLayers: STYLE_LAYERS, pitch, bearing })
   const contourUrl = vi.fn((o: unknown) => `bluebird-dem-contour://{z}/{x}/{y}?${JSON.stringify(o)}`)
   const tiles: DemTiles = {
@@ -73,7 +73,7 @@ function setup({ pitch = 0, bearing = 0 } = {}) {
     getDemTile: vi.fn(),
   }
   const load = vi.fn(async () => tiles)
-  const terrain = mountTerrain(stub.map, { load })
+  const terrain = mountTerrain(stub.map, { load, linkCamera })
   // The credit's empty source goes in at mount (#832), and its test pins it;
   // every other test reads what a switch does from there.
   stub.calls.length = 0
@@ -293,6 +293,39 @@ describe('mountTerrain', () => {
     terrain.update({ ...OFF, terrain: true })
     await vi.waitFor(() => expect(stub.map.getTerrain()).not.toBeNull())
     expect(stub.calls.some((c) => c[0] === 'easeTo')).toBe(false)
+  })
+
+  // A link names its camera, the pitch included (#864): a 3D view shared
+  // from straight above opens from straight above, where a press tilts it.
+  it('keeps the pitch a link opened on, flat included, and tilts for the press after it', async () => {
+    const { stub, terrain } = setup({ linkCamera: true })
+    terrain.update({ ...OFF, terrain: true })
+    await vi.waitFor(() => expect(stub.map.getTerrain()).not.toBeNull())
+    expect(stub.calls.some((c) => c[0] === 'easeTo')).toBe(false)
+    expect(stub.camera.pitch).toBe(0)
+    // Off and on again is the reader's press, which tilts a flat map.
+    terrain.update(OFF)
+    terrain.update({ ...OFF, terrain: true })
+    expect(stub.camera.pitch).toBe(TERRAIN_PITCH)
+  })
+
+  // The link's camera speaks for the state the link opened with. A link
+  // that opened flat and in 2D says nothing about the first press of 3D.
+  it('tilts for a press on a map a link opened in 2D', async () => {
+    const { stub, terrain } = setup({ linkCamera: true })
+    terrain.update(OFF)
+    terrain.update({ ...OFF, terrain: true })
+    await vi.waitFor(() => expect(stub.camera.pitch).toBe(TERRAIN_PITCH))
+  })
+
+  // Switched off while the elevation was still loading: the stand the link
+  // was owed never happened, and the next one is a press.
+  it('tilts for a press after a link\'s 3D was switched off before it stood', async () => {
+    const { stub, terrain } = setup({ linkCamera: true })
+    terrain.update({ ...OFF, terrain: true })
+    terrain.update(OFF)
+    terrain.update({ ...OFF, terrain: true })
+    await vi.waitFor(() => expect(stub.camera.pitch).toBe(TERRAIN_PITCH))
   })
 
   // The relief and the 3D terrain read the same tiles on two sources, so the

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>zimmertr/yggdrasil//defaults/renovate"
+  ],
+  "description": [
+    "Bluebird's own rules, on top of the shared preset (record 0284).",
+    "ignorePaths is Renovate's default list without its test folders, so the test database's base image in backend/tests/db/Dockerfile is kept current too."
+  ],
+  "ignorePaths": [
+    "**/node_modules/**"
+  ],
+  "constraints": {
+    "pipTools": "7.6.2"
+  },
+  "pip-compile": {
+    "description": "The backend's two hashed locks. Renovate reads the pip-compile command from each lock's header, bumps the pin in the .in file, and recompiles every lock that depends on it. pipTools is the version `make lock-backend` runs, because pr.yml recompiles the locks and fails on any difference.",
+    "managerFilePatterns": [
+      "/^backend/requirements(-dev)?\\.txt$/"
+    ],
+    "lockFileMaintenance": {
+      "description": "Off. It is on by default for this manager, and it recompiles both locks to move every indirect pin to its newest release, with no seven-day wait.",
+      "enabled": false
+    }
+  },
+  "pip_requirements": {
+    "description": "Off, because pip-compile already updates the .in files, and this manager would bump a lock's pin without recompiling its hashes.",
+    "enabled": false
+  },
+  "packageRules": [
+    {
+      "description": "TypeScript stays on 5 in tools/api-types for as long as openapi-typescript peers on ^5.x, and on 6 in tools/eslint for as long as typescript-eslint refuses 7. A major there is the one update those packages must never take (record 0030).",
+      "matchFileNames": [
+        "frontend/tools/api-types/**",
+        "frontend/tools/eslint/**"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    }
+  ]
+}

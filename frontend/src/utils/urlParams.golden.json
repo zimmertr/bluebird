@@ -80,18 +80,11 @@
     "showRelief": true,
     "showSlope": true,
     "showSatellite": true,
-    "baseOpacity": {
-      "topo": 30,
-      "relief": 100,
-      "slope": 0,
-      "satellite": 80
-    },
     "showTerrain": true,
     "showFireActivity": true,
     "showGrid": true,
     "gridStyle": "smooth",
     "gridReachFrac": 0.4,
-    "showPlayer": false,
     "includeUnnamedPeaks": true,
     "pins": [
       {
@@ -122,13 +115,14 @@
     "view": {
       "lng": -121.6123,
       "lat": 47.1,
-      "zoom": 9.46
+      "zoom": 9.46,
+      "bearing": -32,
+      "pitch": 45
     },
     "chart": [
       "temp",
       "precip"
-    ],
-    "chartLayout": "row"
+    ]
   },
   "nowOnly": {
     "selection": {
@@ -150,8 +144,7 @@
       "maxAqi": null,
       "minCloudDeckFt": null,
       "maxCloudDeckFt": 9000
-    },
-    "showPlayer": true
+    }
   },
   "dateless": {
     "sortBy": "temp_min_f",
@@ -193,8 +186,7 @@
         },
         "showGrid": true,
         "gridStyle": "blocks",
-        "gridReachFrac": 1,
-        "showPlayer": true
+        "gridReachFrac": 1
       }
     },
     {
@@ -378,7 +370,7 @@
       "dec": null
     },
     {
-      "q": "poly=1,2;3,4;5,6&limit=7&desc=1&unnamed=1&fires=1&radar=0&smoke=true&snow=1&player=0",
+      "q": "poly=1,2;3,4;5,6&limit=7&desc=1&unnamed=1&wildfires=1&radar=0&smoke=true&snowdepth=1&player=0",
       "dec": {
         "sortDesc": true,
         "limit": 7,
@@ -407,7 +399,6 @@
         },
         "showWildfires": true,
         "showSnow": true,
-        "showPlayer": false,
         "includeUnnamedPeaks": true
       }
     },

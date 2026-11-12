@@ -12,8 +12,9 @@ import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import { parseCustomCsv, unreadLines } from '../utils/customDestinations'
-import { PRESET_LISTS, presetListIn, fetchPresetList } from '../utils/presetLists'
-import { MenuSelect } from './Menu'
+import { PRESET_LISTS, PRESET_REGIONS, presetListIn, fetchPresetList } from '../utils/presetLists'
+import { useStarredLists } from '../hooks/useStarredLists'
+import { MenuBrowse, type BrowseGroup, type BrowseItem } from './Menu'
 import CoordinateBox from './CoordinateBox'
 import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
@@ -35,10 +36,27 @@ const AREA_NOTE_KM2 = 40_000
 // paste ever lands beneath it.
 const COORDINATES_PLACEHOLDER = '# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier'
 
-// The Coordinate list field's last option, which opens the box for the reader's
-// own rows. Its value is a word no list's URL can be: every list's is a path
-// to a hashed asset.
-const CUSTOM_COORDINATES = 'custom'
+// The Coordinate list field's last row, which opens the box for the reader's
+// own rows. Its value is a word no list's id can be: an id holds no colon.
+const CUSTOM_COORDINATES = ':custom'
+
+// The lists as the Coordinate list menu reads them (#848): each under its
+// region, with its peak count and the description its info button opens, and
+// the regions A to Z under each parent with the states a search also finds
+// them by. Built once, since the manifest is the build's.
+const LIST_ITEMS: readonly BrowseItem[] = PRESET_LISTS.map((list) => ({
+  id: list.id,
+  name: list.name,
+  description: list.description,
+  group: list.region,
+  count: list.peaks,
+}))
+const LIST_GROUPS: readonly BrowseGroup[] = PRESET_REGIONS.map((region) => ({
+  name: region.name,
+  words: region.places,
+  ...(region.parent === null ? {} : { parent: region.parent }),
+}))
+const LIST_IDS: readonly string[] = PRESET_LISTS.map((list) => list.id)
 
 // What the caption under the box adds while a line of it reads as no row
 // (record 0265): the gutter flags those lines and is hidden from a screen
@@ -143,7 +161,7 @@ export default function DestinationsSection({
   // The box stands only once something is in it or the reader asked for it
   // (#838, record 0263): most readers pick a preset and never need the box,
   // its format line or its mono type, so at rest the Coordinate list field is the
-  // whole of Coordinate search (the maintainer, 2026-11-03). `customOpen` is
+  // whole of List search (the maintainer, 2026-11-03). `customOpen` is
   // the asking: the Custom coordinates pick, or an edit, so the box does not
   // vanish under a reader who deletes every row by hand. A preset pick and
   // Clear put it back.
@@ -158,7 +176,8 @@ export default function DestinationsSection({
   // own name while the box is shut, and Custom coordinates over anything else:
   // rows typed, pasted or restored from a share link, or an open blank box.
   const heldList = presetListIn(customCsv)
-  const fieldValue = heldList ? heldList.url : boxShown ? CUSTOM_COORDINATES : ''
+  const fieldValue = heldList ? heldList.id : boxShown ? CUSTOM_COORDINATES : ''
+  const { starred, toggleStar } = useStarredLists(LIST_IDS)
   const unread = csvBlank ? 0 : unreadLines(customCsv).filter(Boolean).length
   // A list picked from the field replaces whatever the box holds, typed rows
   // included, with nothing asked: the pick is the press that means it (the
@@ -167,8 +186,8 @@ export default function DestinationsSection({
   // box that took it scrolled to its end and hid a line of the two it shows,
   // so a click into the box is what places the cursor (the maintainer,
   // 2026-11-03).
-  const loadList = async (url: string) => {
-    const list = PRESET_LISTS.find((l) => l.url === url)
+  const loadList = async (id: string) => {
+    const list = PRESET_LISTS.find((l) => l.id === id)
     if (!list) return
     const text = await fetchPresetList(list)
     onPresetListFailed(text === null)
@@ -270,7 +289,7 @@ export default function DestinationsSection({
         <p className={TEXT.helper}>Search by name, or select a destination from the map.</p>
       </div>
 
-      {/* Coordinate search: second, under Map search, so the Polygon
+      {/* List search: second, under Map search, so the Polygon
           block's buttons and boxes come last (#687, record 0137). A list you
           bring to the map rather than a gesture on it. The row under the
           subheading is the Polygon row's grid (#838, record 0263): the one
@@ -292,22 +311,25 @@ export default function DestinationsSection({
           is a second button reading the same word. */}
       <div className="mb-3">
         <h3 id={csvHeadingId} className={`${TEXT.subheading} mb-1.5`}>
-          Coordinate search
+          List search
         </h3>
         <div ref={csvRowRef} className={`${DRAW_ROW.row}${boxShown ? ' mb-1.5' : ''}`}>
-          <MenuSelect
+          <MenuBrowse
             label="Coordinate list"
-            placeholder="Coordinate list"
+            placeholder="Select a list"
+            labelledBy={csvHeadingId}
             value={fieldValue}
-            options={[
-              ...PRESET_LISTS.map((list) => ({ value: list.url, label: list.name })),
-              { value: CUSTOM_COORDINATES, label: 'Custom coordinates', divided: true },
-            ]}
+            items={LIST_ITEMS}
+            groups={LIST_GROUPS}
+            other={{ value: CUSTOM_COORDINATES, label: 'Custom coordinates' }}
             onChange={(value) => (value === CUSTOM_COORDINATES ? openCustom() : void loadList(value))}
+            starred={starred}
+            onToggleStar={toggleStar}
+            widthRef={csvRowRef}
             sheet={phone}
             className={DRAW_ROW.field}
           />
-          {/* Empties the box and shuts it, so the field reads its own name
+          {/* Empties the box and shuts it, so the field reads Select a list
               again; greyed while the box is shut. */}
           <button
             id={csvClearId}

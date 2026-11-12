@@ -363,8 +363,22 @@ export interface TerrainLayers {
   demTiles(): Promise<DemTiles>
 }
 
-export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<DemTiles> } = {}): TerrainLayers {
+export function mountTerrain(
+  map: maplibregl.Map,
+  deps: {
+    load?: () => Promise<DemTiles>
+    /** The map opened on a camera a share link named (`view=`). */
+    linkCamera?: boolean
+  } = {},
+): TerrainLayers {
   const load = deps.load ?? loadDemTiles
+  // A link that names its camera opens at the angle it names (#864). The
+  // first state the map is told is the link's, so when that state has 3D on,
+  // standing the ground up tilts nothing: a view shared from straight above
+  // opens from straight above. Decided at the first `update` and spent by the
+  // stand it allows, so every stand after it is a press and tilts a flat map.
+  let told = false
+  let keepsPitch = false
   let want = { relief: false, contours: false, terrain: false }
   let slopeWanted = false
   let imagery = false
@@ -517,8 +531,10 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
       demSource(TERRAIN_SOURCE)
       map.setTerrain({ source: TERRAIN_SOURCE, exaggeration: TERRAIN_EXAGGERATION })
       // A flat map stood up in 3D looks the same from straight above, so the
-      // press tilts it; a map the reader already tilted keeps its tilt.
-      if (map.getPitch() === 0) map.easeTo({ pitch: TERRAIN_PITCH, duration: CAMERA_MS.reveal })
+      // press tilts it; a map the reader already tilted keeps its tilt, and
+      // so does one a link opened flat (`keepsPitch`).
+      if (map.getPitch() === 0 && !keepsPitch) map.easeTo({ pitch: TERRAIN_PITCH, duration: CAMERA_MS.reveal })
+      keepsPitch = false
       return
     }
     map.setTerrain(null)
@@ -583,6 +599,11 @@ export function mountTerrain(map: maplibregl.Map, deps: { load?: () => Promise<D
 
   return {
     update(next) {
+      if (!told) keepsPitch = deps.linkCamera === true && next.terrain
+      // Switched off before it stood, as while the tiles were still loading:
+      // the next stand is a press.
+      else if (!next.terrain) keepsPitch = false
+      told = true
       want = next
       request()
     },

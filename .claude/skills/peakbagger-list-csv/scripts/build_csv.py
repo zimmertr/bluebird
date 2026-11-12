@@ -1,50 +1,88 @@
-"""Write a Bluebird Forecast frontend/src/coordinate-lists/*.csv from peaks<lid>.json + coords<lid>.json.
+"""Write a list's CSV and its entry in the manifest, frontend/src/coordinate-lists/lists.json.
 
-The file is named for the list as the Coordinate list menu reads it: the app offers every
-file in that directory, named by its file name without .csv, so --name is the
-maintainer-approved menu string (e.g. --name 'The Bulger List').
-
-Rows only, no headline, in the format every list there uses:
+The CSV is named for the list's id and holds rows only, in the page's order:
     Lat, Lon, Name
-ordered as the list page presents them (normally highest -> lowest).
-
-The name carries no list number: Bluebird Forecast ranks the rows and numbers them itself,
-so a "23." prefix would read as "1 23. Foobar Mountain" in the results table.
-
-The name carries no elevation either: Bluebird Forecast resolves each coordinate against OpenStreetMap and
-fills the Elevation column itself (issue #207), so printing the list page's figure here
-would only be a second number to disagree with the one on screen.
-
-Usage:
-  python3 build_csv.py <lid> <outdir> --name '<Menu name>'
+The name carries no list number, because Bluebird Forecast ranks the rows and numbers them
+itself, and no elevation, because the app reads each summit's elevation from OpenStreetMap
+(issue #207) and a second figure would only disagree with the one on screen.
 """
-import json, os, sys
+import json
+import os
 
-lid, outdir = sys.argv[1], sys.argv[2]
-args = sys.argv[3:]
+MANIFEST = 'lists.json'
+SITE = 'peakbagger.com'
 
-if '--name' not in args or args.index('--name') + 1 >= len(args):
-    sys.exit("--name '<Menu name>' is required: the file's name is the string the Coordinate list menu shows.")
-name = args[args.index('--name') + 1].strip()
-if not name or '/' in name or name.endswith('.csv'):
-    sys.exit(f'--name {name!r} must be the menu string alone: no slash, no .csv.')
 
-meta = json.load(open(f'peaks{lid}.json'))
-peaks = meta['peaks']
-coords = json.load(open(f'coords{lid}.json'))
+def rows(roster, coords):
+    return [
+        '{:.6f}, {:.6f}, {}'.format(*coords[peak['pid']], peak['name'])
+        for peak in roster['peaks']
+    ]
 
-missing = [p for p in peaks if str(p['pid']) not in coords]
-if missing:
-    sys.exit(f'REFUSING to write: {len(missing)} of {len(peaks)} peaks lack coordinates:\n  '
-             + '\n  '.join(f'{p["name"]} (pid={p["pid"]})' for p in missing)
-             + '\nRe-run fetch_coords.py, or resolve them by hand. Never guess a coordinate.')
 
-outfile = os.path.join(outdir, f'{name}.csv')
+def write_csv(directory, list_id, roster, coords):
+    path = os.path.join(directory, f'{list_id}.csv')
+    with open(path, 'w', encoding='utf-8') as out:
+        out.write('\n'.join(rows(roster, coords)) + '\n')
+    return path
 
-lines = []
-for p in peaks:
-    lat, lon = coords[str(p['pid'])]
-    lines.append(f'{lat:.6f}, {lon:.6f}, {p["name"]}')
 
-open(outfile, 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
-print(f'wrote {outfile}: {len(peaks)} peaks, {len(lines)} lines')
+def entry(item, peaks, crawled):
+    """The manifest entry for one list of the spec. `peaks` is the CSV's row count."""
+    return {
+        'id': item['id'],
+        'name': item['name'],
+        'description': item['description'],
+        'region': item['region'],
+        'file': f'{item["id"]}.csv',
+        'peaks': peaks,
+        'source': {
+            'site': SITE,
+            'listId': str(item['lid']),
+            'url': f'https://www.{SITE}/list.aspx?lid={item["lid"]}',
+        },
+        'credit': item['credit'],
+        'crawled': crawled,
+    }
+
+
+def read_manifest(directory):
+    return json.load(open(os.path.join(directory, MANIFEST), encoding='utf-8'))
+
+
+def upsert(manifest, new):
+    """Replace the entry with this id where it stands, or add it after the others."""
+    for index, old in enumerate(manifest['lists']):
+        if old['id'] == new['id']:
+            manifest['lists'][index] = new
+            return
+    manifest['lists'].append(new)
+
+
+def write_manifest(directory, manifest):
+    # A region stays on one line, the way the file has always read; the lists are indented.
+    def text(value):
+        return json.dumps(value, ensure_ascii=False)
+
+    def region(value):
+        places = value.get('places')
+        parent = value.get('parent')
+        return (
+            '{ "name": ' + text(value['name'])
+            + (', "parent": ' + text(parent) if parent else '')
+            + (', "places": ' + text(places) if places else '')
+            + ' }'
+        )
+
+    lists = json.dumps(manifest['lists'], indent=2, ensure_ascii=False).replace('\n', '\n  ')
+    body = (
+        '{\n'
+        f'  "$schema": {text(manifest["$schema"])},\n'
+        '  "regions": [\n'
+        + ',\n'.join('    ' + region(value) for value in manifest['regions'])
+        + '\n  ],\n'
+        f'  "lists": {lists}\n'
+        '}\n'
+    )
+    with open(os.path.join(directory, MANIFEST), 'w', encoding='utf-8') as out:
+        out.write(body)

@@ -23,7 +23,7 @@ interface Props {
 }
 
 /**
- * The coordinates box under Coordinate search: the textarea and a gutter that
+ * The coordinates box under List search: the textarea and a gutter that
  * numbers its lines, flagging each line the parse drops (#838, record
  * [0265](../../../docs/architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)).
  *

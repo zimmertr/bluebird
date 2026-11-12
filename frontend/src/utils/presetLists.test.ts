@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PRESET_LISTS, presetListIn, fetchPresetList, forgetPresetLists } from './presetLists'
+import Ajv2020 from 'ajv/dist/2020'
+import { PRESET_LISTS, PRESET_REGIONS, presetListById, presetListIn, fetchPresetList, forgetPresetLists } from './presetLists'
 import { parseCustomCsv } from './customDestinations'
+import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { fakeResponse } from '../testSupport/fixtures'
+import manifest from '../coordinate-lists/lists.json'
+import schema from '../coordinate-lists/lists.schema.json'
 
 // Every list the directory holds, read as the reader's box would hold it. A
-// glob rather than one import per file, so a fifth list dropped in is checked
+// glob rather than one import per file, so a list the crawl adds is checked
 // by the same rules without an edit here.
 const csvs = import.meta.glob('../coordinate-lists/*.csv', {
   query: '?raw',
@@ -12,14 +16,15 @@ const csvs = import.meta.glob('../coordinate-lists/*.csv', {
   import: 'default',
 }) as Record<string, string>
 // Every file the directory holds, whatever its ending, globbed apart from the
-// module's own glob so the menu is checked against the directory rather than
-// against itself.
+// module's own glob so the manifest is checked against the directory rather
+// than against itself.
 const everyFile = import.meta.glob('../coordinate-lists/*', {
   query: '?raw',
   eager: true,
   import: 'default',
 }) as Record<string, string>
 const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1)
+const rowsOf = (csv: string): string[] => csv.split('\n').filter((line: string) => line.trim() !== '')
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -27,21 +32,131 @@ afterEach(() => {
   forgetPresetLists()
 })
 
-describe('PRESET_LISTS', () => {
-  // The directory is the list (record 0263): the menu offers every file in
-  // it, by its name, alphabetically.
-  it('offers every file in the directory by its name, alphabetically', () => {
-    const files = Object.keys(everyFile).map(baseName)
-    expect(files.length).toBeGreaterThan(0)
-    for (const file of files) expect(file.endsWith('.csv'), file).toBe(true)
-    const names = files
-      .map((file: string) => file.slice(0, -'.csv'.length))
-      .sort((a: string, b: string) => a.localeCompare(b))
-    expect(PRESET_LISTS.map((l) => l.name)).toEqual(names)
-    expect(Object.keys(csvs)).toHaveLength(files.length)
+describe('the manifest', () => {
+  // The schema is what the crawl skill and an editor read, so the manifest
+  // the app ships has to be one it accepts.
+  it('holds to its schema', () => {
+    const validate = new Ajv2020({ allErrors: true }).compile(schema)
+    validate(manifest)
+    expect(validate.errors ?? []).toEqual([])
   })
 
-  // The name lives in the file name, so a file carries rows and nothing else.
+  // A share link names a list by its id (#864), so two lists cannot share one.
+  it('gives every list an id of its own, and a name of its own', () => {
+    const ids = manifest.lists.map((list) => list.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    const names = manifest.lists.map((list) => list.name)
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  // The directory holds the manifest, its schema and one CSV per entry, named
+  // by the entry's id, and nothing else: a CSV with no entry would ship and
+  // never be offered, and an entry with no CSV would be offered and never load.
+  it('names exactly the CSVs the directory holds, each by its id', () => {
+    const files = Object.keys(everyFile).map(baseName).sort()
+    const expected = ['lists.json', 'lists.schema.json', ...manifest.lists.map((list) => `${list.id}.csv`)].sort()
+    expect(files).toEqual(expected)
+    for (const list of manifest.lists) expect(list.file, list.id).toBe(`${list.id}.csv`)
+  })
+
+  // The crawl writes each count and the menu shows it, so it is recomputed
+  // here: a row added or dropped by hand fails until the count follows.
+  it("states each list's row count", () => {
+    for (const list of manifest.lists) {
+      const csv = csvs[`../coordinate-lists/${list.file}`]
+      expect(rowsOf(csv), list.id).toHaveLength(list.peaks)
+    }
+  })
+
+  // No list carries more rows than one analysis takes, or a pick would fill
+  // the box with a list Analyze refuses.
+  it('holds no list longer than one analysis takes', () => {
+    for (const list of manifest.lists) expect(list.peaks, list.id).toBeLessThanOrEqual(MAX_ANALYZE_DESTINATIONS)
+  })
+
+  it('files every list under a region it names, each heading once', () => {
+    const regions = manifest.regions.map((region) => region.name)
+    expect(new Set(regions).size).toBe(regions.length)
+    for (const list of manifest.lists) expect(regions, list.id).toContain(list.region)
+  })
+
+  // The headings are user-facing strings. The ten under United States were
+  // approved as a set on 2026-11-05 (#848), and the rest with the level above
+  // them on 2026-11-11 (#892). A new one is the maintainer's to approve, and
+  // then joins this list. Each stands under the heading its arrow names.
+  it('carries the approved region headings, in the approved order, each under its parent', () => {
+    expect(manifest.regions.map((region) => (region.parent ? `${region.parent} > ${region.name}` : region.name))).toEqual([
+      'North America',
+      'North America > United States',
+      'United States > Nationwide',
+      'United States > Washington',
+      'United States > Oregon and the Cascades',
+      'United States > Northern Rockies',
+      'United States > Alaska',
+      'United States > California',
+      'United States > Colorado',
+      'United States > Southwest',
+      'United States > Northeast',
+      'United States > Southeast',
+      'North America > Canada',
+      'Europe',
+      'Europe > Britain and Ireland',
+      'Britain and Ireland > Scotland',
+      'Britain and Ireland > England',
+      'Britain and Ireland > Wales',
+      'Britain and Ireland > Ireland',
+      'Britain and Ireland > Across Britain and Ireland',
+      'Europe > Alps',
+      'Europe > Central Europe',
+      'Europe > Southern Europe',
+      'Europe > Across Europe',
+      'Asia',
+      'Australia and New Zealand',
+      'South America',
+      'Africa',
+      'Worldwide',
+    ])
+  })
+
+  // A heading opens under one named before it, so the array reads top down
+  // and no heading can stand under itself.
+  it('names every parent before the heading under it', () => {
+    const seen: string[] = []
+    for (const region of manifest.regions) {
+      if (region.parent) expect(seen, region.name).toContain(region.parent)
+      seen.push(region.name)
+    }
+  })
+})
+
+describe('PRESET_LISTS', () => {
+  it('offers every list the manifest names, in its order, each with the URL of its file', () => {
+    expect(PRESET_LISTS.map((list) => list.id)).toEqual(manifest.lists.map((list) => list.id))
+    for (const list of PRESET_LISTS) expect(list.url, list.id).toEqual(expect.any(String))
+    expect(new Set(PRESET_LISTS.map((list) => list.url)).size).toBe(PRESET_LISTS.length)
+  })
+
+  it('offers every region the manifest names, A to Z under each parent, with the places a search also matches', () => {
+    expect(PRESET_REGIONS.map((region) => region.name).sort()).toEqual(manifest.regions.map((region) => region.name).sort())
+    const top = PRESET_REGIONS.filter((region) => region.parent === null).map((region) => region.name)
+    expect(top).toEqual(['Africa', 'Asia', 'Australia and New Zealand', 'Europe', 'North America', 'South America', 'Worldwide'])
+    const states = PRESET_REGIONS.filter((region) => region.parent === 'United States').map((region) => region.name)
+    expect(states.slice(0, 3)).toEqual(['Alaska', 'California', 'Colorado'])
+    // A parent comes before every heading under it.
+    for (const [i, region] of PRESET_REGIONS.entries()) {
+      if (region.parent !== null) expect(PRESET_REGIONS.findIndex((each) => each.name === region.parent), region.name).toBeLessThan(i)
+    }
+    expect(PRESET_REGIONS.find((region) => region.name === 'Northern Rockies')?.places).toEqual([
+      'Idaho',
+      'Montana',
+      'Wyoming',
+    ])
+    expect(PRESET_REGIONS.find((region) => region.name === 'Washington')?.places).toEqual([])
+    expect(PRESET_REGIONS.find((region) => region.name === 'Washington')?.parent).toBe('United States')
+    expect(PRESET_REGIONS.find((region) => region.name === 'North America')?.parent).toBeNull()
+  })
+
+  // The name lives in the manifest, so a file carries rows and nothing else.
   it('carries no comment line in any list', () => {
     for (const [path, csv] of Object.entries(csvs)) {
       expect(csv.split('\n').filter((line: string) => line.startsWith('#')), path).toEqual([])
@@ -52,16 +167,25 @@ describe('PRESET_LISTS', () => {
   // skipped would be a peak the list promises and the analysis never sees.
   it('parses every row of every list to a place', () => {
     for (const [path, csv] of Object.entries(csvs)) {
-      const rows = csv.split('\n').filter((line: string) => line.trim() !== '')
+      const rows = rowsOf(csv)
       expect(rows.length, path).toBeGreaterThan(0)
       expect(parseCustomCsv(csv), path).toHaveLength(rows.length)
     }
   })
 })
 
+// A share link names a list by its id (`list=`, #864).
+describe('presetListById', () => {
+  it('finds each list by its id, and nothing for an id the build does not ship', () => {
+    for (const list of PRESET_LISTS) expect(presetListById(list.id)).toBe(list)
+    expect(presetListById('no-such-list')).toBeUndefined()
+    expect(presetListById('')).toBeUndefined()
+  })
+})
+
 describe('presetListIn', () => {
   // The field reads the list's name only once that list has arrived and the
-  // box is that list; a share link's restored rows are not one until then.
+  // box is that list; rows a share link spelled out are not one until then.
   it('names the list the box holds once it has arrived, a trailing newline aside', async () => {
     const list = PRESET_LISTS[0]
     expect(presetListIn('46.85,-121.76,Mount Rainier')).toBeNull()

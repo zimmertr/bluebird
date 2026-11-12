@@ -108,11 +108,41 @@ these providers.
   `frontend/tools/us-states/build.sh` and served by the pod. A work of the US
   government, and so in the public domain under 17 U.S.C. §105.
 
-- [Peakbagger.com](https://www.peakbagger.com/): the four peak lists Coordinate
-  search loads, in `frontend/src/coordinate-lists/`. Each list's membership, order
-  and coordinates come from its peakbagger.com list and peak pages; the lists
-  themselves are the Bulger group's, The Mountaineers', Jeff Smoot's
-  (*Climbing Washington's Mountains*) and the Alpine Lakes "Home Court" list's.
+- [Peakbagger.com](https://www.peakbagger.com/): the peak lists the Coordinate
+  list field loads, in `frontend/src/coordinate-lists/`. Each list's membership, order
+  and coordinates come from its peakbagger.com list and peak pages. Many of the
+  lists are a club's or an author's own: the Bulger group's, The Mountaineers',
+  Jeff Smoot's (*Climbing Washington's Mountains*), Jeff Howbert's, Craig Willis
+  and Eric Noel's, the Mazamas', Cedron Jones's (*Peakbagging Montana*), Steve
+  Gruhn's and the Mountaineering Club of Alaska's, the Sierra Club's (its Sierra
+  Peaks, Hundred Peaks and Desert Peaks sections and its San Francisco Bay, San
+  Diego and Mother Lode chapters), Stephen Porcella and Cameron Burns's
+  (*Climbing California's Fourteeners*), 14ers.com's, the Arizona Office of
+  Tourism's, the Las Vegas Mountaineers Club's, the Adirondack Forty-Sixers',
+  the Appalachian Mountain Club's, the Catskill 3500 Club's, the Over the Hill
+  Hikers', the Adirondack Mountain Club's, the Carolina Mountain Club's and the
+  Georgia Appalachian Trail Club's. The rest are peakbagger.com's own rankings
+  by elevation or prominence, or the highest point of each state, county or
+  national park. `lists.json` in that directory names each list's page there,
+  who chose its peaks and the day its rows were read.
+
+  The lists outside the United States come from peakbagger.com the same way,
+  and many of them are a club's or an author's too: Fred Beckey's, Bill
+  Corbett's, Alan Kane's, Matt Gunn's, the Alpine Club of Canada's Vancouver
+  Island Section's, the Island Mountain Ramblers', the North Shore Bagger
+  Challenge's, the Scottish Mountaineering Club's (with J. Rooke Corbett's,
+  Fiona Graham's and Percy Donald's), Alfred Wainwright's, Alan Dawson's, John
+  and Anne Nuttall's, CPRE Peak District and South Yorkshire's, *Trail*
+  magazine's, the UIAA's, the Stubai tourism board's, Marek Więckowski and
+  Wojciech Lewandowski's, Club 2000m's, Kyūya Fukada's (*Nihon Hyakumeizan*),
+  Taiwan's 100 Peaks Club's, the Snow Leopard award's, Gunung Bagging's, Bill
+  Wilkinson's, the Hobart Walking Club's, the Canberra Bushwalking Club's, the
+  New Zealand Alpine Club's, Ivan Pugh's, Frank Eastwood's, Reinhold Messner's
+  and Dick Bass's. The New Zealand 100 Peaks Challenge's membership was read
+  from its peakbagger.com page on 2026-11-11, because no archived copy holds
+  it, and UK County and Council High Points' on 2026-11-12, because the
+  archive's copy dates from 2023. The 476 peaks whose own pages have no
+  archived copy had their coordinates read from peakbagger.com the same way.
 
 ## Software
 
@@ -124,7 +154,7 @@ the build writes it from what it actually bundled and installed, and fails when
 a package has no license text to copy. Swagger UI's own `LICENSE`, `NOTICE`
 and `swagger-ui-bundle.js.LICENSE.txt` ship beside it under `/swagger-ui/`.
 
-Versions are deliberately absent here: Dependabot moves them weekly, and
+Versions are deliberately absent here: Renovate moves them most weeks, and
 licenses change close to never. The exact versions inside any release are in
 that file, and in the SBOM attestation on its image:
 

@@ -31,7 +31,7 @@ import { ALL_ANSWERED, type UnansweredMetrics } from '../utils/metricReach'
 import { DEFAULT_LIMIT, clampLimit } from '../utils/urlState'
 
 // The app's core question: "top N destinations by <metric's aggregate>, lowest
-// or highest". Five rows ask it (#498; record 0281): which metric, which of its
+// or highest". Five rows ask it (#498; record 0290): which metric, which of its
 // aggregates, which way round, how many, and which bounds to add. A bound row
 // stands only while its bound is set or the reader has just added it, so a
 // new metric adds an option to two menus rather than a row to the panel.

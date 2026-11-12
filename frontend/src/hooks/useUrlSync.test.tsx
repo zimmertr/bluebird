@@ -6,7 +6,6 @@ import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_LIMIT, DEFAULT_SORT } from '../utils/urlState'
 import { metricsFor } from '../utils/chart/chartData'
-import { DEFAULT_BASE_OPACITY } from '../utils/baseMapOpacity'
 
 const NO_TYPES: UrlSyncInputs['destinationTypes'] = []
 const NO_MODELS: UrlSyncInputs['comparedModels'] = []
@@ -30,6 +29,7 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     constraints: NO_CONSTRAINTS,
     limit: DEFAULT_LIMIT,
     customCsv: '',
+    presetList: null,
     showWildfires: false,
     showAreaClosures: false,
     showTrailClosures: false,
@@ -41,10 +41,8 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     showRelief: false,
     showSlope: false,
     showSatellite: false,
-    baseOpacity: DEFAULT_BASE_OPACITY,
     showFireActivity: false,
     showTerrain: false,
-    showPlayer: null,
     gridStyle: 'smooth',
     gridReachFrac: 0.5,
     places: NO_PLACES,
@@ -52,7 +50,6 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     removedKeys: NO_KEYS,
     tableSort: null,
     chart: DEFAULT_CHART,
-    chartLayout: null,
     restoredView: null,
     cameraHeld: false,
     ...over,
@@ -144,7 +141,7 @@ describe('useUrlSync', () => {
 })
 
 describe('the camera in the link', () => {
-  const VIEW = { lng: -121.7601, lat: 46.8529, zoom: 10.5 }
+  const VIEW = { lng: -121.7601, lat: 46.8529, zoom: 10.5, bearing: 0, pitch: 0 }
   const params = () => new URLSearchParams(window.location.search)
 
   // TJ's rule: a pan or a zoom alone makes a link.
@@ -198,7 +195,7 @@ describe('the camera in the link', () => {
   // The tutorial's marker step frames a demonstration marker. That camera is
   // the tour's, so the link keeps the reader's while the tour runs.
   it('keeps the reader\'s camera while the tutorial holds it', () => {
-    const TOUR_VIEW = { lng: -121.1, lat: 48.1, zoom: 12 }
+    const TOUR_VIEW = { lng: -121.1, lat: 48.1, zoom: 12, bearing: 0, pitch: 0 }
     const { result, rerender } = renderHook((p: UrlSyncInputs) => useUrlSync(p), { initialProps: inputs() })
     act(() => result.current.reportView(VIEW, true))
     vi.advanceTimersByTime(DEBOUNCE_MS)

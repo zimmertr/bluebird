@@ -87,6 +87,7 @@ import {
   CHART_CARD,
   CHART_GUTTER,
   MENU,
+  MENU_BROWSE,
   MENU_GROUP,
   LAYER_GRID,
   LEGEND_GRID_STYLE,
@@ -1319,7 +1320,7 @@ describe('shared recipes', () => {
   // `auto`, so the boxes are as wide as METRIC_BOX_W and nothing else, and
   // every other control spans them. A rem in the template would be a second
   // copy of that width, and two spellings of one width drift apart the moment
-  // either moves. Three columns since #498 (record 0281): the per-row
+  // either moves. Three columns since #498 (record 0290): the per-row
   // aggregate column went with the per-row menus.
   it('sizes the Metrics grid columns by their controls, not by the grid', () => {
     const template = METRICS_GRID.match(/grid-cols-\[([^\]]+)\]/)![1]
@@ -4918,7 +4919,7 @@ describe('the polygon row', () => {
     expect(destinationsSource).not.toMatch(/BUTTON_(SECONDARY|ACCENT)/)
   })
 
-  // The Coordinate search row is the same grid (#838, record 0263): the
+  // The List search row is the same grid (#838, record 0263): the
   // Coordinate list field across two cells and Clear in the third, the two the
   // same height under either pointer.
   it('stands the Coordinate list field as tall as the Clear beside it', () => {
@@ -5293,5 +5294,103 @@ describe('the light theme', () => {
     const shade = indexCss.match(/:root\[data-theme="light"\] \{\s*--scroll-shade: color-mix\(in oklab, (#[0-9a-f]{6}) (\d+)%, transparent\);/)!
     expect(shade[1]).toBe(light('ink'))
     expect(ratio(over(shade[1], Number(shade[2]) / 100, PANEL), PANEL)).toBe(1.27)
+  })
+})
+
+// The menu a reader searches and browses (#848, record 0281): the Coordinate
+// list field's. Every ink is measured on the card it stands on, in both
+// themes, and the sizes are read off the roles.
+describe('the browsing menu', () => {
+  const onCard = (ink: string) => [ratio(dark(ink), dark('floating')), ratio(light(ink), light('floating'))]
+
+  it('reads every word on the card past AA, in both themes', () => {
+    const read = [
+      MENU_BROWSE.heading,
+      MENU_BROWSE.region,
+      MENU_BROWSE.pick,
+      MENU_BROWSE.count,
+      MENU_BROWSE.description,
+      MENU_BROWSE.empty,
+      MENU_BROWSE.other,
+    ]
+    for (const recipe of read) {
+      for (const measured of onCard(token(recipe, 'text'))) expect(measured, recipe).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  // A glyph owes 3:1 (1.4.11), at rest and lit.
+  it('draws the fold, the star and the info mark past 3:1, at rest and lit', () => {
+    for (const recipe of [MENU_BROWSE.fold, MENU_BROWSE.markOff, MENU_BROWSE.markOn]) {
+      for (const measured of onCard(token(recipe, 'text'))) expect(measured, recipe).toBeGreaterThanOrEqual(3)
+    }
+    expect(MENU_BROWSE.markOff).toBe(ICON_ACTION)
+    expect(MENU_BROWSE.markOn).toBe(ACCENT.text)
+  })
+
+  // Two colour utilities on one element resolve by stylesheet order, so the
+  // mark's shape names no colour and each state brings exactly one.
+  it('colours a mark through one state role, never through its shape', () => {
+    expect(() => token(MENU_BROWSE.mark, 'text')).toThrow()
+    expect(token(MENU_BROWSE.markOff, 'text')).toBe('ink-faint')
+    expect(token(MENU_BROWSE.markOn, 'text')).toBe('accent-ink')
+  })
+
+  // A count stands inside a row that is pressed, so it keeps the 12px floor
+  // (record 0131).
+  it('sets nothing a press lands on under the control size', () => {
+    for (const recipe of [MENU_BROWSE.region, MENU_BROWSE.pick, MENU_BROWSE.count, MENU_BROWSE.other]) {
+      expect(sizes(recipe), recipe).toEqual(sizes(TEXT.control))
+    }
+    expect(MENU_BROWSE.count).toMatch(/\btabular-nums\b/)
+  })
+
+  // The sentence under a row's name is one role in every menu (record 0283):
+  // italic at the 11px step in the caption's soft ink, so a model's summary
+  // and a list's description read alike and neither reads as a second name.
+  // Each menu's row role starts from it, and neither sets the sentence in a
+  // weight of its own. 11px is the floor for a line that is read and never
+  // pressed (record 0131), and the soft ink is measured on the card it
+  // stands on in both themes.
+  it('sets a row\'s sentence in the one italic every menu shares', () => {
+    expect(MENU.description.split(' ').sort()).toEqual([MICRO_SIZE, 'italic', 'text-ink-soft'].sort())
+    expect(MODEL_ROW.description).toBe(MENU.description)
+    expect(MENU_BROWSE.description.startsWith(`${MENU.description} `)).toBe(true)
+    for (const recipe of [MODEL_ROW.description, MENU_BROWSE.description]) {
+      expect(recipe, recipe).not.toMatch(/(^|\s)font-(medium|semibold|bold)(\s|$)/)
+      expect(sizes(recipe), recipe).toEqual([MICRO_SIZE])
+    }
+    expect(ratio(dark(token(MENU.description, 'text')), dark('floating'))).toBe(5.56)
+    expect(ratio(light(token(MENU.description, 'text')), light('floating'))).toBe(8.91)
+  })
+
+  // The search box is the panel's field at the Coordinate list field's own
+  // inset, so the two stand the same height: 28px at a desk, 32 on touch.
+  it('stands the search box as tall as the field that opened it', () => {
+    expect(MENU_BROWSE.input.startsWith(`${FIELD} `)).toBe(true)
+    const inset = (recipe: string) => recipe.match(/(?:^|\s)py-\[(\d+)px\]/)![1]
+    expect(inset(MENU_BROWSE.input)).toBe(inset(DRAW_ROW.field))
+  })
+
+  // A description starts under its row's name: past the star's glyph and the
+  // 4px the mark keeps on each side of it.
+  it('sets a description in under the name, clear of the star', () => {
+    const star = stepPx(ICON.inline, 'w') + 2 * stepPx(MENU_BROWSE.mark, 'px')
+    expect(star).toBe(22)
+    expect(MENU_BROWSE.description).toMatch(new RegExp(`(^|\\s)pl-\\[${star}px\\](\\s|$)`))
+    expect(MENU_BROWSE.description).toMatch(/\bwhitespace-normal\b/)
+  })
+
+  // Beside the name a star and an info button are two more targets, so each
+  // takes a phone control's 32px rather than a lone button's 44 (record 0223).
+  it('gives each mark 32px under a finger, as tall as its row', () => {
+    expect(MENU_BROWSE.mark).toMatch(/(^|\s)touch:min-w-8(\s|$)/)
+    expect(MENU_BROWSE.mark).toMatch(/(^|\s)self-stretch(\s|$)/)
+    expect(MENU_BROWSE.row.startsWith(`${TAP.row} `)).toBe(true)
+  })
+
+  it('heads the starred rows and a search\'s matches with the menu\'s own heading, and sets the other row as an option', () => {
+    expect(MENU_BROWSE.heading.startsWith(`${MENU.heading} `)).toBe(true)
+    expect(MENU_BROWSE.other.startsWith(`${MENU.option} `)).toBe(true)
+    expect(MENU_BROWSE.region).toMatch(/\bfont-semibold\b/)
   })
 })

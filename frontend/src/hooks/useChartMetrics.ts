@@ -10,6 +10,7 @@ import {
   moveMetric, removeMetric,
 } from '../utils/chart/chartData'
 import type { ChartLayout } from '../utils/chart/chartLayout'
+import { writeViewPrefs } from '../utils/viewPrefs'
 
 /**
  * The chart's metric slots (#499): one to four families, each its own panel,
@@ -23,13 +24,20 @@ import type { ChartLayout } from '../utils/chart/chartLayout'
  * `restored` is a link's list, which the session opens on. The first slot
  * follows each NEW ranking after that; the ranking the session opened on is
  * not new, so a link's first slot is not clobbered by the mount.
+ *
+ * `storedLayout` is the arrangement this browser kept. It is a habit of the
+ * browser's and never a link's (#864): a phone always stacks the panels, and
+ * column choice and order, the same kind of setting, already live there.
  */
-export function useChartMetrics(restored: ChartMetrics | undefined, sortBy: SortBy, restoredLayout?: ChartLayout) {
+export function useChartMetrics(restored: ChartMetrics | undefined, sortBy: SortBy, storedLayout: ChartLayout | null) {
   const [metrics, setMetrics] = useState<ChartMetrics>(() => restored ?? metricsFor(sortBy))
   // The arrangement the reader picked from the Panel layout menu, or null for
   // the panel count's own (#499). Kept while panels come and go, and drawn
   // whenever the count offers it (`layoutFor`).
-  const [layout, setLayout] = useState<ChartLayout | null>(restoredLayout ?? null)
+  const [layout, setLayout] = useState<ChartLayout | null>(storedLayout)
+  useEffect(() => {
+    writeViewPrefs({ chartLayout: layout })
+  }, [layout])
 
   // The first slot follows each new ranking; a same-ranking refresh leaves a
   // manually chosen metric alone (the dep is the value, not the report). Held

@@ -67,6 +67,7 @@ function state(over: Partial<State> = {}): State {
     closureCheckFailed: false,
     basemapFailed: false,
     presetListFailed: false,
+    listTooLong: false,
     archiveDays: 365,
     aqiForecastDays: 5,
     windowLimits: FALLBACK_WINDOW_LIMITS,

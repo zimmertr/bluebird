@@ -1,6 +1,6 @@
 # 0184. The planet fill runs as a weekly CronJob from an image of its own, which every release builds, pushes and scans beside the app's
 
-- Status: Accepted
+- Status: Accepted. Amended by [0289](0289-planet-fill-image-is-amd64-only.md) (the image is built for amd64 alone)
 - Date: 2026-10-18
 - Decider: the maintainer (TJ), on issue #760, 2026-10-18: the first fill from the planet file in a Kubernetes job with a temporary 120 GB scratch volume deleted after, the app's own rules imported rather than copied, and CI run with the database off, the database code tested in a job that runs in parallel. A weekly check rather than a daily one is the maintainer's too (2026-10-18), because every check creates and deletes the 120Gi scratch volume and only a release that changes the rules needs a refill. The image, the CronJob's settings, the scratch StorageClass and the CI and release jobs are Claude's, building #760, for the maintainer's review on the pull request.
 - Issues and PRs: #760

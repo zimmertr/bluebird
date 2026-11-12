@@ -93,8 +93,8 @@ jobs:
       # The locks are pip-compile's output for the .in files (#633): every
       # package pinned and hashed, and the dev lock held to the runtime one by
       # its `-c requirements.txt`. Recompiling keeps every pin already locked,
-      # so a diff means an .in file moved without its lock. Dependabot's own
-      # recompiles come out the same (record 0279).
+      # so a diff means an .in file moved without its lock. Renovate's own
+      # recompiles come out the same (record 0284).
       - name: The Python locks match their .in files
         run: make lock-backend
       - run: git diff --exit-code backend/requirements.txt backend/requirements-dev.txt
@@ -246,7 +246,7 @@ jobs:
     # name, then the module's); renaming either strands PRs on a phantom
     # "Expected" check that never reports.
     name: Docker Build
-    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@667ac9372b2be9ed09b67c2da14f6fbd93e2b1b3 # v1.0.0
+    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@5e0beadd180895403b884af94c1fca0d613e32e7 # v1.2.8
     permissions:
       contents: read
       pull-requests: write # the sticky scan comment

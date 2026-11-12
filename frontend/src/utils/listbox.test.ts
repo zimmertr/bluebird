@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MENU_FLOOR_PX, nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox } from './listbox'
+import { MENU_FLOOR_PX, matchesSearch, nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox } from './listbox'
 
 const VIEWPORT = { width: 1400, height: 900 }
 // Most cases pass a content height and width explicitly; this is the shared
@@ -273,5 +273,28 @@ describe('nextToolbarIndex', () => {
 
   it('handles an empty row', () => {
     expect(nextToolbarIndex(0, 'ArrowRight', 0)).toBeNull()
+  })
+})
+
+// What the Coordinate list menu's search box finds a row by (#848).
+describe('matchesSearch', () => {
+  const ROW = 'Wyoming 13ers Northern Rockies Idaho Montana Wyoming'
+
+  it('finds every row on an empty search', () => {
+    expect(matchesSearch(ROW, '')).toBe(true)
+    expect(matchesSearch(ROW, '   ')).toBe(true)
+  })
+
+  it('finds a row by part of a word, whatever the case', () => {
+    expect(matchesSearch(ROW, 'wyo')).toBe(true)
+    expect(matchesSearch(ROW, 'ROCKIES')).toBe(true)
+    expect(matchesSearch(ROW, 'colorado')).toBe(false)
+  })
+
+  // Words, not the phrase: each is looked for on its own.
+  it('wants every word typed, in any order', () => {
+    expect(matchesSearch(ROW, '13ers wyoming')).toBe(true)
+    expect(matchesSearch(ROW, 'montana  13')).toBe(true)
+    expect(matchesSearch(ROW, 'wyoming 14ers')).toBe(false)
   })
 })

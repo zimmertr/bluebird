@@ -2,11 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FAMILY_KEYS } from '../metrics'
 import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
 import {
+  STARRED_LISTS_KEY,
   THEME_KEY,
   hasWelcomed,
+  readStarredLists,
   readTheme,
   readViewPrefs,
   setWelcomed,
+  writeStarredLists,
   writeTheme,
   writeViewPrefs,
 } from './viewPrefs'
@@ -54,7 +57,41 @@ describe('reading the stored view', () => {
       modelColumn: null,
       columnOrder: null,
       legendOpen: null,
+      chartLayout: null,
+      showPlayer: null,
+      baseOpacity: null,
     })
+  })
+
+  // The three habits that left the share link (#864). Each is re-checked on
+  // the way out, since the stored object is whatever some build or some hand
+  // left there.
+  it('returns the chart layout, the player switch and the opacity levels a reader left', () => {
+    withStored({ chartLayout: '2x2', showPlayer: false, baseOpacity: { satellite: 80, topo: 30, relief: 100, slope: 0 } })
+    const prefs = readViewPrefs()
+    expect(prefs.chartLayout).toBe('2x2')
+    expect(prefs.showPlayer).toBe(false)
+    expect(prefs.baseOpacity).toEqual({ satellite: 80, topo: 30, relief: 100, slope: 0 })
+  })
+
+  it('takes a known layout and a boolean player and nothing else', () => {
+    withStored({ chartLayout: '3x3', showPlayer: 'yes' })
+    expect(readViewPrefs().chartLayout).toBeNull()
+    expect(readViewPrefs().showPlayer).toBeNull()
+    withStored({ chartLayout: 7, showPlayer: 1 })
+    expect(readViewPrefs().chartLayout).toBeNull()
+    expect(readViewPrefs().showPlayer).toBeNull()
+  })
+
+  it('holds each stored level to a whole percent, and reads a missing one as the default', () => {
+    withStored({ baseOpacity: { satellite: 250, topo: -5, relief: 62.4, slope: 'faint', hillshade: 10 } })
+    expect(readViewPrefs().baseOpacity).toEqual({ satellite: 100, topo: 0, relief: 62, slope: 50 })
+    withStored({ baseOpacity: { slope: 70 } })
+    expect(readViewPrefs().baseOpacity).toEqual({ satellite: 50, topo: 50, relief: 50, slope: 70 })
+    withStored({ baseOpacity: 'faint' })
+    expect(readViewPrefs().baseOpacity).toBeNull()
+    withStored({ baseOpacity: null })
+    expect(readViewPrefs().baseOpacity).toBeNull()
   })
 
   it('returns what an explicit press stored', () => {
@@ -215,6 +252,23 @@ describe('writing a preference', () => {
     expect(readViewPrefs().legendOpen).toBeNull()
   })
 
+  // #864: the chart's panel layout, the forecast player's switch and the four
+  // base-map opacity levels, which a share link used to carry.
+  it('stores the chart layout, the player switch and the opacity levels beside the rest', () => {
+    const storage = withStored({ modeChosen: 'both' })
+    writeViewPrefs({ chartLayout: '1-2-1', showPlayer: true })
+    writeViewPrefs({ baseOpacity: { satellite: 80, topo: 50, relief: 50, slope: 0 } })
+    expect(stored(storage)).toEqual({
+      modeChosen: 'both',
+      chartLayout: '1-2-1',
+      showPlayer: true,
+      baseOpacity: { satellite: 80, topo: 50, relief: 50, slope: 0 },
+    })
+    // Null is no answer, and is dropped like every other preference's.
+    writeViewPrefs({ chartLayout: null, showPlayer: null, baseOpacity: null })
+    expect(stored(storage)).toEqual({ modeChosen: 'both' })
+  })
+
   it('drops a null rather than storing one, so the report still decides', () => {
     const storage = withStored({ modelColumn: true, columnOrder: ['name'] })
     writeViewPrefs({ modelColumn: null, columnOrder: null })
@@ -252,6 +306,9 @@ describe('writing a preference', () => {
       modelColumn: false,
       columnOrder: ['type', 'name'],
       legendOpen: null,
+      chartLayout: null,
+      showPlayer: null,
+      baseOpacity: null,
     })
   })
 })
@@ -289,6 +346,9 @@ describe('a storage that will not answer', () => {
       modelColumn: null,
       columnOrder: null,
       legendOpen: null,
+      chartLayout: null,
+      showPlayer: null,
+      baseOpacity: null,
     })
     expect(hasWelcomed()).toBe(false)
     expect(() => writeViewPrefs({ modeChosen: 'both' })).not.toThrow()
@@ -323,6 +383,9 @@ describe('a storage that will not answer', () => {
         modelColumn: null,
         columnOrder: null,
         legendOpen: null,
+        chartLayout: null,
+        showPlayer: null,
+        baseOpacity: null,
       })
       expect(() => writeViewPrefs({ modeChosen: 'both' })).not.toThrow()
       expect(() => setWelcomed()).not.toThrow()
@@ -383,5 +446,60 @@ describe('the theme (#706)', () => {
     })
     expect(readTheme()).toBe('dark')
     expect(() => writeTheme('dark')).not.toThrow()
+  })
+})
+
+describe('the starred coordinate lists (#848)', () => {
+  it('keeps them under a key of their own', () => {
+    expect(STARRED_LISTS_KEY).toBe('bluebird_forecast_starred_lists')
+  })
+
+  it('reads none when nothing is stored', () => {
+    vi.stubGlobal('localStorage', fakeStorage())
+    expect(readStarredLists()).toEqual([])
+  })
+
+  it('reads the ids in the order they were starred', () => {
+    vi.stubGlobal('localStorage', fakeStorage({ [STARRED_LISTS_KEY]: '["wy-13ers","wa-bulger-list"]' }))
+    expect(readStarredLists()).toEqual(['wy-13ers', 'wa-bulger-list'])
+  })
+
+  // A value no build wrote: not JSON, not a list, or a list holding something
+  // that is no id.
+  it('reads none, or only the ids, from a value no build wrote', () => {
+    vi.stubGlobal('localStorage', fakeStorage({ [STARRED_LISTS_KEY]: 'not json' }))
+    expect(readStarredLists()).toEqual([])
+    vi.stubGlobal('localStorage', fakeStorage({ [STARRED_LISTS_KEY]: '{"a":1}' }))
+    expect(readStarredLists()).toEqual([])
+    vi.stubGlobal('localStorage', fakeStorage({ [STARRED_LISTS_KEY]: '["wa-bulger-list",7,null]' }))
+    expect(readStarredLists()).toEqual(['wa-bulger-list'])
+  })
+
+  it('stores the ids and forgets the key when none is left, leaving the view object alone', () => {
+    const storage = withStored({ legendOpen: true })
+    writeStarredLists(['wa-bulger-list', 'wy-13ers'])
+    expect(JSON.parse(storage.getItem(STARRED_LISTS_KEY)!)).toEqual(['wa-bulger-list', 'wy-13ers'])
+    writeStarredLists([])
+    expect(storage.getItem(STARRED_LISTS_KEY)).toBeNull()
+    expect(stored(storage)).toEqual({ legendOpen: true })
+  })
+
+  it('answers none and does not throw when there is no storage, or it refuses', () => {
+    vi.stubGlobal('localStorage', undefined)
+    expect(readStarredLists()).toEqual([])
+    expect(() => writeStarredLists(['wa-bulger-list'])).not.toThrow()
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('denied')
+      },
+      setItem: () => {
+        throw new Error('denied')
+      },
+      removeItem: () => {
+        throw new Error('denied')
+      },
+    })
+    expect(readStarredLists()).toEqual([])
+    expect(() => writeStarredLists([])).not.toThrow()
   })
 })

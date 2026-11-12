@@ -26,8 +26,7 @@ import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
 import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
-import { defaultLayout, isChartLayout, layoutFor } from './chart/chartLayout'
-import { type BaseLayer, DEFAULT_BASE_OPACITY, OPACITY_DEFAULT, clampOpacity } from './baseMapOpacity'
+import { presetListById } from './presetLists'
 
 /**
  * One query parameter.
@@ -157,9 +156,9 @@ export function hasPolygon(state: ShareableState): boolean {
   return state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
 }
 
-/** Whether the state holds a pasted CSV worth writing. */
+/** Whether the state holds a list worth writing: rows in the box, or a ready-made list a link named. */
 export function hasCustomCsv(state: ShareableState): boolean {
-  return state.customCsv.trim() !== ''
+  return state.customCsv.trim() !== '' || state.presetList !== null
 }
 
 // Encode a polygon's ring as "lng,lat;lng,lat;..." matching GeoJSON [lng,lat]
@@ -303,27 +302,13 @@ function flag(
   }
 }
 
-// A base-map row's opacity (record 0250): the layer's link flag and the word,
-// `slopeopacity=70`, a whole percent. Written only while its row is on AND the
-// level is not the default, so a link stays as short as what was changed and
-// cannot carry a level for a layer it leaves off. Read only beside its flag,
-// which is why each row sits under it, and held to 0 to 100 rather than
-// trusted, since the param is hand-editable. An empty value is no level.
-function opacityRow(
-  layer: BaseLayer,
-  field: 'showContours' | 'showRelief' | 'showSlope' | 'showSatellite',
-): ParamCodec {
-  return {
-    key: `${layer}opacity`,
-    encode: (state) =>
-      state[field] && state.baseOpacity[layer] !== OPACITY_DEFAULT ? String(state.baseOpacity[layer]) : null,
-    decode: (raw, out) => {
-      if (out[field] !== true || raw.trim() === '') return
-      const level = Number(raw)
-      if (!Number.isFinite(level)) return
-      out.baseOpacity = { ...DEFAULT_BASE_OPACITY, ...out.baseOpacity, [layer]: clampOpacity(level) }
-    },
-  }
+/**
+ * The param that carries a family's aggregate: the family's name with no
+ * underscore, so `cloud_deck` writes `clouddeck` beside its own bounds,
+ * `minclouddeck` and `maxclouddeck`. No link key carries an underscore (#864).
+ */
+export function aggregateParam(family: MetricFamily): string {
+  return family.replace(/_/g, '')
 }
 
 // An aggregate dropdown (#291): one param per metric family, valued by the
@@ -336,7 +321,7 @@ function opacityRow(
 // hand-edited link. That is why `sort` sits above these rows.
 function aggregateRow(family: MetricFamily): ParamCodec {
   return {
-    key: family,
+    key: aggregateParam(family),
     encode: (state) => {
       if (family === familyOf(state.sortBy)) return null
       const key = state.rowKeys[family]
@@ -396,6 +381,31 @@ function removedPair(key: string): string {
  * already compresses to 20,943 characters (measured the same day).
  */
 export const MAX_CUSTOMZ_CHARS = 16_384
+
+// The last pasted list compressed, kept because two readers ask for the same
+// text in one render: the row that writes it and the message that says it is
+// too long. A list near the cap is about 16 KiB of text to compress, which is
+// not worth doing twice a keystroke.
+let compressed: { text: string; value: string } | null = null
+function compressCsv(text: string): string {
+  if (compressed?.text !== text) compressed = { text, value: compressToEncodedURIComponent(text) }
+  return compressed.value
+}
+
+/**
+ * Whether the pasted list is too long for a link to carry (#864): its
+ * compressed text passes `MAX_CUSTOMZ_CHARS`, which the reader of a link
+ * refuses. The writer leaves such a list out rather than write a link its own
+ * reload would drop, and the panel says so. A ready-made list is never too
+ * long, since the link names it (`list`).
+ */
+export function customCsvTooLong(state: Pick<ShareableState, 'customCsv' | 'presetList'>): boolean {
+  return (
+    state.presetList === null &&
+    state.customCsv.trim() !== '' &&
+    compressCsv(state.customCsv).length > MAX_CUSTOMZ_CHARS
+  )
+}
 
 /**
  * Characters one row of the pasted list may take once inflated: the 255 the
@@ -520,19 +530,6 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (unique.length > 0) out.chart = unique.slice(0, MAX_CHART_PANELS)
     },
   },
-  // How a desk arranges the chart's panels (#499): `layout=row`, `column`,
-  // `2x2`, `2-1`, `1-2`, `1-3` or `1-2-1`. Written only when it is not the
-  // panel count's own; an unknown value parses to nothing.
-  {
-    key: 'layout',
-    encode: (state) =>
-      state.chartLayout !== null && layoutFor(state.chartLayout, state.chart.length) !== defaultLayout(state.chart.length)
-        ? state.chartLayout
-        : null,
-    decode: (raw, out) => {
-      if (isChartLayout(raw)) out.chartLayout = raw
-    },
-  },
   // The window's five keys are read together by `decodeSelection`, because
   // what `h1` means depends on `mode` and `d1`.
   //
@@ -625,10 +622,16 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   // as a space, which decompressFromEncodedURIComponent turns back into `+`
   // before it decodes. Read through the ordinary unescape, so a link written
   // with `%2B` opens the same.
+  //
+  // Left out while the box holds a ready-made list, which `list` below names
+  // instead, and while the compressed text is over the cap the reader above
+  // holds it to (#864): the app writes no link that drops its own list on a
+  // reload, and the panel says the list is too long (`customCsvTooLong`).
   {
     key: 'customz',
     escaped: true,
-    encode: (state) => (hasCustomCsv(state) ? compressToEncodedURIComponent(state.customCsv) : null),
+    encode: (state) =>
+      state.presetList === null && hasCustomCsv(state) && !customCsvTooLong(state) ? compressCsv(state.customCsv) : null,
     decode: (raw, out, { maxDestinations }, drop) => {
       if (!raw) return
       const text = unescapeQueryText(raw)
@@ -639,20 +642,34 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       out.customCsv = decoded
     },
   },
-  flag('fires', 'showWildfires'),
+  // A ready-made list by name (#864): `list=wa-bulger-list`, the list's `id`
+  // in `coordinate-lists/lists.json`, a slug that never changes once shipped.
+  // Written in place of `customz` while the box holds exactly that list's
+  // rows, which is about twenty readable bytes where the rows compressed to
+  // 2.5 KB. An edit to the box makes the rows the reader's own, and `customz`
+  // carries them again. The row only names the list: the page fetches its
+  // rows after it opens (`useLinkedList`). An id this build does not ship is
+  // a list the link carried and lost, said like a `customz` that could not be
+  // read. A link that carries both keeps the rows it spelled out.
+  {
+    key: 'list',
+    encode: (state) => state.presetList,
+    decode: (raw, out, _limits, drop) => {
+      if (!raw || out.customCsv !== undefined) return
+      if (presetListById(raw)) out.presetList = raw
+      else drop('list')
+    },
+  },
+  flag('wildfires', 'showWildfires'),
   flag('closedareas', 'showAreaClosures'),
   flag('closedtrails', 'showTrailClosures'),
   flag('radar', 'showRadar'),
   flag('smoke', 'showSmoke'),
-  flag('snow', 'showSnow'),
+  flag('snowdepth', 'showSnow'),
   flag('topo', 'showContours'),
-  opacityRow('topo', 'showContours'),
   flag('relief', 'showRelief'),
-  opacityRow('relief', 'showRelief'),
   flag('slope', 'showSlope'),
-  opacityRow('slope', 'showSlope'),
   flag('satellite', 'showSatellite'),
-  opacityRow('satellite', 'showSatellite'),
   flag('terrain', 'showTerrain'),
   flag('fireactivity', 'showFireActivity'),
   // The value names the style rather than being a bare `1`, which keeps the
@@ -683,21 +700,6 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (out.gridStyle === undefined) return
       const reach = Number(raw)
       if (Number.isFinite(reach)) out.gridReachFrac = clamp(reach, 0, 100) / 100
-    },
-  },
-  // Written only once the reader has touched the switch, and then in both
-  // directions: the default is the device's, so `player=0` says "off even at a
-  // desktop width" as meaningfully as `player=1` says "on even on a phone". A
-  // link that left the default out is the link that keeps meaning what it said
-  // when the default moves. Both values are read, and anything else is left to
-  // the device default: the param exists to carry a decision, so no value is
-  // not a decision.
-  {
-    key: 'player',
-    encode: (state) => (state.showPlayer === null ? null : state.showPlayer ? '1' : '0'),
-    decode: (raw, out) => {
-      if (raw === '1') out.showPlayer = true
-      if (raw === '0') out.showPlayer = false
     },
   },
   flag('unnamed', 'includeUnnamedPeaks'),
@@ -776,7 +778,7 @@ export const FIELD_PARAMS = {
   compareModels: ['compare'],
   sortBy: ['sort'],
   sortDesc: ['desc'],
-  rowKeys: ['sort', ...RANKED_FAMILIES],
+  rowKeys: ['sort', ...RANKED_FAMILIES.map(aggregateParam)],
   constraints: [
     'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',
     'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minaqi', 'maxaqi',
@@ -784,29 +786,27 @@ export const FIELD_PARAMS = {
   ],
   limit: ['limit'],
   customCsv: ['customz'],
-  showWildfires: ['fires'],
+  presetList: ['list'],
+  showWildfires: ['wildfires'],
   showAreaClosures: ['closedareas'],
   showTrailClosures: ['closedtrails'],
   showRadar: ['radar'],
   showSmoke: ['smoke'],
-  showSnow: ['snow'],
+  showSnow: ['snowdepth'],
   showContours: ['topo'],
   showRelief: ['relief'],
   showSlope: ['slope'],
   showSatellite: ['satellite'],
-  baseOpacity: ['topoopacity', 'reliefopacity', 'slopeopacity', 'satelliteopacity'],
   showTerrain: ['terrain'],
   showFireActivity: ['fireactivity'],
   showGrid: ['grid'],
   // The style rides the toggle's own param rather than one of its own.
   gridStyle: ['grid'],
-  showPlayer: ['player'],
   gridReachFrac: ['reach'],
   pins: ['pins'],
   removed: ['removed'],
   tableSort: ['tsort', 'tdesc'],
   chart: ['chart'],
-  chartLayout: ['layout'],
   view: ['view'],
 } satisfies Record<keyof ShareableState, readonly [string, ...string[]]>
 

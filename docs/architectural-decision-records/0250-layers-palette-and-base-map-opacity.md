@@ -1,6 +1,6 @@
 # 0250. The Layers menu carries an opacity slider on the four Base map rows, and the imagery draws over the ground
 
-- Status: Accepted. Amends 0242 (the imagery draws over Liberty's ground at a level, rather than under it with the ground faded out) and 0249 (the groups stand; the four Base map rows carry a slider).
+- Status: Accepted. Amends 0242 (the imagery draws over Liberty's ground at a level, rather than under it with the ground faded out) and 0249 (the groups stand; the four Base map rows carry a slider). Amended by [0285](0285-link-carries-no-browser-habit.md) (the levels are kept in the browser, not the link).
 - Date: 2026-10-29
 - Decider: the maintainer (TJ), on #799, 2026-10-29: an opacity control on Satellite, Topographic, Shaded relief and Slope angle, 0 to 100, default 50, with Satellite drawn over the map so the map shows through as the level falls, and option 6 of the opacity lab, the layers palette, with no slider on the Hazards and Forecast rows and the phone sheet stepping aside while a slider is dragged. That labels, trails, roads and the markers stay over every base-map layer, and only the ground goes under the blend, he confirmed. The link's grammar, how the relief and the contours read a level, the buildings, the slider's width, its look while off and the eye's off ink were the implementer's, for review on the pull request.
 - Issues and PRs: #799, #823

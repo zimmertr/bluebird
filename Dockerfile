@@ -12,7 +12,7 @@
 # Both base images are pinned by digest as well as tag: the tag says which
 # runtime this is (test_node_version.py reads the Node major off it), and the
 # digest says which build of it, so a rebuild cannot pull a different image
-# than the one last reviewed. Dependabot moves both, and opens a PR when the
+# than the one last reviewed. Renovate moves both, and opens a PR when the
 # image under an unchanged tag is rebuilt.
 FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS frontend-builder
 WORKDIR /app/frontend
@@ -52,7 +52,7 @@ WORKDIR /app
 COPY backend/requirements.txt ./
 # Upgrade pip first: the version bundled with the base image trails pip's own
 # security fixes (e.g. CVE-2025-8869 tar link-following), and scanners flag it.
-# Deliberately unpinned (DL3013): a pin here would sit outside Dependabot's
+# Deliberately unpinned (DL3013): a pin here would sit outside Renovate's
 # view and go stale; floating rides each rebuild to the current fix.
 # hadolint ignore=DL3042,DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -106,11 +106,11 @@ ENV APP_VERSION=${APP_VERSION} \
     APP_BUILT_AT=${APP_BUILT_AT}
 # Alpine fixes a package days to weeks before the python base image rebuilds
 # carrying it, so the base tag can ship a package Alpine 3.24 has already
-# fixed. That gap has no Dependabot remedy: Dependabot moves the base when the
+# fixed. That gap has no Renovate remedy: Renovate moves the base when the
 # image is rebuilt, and twice now the newest image was already pinned while the
 # packages under it were not (7 fixable HIGH util-linux CVEs, 2026-09; zlib
 # CVE-2026-85091, 2026-10). Upgrading beats pinning the one package, for the
-# reason the pip upgrade above is written on: a pin sits outside Dependabot's
+# reason the pip upgrade above is written on: a pin sits outside Renovate's
 # view and goes stale.
 #
 # It sits after the build ARGs on purpose. BuildKit keys a RUN on every ARG in

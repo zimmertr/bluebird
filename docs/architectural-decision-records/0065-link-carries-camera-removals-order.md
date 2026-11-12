@@ -1,6 +1,6 @@
 # 0065. The share link carries the map camera, the removed rows and the table's header sort
 
-- Status: Accepted
+- Status: Accepted. Amended by [0285](0285-link-carries-no-browser-habit.md) (the camera carries its bearing and pitch)
 - Date: 2026-08-22, confirmed with the key names on 2026-09-24
 - Decider: TJ
 - Issues and PRs: #292

@@ -1,4 +1,4 @@
-# 0281. The Metrics section ranks from a menu, and a bound row stands only while it is set or just added
+# 0290. The Metrics section ranks from a menu, and a bound row stands only while it is set or just added
 
 - Status: Accepted. Amends 0038 (the section still reads in two blocks, but the bounds are no longer a row for every metric, and Clear filters is no longer always drawn) and 0130 (the pitch its margin bought is not needed once the radio label goes).
 - Date: 2026-10-28
@@ -19,7 +19,7 @@ The Metrics section drew a row for every ranked metric, each with a radio, an ag
 - **A bound row stands while its metric has a floor or a ceiling, or while it is the one the adder last picked**, in `RANKED_FAMILIES` order, with the Min and Max headings over the first. Picking in Bound puts the keyboard in that row's Min box; the menu offers only metrics not already shown. An empty added row leaves when the keyboard leaves it, when another metric is added, or on Clear filters, never under a reader mid-edit. A share link opens with a row for each bound it carries.
 - **Clear filters is drawn only when something is set**, a bound or a changed Max results, and clears every bound, the cap and the added row. This reverses #341's always-drawn button: here the rows above it move anyway.
 - **The grid is label, Min box and Max box.** The three menus, the segment, the cap and Clear filters span the two box columns, which is `CONTROL_W` by construction. `SELECT_W_AGGREGATE` goes with the per-row menus.
-- **Every menu here is `MenuSelect`**: its card at a desk (record 0201) and its bottom sheet on a phone (record 0252). `MenuSelect` takes a `null` value under the `placeholder` it has had since #838, and options that carry `disabled`. `Add a bound` reads in the field's own ink, as the Coordinate list field's placeholder does.
+- **Every menu here is `MenuSelect`**: its card at a desk (record 0201) and its bottom sheet on a phone (record 0252). `MenuSelect` takes a `null` value under a `placeholder`, and options that carry `disabled`. #838 gave it that placeholder for the Coordinate list field, and #848 took it out when the field moved to `MenuBrowse`; the Bound adder brings it back. `Add a bound` reads in the field's own ink, as the Coordinate list field's placeholder does.
 - **From #803** (record 0236): a metric the window or models cannot answer is a disabled option in Metric and Bound, its bound row greys with its values kept, and an inverted pair keeps `aria-invalid`.
 
 ## Evidence

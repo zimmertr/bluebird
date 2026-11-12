@@ -207,9 +207,11 @@ test('the 3D button stands the map up and lays it flat, and the link carries it'
   await expect(compass).toBeDisabled()
 })
 
-// A link that carries `terrain=1` opens in 3D, tilted, with the button lit.
-test('a link carrying terrain opens tilted, with the button pressed', async ({ page }) => {
-  await page.goto('/?view=-121.76,46.853,11&terrain=1')
+// A link that carries `terrain=1` and names no camera opens in 3D, tilted,
+// with the button lit. One that names a camera opens at that camera's pitch,
+// flat included (`shareLink.spec.ts`, #864).
+test('a link carrying terrain and no camera opens tilted, with the button pressed', async ({ page }) => {
+  await page.goto('/?terrain=1')
   await expect(page.getByRole('button', { name: '3D terrain' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('.maplibregl-ctrl-compass')).toBeEnabled()
 })

@@ -10,10 +10,12 @@ NODE_IMAGE := node:$(shell cat .node-version)-alpine
 PYTHON_IMAGE := python:3.15-slim
 # Pinned because ruff's default rule set changes between releases.
 RUFF_VERSION := 0.16.0
-# The pip-compile Dependabot runs, so a lock written here and one Dependabot
-# rewrites come out the same. 7.5 breaks on pip 26, hence the older pip beside it.
-PIP_TOOLS_VERSION := 7.5.3
-# Read off @playwright/test in frontend/e2e/package.json, so a Dependabot bump
+# The pip-compile Renovate runs (`constraints.pipTools` in
+# .github/renovate.json), so a lock written here and one Renovate rewrites come
+# out the same. Move the two together. 7.5 wrote --no-index into each lock's
+# header, which Renovate refuses to read.
+PIP_TOOLS_VERSION := 7.6.2
+# Read off @playwright/test in frontend/e2e/package.json, so a Renovate bump
 # moves the image too: each release pins its own Chromium build, and the image
 # carries the build for its own version. sed rather than node or jq, which a
 # Mac running these targets may not have.
@@ -81,7 +83,7 @@ lint-backend:
 # platform that installs the lock. pip-compile keeps every pin it already has
 # unless asked; add --upgrade-package NAME to move one.
 lock-backend:
-	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend python:3.15-alpine sh -c "pip install --root-user-action=ignore 'pip<26' pip-tools==$(PIP_TOOLS_VERSION) && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements.txt requirements.in && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-dev.txt requirements-dev.in"
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend python:3.15-alpine sh -c "pip install --root-user-action=ignore pip-tools==$(PIP_TOOLS_VERSION) && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements.txt requirements.in && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-dev.txt requirements-dev.in"
 
 # Not checks: each prints line and branch coverage per module and writes an
 # HTML report (frontend/coverage/, backend/htmlcov/). No floor, on purpose: a

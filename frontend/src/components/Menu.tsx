@@ -1,11 +1,11 @@
 import { Fragment, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import type { PopoverBox } from '../utils/listbox'
-import { nextActiveIndex, optionDomId } from '../utils/listbox'
+import { matchesSearch, nextActiveIndex, optionDomId } from '../utils/listbox'
 import { usePopover } from '../hooks/usePopover'
-import { MENU, MENU_CHEVRON, MENU_TRIGGER, SR_ONLY } from '../styles'
+import { MENU, MENU_BROWSE, MENU_CHEVRON, MENU_TRIGGER, SR_ONLY } from '../styles'
 import BottomSheet from './BottomSheet'
-import { IconChevron } from './icons'
+import { IconChevron, IconFold, IconInfo, IconStar } from './icons'
 
 /**
  * One menu for every control that opens one at a desk (#714; record 0201):
@@ -139,12 +139,6 @@ interface MenuOption<V extends string> {
   label: string
   /** Out of play, as a metric the window cannot answer is (#803): drawn, and not picked. */
   disabled?: boolean
-  /**
-   * A hairline over this option (`MENU.divider`), setting it and the ones
-   * after it apart from the ones before: the Coordinate list field's `Custom
-   * coordinates` under the lists (#838, record 0263).
-   */
-  divided?: boolean
 }
 
 interface MenuSelectProps<V extends string> {
@@ -163,11 +157,10 @@ interface MenuSelectProps<V extends string> {
   /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
   sheet?: boolean
   /**
-   * What the field reads while `value` names no option: the Coordinate list
-   * field under Coordinate search reads its own name while the box is shut
-   * and empty (#838, record 0263). The field is named by its label and this, as by
-   * its label and a value. A placeholder that is the label names the field
-   * once, or a screen reader would hear the name twice.
+   * What the field reads while `value` names no option: the Metrics table's
+   * Bound adder reads `Add a bound` (#498, record 0290). The field is named by
+   * its label and this, as by its label and a value. A placeholder that is the
+   * label names the field once, or a screen reader would hear the name twice.
    */
   placeholder?: string
 }
@@ -262,8 +255,8 @@ export function MenuSelect<V extends string>({
         // Centred, as the model picker centres its label: every field in the
         // panel's control column reads the same way. It was `text-left` until
         // 2026-11-03, which the aggregate's and the chart's fields never showed,
-        // each being sized to its longest label, and the Coordinate list field's
-        // placeholder, then at the column's width, did (the maintainer).
+        // each being sized to its longest label, and the Coordinate list field,
+        // then a `MenuSelect` at the column's width, did (the maintainer).
         className={`${className} text-center`}
       >
         <span id={nameId} className={SR_ONLY}>
@@ -290,23 +283,399 @@ export function MenuSelect<V extends string>({
             className={`${MENU.list} focus:outline-none`}
           >
             {options.map((option, i) => (
-              <Fragment key={option.value}>
-                {option.divided && <div aria-hidden="true" className={MENU.divider} />}
-                <div
-                  id={optionDomId(listId, option.value)}
-                  role="option"
-                  aria-selected={option.value === value}
-                  aria-disabled={option.disabled || undefined}
-                  onPointerEnter={() => setActive(i)}
-                  onClick={() => pick(i)}
-                  className={`${MENU.option} ${i === active ? MENU.active : ''} ${
-                    option.value === value ? MENU.current : ''
-                  } ${option.disabled ? MENU.unavailable : ''}`}
-                >
-                  {option.label}
-                </div>
-              </Fragment>
+              <div
+                key={option.value}
+                id={optionDomId(listId, option.value)}
+                role="option"
+                aria-selected={option.value === value}
+                aria-disabled={option.disabled || undefined}
+                onPointerEnter={() => setActive(i)}
+                onClick={() => pick(i)}
+                className={`${MENU.option} ${i === active ? MENU.active : ''} ${
+                  option.value === value ? MENU.current : ''
+                } ${option.disabled ? MENU.unavailable : ''}`}
+              >
+                {option.label}
+              </div>
             ))}
+          </div>
+        </Menu>
+      )}
+    </>
+  )
+}
+
+/** One row of a `MenuBrowse`: a thing to pick, with what a reader needs to choose it. */
+export interface BrowseItem {
+  id: string
+  name: string
+  /** A sentence or two saying what it is. */
+  description: string
+  /** The name of the group it stands under. */
+  group: string
+  /** How many things it holds, at the end of its row. */
+  count: number
+}
+
+/** A heading of a `MenuBrowse`, in the menu's order. */
+export interface BrowseGroup {
+  name: string
+  /** Words a search also finds the group's rows by, which the heading does not say. */
+  words: readonly string[]
+  /** The group whose heading this one opens under (#892). A group with none stands at the top. */
+  parent?: string
+}
+
+interface MenuBrowseProps {
+  /** What the choice is called: the field's accessible name (unless `labelledBy` gives one), the dialog's, and a phone sheet's heading. */
+  label: string
+  /** What the field reads while `value` names nothing. Unless it is the label, it joins the field's accessible name after the label, as a pick does, because a name must hold the words a control shows (WCAG 2.5.3; record 0288). */
+  placeholder: string
+  /**
+   * The id of a visible heading that names the field (record 0288). When
+   * given, the field is named by that heading and then the words it shows,
+   * and `label` names only the dialog and a phone sheet's heading, so a
+   * screen reader hears nothing the screen does not show.
+   */
+  labelledBy?: string
+  /** The picked row's id, `other`'s value, or anything else for neither. */
+  value: string
+  items: readonly BrowseItem[]
+  groups: readonly BrowseGroup[]
+  /** The one row that is no item, last and under a rule: `Custom coordinates`. */
+  other: { value: string; label: string }
+  onChange: (value: string) => void
+  /** The starred rows' ids, in the order the Starred group shows them. */
+  starred: readonly string[]
+  onToggleStar: (id: string) => void
+  /** The field's width and insets, from the role its call site already wore. */
+  className: string
+  /** An element whose width the card takes: its descriptions wrap, so its rows have no width of their own. */
+  widthRef: React.RefObject<HTMLElement | null>
+  /** A phone: the menu opens in a bottom sheet headed by `label` (record 0252). */
+  sheet?: boolean
+}
+
+// The words on the menu itself, approved on 2026-11-05 (#848).
+const SEARCH_PLACEHOLDER = 'Search lists'
+const STARRED_HEADING = 'Starred'
+const NOTHING_FOUND = 'Nothing found.'
+
+// Every row a press picks or opens wears `data-browse-item`, and the arrow
+// keys walk them in the order the card shows them.
+const BROWSE_ITEMS = '[data-browse-item]'
+
+/**
+ * A choice of one row from dozens, as the one menu (#848, record 0281): the
+ * Coordinate list field's. `MenuSelect` is a short list a reader scans; this
+ * is one they search and browse. A search box on top, the starred rows under
+ * `Starred` once there are any, then each group as a heading that opens in
+ * place, one at a time, and `other` last under a rule. A group can stand
+ * inside another (#892): a continent opens to its countries and a country to
+ * its regions, each level set in by `MENU_BROWSE.nest`, with its own rows
+ * after the groups it holds. One path is open at a time, so opening a group
+ * shuts its siblings, and shutting one leaves its parent open. A heading's
+ * count is every row under it, and a group with no row under it is not shown.
+ *
+ * Every row ends in its count. A row's star keeps it under Starred, and its
+ * info button opens its description under it, one at a time. While something
+ * is typed, the matches stand in for all of that, under their groups'
+ * headings, each with its description under it and no info button: a reader
+ * who is searching is comparing.
+ *
+ * Buttons in groups rather than a listbox, because a listbox holds options
+ * and nothing else, and each row here carries two controls beside the pick.
+ * So the keyboard goes into the search box, Tab walks every control, and the
+ * arrow keys walk the rows a press picks or opens, Home and End their ends.
+ * The picked row is `aria-current`. The card closes on a pick and never on a
+ * star or an info press.
+ *
+ * It opens on the picked row's group and the groups above it, or on the only
+ * top group when there is one (a lone heading over rows the reader would
+ * otherwise open every time), else with every group shut. A phone gets the same rows in a sheet, where the keyboard stays down
+ * until the reader taps the search box, so the list is not covered as it
+ * opens.
+ */
+export function MenuBrowse({
+  label,
+  placeholder,
+  labelledBy,
+  value,
+  items,
+  groups,
+  other,
+  onChange,
+  starred,
+  onToggleStar,
+  className,
+  widthRef,
+  sheet = false,
+}: MenuBrowseProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [described, setDescribed] = useState<string | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  // Closed to the hook on a phone, whose sheet places and dismisses itself.
+  const { popoverRef, box, closing } = usePopover({
+    open: open && !sheet,
+    onOpenChange: setOpen,
+    triggerRef,
+    initialFocusRef: inputRef,
+    widthRef,
+  })
+  const baseId = useId()
+  const nameId = useId()
+  const valueId = useId()
+
+  const picked = items.find((item) => item.id === value)
+  const rowsOf = (name: string) => items.filter((item) => item.group === name)
+  // Every row under a heading, its own and those of the groups inside it.
+  const rowsUnder = (name: string): number =>
+    rowsOf(name).length +
+    groups.filter((group) => group.parent === name).reduce((sum, group) => sum + rowsUnder(group.name), 0)
+  const kidsOf = (name: string | undefined) =>
+    groups.filter((group) => group.parent === name && rowsUnder(group.name) > 0)
+  // A group and the groups above it, outermost first.
+  const lineage = (name: string): BrowseGroup[] => {
+    const group = groups.find((each) => each.name === name)
+    if (!group) return []
+    return group.parent === undefined ? [group] : [...lineage(group.parent), group]
+  }
+  const openPath = expanded === null ? [] : lineage(expanded).map((group) => group.name)
+  const fieldText = picked ? picked.name : value === other.value ? other.label : placeholder
+  const showsPlaceholder = !picked && value !== other.value
+
+  function openMenu() {
+    setQuery('')
+    setDescribed(null)
+    const top = kidsOf(undefined)
+    setExpanded(picked ? picked.group : top.length === 1 ? top[0].name : null)
+    setOpen(true)
+  }
+
+  function pick(next: string) {
+    setOpen(false)
+    if (next !== value) onChange(next)
+  }
+
+  // The arrow keys walk the rows a press picks or opens; Up from the first
+  // goes back to the search box, where Down came from.
+  function onBodyKeyDown(e: React.KeyboardEvent) {
+    const rows = [...(bodyRef.current?.querySelectorAll<HTMLElement>(BROWSE_ITEMS) ?? [])]
+    const at = rows.indexOf(document.activeElement as HTMLElement)
+    if (at < 0) return
+    if (e.key === 'ArrowUp' && at === 0) {
+      e.preventDefault()
+      inputRef.current?.focus()
+      return
+    }
+    const moved = nextActiveIndex(at, e.key, rows.length)
+    if (moved === null) return
+    e.preventDefault()
+    rows[moved].focus()
+  }
+
+  // The spaces between a name, its count and the count's hidden noun are text
+  // nodes of their own, for a screen reader alone: they draw nothing between
+  // flex items or at a line's end, and a row's name is computed from its text
+  // nodes, which without them reads `The Bulger List100peaks`.
+  const row = (item: BrowseItem, searching: boolean) => {
+    const isStarred = starred.includes(item.id)
+    const isDescribed = searching || described === item.id
+    const descriptionId = `${baseId}-about-${item.id}`
+    return (
+      <Fragment key={item.id}>
+        <div className={MENU_BROWSE.row}>
+          <button
+            type="button"
+            aria-pressed={isStarred}
+            aria-label={`Star ${item.name}`}
+            onClick={() => onToggleStar(item.id)}
+            className={`${MENU_BROWSE.mark} ${isStarred ? MENU_BROWSE.markOn : MENU_BROWSE.markOff}`}
+          >
+            <IconStar filled={isStarred} />
+          </button>
+          <button
+            type="button"
+            data-browse-item=""
+            aria-current={item.id === value ? 'true' : undefined}
+            onClick={() => pick(item.id)}
+            className={`${MENU_BROWSE.pick} ${item.id === value ? MENU.current : ''}`}
+          >
+            <span className="min-w-0 flex-1 truncate">{item.name}</span>{' '}
+            <span className={MENU_BROWSE.count}>
+              {item.count}{' '}
+              <span className={SR_ONLY}>{item.count === 1 ? 'peak' : 'peaks'}</span>
+            </span>
+          </button>
+          {!searching && (
+            <button
+              type="button"
+              aria-expanded={isDescribed}
+              aria-controls={isDescribed ? descriptionId : undefined}
+              aria-label={`About ${item.name}`}
+              onClick={() => setDescribed(isDescribed ? null : item.id)}
+              className={`${MENU_BROWSE.mark} ${isDescribed ? MENU_BROWSE.markOn : MENU_BROWSE.markOff}`}
+            >
+              <IconInfo />
+            </button>
+          )}
+        </div>
+        {isDescribed && (
+          <p id={descriptionId} className={MENU_BROWSE.description}>
+            {item.description}
+          </p>
+        )}
+      </Fragment>
+    )
+  }
+
+  const searching = query.trim() !== ''
+  // A search reads a row's name, its group's and every group's above it, so
+  // `Europe` finds the Munros (#892).
+  const found = searching
+    ? groups
+        .map((group) => {
+          const above = lineage(group.name)
+            .map((each) => `${each.name} ${each.words.join(' ')}`)
+            .join(' ')
+          return { group, rows: rowsOf(group.name).filter((item) => matchesSearch(`${item.name} ${above}`, query)) }
+        })
+        .filter(({ rows }) => rows.length > 0)
+    : []
+  const starredRows = starred.flatMap((id) => items.find((item) => item.id === id) ?? [])
+
+  // One heading and, while it is open, the groups it holds and then its own rows.
+  function branch(group: BrowseGroup): React.ReactNode {
+    const isOpen = openPath.includes(group.name)
+    const rowsId = `${baseId}-group-${group.name}`
+    const total = rowsUnder(group.name)
+    return (
+      <Fragment key={group.name}>
+        <button
+          type="button"
+          data-browse-item=""
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? rowsId : undefined}
+          onClick={() => setExpanded(isOpen ? (group.parent ?? null) : group.name)}
+          className={MENU_BROWSE.region}
+        >
+          <IconFold open={isOpen} className={MENU_BROWSE.fold} />
+          <span className="min-w-0 flex-1 truncate">{group.name}</span>{' '}
+          <span className={MENU_BROWSE.count}>
+            {total} <span className={SR_ONLY}>{total === 1 ? 'list' : 'lists'}</span>
+          </span>
+        </button>
+        {isOpen && (
+          <div id={rowsId} role="group" aria-label={group.name} className={MENU_BROWSE.nest}>
+            {kidsOf(group.name).map(branch)}
+            {rowsOf(group.name).map((item) => row(item, false))}
+          </div>
+        )}
+      </Fragment>
+    )
+  }
+
+  return (
+    <>
+      <MenuButton
+        ref={triggerRef}
+        shape="field"
+        open={open}
+        aria-haspopup="dialog"
+        aria-labelledby={
+          labelledBy !== undefined
+            ? `${labelledBy} ${valueId}`
+            : showsPlaceholder && placeholder === label
+              ? nameId
+              : `${nameId} ${valueId}`
+        }
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        onKeyDown={(e) => {
+          if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            e.preventDefault()
+            openMenu()
+          }
+        }}
+        className={`${className} text-center`}
+      >
+        <span id={nameId} className={SR_ONLY}>
+          {label}
+        </span>
+        <span id={valueId} className="block min-w-0 truncate">
+          {fieldText}
+        </span>
+      </MenuButton>
+      {(box || (sheet && open)) && (
+        <Menu
+          box={box}
+          popoverRef={popoverRef}
+          closing={closing}
+          sheet={sheet ? { heading: label, onClose: () => setOpen(false) } : undefined}
+        >
+          <div className={MENU_BROWSE.top}>
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowDown') return
+                e.preventDefault()
+                bodyRef.current?.querySelector<HTMLElement>(BROWSE_ITEMS)?.focus()
+              }}
+              placeholder={SEARCH_PLACEHOLDER}
+              aria-label={SEARCH_PLACEHOLDER}
+              autoComplete="off"
+              // A state's or a club's name is no misspelling to underline.
+              spellCheck={false}
+              className={MENU_BROWSE.input}
+            />
+          </div>
+          <div ref={bodyRef} role="group" aria-label={label} onKeyDown={onBodyKeyDown} className={MENU.list}>
+            {searching ? (
+              found.length === 0 ? (
+                <p role="status" className={MENU_BROWSE.empty}>
+                  {NOTHING_FOUND}
+                </p>
+              ) : (
+                found.map(({ group, rows }) => (
+                  <div key={group.name} role="group" aria-labelledby={`${baseId}-found-${group.name}`}>
+                    <div id={`${baseId}-found-${group.name}`} className={MENU_BROWSE.heading}>
+                      {group.name}
+                    </div>
+                    {rows.map((item) => row(item, true))}
+                  </div>
+                ))
+              )
+            ) : (
+              <>
+                {starredRows.length > 0 && (
+                  <>
+                    <div role="group" aria-labelledby={`${baseId}-starred`}>
+                      <div id={`${baseId}-starred`} className={MENU_BROWSE.heading}>
+                        {STARRED_HEADING}
+                      </div>
+                      {starredRows.map((item) => row(item, false))}
+                    </div>
+                    <div aria-hidden="true" className={MENU.divider} />
+                  </>
+                )}
+                {kidsOf(undefined).map(branch)}
+                <div aria-hidden="true" className={MENU.divider} />
+                <button
+                  type="button"
+                  data-browse-item=""
+                  aria-current={value === other.value ? 'true' : undefined}
+                  onClick={() => pick(other.value)}
+                  className={`${MENU_BROWSE.other} ${value === other.value ? MENU.current : ''}`}
+                >
+                  {other.label}
+                </button>
+              </>
+            )}
           </div>
         </Menu>
       )}

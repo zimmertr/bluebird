@@ -1,6 +1,6 @@
 # 0156. The Destinations subheadings say each row searches, the Map line names no type, and the search box stays on the map
 
-- Status: Accepted. Amends [0137](0137-destinations-section-reordered.md)
+- Status: Accepted. Amends [0137](0137-destinations-section-reordered.md). Amended by [0286](0286-list-search-subheading.md) (the middle subheading says `List search`)
 - Date: 2026-10-15
 - Decider: the maintainer (TJ), on issue #710, 2026-10-15
 - Issues and PRs: #710, #687, #707, #715

@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Coordinate lists",
+  "description": "The ready-made lists the Coordinate list field offers, and the regions its menu groups them under. Every name, description and region heading here is a user-facing string the maintainer approves before it lands.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["regions", "lists"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "regions": {
+      "description": "The menu's headings, in any order: the menu sorts them A to Z under each parent. A heading stands at the top or under the one its parent names, and a parent comes before the headings under it. A region with no list anywhere under it is not shown.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "description": "The heading as the menu reads it.",
+            "type": "string",
+            "minLength": 1
+          },
+          "parent": {
+            "description": "The name of the heading this one opens under: a country's continent, a region's country. A heading with none stands at the top of the menu.",
+            "type": "string",
+            "minLength": 1
+          },
+          "places": {
+            "description": "The places a region covers when its heading names none of them, so a search for one finds the region's lists. Never shown.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "lists": {
+      "description": "One entry per list, in the order its region shows them.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "description", "region", "file", "peaks", "source", "credit", "crawled"],
+        "properties": {
+          "id": {
+            "description": "A slug that never changes once shipped: a share link names a list by it.",
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "name": {
+            "description": "The list as the menu reads it, in title case.",
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "description": "One or two sentences saying what the list is.",
+            "type": "string",
+            "minLength": 1
+          },
+          "region": {
+            "description": "The name of one entry in `regions`.",
+            "type": "string",
+            "minLength": 1
+          },
+          "file": {
+            "description": "The list's CSV beside this file: its id and `.csv`.",
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*\\.csv$"
+          },
+          "peaks": {
+            "description": "How many rows the CSV holds. The crawl writes it and a test recomputes it.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "source": {
+            "description": "Where the rows were read.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["site", "listId", "url"],
+            "properties": {
+              "site": { "type": "string", "minLength": 1 },
+              "listId": { "type": "string", "minLength": 1 },
+              "url": { "type": "string", "pattern": "^https://" }
+            }
+          },
+          "credit": {
+            "description": "Who chose the list's peaks: a club, an author, or the rule that picks them.",
+            "type": "string",
+            "minLength": 1
+          },
+          "crawled": {
+            "description": "The day the rows were read from the source.",
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          }
+        }
+      }
+    }
+  }
+}

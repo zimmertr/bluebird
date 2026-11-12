@@ -4,7 +4,8 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
 import { fakeResponse } from '../testSupport/fixtures'
-import { PRESET_LISTS, forgetPresetLists } from '../utils/presetLists'
+import { PRESET_LISTS, PRESET_REGIONS, forgetPresetLists } from '../utils/presetLists'
+import { STARRED_LISTS_KEY } from '../utils/viewPrefs'
 import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
@@ -48,14 +49,34 @@ const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
 const noBox = () => screen.queryByRole('textbox', { name: /^Custom destination coordinates/ }) === null
-// The Coordinate list field, named once at rest, where it reads its own name, and
-// by its name and what it reads otherwise.
+// The Coordinate list field, named by the List search heading over it and
+// what it reads (record 0288): Select a list at rest, a list's name or Custom
+// coordinates otherwise.
 const field = (reads?: string) =>
-  screen.getByRole('button', { name: reads === undefined ? 'Coordinate list' : `Coordinate list ${reads}` })
+  screen.getByRole('button', { name: `List search ${reads ?? 'Select a list'}` })
 // The box stands once Custom coordinates is picked (record 0263).
 async function openBox(user: ReturnType<typeof render>['user']) {
   await user.click(field())
-  await user.click(screen.getByRole('option', { name: 'Custom coordinates' }))
+  await user.click(screen.getByRole('button', { name: 'Custom coordinates' }))
+}
+// A list's row in the menu, named by its name and its peak count, and its
+// region's heading, which opens the rows (#848). A heading stands under the
+// headings above it, so opening one opens each of those first (#892).
+const peaks = (count: number) => `${count} ${count === 1 ? 'peak' : 'peaks'}`
+const listRow = (list: (typeof PRESET_LISTS)[number]) =>
+  screen.getByRole('button', { name: `${list.name} ${peaks(list.peaks)}` })
+const pathTo = (region: string): string[] => {
+  const parent = PRESET_REGIONS.find((each) => each.name === region)?.parent ?? null
+  return parent === null ? [region] : [...pathTo(parent), region]
+}
+const holdsLists = (region: string): boolean =>
+  PRESET_LISTS.some((list) => list.region === region) ||
+  PRESET_REGIONS.some((each) => each.parent === region && holdsLists(each.name))
+async function openRegion(user: ReturnType<typeof render>['user'], region: string) {
+  for (const name of pathTo(region)) {
+    const heading = screen.getByRole('button', { name: new RegExp(`^${name} \\d+ lists?$`) })
+    if (heading.getAttribute('aria-expanded') !== 'true') await user.click(heading)
+  }
 }
 // The Polygon block's buttons, in order, apart from the box above it.
 const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon search' }).parentElement!
@@ -405,10 +426,10 @@ describe('DestinationsSection', () => {
   // Map, Coordinates, Polygon (#687, record 0137): the two full-width inputs
   // together, the polygon's buttons and boxes last. Each subheading says its
   // row searches (#710, record 0156).
-  it('orders the three ways in as Map search, Coordinate search, Polygon search', () => {
+  it('orders the three ways in as Map search, List search, Polygon search', () => {
     render(<DestinationsSection {...props()} />)
     const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
-    expect(headings).toEqual(['Map search', 'Coordinate search', 'Polygon search'])
+    expect(headings).toEqual(['Map search', 'List search', 'Polygon search'])
     expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
   })
 
@@ -416,7 +437,8 @@ describe('DestinationsSection', () => {
   // over the preset lists and Custom coordinates across two cells and Clear in
   // the third. The box stands only once something is in it or Custom
   // coordinates was picked, and a preset pick replaces it at once, typed rows
-  // included (#838, record 0263).
+  // included (#838, record 0263). The menu holds the lists under their
+  // regions, with a search box and the starred lists first (#848, record 0281).
   describe('the Coordinate list field', () => {
     afterEach(() => {
       vi.unstubAllGlobals()
@@ -424,25 +446,44 @@ describe('DestinationsSection', () => {
       forgetPresetLists()
     })
     // Named with the subheading, since the Polygon row's Clear reads the same word.
-    const clear = () => screen.getByRole('button', { name: 'Clear Coordinate search' }) as HTMLButtonElement
+    const clear = () => screen.getByRole('button', { name: 'Clear List search' }) as HTMLButtonElement
     const LIST = '46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'
     const arrives = () => vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: LIST })))
     const pickList = async (user: ReturnType<typeof render>['user']) => {
-      await user.click(screen.getByRole('button', { name: /^Coordinate list/ }))
-      await user.click(screen.getByRole('option', { name: PRESET_LISTS[0].name }))
+      await user.click(screen.getByRole('button', { name: /^List search/ }))
+      await openRegion(user, PRESET_LISTS[0].region)
+      await user.click(listRow(PRESET_LISTS[0]))
     }
 
-    it('reads its own name over a shut box and lists every preset, then Custom coordinates apart', async () => {
+    it('reads Select a list over a shut box and offers every list under its region, then Custom coordinates apart', async () => {
       const { user } = render(<DestinationsSection {...props()} />)
-      expect(field().getAttribute('aria-haspopup')).toBe('listbox')
+      expect(field().textContent).toContain('Select a list')
+      expect(field().getAttribute('aria-haspopup')).toBe('dialog')
       expect(noBox()).toBe(true)
       expect(screen.queryByText(/parsed/)).toBeNull()
       await user.click(field())
-      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
-        ...PRESET_LISTS.map((l) => l.name),
-        'Custom coordinates',
-      ])
-      expect(screen.getByRole('option', { name: 'Custom coordinates' }).previousElementSibling!.getAttribute('aria-hidden')).toBe(
+      // The menu opens on the headings no heading stands over, in the
+      // order PRESET_REGIONS sorts them in (A to Z), and a heading with no list under it is not drawn.
+      // One such heading alone opens itself, so the ones under it show too.
+      const under = (parent: string | null) =>
+        PRESET_REGIONS.filter((region) => region.parent === parent && holdsLists(region.name)).map((region) => region.name)
+      const top = under(null)
+      expect(screen.getAllByRole('button', { name: /\d+ lists?$/ }).map((b) => b.textContent!.replace(/ \d+ lists?$/, ''))).toEqual(
+        top.length === 1 ? [top[0], ...under(top[0])] : top,
+      )
+      // Every region that holds a list of its own, and under each its lists
+      // in the manifest's order.
+      const regions = PRESET_REGIONS.map((region) => region.name).filter((name) =>
+        PRESET_LISTS.some((list) => list.region === name),
+      )
+      for (const region of regions) {
+        await openRegion(user, region)
+        const rows = within(screen.getByRole('group', { name: region })).getAllByRole('button', { name: /\d+ peaks?$/ })
+        expect(rows.map((b) => b.textContent)).toEqual(
+          PRESET_LISTS.filter((list) => list.region === region).map((list) => `${list.name} ${peaks(list.peaks)}`),
+        )
+      }
+      expect(screen.getByRole('button', { name: 'Custom coordinates' }).previousElementSibling!.getAttribute('aria-hidden')).toBe(
         'true',
       )
     })
@@ -494,6 +535,68 @@ describe('DestinationsSection', () => {
       expect(document.activeElement).not.toBe(coordinates())
     })
 
+    // A list abroad names its peaks in their own spelling (#892). The file is
+    // UTF-8 and arrives as bytes, so a name with a letter outside ASCII must
+    // reach the box, the parsed rows and the field exactly as the file spells
+    // it. The coordinates are placeholders; only the names are under test.
+    it('carries a name with an accent from the file to the box unchanged', async () => {
+      const ACCENTED = '47,12,Großglockner\n61,8,Galdhøpiggen\n45,6,Aiguille Verte d’Argentière'
+      vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: `${ACCENTED}\n` })))
+      const setCustomCsv = vi.fn()
+      const onCsvPasted = vi.fn()
+      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv, onCsvPasted })} />)
+      await pickList(user)
+      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(ACCENTED))
+      expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual([
+        'Großglockner',
+        'Galdhøpiggen',
+        'Aiguille Verte d’Argentière',
+      ])
+      rerender(<DestinationsSection {...props({ customCsv: ACCENTED, setCustomCsv, onCsvPasted })} />)
+      expect((coordinates() as HTMLTextAreaElement).value).toBe(ACCENTED)
+      expect(field(PRESET_LISTS[0].name)).toBeTruthy()
+    })
+
+    // A list's description is the menu's, behind its row's info button and
+    // under a search result (record 0283). The panel repeats it nowhere: the
+    // field names the list and the box holds its rows.
+    it('says what the loaded list is in the menu alone, never under the field', async () => {
+      arrives()
+      const setCustomCsv = vi.fn()
+      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
+      await pickList(user)
+      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
+      rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv })} />)
+      expect(field(PRESET_LISTS[0].name)).toBeTruthy()
+      expect(screen.queryByText(PRESET_LISTS[0].description)).toBeNull()
+    })
+
+    // A star is this browser's habit (record 0158's storage, #848): it is
+    // kept across a reload, and the starred list stands first under Starred.
+    it('keeps a starred list in this browser and shows it first', async () => {
+      const list = PRESET_LISTS[0]
+      const { user, unmount } = render(<DestinationsSection {...props()} />)
+      await user.click(field())
+      await openRegion(user, list.region)
+      await user.click(screen.getByRole('button', { name: `Star ${list.name}` }))
+      expect(JSON.parse(localStorage.getItem(STARRED_LISTS_KEY)!)).toEqual([list.id])
+      unmount()
+      const again = render(<DestinationsSection {...props()} />)
+      await again.user.click(field())
+      const starredGroup = screen.getByRole('group', { name: 'Starred' })
+      expect(within(starredGroup).getByRole('button', { name: `${list.name} ${peaks(list.peaks)}` })).toBeTruthy()
+      await again.user.click(within(starredGroup).getByRole('button', { name: `Star ${list.name}` }))
+      expect(localStorage.getItem(STARRED_LISTS_KEY)).toBeNull()
+    })
+
+    // A star on a list a later build no longer offers is not shown.
+    it('shows no star this build has no list for', async () => {
+      localStorage.setItem(STARRED_LISTS_KEY, JSON.stringify(['a-list-that-left']))
+      const { user } = render(<DestinationsSection {...props()} />)
+      await user.click(field())
+      expect(screen.queryByRole('group', { name: 'Starred' })).toBeNull()
+    })
+
     // The pick is the press: nothing asks first, over the reader's own rows
     // as over an empty box.
     it('replaces typed rows at once', async () => {
@@ -519,7 +622,7 @@ describe('DestinationsSection', () => {
       await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
       rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv })} />)
       await user.click(field(PRESET_LISTS[0].name))
-      await user.click(screen.getByRole('option', { name: 'Custom coordinates' }))
+      await user.click(screen.getByRole('button', { name: 'Custom coordinates' }))
       expect(setCustomCsv).toHaveBeenLastCalledWith('')
       rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
       expect(field('Custom coordinates')).toBeTruthy()
@@ -527,7 +630,7 @@ describe('DestinationsSection', () => {
     })
 
     // A preset pick shuts what Custom coordinates opened: emptied again, the
-    // box goes and the field reads its own name.
+    // box goes and the field reads Select a list.
     it('shuts the box a preset was picked over once the box is empty again', async () => {
       arrives()
       const setCustomCsv = vi.fn()

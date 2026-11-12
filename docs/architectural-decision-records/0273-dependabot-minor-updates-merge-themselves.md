@@ -1,6 +1,6 @@
 # 0273. Dependabot's minor updates merge themselves, as its patch updates do
 
-- Status: Accepted
+- Status: Superseded by 0284
 - Date: 2026-11-05
 - Decider: the maintainer (TJ), 2026-11-05: "Lets proceed with auto-merging patch and minor for future repos. And raise a PR to bluebird auto-merging minor verison updates too."
 - Issues and PRs: this PR, zimmertr/ai-config#1

@@ -744,7 +744,7 @@ export const BUTTON_ACCENT =
 /**
  * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
  * a third of the panel each, so the row stands on the edges the coordinates
- * box above it does. The Coordinate search row shares it since #838: the
+ * box above it does. The List search row shares it since #838: the
  * Coordinate list field across the first two cells and Clear in the third, on
  * the edge the Polygon row's Clear stands on (record 0263).
  *
@@ -2174,7 +2174,7 @@ const SEGMENT_FLUID_SHAPE = `inline-flex ${RADIUS.control} overflow-hidden`
 export const SEGMENT_FLUID = `${SEGMENT_FLUID_SHAPE} ${RECESSED_EDGE}`
 
 /**
- * The Metrics grid (#341, reshaped by #498; record 0281): the ranking, the
+ * The Metrics grid (#341, reshaped by #498; record 0290): the ranking, the
  * results cap and the bounds in one table, so the three controls that order
  * the list and the rows that bound it share two edges.
  *
@@ -3154,7 +3154,7 @@ export const FIELD =
   'focus:outline-none focus:border-mark placeholder-ink-soft'
 
 /**
- * The coordinates box under Coordinate search (#838, record
+ * The coordinates box under List search (#838, record
  * [0265](../../docs/architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)):
  * a field whose lines are numbered in a gutter, with each line the parse
  * drops flagged there.
@@ -3375,6 +3375,19 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   and its size does not. 12px is the size the lab drew it at; the 11px
  *   step would be allowed, since nothing presses a heading, and was not
  *   needed.
+ * - `description`: the sentence under a row's name that says what the row
+ *   is: a model's summary in the model list, a list's description in the
+ *   Coordinate list field's menu. Italic at the 11px step in the caption's
+ *   soft ink, in every menu, so a sentence never reads as a second name: the
+ *   maintainer chose it in a lab over upright type and over a recessed, a
+ *   tinted and a ruled ground (record
+ *   [0283](../../docs/architectural-decision-records/0283-a-menu-rows-description-is-italic.md)).
+ *   A step under the name's 12px, which the floor allows a line that is read
+ *   and never pressed (record 0131), and 5.56:1 on the dark card, 8.91:1 on
+ *   the light. Each menu's own row role composes it
+ *   (`MODEL_ROW.description`, `MENU_BROWSE.description`), `styles.test.ts`
+ *   holds each of them to it, and the linter's `style-menu-description`
+ *   check fails either menu file that sets a sentence in anything else.
  */
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
@@ -3387,6 +3400,7 @@ export const MENU = {
   current: 'font-semibold',
   unavailable: 'opacity-40 cursor-not-allowed',
   heading: `${TEXT.caption} font-semibold`,
+  description: `${MICRO_SIZE} italic text-ink-soft`,
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
   divider: `-mx-1 my-1 border-t ${SURFACE_DIVIDER}`,
 } as const
@@ -3419,6 +3433,71 @@ export const MENU_GROUP = {
   sheet: SHEET_RULES,
   sheetHeading: `${MENU.heading} pt-1.5 pb-0.5`,
   sheetRow: 'min-h-8',
+} as const
+
+/**
+ * A menu a reader searches and browses, where `MenuSelect`'s short list is
+ * one they scan (#848, record
+ * [0281](../../docs/architectural-decision-records/0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md)):
+ * the Coordinate list field's, which holds well over a hundred lists under
+ * headings that stand inside one another (#892). A search box on top, then
+ * the starred lists, then each heading, which opens in place to the headings
+ * or the lists under it, on the one card at a desk and in a sheet on a phone.
+ *
+ * - `top`: the strip the search box stands in, over a hairline, so the box
+ *   stays put while the rows scroll under it.
+ * - `input`: the search box, the panel's field at the Coordinate list field's
+ *   own inset, so it stands 28px at a desk and 32 under a finger.
+ * - `heading`: `MENU.heading` at a row's inset, over the starred rows and
+ *   over each region's matches in a search. Read and never pressed.
+ * - `region`: a region's heading, which is pressed: a row at the control
+ *   type in semibold, the fold mark before its name and its list count at
+ *   its end. Semibold in the full ink rather than `MENU.heading`'s soft one,
+ *   because a soft heading reads as a label and this one is a button.
+ * - `fold`: the fold mark's ink, the faint step every bare glyph takes.
+ * - `count`: a region's list count and a list's peak count, in the caption's
+ *   ink and tabular figures so a column of them lines up. 12px, never the
+ *   micro step: each stands inside a row that is pressed (record 0131).
+ * - `nest`: what stands under a heading, 8px in from it: the headings under
+ *   it, then its rows. Each level steps in once more, so a list three
+ *   headings down stands 24px in.
+ * - `row`: one list: its star, its name and count, and its info button. The
+ *   raised fill follows the pointer over the whole row, since a press on the
+ *   name or the count picks it.
+ * - `pick`: the name and the count, the press that picks the list. The name
+ *   takes the room left and cuts off with an ellipsis; the description says
+ *   the rest.
+ * - `mark`: the star and the info button, each a 14px glyph in a box as tall
+ *   as its row and 22px wide, 32 under a finger: two more targets beside the
+ *   name, so they take a phone control's 32 rather than a lone button's 44
+ *   (record 0223).
+ * - `markOff` and `markOn`: the faint glyph that lights in the accent under
+ *   the pointer, and the accent ink a starred list's star and an open info
+ *   button hold. Two roles rather than one colour over another, because two
+ *   colour utilities on one element resolve by stylesheet order.
+ * - `description`: what a list is, under its row: the one italic every
+ *   menu sets a row's sentence in (`MENU.description`), wrapping, and set in
+ *   under the name, clear of the star's 22px. Read, never pressed.
+ * - `empty`: the line a search with no match leaves.
+ * - `other`: the one row that is not a list, `Custom coordinates`, under the
+ *   rule (`MENU.divider`).
+ */
+export const MENU_BROWSE = {
+  top: `border-b ${SURFACE_DIVIDER} p-2`,
+  input: `${FIELD} w-full px-2 py-[5px]`,
+  heading: `${MENU.heading} px-1.5 pt-1 pb-0.5`,
+  region: `${TEXT.control} ${TAP.row} ${MENU_ROW} ${MENU.hover} ${FOCUS_RING_INSET} w-full cursor-pointer gap-1.5 text-left font-semibold`,
+  fold: 'flex-shrink-0 text-ink-faint',
+  count: `${TEXT.caption} flex-shrink-0 tabular-nums`,
+  nest: 'pl-2',
+  row: `${TAP.row} rounded ${MENU.hover}`,
+  pick: `${TEXT.control} ${FOCUS_RING_INSET} flex min-w-0 flex-1 cursor-pointer items-center gap-2 self-stretch py-0.5 pr-1.5 text-left`,
+  mark: `${FOCUS_RING_INSET} flex flex-shrink-0 cursor-pointer items-center justify-center self-stretch rounded px-1 touch:min-w-8 transition-colors`,
+  markOff: ICON_ACTION,
+  markOn: ACCENT.text,
+  description: `${MENU.description} whitespace-normal pb-1 pl-[22px] pr-1.5`,
+  empty: `${TEXT.caption} px-1.5 py-3`,
+  other: `${MENU.option} ${MENU.hover} ${FOCUS_RING_INSET} w-full text-left`,
 } as const
 
 /**
@@ -3471,7 +3550,8 @@ export const LAYER_ROW = {
  * two, and eight of them with nothing between read as one paragraph, most of
  * all on a phone. Every name is semibold (`name`), so each row starts on its
  * box and its name; the ranking model is the one under the Ranking chip, its
- * tick fixed.
+ * tick fixed. The sentence under a name is `description`, the italic every
+ * menu sets one in (`MENU.description`).
  *
  * The raised fill follows a mouse (`MENU.hover`) and the keyboard (`keys`,
  * while the list shows its focus ring), never a finger. The list's cursor
@@ -3484,6 +3564,7 @@ export const MODEL_ROW = {
   row: `flex items-start gap-2 border-t first:border-t-0 ${SURFACE_DIVIDER} px-1.5 py-2 ${MENU.hover}`,
   keys: 'group-focus-visible/list:bg-raised',
   name: TEXT.subheading,
+  description: MENU.description,
 } as const
 
 /**

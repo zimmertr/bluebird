@@ -128,8 +128,9 @@ does, and skips every test marked `db` (#760). `make test-backend-db` builds
 `backend/tests/db/Dockerfile`, PostgreSQL 18 with PostGIS from PGDG, starts it
 on a Docker network, runs `pytest -m db` against it through
 `TEST_DATABASE_URL`, and removes it, pass or fail. The image is built here
-rather than pulled as `postgis/postgis` because that one has no arm64 build. A
-test takes the database through the `database` fixture in
+rather than pulled as `postgis/postgis` because that one has no arm64 build, and
+it installs the server again beside PostGIS, because PGDG builds each PostGIS
+against its newest minor and the pinned image can lag it. A test takes the database through the `database` fixture in
 `backend/tests/conftest.py`, which empties every table first, so no test sees
 another's rows. The database and its network take names unique to the run,
 so two sessions can run the target at once.
@@ -196,9 +197,9 @@ The target runs pip-compile on `python:3.15-alpine`, the image's own base, so
 every environment marker resolves for the platform that installs the lock. It
 keeps every pin the locks already hold; to move one indirect package, add
 `--upgrade-package NAME` to both `pip-compile` commands in the target. The
-version of pip-tools is the one Dependabot runs, because Dependabot rewrites
-the same two files from their `.in` files and its header must read the same
-way. `Python Lint` runs the same target and fails on any diff, so a pin in a
+version of pip-tools is the one Renovate runs (`constraints.pipTools` in
+`.github/renovate.json`), because Renovate rewrites the same two files from
+their `.in` files and its output must read the same way. Move the two together. `Python Lint` runs the same target and fails on any diff, so a pin in a
 `.in` file that its lock doesn't hold fails the PR. pip-compile holds the dev
 lock to the runtime one through `requirements-dev.in`'s `-c requirements.txt`,
 and the image's `pip install --require-hashes` refuses a package without a
@@ -323,7 +324,7 @@ that read layout mid-move on one, for the reason in `playwright.config.ts`.
 The image tag, `PLAYWRIGHT_IMAGE` in the `Makefile`, is read off the
 `@playwright/test` version in `frontend/e2e/package.json`: each Playwright
 release pins its own browser build, and the image carries the build for its
-own version only. A Dependabot bump of the package moves the tag with it. The
+own version only. A Renovate bump of the package moves the tag with it. The
 image brings its own Node, so this is the one container `.node-version`
 does not pick. CI does not use
 the image; it installs Chromium alone on the runner.
@@ -433,7 +434,7 @@ The generator is not a frontend dependency. It lives in
 frontend scripts only delegate to it. `openapi-typescript` loads the TypeScript
 compiler API at run time and peers on TypeScript 5, the app runs TypeScript 7,
 and npm resolves one version of a peer. A package rather than a version inside a
-script also gives Dependabot something to bump. It installs on demand, so
+script also gives Renovate something to bump. It installs on demand, so
 `npm ci` in `frontend/` stays as fast as it was.
 
 ## Testing the browser path without spending quota

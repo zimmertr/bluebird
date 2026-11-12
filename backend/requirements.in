@@ -1,4 +1,4 @@
-fastapi==0.162.0
+fastapi==0.162.5
 # Named rather than asked for as uvicorn[standard]: the extra also installs
 # pyyaml, python-dotenv, watchfiles and websockets, which the app never imports,
 # and pyyaml ships no Python 3.15 wheel, so the image would build it from source
@@ -7,7 +7,7 @@ uvicorn==0.54.0
 httptools==0.9.0
 uvloop==0.23.0
 httpx==0.28.1
-pydantic==2.14.2
+pydantic==2.14.3
 prometheus-client==0.26.0
-psycopg[binary]==3.3.6
+psycopg[binary]==3.3.8
 psycopg-pool==3.3.3
