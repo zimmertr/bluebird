@@ -128,8 +128,9 @@ does, and skips every test marked `db` (#760). `make test-backend-db` builds
 `backend/tests/db/Dockerfile`, PostgreSQL 18 with PostGIS from PGDG, starts it
 on a Docker network, runs `pytest -m db` against it through
 `TEST_DATABASE_URL`, and removes it, pass or fail. The image is built here
-rather than pulled as `postgis/postgis` because that one has no arm64 build. A
-test takes the database through the `database` fixture in
+rather than pulled as `postgis/postgis` because that one has no arm64 build, and
+it installs the server again beside PostGIS, because PGDG builds each PostGIS
+against its newest minor and the pinned image can lag it. A test takes the database through the `database` fixture in
 `backend/tests/conftest.py`, which empties every table first, so no test sees
 another's rows. The database and its network take names unique to the run,
 so two sessions can run the target at once.
