@@ -126,6 +126,22 @@ these providers.
   national park. `lists.json` in that directory names each list's page there,
   who chose its peaks and the day its rows were read.
 
+  The lists outside the United States come from peakbagger.com the same way,
+  and many of them are a club's or an author's too: Fred Beckey's, Bill
+  Corbett's, Alan Kane's, Matt Gunn's, the Alpine Club of Canada's Vancouver
+  Island Section's, the Island Mountain Ramblers', the North Shore Bagger
+  Challenge's, the Scottish Mountaineering Club's (with J. Rooke Corbett's,
+  Fiona Graham's and Percy Donald's), Alfred Wainwright's, Alan Dawson's, John
+  and Anne Nuttall's, CPRE Peak District and South Yorkshire's, *Trail*
+  magazine's, the UIAA's, the Stubai tourism board's, Marek Więckowski and
+  Wojciech Lewandowski's, Club 2000m's, Kyūya Fukada's (*Nihon Hyakumeizan*),
+  Taiwan's 100 Peaks Club's, the Snow Leopard award's, Gunung Bagging's, Bill
+  Wilkinson's, the Hobart Walking Club's, the Canberra Bushwalking Club's, the
+  New Zealand Alpine Club's, Ivan Pugh's, Frank Eastwood's, Reinhold Messner's
+  and Dick Bass's. The New Zealand 100 Peaks Challenge's membership was read
+  from its peakbagger.com page on 2026-11-11, because no archived copy holds
+  it; its coordinates come from the archive like every other list's.
+
 ## Software
 
 The runtime dependencies bundled into the browser app or installed into the
