@@ -188,7 +188,7 @@ export interface PanelMessageInputs {
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
-  /** The preset list last picked beside Coordinate search did not arrive (#838). */
+  /** The preset list last picked beside List search did not arrive (#838). */
   presetListFailed: boolean
   /** The pasted list is too long for a link to carry (`customCsvTooLong`, #864). Absent reads as not. */
   listTooLong?: boolean
@@ -394,7 +394,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     ...(p.basemapFailed
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
       : []),
-    // A list picked beside Coordinate search that did not arrive (#838; record
+    // A list picked beside List search that did not arrive (#838; record
     // 0263): the reader asked for rows and the box stayed as it was, so the
     // line opens the list the way the map's does. Gone when the next pick
     // lands.

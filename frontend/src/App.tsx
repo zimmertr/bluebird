@@ -191,7 +191,7 @@ export default function App() {
   // The basemap style is failing to load: the map reports it and the panel's
   // messages say so (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
-  // The preset list last picked beside Coordinate search did not arrive (#838).
+  // The preset list last picked beside List search did not arrive (#838).
   const [presetListFailed, setPresetListFailed] = useState(false)
   // A ready-made list the link named (`list=`, #864), fetched now and put in
   // the box. The map frames it the way it frames a picked one, unless the

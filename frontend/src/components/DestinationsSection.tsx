@@ -160,7 +160,7 @@ export default function DestinationsSection({
   // The box stands only once something is in it or the reader asked for it
   // (#838, record 0263): most readers pick a preset and never need the box,
   // its format line or its mono type, so at rest the Coordinate list field is the
-  // whole of Coordinate search (the maintainer, 2026-11-03). `customOpen` is
+  // whole of List search (the maintainer, 2026-11-03). `customOpen` is
   // the asking: the Custom coordinates pick, or an edit, so the box does not
   // vanish under a reader who deletes every row by hand. A preset pick and
   // Clear put it back.
@@ -288,7 +288,7 @@ export default function DestinationsSection({
         <p className={TEXT.helper}>Search by name, or select a destination from the map.</p>
       </div>
 
-      {/* Coordinate search: second, under Map search, so the Polygon
+      {/* List search: second, under Map search, so the Polygon
           block's buttons and boxes come last (#687, record 0137). A list you
           bring to the map rather than a gesture on it. The row under the
           subheading is the Polygon row's grid (#838, record 0263): the one
@@ -310,7 +310,7 @@ export default function DestinationsSection({
           is a second button reading the same word. */}
       <div className="mb-3">
         <h3 id={csvHeadingId} className={`${TEXT.subheading} mb-1.5`}>
-          Coordinate search
+          List search
         </h3>
         <div ref={csvRowRef} className={`${DRAW_ROW.row}${boxShown ? ' mb-1.5' : ''}`}>
           <MenuBrowse

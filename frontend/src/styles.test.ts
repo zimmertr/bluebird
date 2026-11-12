@@ -4938,7 +4938,7 @@ describe('the polygon row', () => {
     expect(destinationsSource).not.toMatch(/BUTTON_(SECONDARY|ACCENT)/)
   })
 
-  // The Coordinate search row is the same grid (#838, record 0263): the
+  // The List search row is the same grid (#838, record 0263): the
   // Coordinate list field across two cells and Clear in the third, the two the
   // same height under either pointer.
   it('stands the Coordinate list field as tall as the Clear beside it', () => {

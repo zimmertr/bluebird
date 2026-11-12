@@ -30,7 +30,7 @@ The app opens dark, whatever your system is set to. The round sun button at the 
 
 ## Destinations
 
-One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map search**, **Coordinate search** and **Polygon search**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map search**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map search**, **List search** and **Polygon search**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map search**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
 
 ### a. Search by name
 
@@ -89,9 +89,9 @@ The checkboxes under the buttons control what discovery looks for inside your po
 
 Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. Hold Shift and click a box to tick or untick every type between it and the last one you clicked. When another destination still lets Analyze run, a message on the Analyze button says so, and the analysis covers the other destinations alone. **Include unnamed peaks**, which shows under **Peaks** once Peaks is ticked, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods still work on their own, so an analysis of searched places, clicked destinations or pasted coordinates needs no polygon and no ticks at all.
 
-### d. Coordinate search
+### d. List search
 
-Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinate search** is one row: the **Coordinate list** field and a **Clear** button. The field opens a menu of the ready-made peak lists: a search box, then each region as a heading that opens to its lists, and last **Custom coordinates**. Every list shows how many peaks it holds, and the info button at the end of its row says what the list is. Star a list to keep it at the top of the menu under **Starred**; stars are kept in this browser. Type in the search box to find a list by its name, its region or its state, each match with its description under it. Pick a list and a box opens under the row with the list in it, replacing whatever was there, rows you typed included, and the map frames it as it would a paste. Pick **Custom coordinates** for an empty box to paste or type your own rows into. The box is two rows tall and shows the format and one example row until you fill it; drag its corner to make it taller. The field reads **Coordinate list** while the box is shut, the list's name while the box holds it, and **Custom coordinates** for anything else. **Clear** empties the box and shuts it. If a list cannot load, the Analyze button's messages say so.
+Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **List search** is one row: the **Coordinate list** field and a **Clear** button. The field opens a menu of the ready-made peak lists: a search box, then each region as a heading that opens to its lists, and last **Custom coordinates**. Every list shows how many peaks it holds, and the info button at the end of its row says what the list is. Star a list to keep it at the top of the menu under **Starred**; stars are kept in this browser. Type in the search box to find a list by its name, its region or its state, each match with its description under it. Pick a list and a box opens under the row with the list in it, replacing whatever was there, rows you typed included, and the map frames it as it would a paste. Pick **Custom coordinates** for an empty box to paste or type your own rows into. The box is two rows tall and shows the format and one example row until you fill it; drag its corner to make it taller. The field reads **Coordinate list** while the box is shut, the list's name while the box holds it, and **Custom coordinates** for anything else. **Clear** empties the box and shuts it. If a list cannot load, the Analyze button's messages say so.
 
 The box numbers its lines down its left edge. A line that is not blank, not a `#` comment and not a row the app can read gets its number in red with a dot before it, and the count under the box says how many: `100 destinations parsed, 1 line not read`. Lines do not wrap, so a long name scrolls sideways.
 
@@ -884,4 +884,4 @@ nothing within 10 miles, which still is not proof there is no fire:
 successful check can still miss.
 
 Coordinates are deliberately absent. The file is meant to be read, not pasted
-back into [Coordinate search](#d-coordinate-search).
+back into [List search](#d-list-search).

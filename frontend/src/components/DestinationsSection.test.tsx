@@ -415,10 +415,10 @@ describe('DestinationsSection', () => {
   // Map, Coordinates, Polygon (#687, record 0137): the two full-width inputs
   // together, the polygon's buttons and boxes last. Each subheading says its
   // row searches (#710, record 0156).
-  it('orders the three ways in as Map search, Coordinate search, Polygon search', () => {
+  it('orders the three ways in as Map search, List search, Polygon search', () => {
     render(<DestinationsSection {...props()} />)
     const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
-    expect(headings).toEqual(['Map search', 'Coordinate search', 'Polygon search'])
+    expect(headings).toEqual(['Map search', 'List search', 'Polygon search'])
     expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
   })
 
@@ -435,7 +435,7 @@ describe('DestinationsSection', () => {
       forgetPresetLists()
     })
     // Named with the subheading, since the Polygon row's Clear reads the same word.
-    const clear = () => screen.getByRole('button', { name: 'Clear Coordinate search' }) as HTMLButtonElement
+    const clear = () => screen.getByRole('button', { name: 'Clear List search' }) as HTMLButtonElement
     const LIST = '46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'
     const arrives = () => vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: LIST })))
     const pickList = async (user: ReturnType<typeof render>['user']) => {

@@ -1,7 +1,7 @@
 import { apiFetch } from './apiFetch'
 import manifest from '../coordinate-lists/lists.json'
 
-// The ready-made lists the Coordinate list field under Coordinate search puts in
+// The ready-made lists the Coordinate list field under List search puts in
 // the box (#838, #848). `src/coordinate-lists/lists.json` is the list of them:
 // one entry per list with the name and description the menu reads, the region
 // it stands under, its peak count and where its rows came from, and the

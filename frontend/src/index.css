@@ -25,7 +25,7 @@
    like any other file: a class one quotes to find an element would emit its
    CSS into the app's stylesheet although no page draws it. */
 @source not "./**/*.test.tsx";
-/* Coordinate search's preset lists are peak names in a CSV, and a name that
+/* List search's preset lists are peak names in a CSV, and a name that
    happens to spell a utility would emit its CSS like any other word here. */
 @source not "./coordinate-lists";
 

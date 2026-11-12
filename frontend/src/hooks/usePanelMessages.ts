@@ -90,7 +90,7 @@ export interface PanelMessageState {
   closureCheckFailed: boolean
   /** The basemap style is failing to load (#580). */
   basemapFailed: boolean
-  /** The preset list last picked beside Coordinate search did not arrive (#838). */
+  /** The preset list last picked beside List search did not arrive (#838). */
   presetListFailed: boolean
   /** The pasted list is too long for a link to carry (#864). */
   listTooLong: boolean

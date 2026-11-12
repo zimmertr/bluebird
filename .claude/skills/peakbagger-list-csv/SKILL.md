@@ -1,6 +1,6 @@
 ---
 name: peakbagger-list-csv
-description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast's coordinate lists, a frontend/src/coordinate-lists/<id>.csv and an entry in lists.json each, the lists the Coordinate list field under Coordinate search offers. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list (e.g. "add the Bulgers/Home Court/Smoot list").
+description: Crawl one or more peakbagger.com peak lists into Bluebird Forecast's coordinate lists, a frontend/src/coordinate-lists/<id>.csv and an entry in lists.json each, the lists the Coordinate list field under List search offers. Use when given a peakbagger list URL or list id (lid), or asked to create/add a peak list (e.g. "add the Bulgers/Home Court/Smoot list").
 ---
 
 # Peakbagger list → Bluebird Forecast coordinate list

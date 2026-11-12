@@ -744,7 +744,7 @@ export const BUTTON_ACCENT =
 /**
  * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
  * a third of the panel each, so the row stands on the edges the coordinates
- * box above it does. The Coordinate search row shares it since #838: the
+ * box above it does. The List search row shares it since #838: the
  * Coordinate list field across the first two cells and Clear in the third, on
  * the edge the Polygon row's Clear stands on (record 0263).
  *
@@ -3216,7 +3216,7 @@ export const FIELD =
   'focus:outline-none focus:border-mark placeholder-ink-soft'
 
 /**
- * The coordinates box under Coordinate search (#838, record
+ * The coordinates box under List search (#838, record
  * [0265](../../docs/architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)):
  * a field whose lines are numbered in a gutter, with each line the parse
  * drops flagged there.

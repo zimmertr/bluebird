@@ -54,7 +54,7 @@ A destination exists in Bluebird Forecast only if a volunteer mapped it and gave
 name. Unnamed summits are invisible to discovery, elevations come from the OSM
 `ele` tag and are absent or wrong wherever the tag is, and coverage is uneven
 by region in exactly the way volunteer mapping is uneven.
-[Coordinate search](USAGE.md#d-coordinate-search) exists for that gap:
+[List search](USAGE.md#d-list-search) exists for that gap:
 whatever OSM does not know, you can paste.
 
 A drawn area is searched in Bluebird Forecast's own copy of OpenStreetMap
