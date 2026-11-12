@@ -2138,7 +2138,7 @@
       "description": "The highest point of each county and council area in the United Kingdom.",
       "region": "Across Britain and Ireland",
       "file": "uk-county-and-council-high-points.csv",
-      "peaks": 184,
+      "peaks": 185,
       "source": {
         "site": "peakbagger.com",
         "listId": "13620",
