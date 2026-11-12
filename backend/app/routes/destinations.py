@@ -19,6 +19,7 @@ from app.models import (
     ErrorResponse,
     bbox_area_km2,
 )
+from app.services import snodas
 from app.services.candidates import (
     _filter_elevation,
     _merge_custom,
@@ -155,8 +156,8 @@ async def destinations(
     # the slot is held for milliseconds. A request with neither (the web app's
     # analysis of a list alone, which sends `elevation_lookup: false` and
     # every elevation it has learned) is answered with the rows as sent and
-    # takes no slot, so it never waits behind that address's lookup in
-    # flight (#673).
+    # today's snow depth from the pod's own grid, and takes no slot, so it
+    # never waits behind that address's lookup in flight (#673).
     needs_lookup = bool(request.custom_destinations) and request.elevation_lookup and any(
         d.elevation_ft is None for d in request.custom_destinations or []
     )
@@ -201,6 +202,11 @@ async def destinations(
                 content=_refusal_body(len(found), noun, suggestion=suggestion),
             )
 
+    # Today's snow depth, from the same held grid POST /api/analyze reads and
+    # through the same call, so a browser that discovers here and forecasts
+    # itself gets the number an all-in-one analysis would have given it.
+    snow_analysis_date = snodas.fill_snow_depth(found)
+
     telemetry.DESTINATIONS_RETURNED.observe(len(found))
     rows = [
         DiscoveredDestination(
@@ -213,6 +219,7 @@ async def destinations(
             longitude=d["longitude"],
             elevation_ft=d.get("elevation_ft"),
             osm_id=d.get("osm_id"),
+            snow_depth_in=d.get("snow_depth_in"),
         )
         for d in found
     ]
@@ -226,5 +233,6 @@ async def destinations(
         total=len(rows),
         total_found=total_found,
         truncated=truncated,
+        snow_analysis_date=snow_analysis_date,
         elevation_lookup_complete=lookup_complete,
     )

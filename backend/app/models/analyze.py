@@ -25,6 +25,8 @@ from app.limits import (
 )
 from app.models.common import (
     _RESPONSE_CONFIG,
+    _SNOW_DATE_DESCRIPTION,
+    _SNOW_DEPTH_DESCRIPTION,
     ForecastMode,
     SortBy,
     _bound_broken,
@@ -221,6 +223,21 @@ class AnalyzeRequest(_DiscoveryFields):
         default=None,
         ge=0,
         description="Drop rows whose `snowfall_total_in` is above this. Nulls pass.",
+    )
+    min_snow_depth_in: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Drop rows whose `snow_depth_in` is below this. A row with a null "
+            "`snow_depth_in` passes either bound: the destination is outside "
+            "the snow grid, or this instance holds no grid, and neither says "
+            "anything about how much snow is on the ground."
+        ),
+    )
+    max_snow_depth_in: float | None = Field(
+        default=None,
+        ge=0,
+        description="Drop rows whose `snow_depth_in` is above this. Nulls pass, under the same terms.",
     )
     min_cloud_deck_ft: float | None = Field(
         default=None,
@@ -575,6 +592,9 @@ class DestinationResult(BaseModel):
         default=None,
         description="Snowiest single hour in the window, inches. Null under the same terms.",
     )
+    snow_depth_in: float | None = Field(
+        default=None, description=_SNOW_DEPTH_DESCRIPTION
+    )
     cloud_deck_min_ft: float | None = Field(
         default=None,
         description=(
@@ -759,4 +779,7 @@ class AnalyzeResponse(BaseModel):
             "`include_series: false` it is the only statement of which hours "
             "the aggregates reduced."
         ),
+    )
+    snow_analysis_date: str | None = Field(
+        default=None, description=_SNOW_DATE_DESCRIPTION
     )

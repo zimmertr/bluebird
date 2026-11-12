@@ -46,6 +46,7 @@ from app.services.aggregation import (
 )
 from app.services.nifc import COARSE_OFFSET_DEG
 from app.services.openmeteo_fetch import BATCH_SIZE, MAX_CONCURRENT_BATCHES
+from app.services.snodas import SNOW_DEPTH_CEILING_IN
 from app.services.weather import (
     N_CLOUD_VARIABLES,
     N_VARIABLES,
@@ -86,6 +87,9 @@ def render() -> str:
             # service is the one reference here (issue #434).
             "BATCH_SIZE": BATCH_SIZE,
             "MAX_CONCURRENT_BATCHES": MAX_CONCURRENT_BATCHES,
+            # The browser prints a depth at this number as "at least", so the
+            # two sides must agree on where the source file stops counting.
+            "SNOW_DEPTH_CEILING_IN": SNOW_DEPTH_CEILING_IN,
             # The cloud request's own variable count, priced apart from the
             # weather's (issues #117 and #670).
             "N_CLOUD_VARIABLES": N_CLOUD_VARIABLES,

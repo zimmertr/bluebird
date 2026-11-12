@@ -28,7 +28,7 @@ from app import db, ratelimit
 # test modules import the app anyway and got this for free, so a single-file
 # run like `pytest tests/test_osm.py` used to fail on the missing attribute.
 from app import main as _main  # noqa: F401
-from app.services import aggregation, cache, fire_activity, hms, http, nifc, osm, usfs_closures
+from app.services import aggregation, cache, fire_activity, hms, http, nifc, osm, snodas, usfs_closures
 
 # The loop's own sleep, held before any test patches `asyncio.sleep`: the stub
 # below yields through it, so a test that records sleeps records the code's
@@ -361,6 +361,26 @@ def _no_live_closures(monkeypatch):
         raise AssertionError("test reached the Forest Service; install a stub closure cache")
 
     monkeypatch.setattr(usfs_closures, "CLOSURES", usfs_closures.closure_cache(fetch=refuse))
+
+
+@pytest.fixture(autouse=True)
+def _no_live_snow(monkeypatch):
+    """The snow grid reaches NSIDC on its first miss and the lifespan warms it
+    up on startup, so both are neutered by default: a route test would
+    otherwise pull a multi-megabyte archive over the network, and
+    `test_main.py` would do it on every run of the app's own lifespan. A
+    refusing fetch leaves the cache on its never-fetched path, where every
+    row's snow depth is null and no analysis date is reported. Tests that mean
+    to exercise it install their own cache (test_snodas.py)."""
+
+    async def refuse():
+        raise AssertionError("test reached NSIDC; install a stub snow cache")
+
+    async def no_warm_up():
+        return None
+
+    monkeypatch.setattr(snodas, "GRID", snodas.snow_cache(fetch=refuse))
+    monkeypatch.setattr(snodas, "warm_up", no_warm_up)
 
 
 @pytest.fixture(autouse=True)

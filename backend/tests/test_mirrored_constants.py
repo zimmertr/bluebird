@@ -20,6 +20,8 @@ sys.path.insert(0, str(SCRIPTS))
 
 from generate_mirrored_constants import render  # noqa: E402 — after the sys.path insert above
 
+from app.services import snodas  # noqa: E402 — same reason
+
 MANIFEST = Path(__file__).parent / "data" / "mirrored_constants.json"
 
 
@@ -29,6 +31,15 @@ def test_committed_manifest_matches_the_backend():
         "Regenerate it:\n"
         "    cd backend && python scripts/generate_mirrored_constants.py"
     )
+
+
+def test_the_snow_ceiling_is_the_files_own_int16_maximum():
+    # Derived rather than typed, and asserted here because the browser prints
+    # a depth at this number as "at least": the mark is only honest while both
+    # sides agree on where the source file stops counting.
+    manifest = json.loads(MANIFEST.read_text())
+    assert manifest["constants"]["SNOW_DEPTH_CEILING_IN"] == snodas.SNOW_DEPTH_CEILING_IN
+    assert snodas.SNOW_DEPTH_CEILING_IN == 1290.04
 
 
 def test_manifest_is_byte_for_byte_what_the_script_writes():

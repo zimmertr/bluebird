@@ -585,5 +585,10 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 url="https://earthdata.nasa.gov/firms",
                 provides="VIIRS and MODIS fire detections behind GET /api/fire-activity",
             ),
+            DataSource(
+                name="NOAA NOHRSC SNODAS",
+                url="https://nsidc.org/data/g02158",
+                provides="Today's snow depth per destination, from the 1 km SNODAS grid",
+            ),
         ],
     )

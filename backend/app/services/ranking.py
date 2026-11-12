@@ -33,12 +33,16 @@ from app.models import (
 # Precipitation, snowfall and AQI have no minimum aggregate to read — a
 # per-hour precipitation floor would be 0.000 almost everywhere — so both of
 # their bounds compare a single field, the window total and the worst hour.
+# Snow depth is the one row where both ends read the same field, and not for
+# either of the reasons above: it is today's single number rather than a
+# reduction over hours, so there is no best or worst hour to pick between.
 _LOWER_BOUNDS = (
     ("min_precip_total_in", "precip_total_in"),
     ("min_temp_f", "temp_min_f"),
     ("min_wind_mph", "wind_min_mph"),
     ("min_freeze_ft", "freeze_min_ft"),
     ("min_snowfall_total_in", "snowfall_total_in"),
+    ("min_snow_depth_in", "snow_depth_in"),
     ("min_aqi", "aqi_max"),
     ("min_cloud_deck_ft", "cloud_deck_min_ft"),
 )
@@ -48,6 +52,7 @@ _UPPER_BOUNDS = (
     ("max_wind_mph", "wind_max_mph"),
     ("max_freeze_ft", "freeze_max_ft"),
     ("max_snowfall_total_in", "snowfall_total_in"),
+    ("max_snow_depth_in", "snow_depth_in"),
     ("max_aqi", "aqi_max"),
     ("max_cloud_deck_ft", "cloud_deck_max_ft"),
 )
@@ -259,6 +264,10 @@ def _assemble(
                 longitude=dest["longitude"],
                 elevation_ft=dest.get("elevation_ft"),
                 osm_id=dest.get("osm_id"),
+                # Off the destination rather than out of `agg`: the snow grid
+                # is read once per candidate at discovery, where the weather
+                # aggregates arrive per location from Open-Meteo.
+                snow_depth_in=dest.get("snow_depth_in"),
                 **agg,
                 **aqi_stats,
                 **cloud_stats,

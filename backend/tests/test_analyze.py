@@ -15,6 +15,7 @@ from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response, we
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
 from test_destinations import _held_discovery, _offset_payload, _until
+from test_snodas import a_snapshot, hold_grid
 
 from app import models, ratelimit
 from app.error_codes import INTERNAL_DETAIL, RETRYABLE, ErrorCode, error_object
@@ -97,6 +98,7 @@ def _result(
     freeze_min=None,
     freeze_max=None,
     snowfall=None,
+    snow=None,
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
@@ -108,6 +110,7 @@ def _result(
         freeze_avg_ft=freeze_min,
         aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
         snowfall_total_in=snowfall,
+        snow_depth_in=snow,
     )
 
 
@@ -266,6 +269,41 @@ def test_filter_constraints_null_snowfall_passes_either_bound():
         "dumped",
     ]
     assert [r.name for r in _filter_constraints(rows, _bounded(max_snowfall_total_in=2))] == ["unknown"]
+
+
+def test_sort_key_ranks_snow_depth_with_nulls_last():
+    # The one ranking key that is not a window aggregate. Nulls are the rows
+    # outside the grid, and they sort after every real depth in either
+    # direction, the way a missing AQI does.
+    rows = [
+        _result("outside", snow=None),
+        _result("bare", snow=0.0),
+        _result("deep", snow=42.0),
+    ]
+    rows.sort(key=_sort_key(SortBy.snow_depth.value, descending=False))
+    assert [r.name for r in rows] == ["bare", "deep", "outside"]
+    rows.sort(key=_sort_key(SortBy.snow_depth.value, descending=True))
+    assert [r.name for r in rows] == ["deep", "bare", "outside"]
+
+
+def test_filter_constraints_snow_bounds_compare_todays_one_number():
+    # Both ends read the same field, and not for the reason precipitation's do:
+    # snow depth is today's single reading, so there is no best or worst hour
+    # to choose between.
+    rows = [_result("bare", snow=0.0), _result("deep", snow=42.0)]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_snow_depth_in=12))] == ["deep"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_snow_depth_in=12))] == ["bare"]
+
+
+def test_filter_constraints_null_snow_passes_either_bound():
+    # A row outside the grid, or every row while the pod holds no grid. The
+    # absence says where the destination is, not what is on the ground.
+    rows = [_result("outside"), _result("deep", snow=42.0)]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_snow_depth_in=12))] == [
+        "outside",
+        "deep",
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_snow_depth_in=12))] == ["outside"]
 
 
 def test_filter_constraints_aqi_bounds_compare_the_worst_hour():
@@ -636,6 +674,8 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
         "times": [],
         "total_found": None,
         "truncated": False,
+        # Nothing was analyzed, so no grid answered and there is no date.
+        "snow_analysis_date": None,
     }
 
 
@@ -2342,19 +2382,57 @@ def test_analyze_bounds_the_field_on_snowfall(snowfall_upstreams):
     assert body["total_queried"] == 3
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"sort_by": "snow_depth_in"},
-        {"min_snow_depth_in": 12},
-        {"max_snow_depth_in": 12},
-    ],
-)
-def test_analyze_refuses_the_retired_snow_depth_fields(stub_upstreams, overrides):
-    # Snow depth left the API in #678; a request still naming it is told so
-    # rather than ranked or filtered on nothing.
-    resp = client.post("/api/analyze", json=_snowfall_request(**overrides))
-    assert resp.status_code == 422
+# ── Snow depth on the analyze route (#449, #849) ───────────────────────────
+
+
+def _snow_request(**overrides) -> dict:
+    start, end = _window()
+    return {
+        "destination_types": [],
+        "start_datetime": start,
+        "end_datetime": end,
+        "limit": 10,
+        "custom_destinations": [
+            # Inside test_snodas's synthetic grid: one metre, one hundred
+            # inches, and a coordinate the grid does not cover.
+            {"name": "metre", "latitude": 39.5, "longitude": -98.5},
+            {"name": "hundred", "latitude": 38.5, "longitude": -99.5},
+            {"name": "outside", "latitude": 10.0, "longitude": 10.0},
+        ],
+        **overrides,
+    }
+
+
+def test_analyze_carries_todays_snow_depth_and_its_date(stub_upstreams, monkeypatch):
+    hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    body = client.post("/api/analyze", json=_snow_request()).json()
+    assert body["snow_analysis_date"] == "2026-09-22"
+    depths = {r["name"]: r["snow_depth_in"] for r in body["results"]}
+    assert depths["metre"] == 39.37
+    assert depths["hundred"] == pytest.approx(100.0)
+    assert depths["outside"] is None
+
+
+def test_analyze_ranks_by_snow_depth_with_nulls_last(stub_upstreams, monkeypatch):
+    hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    body = client.post(
+        "/api/analyze", json=_snow_request(sort_by="snow_depth_in", sort_desc=True)
+    ).json()
+    assert [r["name"] for r in body["results"]] == ["hundred", "metre", "outside"]
+
+
+def test_analyze_bounds_the_field_on_snow_depth(stub_upstreams, monkeypatch):
+    hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    body = client.post("/api/analyze", json=_snow_request(max_snow_depth_in=50)).json()
+    # The row with no depth passes the bound, as a null does on every other.
+    assert sorted(r["name"] for r in body["results"]) == ["metre", "outside"]
+
+
+def test_analyze_reports_no_snow_while_no_grid_is_held(stub_upstreams):
+    # An analysis never waits for a grid, and never fails over one either.
+    body = client.post("/api/analyze", json=_snow_request()).json()
+    assert body["snow_analysis_date"] is None
+    assert {r["snow_depth_in"] for r in body["results"]} == {None}
 
 
 # ── Cloud fields, fetched on every analysis (#117, #670, #683) ─────────────

@@ -10,6 +10,8 @@ from app.limits import MAX_ANALYZE_PEAKS
 from app.models.common import (
     _MAX_TYPES_LISTED,
     _RESPONSE_CONFIG,
+    _SNOW_DATE_DESCRIPTION,
+    _SNOW_DEPTH_DESCRIPTION,
     CustomDestination,
     DestinationType,
     GeoPolygon,
@@ -124,6 +126,9 @@ class DiscoveredDestination(BaseModel):
     osm_id: str | None = Field(
         default=None, description="OpenStreetMap identifier such as `node/12345`."
     )
+    snow_depth_in: float | None = Field(
+        default=None, description=_SNOW_DEPTH_DESCRIPTION
+    )
 
 
 class DestinationsResponse(BaseModel):
@@ -165,4 +170,7 @@ class DestinationsResponse(BaseModel):
             "again later may place them; a null elevation under true means no "
             "peak stands within the match radius."
         ),
+    )
+    snow_analysis_date: str | None = Field(
+        default=None, description=_SNOW_DATE_DESCRIPTION
     )
