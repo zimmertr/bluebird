@@ -162,6 +162,23 @@ describe('a ranked row', () => {
     expect(box.onToggle).toHaveBeenCalledWith(ROW)
   })
 
+  // The word marks a glacier's cell after its number and changes nothing
+  // else: the depth, its link and its place stay (#849).
+  it('writes Glacier after the snow depth of a cell on a glacier', () => {
+    const snowCols = displayedColumns(false, 'snow_depth_in').filter((c) =>
+      ['name', 'snow_depth_in'].includes(c.key as string),
+    )
+    const row = resultRow({ ...ROW, snow_depth_in: 640 })
+    const { unmount } = inTable(
+      <ResultsTableRow {...props({ row, columns: snowCols, coloredGroup: new Set(['snow_depth_in']), onGlacier: true })} />,
+    )
+    const cell = screen.getByText('640').closest('td')!
+    expect(cell.textContent).toBe('640 Glacier')
+    unmount()
+    inTable(<ResultsTableRow {...props({ row, columns: snowCols, coloredGroup: new Set(['snow_depth_in']) })} />)
+    expect(screen.getByText('640').closest('td')!.textContent).toBe('640')
+  })
+
   it('draws no chart box when the table has no chart column', () => {
     inTable(<ResultsTableRow {...props()} />)
     expect(screen.queryByRole('checkbox')).toBeNull()

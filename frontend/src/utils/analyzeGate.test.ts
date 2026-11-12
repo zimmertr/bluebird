@@ -236,6 +236,7 @@ describe('analyzeBlockers', () => {
         datesPending: true,
         compareAqi: true,
         compareFreeze: true,
+        compareSnow: true,
         archiveCloud: true,
         archiveFreeze: true,
         aqiHorizon: true,
@@ -250,6 +251,7 @@ describe('analyzeBlockers', () => {
       'dates',
       'compare-aqi',
       'compare-freeze',
+      'compare-snow',
       'archive-cloud',
       'archive-freeze',
       'aqi-horizon',
@@ -354,6 +356,19 @@ describe('a model selection the ranking cannot use', () => {
     expect(analyzeBlockers({ ...gate, drawPointCount: 4 })).toEqual(['compare-freeze'])
   })
 
+  // Snow depth comes off the pod's own snow analysis rather than any forecast
+  // model, so a comparison there is the air-quality case exactly (#849).
+  it('blocks a ranking on snow depth with models compared', () => {
+    const gate = { ...READY_POLYGON, compareSnow: true }
+    expect(canAnalyze(gate)).toBe(false)
+    expect(analyzeBlockers({ ...gate, drawPointCount: 4 })).toEqual(['compare-snow'])
+  })
+
+  it('lets a snow ranking through with one model selected', () => {
+    expect(canAnalyze({ ...READY_POLYGON, compareSnow: false })).toBe(true)
+    expect(analyzeBlockers({ ...READY_POLYGON, compareSnow: false, drawPointCount: 4 })).toEqual([])
+  })
+
   // The vetoes are about work already done, so they lead the missing-input
   // lines and follow the window's own problems.
   it('reports every contradiction and keeps them in order', () => {
@@ -364,8 +379,9 @@ describe('a model selection the ranking cannot use', () => {
         datesPending: true,
         compareAqi: true,
         compareFreeze: true,
+        compareSnow: true,
       }),
-    ).toEqual(['dates', 'compare-aqi', 'compare-freeze'])
+    ).toEqual(['dates', 'compare-aqi', 'compare-freeze', 'compare-snow'])
   })
 
   // An input the reader has yet to give is still worth saying beside them.

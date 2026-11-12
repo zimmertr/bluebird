@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildGrid, type GridCell, type GridSpec } from './forecastGridLattice'
-import { gridRaster } from './forecastGridRaster'
+import { gridPaints, gridRaster } from './forecastGridRaster'
 import { resultsFeatureCollection } from '../resultFeatures'
 import { CASCADES, field, gridCell, gridRow, gridSpec, mesh, series, squareLattice } from '../../testSupport/fixtures'
 
@@ -47,9 +47,8 @@ function pixelHex(raster: { width: number; rgba: Uint8ClampedArray }, x = 0, y =
 }
 
 describe('gridRaster', () => {
-  // Every ranking paints since snowfall replaced snow depth (#678): snow depth
-  // was matched to a destination at discovery, which no lattice cell goes
-  // through, where snowfall is in every forecast a cell fetches.
+  // Snowfall is in every forecast a cell fetches (#678), so it paints like any
+  // other forecast family.
   it('paints a snowfall ranking like any other forecast family', () => {
     const spec = buildGrid(CASCADES, 25)!
     const snowy = spec.points.map((_, i) =>
@@ -86,6 +85,18 @@ describe('gridRaster', () => {
     const mid = Math.floor(spec.rows / 2) * spec.cols + Math.floor(spec.cols / 2)
     expect(kept.has(mid)).toBe(false)
     expect(pixelAlpha(raster, spec, mid)).toBe(0)
+  })
+
+  // Snow depth is matched to a destination at discovery, which no lattice cell
+  // goes through, so the grid draws nothing under it, even over cells that
+  // happen to carry a number (#579, #849). Every forecast family still paints.
+  it('draws no field under a ranking the grid cannot paint', () => {
+    const spec = buildGrid(CASCADES, 25)!
+    const snowy = spec.points.map((_, i) => gridCell(spec.cells[i], gridRow({ snow_depth_in: 40 }), spec.indices[i]))
+    expect(gridPaints('snow_depth_in')).toBe(false)
+    expect(gridRaster(spec, snowy, 'snow_depth_in', null)).toBeNull()
+    expect(gridPaints('temp_avg_f')).toBe(true)
+    expect(gridPaints('snowfall_total_in')).toBe(true)
   })
 
   it('flips rows, because a lattice counts north and an image counts south', () => {
