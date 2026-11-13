@@ -268,7 +268,7 @@ export function MenuSelect<V extends string>({
             aria-activedescendant={options[active] ? optionDomId(listId, options[active].value) : undefined}
             tabIndex={-1}
             onKeyDown={onListKeyDown}
-            className={`${MENU.list} focus:outline-none`}
+            className={`${sheet ? MENU.sheetList : MENU.list} focus:outline-none`}
           >
             {options.map((option, i) => (
               <div
@@ -640,7 +640,7 @@ export function MenuBrowse({
               className={MENU_BROWSE.input}
             />
           </div>
-          <div ref={bodyRef} role="group" aria-label={label} onKeyDown={onBodyKeyDown} className={MENU.list}>
+          <div ref={bodyRef} role="group" aria-label={label} onKeyDown={onBodyKeyDown} className={sheet ? MENU.sheetList : MENU.list}>
             {searching ? (
               found.length === 0 ? (
                 <p role="status" className={MENU_BROWSE.empty}>

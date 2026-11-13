@@ -643,6 +643,16 @@ describe('every component', () => {
     expect(stepPx(MENU.divider, '-mx')).toBe(stepPx(MENU.list, 'px'))
   })
 
+  // A sheet's body is its one scroller, so a menu's rows in a sheet stand at
+  // the list's inset with no scroll box of their own, which never overflowed
+  // there and swallowed every flick over the rows.
+  it('gives a menu in a sheet the list inset and no scroll box', () => {
+    expect(stepPx(MENU.sheetList, 'px')).toBe(stepPx(MENU.list, 'px'))
+    expect(stepPx(MENU.sheetList, 'py')).toBe(stepPx(MENU.list, 'py'))
+    expect(MENU.sheetList).not.toMatch(/overflow|overscroll|flex-1/)
+    expect(MESSAGE_LIST.sheet).not.toMatch(/overflow|overscroll/)
+  })
+
   // L6 used to fail any `title=` outright. Tooltips are now an approved LIST
   // rather than a ban (TJ, 2026-08-04), so this pins the list instead: adding
   // one without asking fails here, and so does losing one by accident — which
