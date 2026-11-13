@@ -1,10 +1,10 @@
-# 0293. The list menu holds any number of headings open
+# 0294. The list menu holds any number of headings open
 
 - Status: Accepted. Supersedes the one-path rule of [0287](0287-list-headings-stand-inside-one-another.md)
 - Date: 2026-11-12
 - Decider: the maintainer (TJ), 2026-11-12
 - Issues and PRs: #930 (the scroll fix it followed), #892, #848
-- Cited in code as: record 0293
+- Cited in code as: record 0294
 - Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `Menu.tsx` bullet; [`docs/USAGE.md`](../USAGE.md), List search
 
 ## Context
