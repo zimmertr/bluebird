@@ -267,7 +267,8 @@ describe('METRIC_SCALE', () => {
   it('bands snow depth on the snow layer\'s edges, in the layer\'s colours', () => {
     expect(METRIC_SCALE.snow_depth.thresholds).toEqual(SNOW_RAMP.map((b) => b.from))
     expect(METRIC_SCALE.snow_depth.colors.slice(0, -1)).toEqual(SNOW_RAMP.map((b) => b.color))
-    expect(METRIC_SCALE.snow_depth.colors.at(-1)).toBe(SNOW_RAMP.at(-1)!.color)
+    const { colors } = METRIC_SCALE.snow_depth
+    expect(colors[colors.length - 1]).toBe(SNOW_RAMP[SNOW_RAMP.length - 1].color)
     expect(scaleFor('snow_depth_min_in', false)).toBe(METRIC_SCALE.snow_depth)
   })
 
