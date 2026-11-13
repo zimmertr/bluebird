@@ -819,6 +819,10 @@ What lands in the file:
   terms: it says nothing about a park, state, BLM or tribal closure.
   While the file carries it, the credits below the data add
   `Closure data by US Forest Service` with a link to the Forest Service.
+- The three **Snow depth** columns, with `N/A` for a row outside the snow
+  analysis and `≥1290` for a depth on the source file's ceiling, and with them
+  a credit row below the data, `Snow depth data by NOAA NOHRSC`, with a link to
+  the analysis.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
 
