@@ -900,7 +900,10 @@ The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
 the bottom sheet the menus below are, kept mounted: modal over the same dim,
 slid below the map while shut, its height a fixed share of the map that
 leaves the rows, the button's strip and the 76px the notice band had above it
-(`CONTROLS_MAP_PX`, kept at 256 so the sheet opens where it did). Its dim
+(`CONTROLS_MAP_PX`, kept at 256 so the sheet opens where it did), and never
+under half the map, so a phone held sideways opens it at half the screen
+rather than as a strip (record
+[0292](architectural-decision-records/0292-controls-sheet-opens-at-half-the-map-at-least.md)). Its dim
 stands one layer under its card (`scrim` on `LAYER.scrim`). It pushes nothing.
 The button, the scale and the (i) stay where they stood under the dim, as
 under every phone sheet. Measured 2026-10-21 at 360x740 and 390x844: the
