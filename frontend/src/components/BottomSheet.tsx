@@ -89,7 +89,7 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
   const panelRef = useDialog(onClose, open && (kept ? !kept.tourRuns : tourAnchor === undefined))
   // The height a drag left a menu sheet at, or null for its rows' own (#696;
   // record 0146). Every sheet rises as high as the screen, under the status
-  // bar's band (record 0290): the ceiling is read when a drag begins, off the
+  // bar's band (record 0291): the ceiling is read when a drag begins, off the
   // box the card stands in (the screen for a menu sheet, the app's frame for
   // the Controls sheet) less that band, which only CSS can read. A menu
   // sheet's own height is its rows' under the cap it opens at; the Controls
@@ -177,7 +177,7 @@ function heldClass(held: SheetHeight | null): string {
 
 /**
  * A menu sheet's card: under the cap it opens at until a drag holds it, then
- * under the ceiling alone, at its share of it or full (record 0290). Classes
+ * under the ceiling alone, at its share of it or full (record 0291). Classes
  * rather than a number, so a rotation re-sizes it: a held sheet keeps its
  * share of the room the screen now gives it, and a full sheet stays full,
  * its grip never past the screen's top.

@@ -13,6 +13,7 @@ import type { DrawMode } from '../hooks/useDrawMode'
 import type { ForecastSelectionState } from '../hooks/useForecastSelection'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
+import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ActionWord } from '../utils/analyzeGate'
 import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER } from '../styles'
 import type { Theme } from '../utils/viewPrefs'
@@ -78,6 +79,8 @@ interface AppDrawerProps {
     | 'setLimit'
     | 'clearFilters'
   >
+  /** The results chart's panels, which the Metrics rows' chart toggles move (`useChartMetrics`, record 0290). */
+  chartMetrics: Pick<ChartMetricsState, 'metrics' | 'chart'>
   /** The deployment's published limits and models (`useCapabilities`). */
   caps: LiveCapabilities
   /** The map, which a pasted list of coordinates fits to. */
@@ -127,6 +130,7 @@ export default function AppDrawer({
   destinationInputs,
   forecastSelection,
   rankingKnobs,
+  chartMetrics,
   caps,
   mapRef,
   onPointAtSearch,
@@ -234,6 +238,8 @@ export default function AppDrawer({
       actionWord={actionWord}
       onTutorial={onTutorial}
       tutorialWaits={tutorialWaits}
+      charted={chartMetrics.metrics}
+      onChart={chartMetrics.chart}
     />
   )
 

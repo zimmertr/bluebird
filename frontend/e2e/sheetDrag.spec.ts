@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 
 // A phone sheet's grip and title drag it (#696; record 0146), the way the
 // results sheet's grips drag the results: up to a held height, and down to
-// shut, and every one of them to the top of the screen (record 0290). Driven
+// shut, and every one of them to the top of the screen (record 0291). Driven
 // by a pointer moving slowly, so no release reads as a flick.
 
 async function drag(page: Page, from: { x: number; y: number }, dy: number) {
@@ -44,7 +44,7 @@ test.describe('on a phone', () => {
     await drag(page, { x: title.x + 4, y: title.y + title.height / 2 }, held.height - 20)
     await expect(sheet).toHaveCount(0)
   })
-  // Every sheet rises to the same ceiling, the screen's top (record 0290):
+  // Every sheet rises to the same ceiling, the screen's top (record 0291):
   // the Controls sheet used to stop under the chips and the Analyze button's
   // strip, the menu sheets one inset under the chips. Let go there, each
   // stands over the search box and the Analyze button.
@@ -109,7 +109,7 @@ test.describe('on a phone', () => {
   // A sheet held between its own height and the top keeps its share of the
   // room the screen gives it when the phone turns, rather than going full or
   // shrinking to a share of the strip a sideways map leaves it, and has the
-  // same height again when it turns back (record 0290).
+  // same height again when it turns back (record 0291).
   test('the Controls sheet keeps its share of the screen through a turn and back', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()

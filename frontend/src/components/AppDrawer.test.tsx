@@ -4,7 +4,7 @@ import { type ComponentProps, createRef } from 'react'
 import AppDrawer from './AppDrawer'
 import type { MapViewHandle } from './MapView'
 import { render } from '../testSupport/render'
-import { capabilities, panelMessages } from '../testSupport/fixtures'
+import { capabilities, chartMetricsOf, panelMessages } from '../testSupport/fixtures'
 import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
@@ -78,6 +78,7 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       destinationInputs={INPUTS}
       forecastSelection={SELECTION}
       rankingKnobs={KNOBS}
+      chartMetrics={chartMetricsOf()}
       caps={CAPS}
       mapRef={MAP}
       onPointAtSearch={NOOP}
@@ -262,7 +263,7 @@ describe('AppDrawer', () => {
       // rather than by how fast the steps between them ran.
       vi.useFakeTimers({ toFake: ['Date', 'performance'] })
       onTestFinished(() => void vi.useRealTimers())
-      // The ceiling is the screen's (record 0290), which jsdom leaves at 768.
+      // The ceiling is the screen's (record 0291), which jsdom leaves at 768.
       const screenPx = window.innerHeight
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 })
       onTestFinished(() => void Object.defineProperty(window, 'innerHeight', { configurable: true, value: screenPx }))

@@ -1,10 +1,10 @@
-# 0290. Every phone sheet rises to the top of the screen, on one ceiling
+# 0291. Every phone sheet rises to the top of the screen, on one ceiling
 
 - Status: Accepted. Amends [0146](0146-sheet-grips-drag.md) (full height is no longer one inset under the chip row for a menu sheet and `controlsFullPx` for the Controls sheet) and [0207](0207-phone-controls-sheet-is-modal.md) (`controlsFullPx` is gone)
 - Date: 2026-11-12
 - Decider: the maintainer (TJ), 2026-11-12: on a phone the Controls sheet would not drag as high as the Layers sheet; every sheet (Layers, Legend, Controls, Messages and the rest) should drag the same way, reach full screen and draw over the Analyze button, the search box and the legend. The results sheet keeps its own drag and shares the rules; every sheet still opens at the height it opens at today
 - Issues and PRs: none filed; the PR that carries this record
-- Cited in code as: record 0290
+- Cited in code as: record 0291
 - Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), `BottomSheet.tsx`, `AppDrawer.tsx`; [`frontend/src/utils/results/CLAUDE.md`](../../frontend/src/utils/results/CLAUDE.md), `resultsSheet.ts`; [`docs/USAGE.md`](../USAGE.md), the Controls sheet and the phone menus; [`docs/STYLES.md`](../STYLES.md), the phone sheets
 
 ## Context

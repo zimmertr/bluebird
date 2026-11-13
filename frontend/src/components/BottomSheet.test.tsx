@@ -151,7 +151,7 @@ describe('BottomSheet', () => {
       expect(shown(card)).toBe(500)
     })
 
-    // Past the cap it opens at, to the screen's top (record 0290): the
+    // Past the cap it opens at, to the screen's top (record 0291): the
     // ceiling every sheet shares, and no higher.
     it('rises past the cap it opens at to the top of the screen, and no higher', () => {
       const { card, drag } = setup()
@@ -168,7 +168,7 @@ describe('BottomSheet', () => {
 
     // Let go at the top it is full, a state its CSS sizes rather than a
     // number, so a phone turned on its side keeps the grip on the screen
-    // (record 0290). A height between is held under the ceiling, which the
+    // (record 0291). A height between is held under the ceiling, which the
     // turned screen clamps.
     it('stays full by its CSS when let go at the top, and holds a height under the ceiling', () => {
       const { card, drag } = setup()
@@ -195,7 +195,7 @@ describe('BottomSheet', () => {
     })
 
     // A held sheet is a share of the ceiling, which its CSS sizes (record
-    // 0290): turned to a screen 390px tall, a sheet held at 450 of 844 stands
+    // 0291): turned to a screen 390px tall, a sheet held at 450 of 844 stands
     // at the same share of 390, and a drag there starts from it.
     it('holds a share of the ceiling, which a turned screen keeps', () => {
       const { card, drag } = setup()
@@ -258,7 +258,7 @@ describe('BottomSheet', () => {
       expect(screen.getByRole('textbox', { hidden: true })).toBeTruthy()
     })
 
-    // The same ceiling as a menu sheet's (record 0290): the screen less the
+    // The same ceiling as a menu sheet's (record 0291): the screen less the
     // status bar's band, where it used to stop under the chips and the
     // Analyze button's strip.
     it('rises under its grip to the top of the screen, under the status bar\'s band', () => {
@@ -288,7 +288,7 @@ describe('BottomSheet', () => {
 
     // A held share is of the ceiling rather than of the own height its
     // caller hands it, so a turned screen that shrinks the map's strip leaves
-    // it where it was (record 0290).
+    // it where it was (record 0291).
     it('stands at its held share of the ceiling, whatever own height it is handed', () => {
       const { rerender } = render(
         <BottomSheet heading="Controls" onClose={vi.fn()} kept={{ ...KEPT, held: { share: 0.7 } }}>

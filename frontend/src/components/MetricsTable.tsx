@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import type { SyntheticEvent } from 'react'
 import { SortBy } from '../types'
 import {
   ACCENT,
@@ -10,6 +11,7 @@ import {
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
+  METRIC_CHART,
   METRIC_LABEL_PITCH,
   MUTED,
   SEGMENT_FILL,
@@ -20,6 +22,10 @@ import {
   TEXT,
 } from '../styles'
 import { MenuSelect } from './Menu'
+import { IconChart } from './icons'
+import { useShiftRange } from '../hooks/useShiftRange'
+import { shiftHeld } from '../utils/rangeSelect'
+import { MAX_CHART_PANELS, type ChartMetric, type ChartMetrics } from '../utils/chart/chartData'
 import {
   AGGREGATE,
   FAMILY_KEYS,
@@ -207,6 +213,10 @@ interface Props {
   // outside its coverage. The grey row is the whole message; the line that
   // blocks a ranking on one is the Analyze button's.
   unanswered?: UnansweredMetrics
+  // The results chart's panels, first the ranking's (`useChartMetrics`), and
+  // the press that draws metrics as panels or takes them away (record 0290).
+  charted: ChartMetrics
+  onChart: (keys: readonly ChartMetric[], on: boolean) => void
 }
 
 /**
@@ -228,6 +238,8 @@ export default function MetricsTable({
   maxLimit,
   phone = false,
   unanswered = ALL_ANSWERED,
+  charted,
+  onChart,
 }: Props) {
   // What Clear filters offers to undo, and therefore whether it is enabled.
   // The button is always drawn: a control that appears and disappears moves
@@ -247,6 +259,22 @@ export default function MetricsTable({
   // invalid for a screen reader. The panel has no invalid look for a field, so
   // the Analyze button's line is what says it on screen.
   const inverted = new Set(invertedFamilies(constraints))
+
+  // A chart toggle's press, with Shift reaching every row between it and the
+  // last one pressed (record 0209). The rows a range crosses that take no
+  // press, the ranking's and a greyed one, are left out; past the chart's
+  // cap a range draws what fits (`chartFamilies`). The table is always open,
+  // so the anchor lives as long as the panel does.
+  const pressRange = useShiftRange(true)
+  const full = charted.length >= MAX_CHART_PANELS
+  function toggleChart(family: MetricFamily, e: SyntheticEvent) {
+    const on = !charted.includes(family)
+    const keys = pressRange(RANKED_FAMILIES, family, shiftHeld(e)) as MetricFamily[]
+    onChart(
+      keys.filter((key) => key !== charted[0] && !unanswered.has(key)),
+      on,
+    )
+  }
 
   // Metrics — the ranking and the bounds in one table (#341). One row
   // per metric: its radio, its aggregate dropdown, and its floor and
@@ -357,6 +385,8 @@ export default function MetricsTable({
         {RANKED_FAMILIES.map((family) => {
           const rowKey = rowKeys[family]
           const isActive = familyOf(sortBy) === family
+          const drawn = charted.includes(family)
+          const first = charted[0] === family
           const bounds = BOUNDS[family]
           const edgeKeys = FAMILY_BOUNDS[family]
           // The window or the models cannot answer this metric: its radio, its
@@ -366,23 +396,47 @@ export default function MetricsTable({
           const inert = unanswered.has(family)
           return (
             <Fragment key={family}>
-              {/* The label's own margin sets the row pitch (32px on a fine
+              {/* The cell's own margin sets the row pitch (32px on a fine
                   pointer), so the radio and the bound boxes pass the 24px
-                  spacing test without any of them growing (#687). */}
-              <label
-                className={`${CHOICE_ROW} ${METRIC_LABEL_PITCH} min-w-0 ${pointSample ? 'col-span-2' : ''}`}
-                title={inert ? undefined : bounds.note}
-              >
-                <input
-                  type="radio"
-                  name="sort_metric"
-                  checked={isActive}
-                  disabled={inert}
-                  onChange={() => setSortBy(rowKey)}
-                  className={CHOICE_INPUT}
-                />
-                <span className="truncate">{NOUN[family]}</span>
-              </label>
+                  spacing test without any of them growing (#687). The label
+                  takes what the chart toggle leaves, and the toggle stands at
+                  the cell's far edge, 6px from the aggregate, so a short name
+                  leaves room between the two presses. */}
+              <div className={`flex min-w-0 items-center ${METRIC_LABEL_PITCH} ${pointSample ? 'col-span-2' : ''}`}>
+                <label
+                  className={`${CHOICE_ROW} min-w-0 flex-1`}
+                  title={inert ? undefined : bounds.note}
+                >
+                  <input
+                    type="radio"
+                    name="sort_metric"
+                    checked={isActive}
+                    disabled={inert}
+                    onChange={() => setSortBy(rowKey)}
+                    className={CHOICE_INPUT}
+                  />
+                  <span className="truncate">{NOUN[family]}</span>
+                </label>
+                {/* The results chart's panel for this metric (record 0290).
+                    The first panel's is lit and takes no press, because the
+                    chart keeps that slot for the ranking; it is the ranked
+                    row's unless a link or the chart's own picker put another
+                    metric there. No title: a tooltip does not exist on touch,
+                    and the pressed state is announced. */}
+                <button
+                  type="button"
+                  aria-label={`Show ${NOUN[family]} on the chart`}
+                  aria-pressed={drawn}
+                  aria-disabled={first || undefined}
+                  disabled={inert || (!drawn && full)}
+                  onClick={(e) => {
+                    if (!first) toggleChart(family, e)
+                  }}
+                  className={`${METRIC_CHART.toggle} ${drawn ? METRIC_CHART.on : METRIC_CHART.off}`}
+                >
+                  <IconChart filled={drawn} />
+                </button>
+              </div>
               {!pointSample && (
                 // flex, not block: an inline-level select in a block
                 // wrapper reserves baseline descender space below itself,

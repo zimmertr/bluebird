@@ -795,6 +795,7 @@ export default function App() {
         destinationInputs={destinationInputs}
         forecastSelection={forecastSelection}
         rankingKnobs={rankingKnobs}
+        chartMetrics={chartMetrics}
         caps={caps}
         mapRef={mapRef}
         onPointAtSearch={setSearchPointed}

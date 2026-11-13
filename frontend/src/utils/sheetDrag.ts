@@ -25,12 +25,12 @@ export const FLICK_WINDOW_MS = 100
 
 /**
  * Where a drag leaves a sheet: a height in px, or `full`, the ceiling every
- * sheet shares (record 0290). What a sheet then holds is a `SheetHeight`.
+ * sheet shares (record 0291). What a sheet then holds is a `SheetHeight`.
  */
 export type DragHeight = number | 'full'
 
 /**
- * Where a sheet is held, in terms a rotation keeps (record 0290): `full`, the
+ * Where a sheet is held, in terms a rotation keeps (record 0291): `full`, the
  * ceiling, or a `share` of the ceiling, the room the screen gives a sheet.
  * The card's own CSS sizes both off the box it stands in, so a sheet dragged
  * to 70% of the room stands at 70% of the room on the screen it is turned
@@ -55,7 +55,7 @@ export function sharePx(held: { share: number }, fullPx: number): number {
 export interface SheetStops {
   /** The height it opens at: its rows, or a Controls sheet's own share. */
   restPx: number
-  /** The most it rises: the screen under the status bar's band, for every sheet (record 0290). */
+  /** The most it rises: the screen under the status bar's band, for every sheet (record 0291). */
   fullPx: number
 }
 

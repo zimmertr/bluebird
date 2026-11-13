@@ -15,6 +15,7 @@ import { type ActionWord, type AutoAnalyzeStep, autoAnalyzeStep } from '../utils
 import { ForecastSelection } from '../utils/calendar/calendar'
 import { type ForecastModelOption } from '../hooks/useCapabilities'
 import { logoUrl } from '../logo'
+import type { ChartMetric, ChartMetrics } from '../utils/chart/chartData'
 
 // The panel's frame: the header, the three sections and the footer, and the
 // state they share. Each section is its own component taking only the inputs
@@ -109,6 +110,10 @@ interface Props {
   // sheet's own head replaces the logo and the title, and the map's floating
   // button is the one Analyze, so the footer draws none.
   phone?: boolean
+  // The results chart's panels, which each Metrics row's chart toggle draws
+  // or takes away (record 0290; `useChartMetrics`).
+  charted: ChartMetrics
+  onChart: (keys: readonly ChartMetric[], on: boolean) => void
 }
 
 export default function ControlPanel({
@@ -161,6 +166,8 @@ export default function ControlPanel({
   archiveDays,
   aqiForecastDays,
   phone = false,
+  charted,
+  onChart,
 }: Props) {
   // A line pasted twice is one destination, and the count says so (#579).
   // Parsed once per change for the count; the gate reads App's parse.
@@ -300,6 +307,8 @@ export default function ControlPanel({
           maxLimit={maxLimit}
           unanswered={unanswered}
           phone={phone}
+          charted={charted}
+          onChart={onChart}
         />
 
         {/* A phone's footer is the document links, the last thing in the

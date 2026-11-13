@@ -2182,21 +2182,48 @@ export const SEGMENT_FILL = `flex w-full ${RADIUS.control} overflow-hidden ${REC
  * BESIDE the shared control column rather than in it, so it takes its own
  * width and the metric label absorbs what is left.
  *
- * 4.5rem (72px) is a budget, not a taste. The row it sits in is the Metrics
+ * 4rem (64px) is a budget, not a taste. The row it sits in is the Metrics
  * grid's (#341): panel content is 327px, and a metric row spends 14px on the
  * radio, 10px on its label gap, 18px on its three gap-1.5 grid gaps, this
- * width on the dropdown and two `METRIC_BOX_W` boxes, leaving the label what
- * is left — and its longest noun, `Freezing level`, is measured at text-xs
- * in `styles.test.ts`, which pins the sum. The dropdown's own floor is its
- * content: the widest aggregate word measures 28px, plus the field's 8px
- * left padding and the 24px the TRIGGER_FIELD recipe reserves for its arrow — 60px
- * (measured 2026-08-22, re-derived 2026-09-14 when the select gave 8px back).
- * The 12px of slack that leaves is deliberate: this width also sets a grid
- * track, so shrinking it to the floor would only widen a label that already
- * fits. Re-measure both sums before changing this, the box width, the grid
- * gap, or the nouns.
+ * width on the dropdown and two `METRIC_BOX_W` boxes, and `METRIC_CHART`'s
+ * 18px toggle, leaving the label what is left — and its longest noun,
+ * `Freezing level`, is measured at text-xs in `styles.test.ts`, which pins
+ * the sum. The dropdown's own floor is its content: the widest aggregate
+ * word, `Total`, measures 27.54px, plus the field's 8px left padding, the
+ * 24px the TRIGGER_FIELD recipe reserves for its arrow and its 2px of border
+ * — 61.54px (measured in production on 2026-11-12). It was 72px, with 12px of
+ * slack, until the chart toggle took 18px of the label's room (record 0290):
+ * 64px leaves `Total` 2.46px and the label 3px, so neither truncates. Re-measure
+ * both sums before changing this, the box width, the grid gap, the toggle, or
+ * the nouns.
  */
-export const SELECT_W_AGGREGATE = 'w-[4.5rem]'
+export const SELECT_W_AGGREGATE = 'w-[4rem]'
+
+/**
+ * A Metrics row's chart toggle (record 0290): the chart glyph after the
+ * metric's name, which draws that metric as a panel of the results chart or
+ * takes it away. The first panel's is lit and takes no press, because the
+ * chart keeps that slot for the ranking.
+ *
+ * - `toggle`: the box. 18px wide (a 16px glyph and 1px either side), as tall
+ *   as its row, which is what the label budget beside `SELECT_W_AGGREGATE`
+ *   can give it at a desk: `Freezing level` leaves 21px. 28px under a finger,
+ *   where a phone's Controls sheet has 32px to spare; the WCAG 2.2 floor is
+ *   24 and the row's other targets are 32 tall, not wide.
+ * - `off` and `on`: `MENU_BROWSE`'s two marks, the faint glyph that lights in
+ *   the accent under the pointer and the accent a drawn metric's glyph holds.
+ *   The pressed glyph also fills under its line (`IconChart`'s `filled`), so
+ *   the state is a shape as well as a colour, the way a starred list's star
+ *   fills. On the panel the faint glyph is 3.07:1 dark and 4.32:1 light, and
+ *   the accent 6.71:1 and 5.74:1 (computed from the tokens, 2026-11-12).
+ */
+export const METRIC_CHART = {
+  toggle:
+    `${FOCUS_RING} ${DISABLED} flex w-[18px] flex-shrink-0 cursor-pointer items-center justify-center ` +
+    `self-stretch ${RADIUS.control} touch:min-w-7 transition-colors aria-disabled:cursor-default`,
+  off: ICON_ACTION,
+  on: ACCENT.text,
+} as const
 
 /**
  * A segmented control OUTSIDE the panel's column, sized by its content.
@@ -2785,12 +2812,12 @@ export const BOTTOM_SHEET = {
   /**
    * The most a menu sheet OPENS at, one inset under the chip row, so a long
    * list leaves the top of the map in view. Not the most it rises: once a
-   * drag holds it, `ceiling` takes this one's place (record 0290).
+   * drag holds it, `ceiling` takes this one's place (record 0291).
    */
   opening: 'max-h-[calc(100dvh-100px)]',
   /**
    * The most any sheet stands at, the Controls sheet too: the box it stands
-   * in less the status bar's band (record 0290). A percentage of that box
+   * in less the status bar's band (record 0291). A percentage of that box
    * rather than a number, so a rotation clamps a held sheet to the screen it
    * now has and its grip stays on it.
    */
@@ -2799,7 +2826,7 @@ export const BOTTOM_SHEET = {
   full: 'h-[calc(100%-env(safe-area-inset-top))]',
   /**
    * A sheet a drag held between its own height and the top: its share of the
-   * ceiling, which the card carries as `--sheet-share` (record 0290). CSS
+   * ceiling, which the card carries as `--sheet-share` (record 0291). CSS
    * rather than px, so a turned screen gives it the same share of the room it
    * now has.
    */
@@ -2812,7 +2839,7 @@ export const BOTTOM_SHEET = {
    * maintainer's phone (2026-10-27). `touch-none` because the row is the
    * sheet's handle as much as the grip is (record 0146): without it a finger
    * drawn down the title was the browser's own pan, which Chrome and Firefox
-   * on Android read at the page's top as a pull to refresh (record 0290).
+   * on Android read at the page's top as a pull to refresh (record 0291).
    */
   head: 'flex flex-shrink-0 touch-none items-center gap-2 px-4 pb-2',
   title: TEXT.subheading,
@@ -2829,7 +2856,7 @@ export const BOTTOM_SHEET = {
   /**
    * An invisible box as tall as the status bar's band at the screen's top,
    * `env(safe-area-inset-top)`, which every sheet reads when a drag begins
-   * (record 0290): a sheet rises to the screen's top less that band, so its
+   * (record 0291): a sheet rises to the screen's top less that band, so its
    * grip never stands under an iPhone's clock. 0 where the browser reports
    * none. The probe `SAFE_AREA` keeps for the foot, turned over.
    */

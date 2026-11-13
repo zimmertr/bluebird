@@ -8,6 +8,7 @@ import {
   metricsFor,
   pickMetric,
   moveMetric, removeMetric,
+  chartFamilies,
 } from '../utils/chart/chartData'
 import type { ChartLayout } from '../utils/chart/chartLayout'
 import { writeViewPrefs } from '../utils/viewPrefs'
@@ -19,7 +20,8 @@ import { writeViewPrefs } from '../utils/viewPrefs'
  * Its own hook, called in `App.tsx` above the address bar's sync, because the
  * slots ride the share link (`chart=`) and `useUrlSync` runs before the
  * results view that draws the chart. The rules that move the list are pure,
- * in `utils/chart/chartData.ts` (`pickMetric`, `addMetric`, `removeMetric`, `moveMetric`).
+ * in `utils/chart/chartData.ts` (`pickMetric`, `addMetric`, `removeMetric`,
+ * `moveMetric`, and `chartFamilies` for the Metrics table's chart toggles).
  *
  * `restored` is a link's list, which the session opens on. The first slot
  * follows each NEW ranking after that; the ranking the session opened on is
@@ -54,8 +56,14 @@ export function useChartMetrics(restored: ChartMetrics | undefined, sortBy: Sort
   const add = useCallback(() => setMetrics(addMetric), [])
   const remove = useCallback((index: number) => setMetrics((list) => removeMetric(list, index)), [])
   const move = useCallback((from: number, to: number) => setMetrics((list) => moveMetric(list, from, to)), [])
+  // The Metrics table's chart toggles (record 0290): the same list, so a
+  // panel the table draws is one the chart's own pickers can move or remove.
+  const chart = useCallback(
+    (keys: readonly ChartMetric[], on: boolean) => setMetrics((list) => chartFamilies(list, keys, on)),
+    [],
+  )
 
-  return { metrics, pick, add, remove, move, layout, setLayout }
+  return { metrics, pick, add, remove, move, chart, layout, setLayout }
 }
 
 /** What `useChartMetrics` hands its callers. */
