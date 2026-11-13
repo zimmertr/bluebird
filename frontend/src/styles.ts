@@ -3467,6 +3467,13 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   one 8px down, where the Layers menu's `px-2.5 py-2` stands its own.
  * - `row`: a row's inset and shape, for a row that brings its own type and
  *   control (a checkbox row wears `CHOICE_ROW` beside it).
+ * - `sheetList`: `list` on a phone, where the rows stand in a bottom sheet
+ *   whose body is the one scroller. The same inset with no scroll box of its
+ *   own: inside the sheet `list`'s box never overflows, and its
+ *   `overscroll-contain` swallowed every flick over the rows, so the sheet
+ *   never scrolled and a long list's foot was out of reach (on a phone the
+ *   gesture moved the Controls sheet behind instead). `MESSAGE_LIST.sheet`
+ *   leaves the box out for the same reason.
  * - `cardRow`: the same inset and pitch for a row that stands straight on a
  *   card's 10px padding rather than in a `list` (the Layers rows): pulled out
  *   6px and padded back, so its words stay where they were and its fill
@@ -3509,6 +3516,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
   list: `min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1.5 ${SCROLL_BARS}`,
+  sheetList: 'px-1 py-1.5',
   row: MENU_ROW,
   cardRow: '-mx-1.5 rounded px-1.5 py-0.5',
   option: `${TEXT.control} ${TAP.row} ${MENU_ROW} cursor-pointer`,
