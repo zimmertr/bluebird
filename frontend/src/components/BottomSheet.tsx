@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { useId, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialog } from '../hooks/useDialog'
 import { useSheetDrag } from '../hooks/useSheetDrag'
@@ -95,11 +95,7 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
   // sheet's own height is its rows' under the cap it opens at; the Controls
   // sheet's is its caller's.
   const [menuHeld, setMenuHeld] = useState<SheetHeight | null>(null)
-  // A menu sheet's own height while one is held, which a held share is a
-  // share of: read when a drag begins and again when the screen turns.
-  const [menuOwnPx, setMenuOwnPx] = useState(0)
   const held = kept ? kept.held : menuHeld
-  const ownPx = kept ? kept.restPx : menuOwnPx
   const setHeld = kept ? kept.onHeld : setMenuHeld
   const topBandRef = useRef<HTMLSpanElement>(null)
   // Its rows' own height under the cap it opens at: the card as it stands
@@ -107,41 +103,28 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
   const measureOwn = () => {
     const card = panelRef.current!
     const shape = card.className
-    const height = card.style.height
+    const share = card.style.getPropertyValue(SHARE_VAR)
     card.className = menuCard(null, aside)
-    card.style.height = ''
+    card.style.removeProperty(SHARE_VAR)
     const px = card.offsetHeight
     card.className = shape
-    card.style.height = height
+    if (share) card.style.setProperty(SHARE_VAR, share)
     return px
   }
-  const dragRest = useRef(0)
+  const dragFull = useRef(0)
   const onGripDown = useSheetDrag({
     measure: () => {
       const card = panelRef.current!
       const box = card.offsetParent as HTMLElement | null
       const fullPx = Math.max(0, (box ? box.clientHeight : window.innerHeight) - (topBandRef.current?.offsetHeight ?? 0))
       const restPx = kept ? kept.restPx : measureOwn()
-      if (!kept) setMenuOwnPx(restPx)
-      dragRest.current = restPx
-      const startPx = held === null ? restPx : held === 'full' ? fullPx : sharePx(held, restPx)
+      dragFull.current = fullPx
+      const startPx = held === null ? restPx : held === 'full' ? fullPx : sharePx(held, fullPx)
       return { startPx: Math.min(startPx, fullPx), restPx, fullPx }
     },
-    onHeight: (px: DragHeight | null) => setHeld(typeof px === 'number' ? heldShare(px, dragRest.current) : px),
+    onHeight: (px: DragHeight | null) => setHeld(typeof px === 'number' ? heldShare(px, dragFull.current) : px),
     onClose,
   })
-  // A turned screen gives a menu sheet's rows a new cap, so the share it
-  // holds is read against its own height again (record 0290).
-  const shareHeld = !kept && typeof menuHeld === 'object' && menuHeld !== null
-  useLayoutEffect(() => {
-    if (!shareHeld) return
-    const remeasure = () => setMenuOwnPx(measureOwn())
-    window.addEventListener('resize', remeasure)
-    return () => window.removeEventListener('resize', remeasure)
-    // measureOwn reads the card and `aside` alone, and a sheet that steps
-    // aside is not resized meanwhile.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shareHeld])
   const sheet = (
     <>
       {/* The whole screen catches a press outside the card and is dimmed,
@@ -162,10 +145,10 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
         inert={!open}
         className={
           kept
-            ? `${CONTROLS_SHEET.card} ${BOTTOM_SHEET.ceiling}${held === 'full' ? ` ${BOTTOM_SHEET.full}` : ''} ${open ? '' : CONTROLS_SHEET.shut}`
+            ? `${CONTROLS_SHEET.card} ${BOTTOM_SHEET.ceiling}${heldClass(held)} ${open ? '' : CONTROLS_SHEET.shut}`
             : menuCard(held, aside)
         }
-        style={heightStyle(held, ownPx, !!kept)}
+        style={heightStyle(held, kept?.restPx)}
         data-tour={tourAnchor}
       >
         <SheetTop
@@ -184,27 +167,34 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
   return kept ? sheet : createPortal(sheet, document.body)
 }
 
-/**
- * A menu sheet's card: under the cap it opens at until a drag holds it, then
- * under the ceiling alone, and sized to the ceiling by its CSS while full
- * (record 0290). Classes rather than a number, so a rotation re-sizes it: a
- * held height stays clamped to the screen it now has, and a full sheet stays
- * full, its grip never past the screen's top.
- */
-function menuCard(held: SheetHeight | null, aside: boolean): string {
-  const fit = held === null ? BOTTOM_SHEET.opening : held === 'full' ? `${BOTTOM_SHEET.ceiling} ${BOTTOM_SHEET.full}` : BOTTOM_SHEET.ceiling
-  return `${BOTTOM_SHEET.card} ${fit}${aside ? ` ${SHEET_ASIDE.card}` : ''}`
+/** The custom property a held sheet's share of the ceiling rides on (`BOTTOM_SHEET.held`). */
+const SHARE_VAR = '--sheet-share'
+
+/** The class that sizes a held sheet: full, a share of the ceiling, or none for its own height. */
+function heldClass(held: SheetHeight | null): string {
+  return held === null ? '' : held === 'full' ? ` ${BOTTOM_SHEET.full}` : ` ${BOTTOM_SHEET.held}`
 }
 
 /**
- * The card's height in px: a held share of its own height, or the Controls
- * sheet's own share of the map, which its caller works out. Full and a menu
- * sheet's own height are its CSS's.
+ * A menu sheet's card: under the cap it opens at until a drag holds it, then
+ * under the ceiling alone, at its share of it or full (record 0290). Classes
+ * rather than a number, so a rotation re-sizes it: a held sheet keeps its
+ * share of the room the screen now gives it, and a full sheet stays full,
+ * its grip never past the screen's top.
  */
-function heightStyle(held: SheetHeight | null, ownPx: number, kept: boolean) {
-  if (held === 'full') return undefined
-  if (held !== null) return { height: sharePx(held, ownPx) }
-  return kept ? { height: ownPx } : undefined
+function menuCard(held: SheetHeight | null, aside: boolean): string {
+  const fit = held === null ? BOTTOM_SHEET.opening : BOTTOM_SHEET.ceiling
+  return `${BOTTOM_SHEET.card} ${fit}${heldClass(held)}${aside ? ` ${SHEET_ASIDE.card}` : ''}`
+}
+
+/**
+ * The card's inline style: a held sheet's share for `BOTTOM_SHEET.held`, or
+ * the Controls sheet's own height in px, which its caller works out. Full
+ * and a menu sheet's own height are its CSS's alone.
+ */
+function heightStyle(held: SheetHeight | null, restPx: number | undefined): CSSProperties | undefined {
+  if (held !== null && held !== 'full') return { [SHARE_VAR]: held.share } as CSSProperties
+  return held === null && restPx !== undefined ? { height: restPx } : undefined
 }
 
 interface SheetTopProps {

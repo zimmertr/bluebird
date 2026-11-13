@@ -25,6 +25,13 @@ function sheet(onClose = vi.fn()) {
   return onClose
 }
 const grip = () => screen.getByRole('dialog').firstElementChild as HTMLElement
+// The px a held sheet's share of the ceiling stands at, which its CSS works
+// out on a real screen: the screen jsdom reports, as there is no status bar
+// band. Null for its own height.
+function shown(card: HTMLElement): number | null {
+  const share = card.style.getPropertyValue('--sheet-share')
+  return share ? Math.round(parseFloat(share) * window.innerHeight) : null
+}
 
 // The screen a drag measures its ceiling off, which jsdom leaves at 768.
 const SCREEN_PX = 844
@@ -103,17 +110,15 @@ describe('BottomSheet', () => {
   describe('dragged', () => {
     afterEach(() => vi.useRealTimers())
     stubScreen()
-    // The rows' own height under the cap they open at, which a turned
-    // screen changes.
-    const own = { px: 300 }
-    beforeEach(() => void (own.px = 300))
+    // The rows' own height under the cap they open at.
+    const OWN_PX = 300
     function setup() {
       vi.useFakeTimers({ toFake: ['Date', 'performance'] })
       const onClose = sheet()
       const card = screen.getByRole('dialog')
       Object.defineProperty(card, 'offsetHeight', {
         configurable: true,
-        get: () => (card.style.height ? parseFloat(card.style.height) : own.px),
+        get: () => shown(card) ?? OWN_PX,
       })
       const title = screen.getByRole('heading', { name: 'Layers' })
       // A press, a move every 100ms, and the release where the last move was.
@@ -133,17 +138,17 @@ describe('BottomSheet', () => {
     it('follows the finger and holds where it is let go', () => {
       const { onClose, card, drag } = setup()
       drag(grip(), [450, 400])
-      expect(card.style.height).toBe('400px')
+      expect(shown(card)).toBe(400)
       expect(onClose).not.toHaveBeenCalled()
     })
 
     it('drags from the title row, and not from Done', () => {
       const { card, title, drag } = setup()
       drag(title, [400, 300])
-      expect(card.style.height).toBe('500px')
+      expect(shown(card)).toBe(500)
       fireEvent.pointerDown(screen.getByRole('button', { name: 'Done' }), { clientY: 500, pointerId: 1 })
       fireEvent.pointerMove(document, { clientY: 100, pointerId: 1 })
-      expect(card.style.height).toBe('500px')
+      expect(shown(card)).toBe(500)
     })
 
     // Past the cap it opens at, to the screen's top (record 0290): the
@@ -153,7 +158,7 @@ describe('BottomSheet', () => {
       fireEvent.pointerDown(grip(), { clientY: 500, pointerId: 1 })
       vi.advanceTimersByTime(100)
       fireEvent.pointerMove(document, { clientY: -200, pointerId: 1 })
-      expect(card.style.height).toBe(`${SCREEN_PX}px`)
+      expect(shown(card)).toBe(SCREEN_PX)
       fireEvent.pointerCancel(document, { pointerId: 1 })
       vi.advanceTimersByTime(DOUBLE_PRESS_MS)
       drag(grip(), [300, -200])
@@ -168,10 +173,10 @@ describe('BottomSheet', () => {
     it('stays full by its CSS when let go at the top, and holds a height under the ceiling', () => {
       const { card, drag } = setup()
       drag(grip(), [300, -200])
-      expect(card.style.height).toBe('')
+      expect(shown(card)).toBeNull()
       expect(card.className).toContain(BOTTOM_SHEET.full)
       drag(grip(), [600, 800])
-      expect(card.style.height).toBe(`${SCREEN_PX - 300}px`)
+      expect(shown(card)).toBe(SCREEN_PX - 300)
       expect(card.className).toContain(BOTTOM_SHEET.ceiling)
       expect(card.className).not.toContain(BOTTOM_SHEET.full)
     })
@@ -179,29 +184,29 @@ describe('BottomSheet', () => {
     it('gives the sheet back its own height on a release near it, and on a double press', () => {
       const { card, drag } = setup()
       drag(grip(), [400, 300])
-      expect(card.style.height).toBe('500px')
+      expect(shown(card)).toBe(500)
       drag(grip(), [600, 700 - SHEET_SNAP_PX / 2])
-      expect(card.style.height).toBe('')
+      expect(shown(card)).toBeNull()
       drag(grip(), [400, 300])
       fireEvent.pointerDown(grip(), { clientY: 500, pointerId: 1 })
       vi.advanceTimersByTime(DOUBLE_PRESS_MS - 50)
       fireEvent.pointerDown(grip(), { clientY: 500, pointerId: 1 })
-      expect(card.style.height).toBe('')
+      expect(shown(card)).toBeNull()
     })
 
-    // A held sheet is a share of its own height (record 0290): turned to a
-    // screen whose cap gives it 200px of its own, a sheet held at 150% of
-    // 300 stands at 150% of 200, and turned back at 150% of 300 again.
-    it('keeps its share of its own height when the screen turns, both ways', () => {
+    // A held sheet is a share of the ceiling, which its CSS sizes (record
+    // 0290): turned to a screen 390px tall, a sheet held at 450 of 844 stands
+    // at the same share of 390, and a drag there starts from it.
+    it('holds a share of the ceiling, which a turned screen keeps', () => {
       const { card, drag } = setup()
       drag(grip(), [480, 350])
-      expect(card.style.height).toBe('450px')
-      own.px = 200
-      fireEvent(window, new Event('resize'))
-      expect(card.style.height).toBe('300px')
-      own.px = 300
-      fireEvent(window, new Event('resize'))
-      expect(card.style.height).toBe('450px')
+      expect(parseFloat(card.style.getPropertyValue('--sheet-share'))).toBeCloseTo(450 / SCREEN_PX)
+      expect(card.className).toContain(BOTTOM_SHEET.held)
+      expect(card.style.height).toBe('')
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 390 })
+      expect(shown(card)).toBe(Math.round((450 / SCREEN_PX) * 390))
+      drag(grip(), [490, 480], 200)
+      expect(shown(card)).toBe(Math.round((450 / SCREEN_PX) * 390) + 20)
     })
 
     it('closes when let go near the foot', () => {
@@ -272,7 +277,7 @@ describe('BottomSheet', () => {
       fireEvent.pointerDown(grip(), { clientY: 500, pointerId: 1 })
       vi.advanceTimersByTime(100)
       fireEvent.pointerMove(document, { clientY: -500, pointerId: 1 })
-      expect(onHeld).toHaveBeenLastCalledWith({ share: (SCREEN_PX - 47) / KEPT.restPx })
+      expect(onHeld).toHaveBeenLastCalledWith({ share: 1 })
       vi.advanceTimersByTime(200)
       fireEvent.pointerMove(document, { clientY: -500, pointerId: 1 })
       vi.advanceTimersByTime(200)
@@ -281,22 +286,26 @@ describe('BottomSheet', () => {
       vi.useRealTimers()
     })
 
-    // Its own share is its caller's, so a turned screen that gives it a new
-    // one moves a held share with it.
-    it('stands at its held share of the own height its caller hands it', () => {
+    // A held share is of the ceiling rather than of the own height its
+    // caller hands it, so a turned screen that shrinks the map's strip leaves
+    // it where it was (record 0290).
+    it('stands at its held share of the ceiling, whatever own height it is handed', () => {
       const { rerender } = render(
-        <BottomSheet heading="Controls" onClose={vi.fn()} kept={{ ...KEPT, held: { share: 1.2 } }}>
+        <BottomSheet heading="Controls" onClose={vi.fn()} kept={{ ...KEPT, held: { share: 0.7 } }}>
           <input aria-label="Field" />
         </BottomSheet>,
       )
       const card = screen.getByRole('dialog', { name: 'Controls' })
-      expect(card.style.height).toBe('648px')
+      expect(card.style.getPropertyValue('--sheet-share')).toBe('0.7')
+      expect(card.className).toContain(BOTTOM_SHEET.held)
+      expect(card.style.height).toBe('')
       rerender(
-        <BottomSheet heading="Controls" onClose={vi.fn()} kept={{ ...KEPT, restPx: 200, held: { share: 1.2 } }}>
+        <BottomSheet heading="Controls" onClose={vi.fn()} kept={{ ...KEPT, restPx: 200, held: { share: 0.7 } }}>
           <input aria-label="Field" />
         </BottomSheet>,
       )
-      expect(card.style.height).toBe('240px')
+      expect(card.style.getPropertyValue('--sheet-share')).toBe('0.7')
+      expect(card.style.height).toBe('')
     })
 
     it('stands full by its CSS when its caller holds it full', () => {

@@ -5422,6 +5422,14 @@ describe('sheet handles and pull to refresh', () => {
     for (const handle of [BOTTOM_SHEET.grip, BOTTOM_SHEET.head]) expect(handle.split(/\s+/)).toContain('touch-none')
   })
 
+  // A held sheet's height is its share of the ceiling's expression, so a
+  // turned screen sizes the two alike (record 0290).
+  it('sizes a held sheet as its share of the ceiling', () => {
+    const ceiling = BOTTOM_SHEET.full.slice('h-['.length, -1)
+    expect(BOTTOM_SHEET.held).toBe(`h-[calc(var(--sheet-share)*(${ceiling.slice('calc('.length, -1)}))]`)
+    expect(BOTTOM_SHEET.ceiling).toBe(`max-h-[${ceiling}]`)
+  })
+
   it('turns off overscroll on the page', () => {
     expect(indexCss).toMatch(/html,\s*body\s*\{\s*overscroll-behavior-y:\s*none;\s*\}/)
   })

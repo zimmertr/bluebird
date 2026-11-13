@@ -103,10 +103,11 @@ test.describe('on a phone', () => {
     })
   }
 
-  // A sheet held between its own height and the top keeps its share of its
-  // own height when the phone turns, rather than going full, and has the
+  // A sheet held between its own height and the top keeps its share of the
+  // room the screen gives it when the phone turns, rather than going full or
+  // shrinking to a share of the strip a sideways map leaves it, and has the
   // same height again when it turns back (record 0290).
-  test('the Controls sheet keeps its share of its own height through a turn and back', async ({ page }) => {
+  test('the Controls sheet keeps its share of the screen through a turn and back', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await page.getByRole('button', { name: 'Open controls', exact: true }).click()
@@ -116,12 +117,12 @@ test.describe('on a phone', () => {
     await drag(page, { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 }, -100)
     const held = Math.round((await sheet.boundingBox())!.height)
     expect(held).toBe(844 - 256 + 100)
+    const height = async () => (await sheet.boundingBox())!.height
 
     await page.setViewportSize({ width: 844, height: 390 })
-    await expect.poll(async () => Math.round((await sheet.boundingBox())!.height)).toBeLessThan(390)
-    expect((await sheet.boundingBox())!.y).toBeGreaterThan(0)
+    await expect.poll(async () => Math.abs((await height()) - (held / 844) * 390)).toBeLessThan(1)
 
     await page.setViewportSize({ width: 390, height: 844 })
-    await expect.poll(async () => Math.round((await sheet.boundingBox())!.height)).toBe(held)
+    await expect.poll(async () => Math.round(await height())).toBe(held)
   })
 })

@@ -2797,6 +2797,13 @@ export const BOTTOM_SHEET = {
   ceiling: 'max-h-[calc(100%-env(safe-area-inset-top))]',
   /** A sheet let go at the top: as tall as the ceiling, whatever the screen turns to. */
   full: 'h-[calc(100%-env(safe-area-inset-top))]',
+  /**
+   * A sheet a drag held between its own height and the top: its share of the
+   * ceiling, which the card carries as `--sheet-share` (record 0290). CSS
+   * rather than px, so a turned screen gives it the same share of the room it
+   * now has.
+   */
+  held: 'h-[calc(var(--sheet-share)*(100%-env(safe-area-inset-top)))]',
   grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-edge',
   /**
    * 8px under the title row, the same 8px the grip keeps between its bar and
