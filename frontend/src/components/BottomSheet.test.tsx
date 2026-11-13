@@ -162,8 +162,8 @@ describe('BottomSheet', () => {
       fireEvent.pointerCancel(document, { pointerId: 1 })
       vi.advanceTimersByTime(DOUBLE_PRESS_MS)
       drag(grip(), [300, -200])
-      expect(card.className).toContain(BOTTOM_SHEET.ceiling)
-      expect(card.className).not.toContain(BOTTOM_SHEET.opening)
+      expect(card.className.split(' ')).toContain(BOTTOM_SHEET.ceiling)
+      expect(card.className.split(' ')).not.toContain(BOTTOM_SHEET.opening)
     })
 
     // Let go at the top it is full, a state its CSS sizes rather than a
@@ -174,11 +174,11 @@ describe('BottomSheet', () => {
       const { card, drag } = setup()
       drag(grip(), [300, -200])
       expect(shown(card)).toBeNull()
-      expect(card.className).toContain(BOTTOM_SHEET.full)
+      expect(card.className.split(' ')).toContain(BOTTOM_SHEET.full)
       drag(grip(), [600, 800])
       expect(shown(card)).toBe(SCREEN_PX - 300)
-      expect(card.className).toContain(BOTTOM_SHEET.ceiling)
-      expect(card.className).not.toContain(BOTTOM_SHEET.full)
+      expect(card.className.split(' ')).toContain(BOTTOM_SHEET.ceiling)
+      expect(card.className.split(' ')).not.toContain(BOTTOM_SHEET.full)
     })
 
     it('gives the sheet back its own height on a release near it, and on a double press', () => {
@@ -201,7 +201,7 @@ describe('BottomSheet', () => {
       const { card, drag } = setup()
       drag(grip(), [480, 350])
       expect(parseFloat(card.style.getPropertyValue('--sheet-share'))).toBeCloseTo(450 / SCREEN_PX)
-      expect(card.className).toContain(BOTTOM_SHEET.held)
+      expect(card.className.split(' ')).toContain(BOTTOM_SHEET.held)
       expect(card.style.height).toBe('')
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 390 })
       expect(shown(card)).toBe(Math.round((450 / SCREEN_PX) * 390))
@@ -270,7 +270,7 @@ describe('BottomSheet', () => {
         </BottomSheet>,
       )
       const card = screen.getByRole('dialog', { name: 'Controls' })
-      expect(card.className).toContain(BOTTOM_SHEET.ceiling)
+      expect(card.className.split(' ')).toContain(BOTTOM_SHEET.ceiling)
       Object.defineProperty(card, 'offsetHeight', { configurable: true, value: KEPT.restPx })
       const band = card.lastElementChild as HTMLElement
       Object.defineProperty(band, 'offsetHeight', { configurable: true, value: 47 })
@@ -297,7 +297,7 @@ describe('BottomSheet', () => {
       )
       const card = screen.getByRole('dialog', { name: 'Controls' })
       expect(card.style.getPropertyValue('--sheet-share')).toBe('0.7')
-      expect(card.className).toContain(BOTTOM_SHEET.held)
+      expect(card.className.split(' ')).toContain(BOTTOM_SHEET.held)
       expect(card.style.height).toBe('')
       rerender(
         <BottomSheet heading="Controls" onClose={vi.fn()} kept={{ ...KEPT, restPx: 200, held: { share: 0.7 } }}>
@@ -316,7 +316,7 @@ describe('BottomSheet', () => {
       )
       const card = screen.getByRole('dialog', { name: 'Controls' })
       expect(card.style.height).toBe('')
-      expect(card.className).toContain(BOTTOM_SHEET.full)
+      expect(card.className.split(' ')).toContain(BOTTOM_SHEET.full)
     })
 
     // A sheet opened from inside it, the model list or the calendar, stands

@@ -3536,7 +3536,7 @@ describe('the layers palette', () => {
     expect(SHEET_ASIDE.card).toBe('invisible')
     expect(SHEET_ASIDE.keep).toContain('visible')
     expect(token(SHEET_ASIDE.keep, 'bg')).toBe(token(BOTTOM_SHEET.card, 'bg'))
-    expect(bottomSheetSource).toContain('${BOTTOM_SHEET.card}${aside ? ` ${SHEET_ASIDE.card}` : \'\'}')
+    expect(bottomSheetSource).toContain('${BOTTOM_SHEET.card} ${fit}${heldClass(held)}${aside ? ` ${SHEET_ASIDE.card}` : \'\'}')
     expect(SHEET_ASIDE.keep).toContain(ELEVATION.overlay)
   })
 })
