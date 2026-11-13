@@ -953,6 +953,41 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(rows.map((r) => r.querySelectorAll('[data-chart-box]').length)).toEqual([1, 3])
   })
 
+  // A desk's chart too short for the layout its panels now stand in asks
+  // the results for the room, once, and only for a change (#925).
+  it('asks for the room a third or fourth panel needs, and only when panels or the layout change', () => {
+    const area = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    height = area
+    const onShort = vi.fn()
+    const { rerender } = render(<TimeSeriesChart {...props({ ...TWO, onShort })} />)
+    // The first draw is no change, however short.
+    expect(onShort).not.toHaveBeenCalled()
+    rerender(<TimeSeriesChart {...props({ ...FOUR, layout: null, onShort })} />)
+    // One over three: two rows of 72px floors and the 8px bar between.
+    expect(onShort).toHaveBeenCalledTimes(1)
+    expect(onShort).toHaveBeenCalledWith(152 - 100)
+    rerender(<TimeSeriesChart {...props({ ...FOUR, layout: null, onShort })} />)
+    expect(onShort).toHaveBeenCalledTimes(1)
+    // Tall enough: a layout change asks nothing.
+    area.mockReturnValue(400)
+    rerender(<TimeSeriesChart {...props({ ...FOUR, layout: '2x2', onShort })} />)
+    rerender(<TimeSeriesChart {...props({ ...TWO, onShort })} />)
+    expect(onShort).toHaveBeenCalledTimes(1)
+  })
+
+  it("asks nothing when the tutorial's panels come or go, or on a phone", () => {
+    height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const onShort = vi.fn()
+    // The tour hands no listener while its panels stand in.
+    const { rerender } = render(<TimeSeriesChart {...props({ ...TWO, onShort })} />)
+    rerender(<TimeSeriesChart {...props({ ...FOUR, layout: null })} />)
+    rerender(<TimeSeriesChart {...props({ ...TWO, onShort })} />)
+    expect(onShort).not.toHaveBeenCalled()
+    const phone = render(<TimeSeriesChart {...props({ ...TWO, onShort, phone: true })} />)
+    phone.rerender(<TimeSeriesChart {...props({ ...FOUR, layout: null, onShort, phone: true })} />)
+    expect(onShort).not.toHaveBeenCalled()
+  })
+
   it('opens the Panel layout menu and picks a layout from it', async () => {
     const onLayout = vi.fn()
     render(<TimeSeriesChart {...props({ ...FOUR, onLayout })} />)

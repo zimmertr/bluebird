@@ -1,6 +1,6 @@
 # 0120. Snowfall over the window replaces snow depth as the ranking metric, and the pod holds no snow grid
 
-- Status: Accepted. Supersedes 0053, 0054 and 0104. Superseded in part by [0290](0290-snow-depth-returns-beside-snowfall.md): its snow depth half; its snowfall half stands.
+- Status: Accepted. Supersedes 0053, 0054 and 0104. Superseded in part by [0295](0295-snow-depth-returns-beside-snowfall.md): its snow depth half; its snowfall half stands.
 - Date: 2026-10-07
 - Decider: the maintainer, on #678 (2026-10-07: "remove snow depth as a ranking metric and replace it with snowfall")
 - Issues and PRs: #678, #449, #463, #629, #446

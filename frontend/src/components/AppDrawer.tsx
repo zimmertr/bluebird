@@ -1,5 +1,6 @@
 import { useRef, type RefObject } from 'react'
 import BottomSheet from './BottomSheet'
+import type { SheetHeight } from '../utils/sheetDrag'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
@@ -12,6 +13,7 @@ import type { DrawMode } from '../hooks/useDrawMode'
 import type { ForecastSelectionState } from '../hooks/useForecastSelection'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
+import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ActionWord } from '../utils/analyzeGate'
 import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER } from '../styles'
 import type { Theme } from '../utils/viewPrefs'
@@ -23,14 +25,12 @@ interface AppDrawerProps {
   isDesktop: boolean
   /** A desk's panel is opening or closing (`useLayoutMotion`), on a layer of its own meanwhile. */
   moving?: boolean
-  /** The Controls sheet's height on a phone: its own share (`controlsSheetPx`), or where a drag left it. */
-  sheetPx: number
+  /** Where a drag left the Controls sheet on a phone, or null for its own share (`sheetRestPx`). */
+  sheetHeld: SheetHeight | null
   /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
   sheetRestPx: number
-  /** The most a drag raises it (`controlsFullPx`). */
-  sheetFullPx: number
   /** Holds it at a dragged height, or null for its own share. */
-  onSheetPx: (px: number | null) => void
+  onSheetHeld: (held: SheetHeight | null) => void
   /** Closes it: its close button at a desk, and on a phone Done, Escape or a press on the dim. */
   onClose: () => void
   /**
@@ -79,6 +79,8 @@ interface AppDrawerProps {
     | 'setLimit'
     | 'clearFilters'
   >
+  /** The results chart's panels, which the Metrics rows' chart toggles move (`useChartMetrics`, record 0290). */
+  chartMetrics: Pick<ChartMetricsState, 'metrics' | 'chart'>
   /** The deployment's published limits and models (`useCapabilities`). */
   caps: LiveCapabilities
   /** The map, which a pasted list of coordinates fits to. */
@@ -119,16 +121,16 @@ export default function AppDrawer({
   open,
   isDesktop,
   moving = false,
-  sheetPx,
+  sheetHeld,
   sheetRestPx,
-  sheetFullPx,
-  onSheetPx,
+  onSheetHeld,
   onClose,
   tourRuns = false,
   drawMode,
   destinationInputs,
   forecastSelection,
   rankingKnobs,
+  chartMetrics,
   caps,
   mapRef,
   onPointAtSearch,
@@ -236,6 +238,8 @@ export default function AppDrawer({
       actionWord={actionWord}
       onTutorial={onTutorial}
       tutorialWaits={tutorialWaits}
+      charted={chartMetrics.metrics}
+      onChart={chartMetrics.chart}
     />
   )
 
@@ -252,10 +256,9 @@ export default function AppDrawer({
         kept={{
           open,
           tourRuns,
-          heightPx: sheetPx,
+          held: sheetHeld,
           restPx: sheetRestPx,
-          fullPx: sheetFullPx,
-          onHeightPx: onSheetPx,
+          onHeld: onSheetHeld,
           actions: <ThemeButton theme={theme} onToggle={onToggleTheme} />,
         }}
       >

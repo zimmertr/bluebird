@@ -68,6 +68,19 @@ export function panelFloorPx(margin: PlotMargin, drawsAxis: boolean): number {
   return margin.top + margin.bottom + xAxisPx(drawsAxis) + MIN_PANEL_BAND_PX
 }
 
+/**
+ * The least height a layout's panels' area needs for every row to clear its
+ * floor at even splits (#925): each row's `panelFloorPx` and the bars between
+ * rows, `rows` being `rowsOf`'s answer. In a stack only the bottom panel
+ * prints the time axis; every other layout's panels print their own. A desk
+ * raises the results to this when a panel is added or the layout changes,
+ * because a grid or rows panel under its floor is not drawn at all.
+ */
+export function areaFloorPx(rows: readonly number[], stacked: boolean, margin: PlotMargin, gapPx: number): number {
+  const panels = rows.reduce((sum, _, i) => sum + panelFloorPx(margin, !stacked || i === rows.length - 1), 0)
+  return panels + gapPx * Math.max(0, rows.length - 1)
+}
+
 /** The plotting band inside a chart box of this size, in the box's own pixels. */
 export function plotBand(
   width: number,

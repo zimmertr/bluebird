@@ -61,7 +61,7 @@ const onFocusPending = () => {}
 const removeResult = () => {}
 
 function layout(resultsMode: 'table' | 'chart' | 'both') {
-  return { resultsMode, chartGrip: GRIP, chartPanelPx: 200, chartPaneRef: { current: null }, legendRef: { current: null }, tableGrip: GRIP, tablePanelPx: 300 }
+  return { resultsMode, chartGrip: GRIP, chartPanelPx: 200, chartPaneRef: { current: null }, legendRef: { current: null }, tableGrip: GRIP, tablePanelPx: 300, raiseChart: () => {} }
 }
 const BOTH = layout('both')
 const NO_SHARED: ReadonlySet<string> = new Set()

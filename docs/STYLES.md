@@ -83,7 +83,8 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `SEGMENT_DIVIDER` | The rule between two segment halves |
 | `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER.value` and `SLIDER.wordmark` compose it |
-| `SELECT_W_AGGREGATE` | The aggregate menu in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px the field trigger reserves for its chevron, with 12px of deliberate slack because the width also sets a grid track |
+| `SELECT_W_AGGREGATE` | The aggregate menu in a Metrics row: 64px (w-[4rem]), the widest aggregate word (`Total`, 27.54px) plus the field's 8px padding, the 24px the field trigger reserves for its chevron and its 2px of border, with 2.46px to spare. It was 72px until the chart toggle took 18px of the row's label, record [0290](architectural-decision-records/0290-metrics-rows-draw-chart-panels.md) |
+| `METRIC_CHART` | A Metrics row's chart toggle, record [0290](architectural-decision-records/0290-metrics-rows-draw-chart-panels.md): `toggle` (an 18px box as tall as its row, 28px under a finger), `off` and `on` (`MENU_BROWSE`'s two marks: the faint glyph that lights in the accent under the pointer, and the accent a drawn metric's glyph holds, which also fills under its line). 3.07:1 and 4.32:1 at rest on the panel, 6.71:1 and 5.74:1 lit |
 | `CAPTION_LIFTED` | `TEXT.caption` re-derived for the slate-700 fills: the window caption on the results sheet's header bar, and a search result's description, which stood on slate-700 until the search list took the menu card. slate-300 (6.97:1) because slate-400 falls to 3.93:1 on that fill |
 | `SEARCH_KIND` | A search result's kind beside its name: `CAPTION_LIFTED` at the heading weight, 600, so places with similar names read apart by what each one is (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
 | `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), `well` is the recessed well that slider's layers stack in, and `track` is the rail the map timeline's scrubber slides on |
@@ -899,7 +900,10 @@ The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
 the bottom sheet the menus below are, kept mounted: modal over the same dim,
 slid below the map while shut, its height a fixed share of the map that
 leaves the rows, the button's strip and the 76px the notice band had above it
-(`CONTROLS_MAP_PX`, kept at 256 so the sheet opens where it did). Its dim
+(`CONTROLS_MAP_PX`, kept at 256 so the sheet opens where it did), and never
+under half the map, so a phone held sideways opens it at half the screen
+rather than as a strip (record
+[0292](architectural-decision-records/0292-controls-sheet-opens-at-half-the-map-at-least.md)). Its dim
 stands one layer under its card (`scrim` on `LAYER.scrim`). It pushes nothing.
 The button, the scale and the (i) stay where they stood under the dim, as
 under every phone sheet. Measured 2026-10-21 at 360x740 and 390x844: the
@@ -1009,7 +1013,7 @@ Every stacked panel control composes `CONTROL_W = 'w-[118px]'` = 118px.
 
 118px is not a taste. It is 2 x `METRIC_BOX_W` + the Metrics grid's `gap-x-1.5`, so the Forecast section's model picker and its two segments stand on exactly the edges the bound boxes below them do. The panel is one column at 225 and 343, measured. It was 144px, set by the widest segment label, until the Metrics row's label budget forced the narrower boxes and left the two sections 26px apart. `styles.test.ts` derives the sum from the roles.
 
-The Metrics table still sizes nothing by that token. Its row is the panel's widest — radio, label, aggregate menu (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content, which is 317px beside the 10px scroll bar the body keeps room for since #697, and inside a phone's Controls sheet, 328px with no bar kept (#586). The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
+The Metrics table still sizes nothing by that token. Its row is the panel's widest — radio, label, the chart toggle (`METRIC_CHART`, 18px), aggregate menu (`SELECT_W_AGGREGATE`, 64px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content, which is 317px beside the 10px scroll bar the body keeps room for since #697, and inside a phone's Controls sheet, 328px with no bar kept (#586). The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
 
 Four controls in that section share one pair of edges: the direction segment, the results cap box, the Clear filters button, and every bound pair. The three wide ones span the two box columns rather than spelling their sum, so the width lives in `METRIC_BOX_W` alone. Clear filters is always drawn and disables when there is nothing to clear, so the section's last row never moves.
 
@@ -1320,10 +1324,11 @@ model list and the calendar are `Menu`'s rows in a sheet (`sheet`), so they
 are written once for both widths. The Controls sheet is the same sheet, kept
 mounted (above). The dim covers the whole screen, the search row and the chips
 included, as a modal sheet's scrim does in Material. The grip and the title
-row drag the sheet, to just under the chips, shut, or anywhere between, and a
+row drag the sheet, to the top of the screen, shut, or anywhere between, and a
 double tap on the grip puts it back at its own height, through the gesture
-the results sheet's grips use.
-Record: [0136](architectural-decision-records/0136-phone-menus-are-bottom-sheets.md) Record: [0146](architectural-decision-records/0146-sheet-grips-drag.md) Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
+the results sheet's grips use. Every sheet, the Controls sheet too, shares that
+ceiling: the screen less the status bar's band (`BOTTOM_SHEET.topBand`).
+Record: [0291](architectural-decision-records/0291-every-phone-sheet-rises-to-the-top.md) Record: [0136](architectural-decision-records/0136-phone-menus-are-bottom-sheets.md) Record: [0146](architectural-decision-records/0146-sheet-grips-drag.md) Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
 
 ### Adding a new role
 

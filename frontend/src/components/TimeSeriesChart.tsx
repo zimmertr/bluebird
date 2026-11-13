@@ -63,6 +63,7 @@ import {
   fingerReading,
   hourIndexAt,
   hourX,
+  areaFloorPx,
   panelFloorPx,
   plotBand,
   evenStack,
@@ -247,6 +248,15 @@ interface Props {
    * of a 2×2 grid is narrower than a panel's width floor at a phone's width.
    */
   phone?: boolean
+  /**
+   * A desk's panels need this many pixels more than their area has (#925),
+   * reported once when a panel is added or the layout changes, never on the
+   * first draw. The results raise the chart by it, as a drag would, because a
+   * grid or rows panel under its floor is not drawn at all. Absent while the
+   * tutorial's panels stand in, so neither its arrival nor its leaving moves
+   * the reader's height. A stable function: the chart is memoized.
+   */
+  onShort?: (px: number) => void
 }
 
 // A stable empty default: a fresh `[]` per render would rebuild every line, and
@@ -281,6 +291,7 @@ function TimeSeriesChart({
   modelEnds = NO_MODEL_ENDS,
   controls,
   phone = false,
+  onShort,
 }: Props) {
   const MARGIN = phone ? PHONE_PLOT_MARGIN : PLOT_MARGIN
   const drawn = metrics
@@ -415,6 +426,26 @@ function TimeSeriesChart({
   // The rows' area (#499), for every layout that is neither the grid nor the stack.
   const rowsRef = useRef<HTMLDivElement>(null)
   const areaRef = gridded ? gridRef : rowed ? rowsRef : stackRef
+  // A panel added or a layout picked asks for the room its floors need
+  // (#925). Keyed on the shape the panels stand in, so a view switch, a
+  // resize or a drag never asks; forgotten while nobody listens, so the
+  // tutorial's panels coming and going never count as the reader's change.
+  const shapeKey = `${shape}:${count}`
+  const askedShapeRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (!onShort || phone) {
+      askedShapeRef.current = null
+      return
+    }
+    const before = askedShapeRef.current
+    askedShapeRef.current = shapeKey
+    if (before === null || before === shapeKey) return
+    const have = areaRef.current?.clientHeight ?? 0
+    // Nothing laid out: a hidden chart has no height to fall short of.
+    if (have <= 0) return
+    const need = areaFloorPx(rowCounts, shape === 'column', MARGIN, GUTTER_PX)
+    if (need > have) onShort(need - have)
+  }, [shapeKey, onShort, phone, areaRef, rowCounts, shape, MARGIN])
   // At a desk with two or more panels each names its metric at its plot's top
   // left (#846; TJ 2026-11-03), and every title but the first drags its panel
   // to another slot through `onMove`, the grip's own move. One panel's picker

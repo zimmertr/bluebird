@@ -61,6 +61,18 @@ describe('useChartMetrics', () => {
     expect(result.current.move).toBe(move)
   })
 
+  // The Metrics table's chart toggles (record 0290) move the same list the
+  // chart's pickers do, and the press keeps its identity for the panel.
+  it("draws and takes away the Metrics table's chart toggles", () => {
+    const { result } = setup(undefined, 'precip_total_in')
+    const { chart } = result.current
+    act(() => result.current.chart(['temp', 'wind'], true))
+    expect(result.current.metrics).toEqual(['precip', 'temp', 'wind'])
+    act(() => result.current.chart(['precip', 'temp'], false))
+    expect(result.current.metrics).toEqual(['precip', 'wind'])
+    expect(result.current.chart).toBe(chart)
+  })
+
   // The arrangement is this browser's habit (#864): it opens on what the
   // browser kept, never on a link, and a pick is kept for the next visit.
   it('opens on the layout this browser kept, and keeps a new pick', () => {

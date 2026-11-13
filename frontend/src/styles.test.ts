@@ -38,6 +38,7 @@ import {
   ICON,
   METRICS_GRID,
   METRIC_BOX_W,
+  METRIC_CHART,
   METRIC_HEAD_GAP,
   ICON_ACTION,
   ICON_BUTTON,
@@ -640,6 +641,16 @@ describe('every component', () => {
     expect(MENU.divider).toMatch(/\bborder-t\b/)
     expect(MENU.divider).toContain(SURFACE_DIVIDER)
     expect(stepPx(MENU.divider, '-mx')).toBe(stepPx(MENU.list, 'px'))
+  })
+
+  // A sheet's body is its one scroller, so a menu's rows in a sheet stand at
+  // the list's inset with no scroll box of their own, which never overflowed
+  // there and swallowed every flick over the rows.
+  it('gives a menu in a sheet the list inset and no scroll box', () => {
+    expect(stepPx(MENU.sheetList, 'px')).toBe(stepPx(MENU.list, 'px'))
+    expect(stepPx(MENU.sheetList, 'py')).toBe(stepPx(MENU.list, 'py'))
+    expect(MENU.sheetList).not.toMatch(/overflow|overscroll|flex-1/)
+    expect(MESSAGE_LIST.sheet).not.toMatch(/overflow|overscroll/)
   })
 
   // L6 used to fail any `title=` outright. Tooltips are now an approved LIST
@@ -1332,8 +1343,9 @@ describe('shared recipes', () => {
 
   // The metric row is the panel's widest, and the label pays for everything
   // else in it: radio (14px) + label gap (10px) + the grid's three gap-1.5
-  // gaps (18px) + the dropdown + two boxes must leave `Freezing level` its
-  // measured width at text-xs, inside the panel's measured 327px of content.
+  // gaps (18px) + the dropdown + two boxes + the chart toggle (record 0290)
+  // must leave `Freezing level` its measured width at text-xs, inside the
+  // panel's measured 327px of content.
   // The old Ranking row budgeted for "Precipitation" (72px) and shipped
   // `Freezing le…` when the longer noun arrived, so the noun is named here.
   // The dropdown's other bound is its content: the widest aggregate word
@@ -1353,10 +1365,13 @@ describe('shared recipes', () => {
     // (measured 2026-10-13; the browser's own bar was 15px).
     const SHARED_BAR_PX = 10
     expect(PANEL_BODY).toContain('[scrollbar-gutter:stable]')
-    const labelAt = (contentPx: number, barPx: number) =>
-      contentPx - barPx - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx
+    // The chart toggle: its own width at a desk, its touch floor on a phone.
+    const toggleDeskPx = Number(METRIC_CHART.toggle.match(/(?:^|\s)w-\[(\d+)px\]/)![1])
+    const toggleTouchPx = (Number(METRIC_CHART.toggle.match(/touch:min-w-(\d+)/)![1]) / 4) * 16
+    const labelAt = (contentPx: number, barPx: number, togglePx: number) =>
+      contentPx - barPx - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx - togglePx
 
-    expect(labelAt(327, SHARED_BAR_PX)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
+    expect(labelAt(327, SHARED_BAR_PX, toggleDeskPx)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     // A phone's Controls sheet (#586): at 360x780 with touch emulated and a
     // date range picked, the Metrics grid measured 328px wide and its scroller
     // reserved nothing for a bar, because a phone draws overlay scroll bars
@@ -1364,8 +1379,23 @@ describe('shared recipes', () => {
     // budget; it is pinned so a future sheet gutter or a longer noun fails here
     // too.
     const PHONE_CONTENT_PX = 328
-    expect(labelAt(PHONE_CONTENT_PX, 0)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
-    expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + selectArrowPx())
+    expect(labelAt(PHONE_CONTENT_PX, 0, toggleTouchPx)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
+    // The dropdown's floor: `Total`, its widest word, 27.54px at text-xs in
+    // production (Chrome on macOS, 2026-11-12), beside the field's 8px left
+    // padding, its arrow's reserve and its 2px of border, so it never cuts off.
+    const TOTAL_PX = 27.54
+    expect(dropdownPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(TOTAL_PX)
+  })
+
+  // A Metrics row's chart toggle (record 0290) wears the Coordinate list
+  // menu's two marks, and stands on the panel rather than a card, so its
+  // glyph's 3:1 (1.4.11) is measured there, at rest and lit.
+  it('draws the chart toggle past 3:1 on the panel, at rest and lit', () => {
+    expect(METRIC_CHART.off).toBe(ICON_ACTION)
+    expect(METRIC_CHART.on).toBe(ACCENT.text)
+    expect(() => token(METRIC_CHART.toggle, 'text')).toThrow()
+    expect([ratio(dark('ink-faint'), dark('panel')), ratio(light('ink-faint'), light('panel'))]).toEqual([3.07, 4.32])
+    expect([ratio(dark('accent-ink'), dark('panel')), ratio(light('accent-ink'), light('panel'))]).toEqual([6.71, 5.74])
   })
 
   // The Metrics direction segment is the section's one control that is not a
@@ -2715,7 +2745,7 @@ describe('the map rows', () => {
     expect(drawBarPx).toBe(44)
     // Its 1px border, top and bottom, is the 46 the bar measures.
     expect(vendor(MAP_EDGE.belowDrawBar)).toBe(drawBarTop + drawBarPx + 2 + INSET)
-    expect(BOTTOM_SHEET.card).toContain(`max-h-[calc(100dvh-${BOTTOM + INSET}px)]`)
+    expect(BOTTOM_SHEET.opening).toBe(`max-h-[calc(100dvh-${BOTTOM + INSET}px)]`)
     const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child'))
     expect(rule.slice(rule.indexOf('{'), rule.indexOf('}'))).toContain('var(--map-vendor-top, var(--map-edge-inset))')
   })
@@ -3536,7 +3566,7 @@ describe('the layers palette', () => {
     expect(SHEET_ASIDE.card).toBe('invisible')
     expect(SHEET_ASIDE.keep).toContain('visible')
     expect(token(SHEET_ASIDE.keep, 'bg')).toBe(token(BOTTOM_SHEET.card, 'bg'))
-    expect(bottomSheetSource).toContain('${BOTTOM_SHEET.card}${aside ? ` ${SHEET_ASIDE.card}` : \'\'}')
+    expect(bottomSheetSource).toContain('${BOTTOM_SHEET.card} ${fit}${heldClass(held)}${aside ? ` ${SHEET_ASIDE.card}` : \'\'}')
     expect(SHEET_ASIDE.keep).toContain(ELEVATION.overlay)
   })
 })
@@ -5411,5 +5441,26 @@ describe('the browsing menu', () => {
     expect(MENU_BROWSE.heading.startsWith(`${MENU.heading} `)).toBe(true)
     expect(MENU_BROWSE.other.startsWith(`${MENU.option} `)).toBe(true)
     expect(MENU_BROWSE.region).toMatch(/\bfont-semibold\b/)
+  })
+})
+
+// A drag on a phone sheet's handle is the sheet's and never the browser's
+// (record 0291): both handles take no touch gesture of their own, and the
+// page turns off the overscroll Android reads as a pull to refresh.
+describe('sheet handles and pull to refresh', () => {
+  it('keeps the grip and the title row out of the browser\'s gestures', () => {
+    for (const handle of [BOTTOM_SHEET.grip, BOTTOM_SHEET.head]) expect(handle.split(/\s+/)).toContain('touch-none')
+  })
+
+  // A held sheet's height is its share of the ceiling's expression, so a
+  // turned screen sizes the two alike (record 0291).
+  it('sizes a held sheet as its share of the ceiling', () => {
+    const ceiling = BOTTOM_SHEET.full.slice('h-['.length, -1)
+    expect(BOTTOM_SHEET.held).toBe(`h-[calc(var(--sheet-share)*(${ceiling.slice('calc('.length, -1)}))]`)
+    expect(BOTTOM_SHEET.ceiling).toBe(`max-h-[${ceiling}]`)
+  })
+
+  it('turns off overscroll on the page', () => {
+    expect(indexCss).toMatch(/html,\s*body\s*\{\s*overscroll-behavior-y:\s*none;\s*\}/)
   })
 })

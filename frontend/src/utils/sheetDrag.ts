@@ -23,11 +23,39 @@ export const SHEET_FLICK_PX_PER_MS = 0.6
 /** The window a release's speed is read over: the last tenth of a second. */
 export const FLICK_WINDOW_MS = 100
 
+/**
+ * Where a drag leaves a sheet: a height in px, or `full`, the ceiling every
+ * sheet shares (record 0291). What a sheet then holds is a `SheetHeight`.
+ */
+export type DragHeight = number | 'full'
+
+/**
+ * Where a sheet is held, in terms a rotation keeps (record 0291): `full`, the
+ * ceiling, or a `share` of the ceiling, the room the screen gives a sheet.
+ * The card's own CSS sizes both off the box it stands in, so a sheet dragged
+ * to 70% of the room stands at 70% of the room on the screen it is turned
+ * to, and at 70% again when it is turned back. Held as px, a turned phone
+ * clamped every held sheet to the shorter screen's ceiling, and so to full;
+ * held as a share of the sheet's own height, a Controls sheet shrank to a
+ * share of the strip a sideways map leaves it.
+ */
+export type SheetHeight = { share: number } | 'full'
+
+/** What a drag's px is held as, against the ceiling then. */
+export function heldShare(px: number, fullPx: number): SheetHeight {
+  return { share: px / Math.max(fullPx, 1) }
+}
+
+/** The px a held share stands at, against the ceiling now. */
+export function sharePx(held: { share: number }, fullPx: number): number {
+  return Math.round(held.share * fullPx)
+}
+
 /** The three heights a sheet can be let go to, besides wherever the finger stops. */
 export interface SheetStops {
   /** The height it opens at: its rows, or a Controls sheet's own share. */
   restPx: number
-  /** The most it rises: one inset under the chip row, or for the Controls sheet the button's strip. */
+  /** The most it rises: the screen under the status bar's band, for every sheet (record 0291). */
   fullPx: number
 }
 
@@ -37,7 +65,7 @@ export function sheetDragPx(startPx: number, upPx: number, fullPx: number): numb
 }
 
 /** Where a release leaves a sheet: closed, back at its own height, or held. */
-export type SheetRelease = { kind: 'close' } | { kind: 'rest' } | { kind: 'hold'; px: number }
+export type SheetRelease = { kind: 'close' } | { kind: 'rest' } | { kind: 'full' } | { kind: 'hold'; px: number }
 
 /**
  * Where a sheet let go at `px`, moving at `velocityUp` (px per ms, up
@@ -48,12 +76,12 @@ export type SheetRelease = { kind: 'close' } | { kind: 'rest' } | { kind: 'hold'
  */
 export function sheetRelease(px: number, velocityUp: number, { restPx, fullPx }: SheetStops): SheetRelease {
   if (velocityUp <= -SHEET_FLICK_PX_PER_MS) return { kind: 'close' }
-  if (velocityUp >= SHEET_FLICK_PX_PER_MS) return { kind: 'hold', px: fullPx }
+  if (velocityUp >= SHEET_FLICK_PX_PER_MS) return restPx >= fullPx ? { kind: 'rest' } : { kind: 'full' }
   const rest = Math.min(restPx, fullPx)
   const stops: [number, SheetRelease][] = [
     [0, { kind: 'close' }],
     [rest, { kind: 'rest' }],
-    [fullPx, rest === fullPx ? { kind: 'rest' } : { kind: 'hold', px: fullPx }],
+    [fullPx, rest === fullPx ? { kind: 'rest' } : { kind: 'full' }],
   ]
   let best: SheetRelease | null = null
   let bestGap = SHEET_SNAP_PX + 1

@@ -1,4 +1,4 @@
-# 0290. Snow depth returns beside snowfall, read off the grid each pod holds, and a glacier's cell is named without moving its rank
+# 0295. Snow depth returns beside snowfall, read off the grid each pod holds, and a glacier's cell is named without moving its rank
 
 - Status: Accepted. Supersedes [0120](0120-snowfall-replaces-snow-depth.md) in part (its snow depth half; its snowfall half stands), and reinstates [0053](0053-snow-depth-ceiling.md), [0054](0054-snodas-snow-depth.md) and [0104](0104-refused-snow-file-is-no-grid.md)
 - Date: 2026-11-12
