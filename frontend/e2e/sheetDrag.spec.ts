@@ -128,4 +128,16 @@ test.describe('on a phone', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await expect.poll(async () => Math.round(await height())).toBe(held)
   })
+
+  // Held sideways, the Controls sheet opens at half the screen at least
+  // (#927; record 0292), where it used to open as a strip under 256px of map.
+  test('the Controls sheet opens at half a sideways screen', async ({ page }) => {
+    await page.setViewportSize({ width: 844, height: 390 })
+    await page.goto('/')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('button', { name: 'Open controls', exact: true }).click()
+    const sheet = page.getByRole('dialog', { name: 'Controls' })
+    await expect.poll(async () => Math.round((await sheet.boundingBox())!.y)).toBe(195)
+    expect(Math.round((await sheet.boundingBox())!.height)).toBe(195)
+  })
 })
