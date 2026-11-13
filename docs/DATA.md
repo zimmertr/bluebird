@@ -1542,9 +1542,9 @@ smoke and closure copies does not apply here: when NSIDC cannot be reached the
 server keeps the last grid it has, and the date in the header says how old it
 is.
 
-**The colours change where the layer's do.** The markers and the cells are
-banded at five of NOAA's own edges, 3.9, 9.8, 39, 98 and 197 in, so a marker
-and the layer drawn under it turn at the same depth.
+**The colours are the layer's.** The markers and the cells wear NOAA's own
+colours at NOAA's own band edges, so a marker and the layer drawn under it
+turn at the same depth, and one legend row keys both.
 
 **A file the server refuses means no snow depth that day.** Each day's archive
 is checked before it is used: the download, the archive and each member inside

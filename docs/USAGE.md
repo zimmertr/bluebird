@@ -763,11 +763,13 @@ by the rule of thumb that an inch of rain falls as about ten of snow, and the
 hourly columns are ten times precipitation's rates. During playback the markers
 read one hour on the hourly bands, as precipitation's do.
 
-The snow depth column wears snowfall's shades in snowfall's order, cyan for
-bare ground through to purple for the deepest, for the same reason. Its bands
-are the snow layer's own edges, 3.9, 9.8, 39, 98 and 197 inches, so a marker
-and the layer under it change colour at the same depth. The top band holds the
-glaciers, which read hundreds of inches all year. During playback the
+The snow depth column wears the **Snow depth** layer's own colours at the
+layer's own band edges, grey-teal for a dusting through blue, violet and
+magenta to brown for the deepest, so a marker stands on the layer in the colour
+of the ground under it. With the layer on, the legend keys both with one row.
+The darker bands print their number in a lighter shade of the same hue, so it
+stays readable. The top band holds the glaciers, which read hundreds of inches
+all year. During playback the
 markers read each hour's day, and hold the newest depth on every hour past it.
 
 The cloud deck columns use the same six colors in the opposite order, because
