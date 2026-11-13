@@ -18,6 +18,7 @@ import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
 import { LabelledScale } from './colors'
 import { FAMILY_KEYS, RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
 import { contrast, mixOver, relativeLuminance, round2 } from '../testSupport/contrast'
+import { SNOW_RAMP } from './snowDepth'
 
 /** What the map's strip prints under a scale, in order. */
 const labelsOf = (scale: LabelledScale) => scaleTicks(scale).map((tick) => tick.label)
@@ -260,14 +261,38 @@ describe('METRIC_SCALE', () => {
     ])
   })
 
-  // Snow depth wears snowfall's shades and ink in snowfall's order, banded at
-  // five of the snow layer's own edges, so a marker turns where the layer
-  // under it does (#849).
-  it('bands snow depth on the snow layer\'s edges, in snowfall\'s shades', () => {
-    expect(METRIC_SCALE.snow_depth.thresholds).toEqual([3.9, 9.8, 39, 98, 197])
-    expect(METRIC_SCALE.snow_depth.colors).toEqual(METRIC_SCALE.snowfall.colors)
-    expect(METRIC_SCALE.snow_depth.ink).toEqual(METRIC_SCALE.snowfall.ink)
+  // Snow depth wears the snow layer's own colours at its own band edges, so a
+  // marker stands on the layer in the colour of the ground under it and one
+  // legend row keys both (#849).
+  it('bands snow depth on the snow layer\'s edges, in the layer\'s colours', () => {
+    expect(METRIC_SCALE.snow_depth.thresholds).toEqual(SNOW_RAMP.map((b) => b.from))
+    expect(METRIC_SCALE.snow_depth.colors.slice(0, -1)).toEqual(SNOW_RAMP.map((b) => b.color))
+    expect(METRIC_SCALE.snow_depth.colors.at(-1)).toBe(SNOW_RAMP.at(-1)!.color)
     expect(scaleFor('snow_depth_min_in', false)).toBe(METRIC_SCALE.snow_depth)
+  })
+
+  // NOAA's middle bands are too dark to be their own text on the dark panel,
+  // so the scale carries a lighter ink of each hue for it. Measured
+  // 2026-11-12 on slate-800 under each band's 20% tint.
+  it('prints every snow depth band\'s number at 4.5:1 or better in the dark theme', () => {
+    const SLATE_800 = '#1d293d'
+    const { colors, darkInk } = METRIC_SCALE.snow_depth
+    expect(darkInk).toHaveLength(colors.length)
+    const ratios = colors.map((band, i) => round2(contrast(darkInk![i], mixOver(band, SLATE_800, 0.2))))
+    expect(ratios).toEqual([5.02, 4.65, 4.61, 4.61, 4.67, 4.68, 4.65, 4.61, 4.63, 4.61, 4.65, 4.65])
+    for (const r of ratios) expect(r).toBeGreaterThanOrEqual(4.5)
+    // At a band's bottom the cell reads that band's ink exactly: 20 in is the
+    // fifth band, NOAA's #3c3fc2, printed in #9193dd.
+    expect(cellInks(20, METRIC_SCALE.snow_depth)).toEqual({
+      fill: 'rgba(60,63,194,0.2)',
+      ink: { dark: 'rgb(145,147,221)', light: 'rgb(60,63,194)' },
+    })
+  })
+
+  it('leaves every other scale\'s dark ink the band itself', () => {
+    for (const [family, scale] of Object.entries(METRIC_SCALE)) {
+      if (family !== 'snow_depth') expect(scale.darkInk, family).toBeUndefined()
+    }
   })
 
   it('keeps thresholds strictly ascending with labels and colors aligned', () => {
@@ -770,7 +795,7 @@ describe('the light theme\'s cell ink (#706)', () => {
     temp: [7.26, 5.83, 6.05, 5.45, 5.44, 5.78],
     freeze: [7.26, 7.45, 8.06, 7.18, 5.83, 6.05],
     snowfall: [6.05, 5.83, 7.18, 8.06, 7.45, 7.26],
-    snow_depth: [6.05, 5.83, 7.18, 8.06, 7.45, 7.26],
+    snow_depth: [4.67, 4.64, 4.67, 4.67, 5.06, 5.49, 4.95, 4.68, 4.61, 4.8, 4.66, 4.66],
   }
 
   it('prints every band\'s number at 4.5:1 or better on its own tint', () => {

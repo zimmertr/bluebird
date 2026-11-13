@@ -231,6 +231,13 @@ export function legendSections(
   //
   // Written in order rather than sorted, so the source reads as
   // the card does.
+  // A snow depth ranking's markers wear the snow layer's own colours (#849),
+  // so the layer is that metric's field and one row keys both: the metric's,
+  // drawn as the layer's strip and crediting NOHRSC, with the layer's own row
+  // left out while it stands.
+  const metricKeyed =
+    markerScale !== null && rankedFieldHasValue && (hasColoredMarkers || gridPainted || gridCued)
+  const snowKeyed = metricKeyed && familyOf(sortBy) === 'snow_depth'
   const sections: LegendSectionSpec[] = [
     // Keyed to the markers OR to the grid, because either can be
     // the only colored thing on screen: a live filter can empty
@@ -246,9 +253,7 @@ export function legendSections(
     // reduced, and — for wind — which datum produced it (#361)
     // are all stated by the results header and the table's own
     // column headers.
-    ...(markerScale !== null &&
-    rankedFieldHasValue &&
-    (hasColoredMarkers || gridPainted || gridCued)
+    ...(markerScale !== null && metricKeyed
       ? [
           {
             // `Temperature (°F)`, by the same composer the table
@@ -266,11 +271,14 @@ export function legendSections(
               undefined,
               markerScale.unit,
             ),
-            ramp: {
-              css: scaleRampCss(markerScale),
-              ticks: scaleTicks(markerScale),
-              bands: markerScale.colors.length,
-            },
+            ...(snowKeyed ? { credit: { href: NOHRSC_HREF, name: 'NOHRSC' } } : {}),
+            ramp: snowKeyed
+              ? { css: snowRampCss(), ticks: snowTicks(), bands: SNOW_RAMP.length }
+              : {
+                  css: scaleRampCss(markerScale),
+                  ticks: scaleTicks(markerScale),
+                  bands: markerScale.colors.length,
+                },
           },
         ]
       : []),
@@ -438,7 +446,7 @@ export function legendSections(
     // because those boundaries are NOAA's own classification —
     // the picture and its key have to agree, which is why both
     // read `snowDepth.ts`.
-    ...(showSnow
+    ...(showSnow && !snowKeyed
       ? [
           {
             label: SNOW_LABEL,

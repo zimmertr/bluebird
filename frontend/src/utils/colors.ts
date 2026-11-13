@@ -30,6 +30,13 @@ export type ColorScale = {
    * `colors.test.ts` measures band by band.
    */
   ink: readonly string[]
+  /**
+   * The dark theme's cell text, one per band, where the band itself is too
+   * dark to read on the dark panel. Absent on every scale whose bands are
+   * light enough to be their own text, which is all of them but snow depth,
+   * whose bands are NOAA's and run to deep violet (#849).
+   */
+  darkInk?: readonly string[]
 }
 
 /**
@@ -263,24 +270,35 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     ink: [...FREEZE_INK].reverse(),
     unit: UNIT.snowfall,
   },
-  // Snow depth wears snowfall's six shades in snowfall's order, for its
-  // reason: the hue encodes the amount, and deep snow is what a skier wants
-  // and what a scrambler fears, so neither end is the good one (#449, #849).
+  // Snow depth wears NOAA's own colours at NOAA's own band edges (`SNOW_BANDS`
+  // in snowDepth.ts, its centimetre classes in inches), because the snow layer
+  // is this metric's field the way the forecast grid is every other metric's:
+  // a marker stands on the layer in the colour of the ground under it, and the
+  // legend keys both with one row (TJ, 2026-11-12, #849). Each colour anchors
+  // at its band's bottom, the last repeated so the top band holds to the
+  // file's 1,290-inch ceiling, where glaciated summits read.
   //
-  // The thresholds are five of the snow LAYER's own band edges (`SNOW_BANDS`
-  // in snowDepth.ts, NOAA's centimetre classes in inches), so a marker and the
-  // layer drawn under it change colour at the same depth: under 4 inches, a
-  // foot, three feet, eight feet, sixteen, and above that the year-round ice a
-  // glaciated summit reads. Over permanent ice SNODAS accumulates year over
-  // year, so a summit can read the file's 1,290-inch ceiling; a top band that
-  // stopped at a season's depth would paint every glacier one colour with the
-  // deepest seasonal pack.
+  // NOAA's middle bands are too dark to be their own text on the dark panel,
+  // so this is the one scale with a `darkInk`: each band's hue lightened, and
+  // `ink` each hue darkened, until it clears 4.6:1 on its 20% tint over its
+  // panel (measured 2026-11-12, pinned in colors.test.ts).
   snow_depth: {
-    thresholds: [3.9, 9.8, 39, 98, 197],
-    colors: ['#67e8f9', '#38bdf8', '#93c5fd', '#a5b4fc', '#c4b5fd', '#d8b4fe'],
-    ink: [...FREEZE_INK].reverse(),
+    thresholds: [0.39, 2.0, 3.9, 9.8, 20, 39, 59, 98, 197, 295, 394],
+    colors: [
+      '#abc1bf', '#66c1c4', '#63a9cb', '#5079c8', '#3c3fc2', '#5720c3',
+      '#7d01bb', '#b404b1', '#a91377', '#992b50', '#8b4545', '#8b4545',
+    ],
+    ink: [
+      '#4f6b68', '#2b6e70', '#2c6885', '#345ba6', '#3c3fc2', '#5720c3',
+      '#7d01bb', '#990396', '#a21272', '#992b50', '#894444', '#894444',
+    ],
+    darkInk: [
+      '#abc1bf', '#66c1c4', '#7ab6d3', '#88a4da', '#9193dd', '#a784eb',
+      '#cb66fe', '#fb3df7', '#ed62bf', '#d9799a', '#c68c8c', '#c68c8c',
+    ],
     unit: UNIT.snow_depth,
   },
+
   // The verdict ramp reversed (#510, which amends record 0113's colour
   // sentence): green at the top, because a high deck or a dry column is a
   // clear summit for every reader of this app, and maroon at the bottom.
@@ -544,8 +562,9 @@ export function cellStyle(value: number, scale: ColorScale): { backgroundColor: 
 export function cellInks(value: number, scale: ColorScale): { fill: string; ink: { dark: string; light: string } } {
   const [r, g, b] = interpolateRgb(value, scale.thresholds, scale.colors)
   const [ir, ig, ib] = interpolateRgb(value, scale.thresholds, scale.ink)
+  const [dr, dg, db] = scale.darkInk ? interpolateRgb(value, scale.thresholds, scale.darkInk) : [r, g, b]
   return {
     fill: `rgba(${r},${g},${b},0.2)`,
-    ink: { dark: `rgb(${r},${g},${b})`, light: `rgb(${ir},${ig},${ib})` },
+    ink: { dark: `rgb(${dr},${dg},${db})`, light: `rgb(${ir},${ig},${ib})` },
   }
 }
