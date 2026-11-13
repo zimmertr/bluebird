@@ -75,11 +75,16 @@ test.describe('at a desk', () => {
 
     await expect(page.getByRole('button', { name: 'Close controls' })).toBeInViewport()
     await expect(list(page).getByText(OVER_CAP)).toBeVisible()
-    // The card stands over the button it opened from, on the screen.
-    const card = (await list(page).locator('..').boundingBox())!
-    const button = (await page.getByRole('button', { name: 'Analyze', exact: true }).boundingBox())!
-    expect(card.x).toBeGreaterThanOrEqual(0)
-    expect(Math.abs(card.x - button.x)).toBeLessThan(button.width)
+    // The card stands over the button it opened from, on the screen. Polled,
+    // because the panel slides back in: a box read the moment the button
+    // enters the viewport can catch the card partway, off the left edge.
+    await expect
+      .poll(async () => {
+        const card = (await list(page).locator('..').boundingBox())!
+        const button = (await page.getByRole('button', { name: 'Analyze', exact: true }).boundingBox())!
+        return card.x >= 0 && Math.abs(card.x - button.x) < button.width
+      })
+      .toBe(true)
   })
 })
 
