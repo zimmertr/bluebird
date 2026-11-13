@@ -519,6 +519,7 @@ describe('the supplier credits', () => {
     expect(all.slice(3).map((l) => l.replace(/^"/, '').split(' data')[0])).toEqual([
       'Weather',
       'Destination',
+      'Snow depth',
       'Wildfire',
       'Closure',
     ])
