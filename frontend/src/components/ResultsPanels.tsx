@@ -81,7 +81,7 @@ export interface ResultsPanelsProps {
   /** The panels shown, their heights, and their grips (`useResultsLayout`). */
   layout: Pick<
     ResultsLayout,
-    'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'chartPaneRef' | 'legendRef' | 'tableGrip' | 'tablePanelPx'
+    'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'chartPaneRef' | 'legendRef' | 'tableGrip' | 'tablePanelPx' | 'raiseChart'
   >
   /** The charted set and the comparison (`useChartCompare`). */
   charts: Pick<ChartCompare, 'chart' | 'chartMetrics' | 'compare' | 'rowChartColor' | 'shared'>
