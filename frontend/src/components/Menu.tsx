@@ -357,11 +357,13 @@ const BROWSE_ITEMS = '[data-browse-item]'
  * Coordinate list field's. `MenuSelect` is a short list a reader scans; this
  * is one they search and browse. A search box on top, the starred rows under
  * `Starred` once there are any, then each group as a heading that opens in
- * place, one at a time, and `other` last under a rule. A group can stand
+ * place, and `other` last under a rule. A group can stand
  * inside another (#892): a continent opens to its countries and a country to
  * its regions, each level set in by `MENU_BROWSE.nest`, with its own rows
- * after the groups it holds. One path is open at a time, so opening a group
- * shuts its siblings, and shutting one leaves its parent open. A heading's
+ * after the groups it holds. Any number of groups stand open at once, so a
+ * reader can hold North and South America side by side: a heading's press
+ * opens or shuts it alone, and shutting one shuts the groups inside it too,
+ * so it opens again one level deep. A heading's
  * count is every row under it, and a group with no row under it is not shown.
  *
  * Every row ends in its count. A row's star keeps it under Starred, and its
@@ -400,7 +402,8 @@ export function MenuBrowse({
 }: MenuBrowseProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [expanded, setExpanded] = useState<string | null>(null)
+  // Every open group by name. A group inside a shut one stays out of it.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set())
   const [described, setDescribed] = useState<string | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -431,7 +434,19 @@ export function MenuBrowse({
     if (!group) return []
     return group.parent === undefined ? [group] : [...lineage(group.parent), group]
   }
-  const openPath = expanded === null ? [] : lineage(expanded).map((group) => group.name)
+  // A group and every group inside it, at any depth.
+  const nested = (name: string): string[] => [
+    name,
+    ...groups.filter((group) => group.parent === name).flatMap((group) => nested(group.name)),
+  ]
+  function toggle(name: string) {
+    setOpened((now) => {
+      const next = new Set(now)
+      if (now.has(name)) for (const each of nested(name)) next.delete(each)
+      else next.add(name)
+      return next
+    })
+  }
   const fieldText = picked ? picked.name : value === other.value ? other.label : placeholder
   const showsPlaceholder = !picked && value !== other.value
 
@@ -439,7 +454,11 @@ export function MenuBrowse({
     setQuery('')
     setDescribed(null)
     const top = kidsOf(undefined)
-    setExpanded(picked ? picked.group : top.length === 1 ? top[0].name : null)
+    setOpened(
+      new Set(
+        picked ? lineage(picked.group).map((group) => group.name) : top.length === 1 ? [top[0].name] : [],
+      ),
+    )
     setOpen(true)
   }
 
@@ -537,7 +556,7 @@ export function MenuBrowse({
 
   // One heading and, while it is open, the groups it holds and then its own rows.
   function branch(group: BrowseGroup): React.ReactNode {
-    const isOpen = openPath.includes(group.name)
+    const isOpen = opened.has(group.name)
     const rowsId = `${baseId}-group-${group.name}`
     const total = rowsUnder(group.name)
     return (
@@ -547,7 +566,7 @@ export function MenuBrowse({
           data-browse-item=""
           aria-expanded={isOpen}
           aria-controls={isOpen ? rowsId : undefined}
-          onClick={() => setExpanded(isOpen ? (group.parent ?? null) : group.name)}
+          onClick={() => toggle(group.name)}
           className={MENU_BROWSE.region}
         >
           <IconFold open={isOpen} className={MENU_BROWSE.fold} />

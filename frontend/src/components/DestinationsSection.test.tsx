@@ -482,6 +482,10 @@ describe('DestinationsSection', () => {
         expect(rows.map((b) => b.textContent)).toEqual(
           PRESET_LISTS.filter((list) => list.region === region).map((list) => `${list.name} ${peaks(list.peaks)}`),
         )
+        // Shut it again: headings stay open side by side (record 0294), and
+        // every list open at once is a menu jsdom takes past the timeout to
+        // query.
+        await user.click(screen.getByRole('button', { name: new RegExp(`^${region} \\d+ lists?$`) }))
       }
       expect(screen.getByRole('button', { name: 'Custom coordinates' }).previousElementSibling!.getAttribute('aria-hidden')).toBe(
         'true',
