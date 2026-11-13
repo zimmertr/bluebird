@@ -193,7 +193,7 @@ export default function ResultsPanels({
   onFocusResult,
   onFocusPending,
 }: ResultsPanelsProps) {
-  const { resultsMode, chartGrip, chartPanelPx, chartPaneRef, legendRef, tableGrip, tablePanelPx } = layout
+  const { resultsMode, chartGrip, chartPanelPx, chartPaneRef, legendRef, tableGrip, tablePanelPx, raiseChart } = layout
   const tableScrollRef = useRef<HTMLDivElement>(null)
   // Each pane's frame and body: shown by the mode and the chevron, mounted at
   // the press at the height the mode pressed gives it, and at a desk kept
@@ -362,6 +362,9 @@ export default function ResultsPanels({
                         modelEnds={compare.endLines}
                         controls={compareControls}
                         phone={chartPhone}
+                        // The tutorial's panels are not the reader's: their
+                        // count moves no height (#925).
+                        onShort={tourMetrics ? undefined : raiseChart}
                       />
                     </Suspense>
                   </div>

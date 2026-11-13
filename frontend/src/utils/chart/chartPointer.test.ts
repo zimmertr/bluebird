@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  areaFloorPx,
   evenStack,
   PHONE_PLOT_MARGIN,
   stackAfterDrag,
@@ -126,6 +127,32 @@ describe('a stacked panel', () => {
   it('keeps a floor of margins, strip and the least band', () => {
     expect(panelFloorPx(PLOT_MARGIN, false)).toBe(PLOT_MARGIN.top + PLOT_MARGIN.bottom + MIN_PANEL_BAND_PX)
     expect(panelFloorPx(PLOT_MARGIN, true)).toBe(panelFloorPx(PLOT_MARGIN, false) + X_AXIS_HEIGHT_PX)
+  })
+})
+
+// The least area a layout needs before a desk raises the results (#925).
+describe('areaFloorPx', () => {
+  const axis = panelFloorPx(PLOT_MARGIN, true)
+  const bare = panelFloorPx(PLOT_MARGIN, false)
+
+  it('is one floor for one panel', () => {
+    expect(areaFloorPx([1], true, PLOT_MARGIN, 8)).toBe(axis)
+  })
+
+  it('counts a floor with its own axis per row of a grid or rows layout, and the gutters between', () => {
+    // 1 over 3, the four panels' default: the 1300x717 window's case.
+    expect(areaFloorPx([1, 3], false, PLOT_MARGIN, 8)).toBe(2 * axis + 8)
+    expect(areaFloorPx([2, 2], false, PLOT_MARGIN, 8)).toBe(2 * axis + 8)
+    expect(areaFloorPx([1, 2, 1], false, PLOT_MARGIN, 8)).toBe(3 * axis + 16)
+    expect(areaFloorPx([4], false, PLOT_MARGIN, 8)).toBe(axis)
+  })
+
+  it('gives a stack one axis, at its foot', () => {
+    expect(areaFloorPx([1, 1, 1, 1], true, PLOT_MARGIN, 8)).toBe(3 * bare + axis + 24)
+  })
+
+  it('is 152px for two rows at a desk, measured off the constants', () => {
+    expect(areaFloorPx([1, 3], false, PLOT_MARGIN, 8)).toBe(152)
   })
 })
 
