@@ -1,6 +1,6 @@
 # 0287. The list menu's headings stand inside one another, and the lists reach past the United States
 
-- Status: Accepted. Amends [0281](0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md) (the flat region headings, and what a search matches)
+- Status: Accepted; its one-path rule superseded by [0293](0293-list-menu-holds-many-groups-open.md). Amends [0281](0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md) (the flat region headings, and what a search matches)
 - Date: 2026-11-11
 - Decider: the maintainer (TJ), on issue #892, 2026-11-11
 - Issues and PRs: #892, #910, #848

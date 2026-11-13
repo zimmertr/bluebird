@@ -639,7 +639,7 @@ describe('MenuBrowse', () => {
     expect(screen.queryByText('Starred')).toBeNull()
   })
 
-  it('opens one group at a time, in place, each row ending in its count', async () => {
+  it('opens each group in place, each row ending in its count', async () => {
     const { user } = render(<Browse />)
     await user.click(field())
     await user.click(region('Washington'))
@@ -648,7 +648,11 @@ describe('MenuBrowse', () => {
     expect(region('Washington').getAttribute('aria-controls')).toBe(rows.id)
     expect(rows.className).toBe(MENU_BROWSE.nest)
     expect(pick('The Bulger List').textContent).toBe('The Bulger List 100 peaks')
+    // A second group opens beside the first rather than shutting it.
     await user.click(region('Northern Rockies'))
+    expect(region('Washington').getAttribute('aria-expanded')).toBe('true')
+    expect(pick('The Bulger List')).toBeTruthy()
+    await user.click(region('Washington'))
     expect(region('Washington').getAttribute('aria-expanded')).toBe('false')
     expect(noPick('The Bulger List')).toBe(true)
     // One peak is a peak.
@@ -914,7 +918,7 @@ describe('MenuBrowse', () => {
       expect(noPick('Country High Points')).toBe(true)
     })
 
-    it("opens one path at a time, a heading's groups before its own rows", async () => {
+    it("opens any number of groups at once, a heading's groups before its own rows", async () => {
       const { user } = render(<Tree />)
       await user.click(field())
       await user.click(region('North America'))
@@ -934,19 +938,27 @@ describe('MenuBrowse', () => {
       expect(screen.getByRole('group', { name: 'Washington' }).parentElement).toBe(
         screen.getByRole('group', { name: 'United States' }),
       )
-      // A sibling shuts the path beside it and leaves the parent open.
+      // A sibling opens beside the path, and another continent beside both.
       await user.click(region('Canada'))
-      expect(isOpen('United States')).toBe('false')
-      expect(shut('Washington')).toBe(true)
-      expect(isOpen('North America')).toBe('true')
+      expect(isOpen('United States')).toBe('true')
+      expect(pick('The Bulger List')).toBeTruthy()
       expect(pick('Canadian Rockies')).toBeTruthy()
-      // Shutting a group goes back to its parent.
+      await user.click(region('Europe'))
+      expect(isOpen('North America')).toBe('true')
+      expect(isOpen('Europe')).toBe('true')
+      // Shutting a group shuts it alone and leaves its parent open.
       await user.click(region('Canada'))
       expect(isOpen('Canada')).toBe('false')
       expect(isOpen('North America')).toBe('true')
-      await user.click(region('Europe'))
-      expect(isOpen('North America')).toBe('false')
-      expect(shut('Canada')).toBe(true)
+      expect(pick('The Bulger List')).toBeTruthy()
+      // Shutting a parent shuts every group inside it, so it opens again one
+      // level deep.
+      await user.click(region('North America'))
+      expect(shut('United States')).toBe(true)
+      expect(isOpen('Europe')).toBe('true')
+      await user.click(region('North America'))
+      expect(isOpen('United States')).toBe('false')
+      expect(noPick('The Bulger List')).toBe(true)
     })
 
     it("opens on the picked row's group and every group above it", async () => {
