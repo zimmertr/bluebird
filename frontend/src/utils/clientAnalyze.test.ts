@@ -864,6 +864,8 @@ function cloudBody(rh925s: number[]) {
 // The cloud request goes to the weather host too, so it is told apart by what
 // it asks for rather than where it goes.
 function isCloudRequest(url: string) {
+  // The pod's snow depth answer is a relative path and no forecast (#849).
+  if (url.startsWith('/api/')) return false
   return (new URL(url).searchParams.get('hourly') ?? '').includes('relative_humidity_2m')
 }
 
