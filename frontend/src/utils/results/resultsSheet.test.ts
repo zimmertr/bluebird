@@ -528,7 +528,17 @@ describe('the Controls sheet', () => {
     expect(CONTROLS_MAP_PX).toBe(256)
     expect(CONTROLS_MAP_PX).toBeGreaterThan(DRAGGED_MAP_PX)
     expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
-    expect(controlsSheetPx(100)).toBe(0)
+  })
+
+  // Never under half the map (#927; record 0292): a phone held sideways
+  // opened the sheet as a strip, or as nothing on a map 256px tall or less.
+  it('opens at half the map at least, which leaves an upright phone as it was', () => {
+    expect(controlsSheetPx(740)).toBe(740 - CONTROLS_MAP_PX)
+    expect(controlsSheetPx(512)).toBe(256)
+    expect(controlsSheetPx(390)).toBe(195)
+    expect(controlsSheetPx(256)).toBe(128)
+    expect(controlsSheetPx(100)).toBe(50)
+    expect(controlsSheetPx(0)).toBe(0)
   })
 })
 
