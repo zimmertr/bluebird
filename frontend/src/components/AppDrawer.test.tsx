@@ -67,10 +67,9 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
     <AppDrawer
       open={open}
       isDesktop={true}
-      sheetPx={600}
+      sheetHeld={null}
       sheetRestPx={600}
-      sheetFullPx={700}
-      onSheetPx={NOOP}
+      onSheetHeld={NOOP}
       onClose={onClose}
       theme="dark"
       onToggleTheme={NOOP}
@@ -207,7 +206,7 @@ describe('AppDrawer', () => {
   // its state.
   describe('on a phone', () => {
     const phone = (open: boolean, onClose = NOOP, over: Partial<ComponentProps<typeof AppDrawer>> = {}) =>
-      drawer(open, onClose, { isDesktop: false, sheetPx: 540, ...over })
+      drawer(open, onClose, { isDesktop: false, sheetRestPx: 540, ...over })
     const sheet = () => screen.getByRole('dialog', { name: 'Controls' })
     const dim = () => sheet().previousElementSibling as HTMLElement | null
 
@@ -225,7 +224,7 @@ describe('AppDrawer', () => {
     // beside Done (#706).
     it('carries the theme switch in its title row, beside Done', () => {
       const onToggleTheme = vi.fn()
-      render(drawer(true, NOOP, { isDesktop: false, sheetPx: 540, onToggleTheme }))
+      render(drawer(true, NOOP, { isDesktop: false, sheetRestPx: 540, onToggleTheme }))
       const toLight = screen.getByRole('button', { name: 'Switch to light theme' })
       const done = screen.getByRole('button', { name: 'Done' })
       expect(toLight.nextElementSibling).toBe(done)
@@ -264,17 +263,21 @@ describe('AppDrawer', () => {
       // rather than by how fast the steps between them ran.
       vi.useFakeTimers({ toFake: ['Date', 'performance'] })
       onTestFinished(() => void vi.useRealTimers())
-      const onSheetPx = vi.fn()
-      render(drawer(true, NOOP, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, sheetFullPx: 700, onSheetPx }))
+      // The ceiling is the screen's (record 0291), which jsdom leaves at 768.
+      const screenPx = window.innerHeight
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 })
+      onTestFinished(() => void Object.defineProperty(window, 'innerHeight', { configurable: true, value: screenPx }))
+      const onSheetHeld = vi.fn()
+      render(drawer(true, NOOP, { isDesktop: false, sheetRestPx: 540, onSheetHeld }))
       const title = screen.getByRole('heading', { name: 'Controls' })
       fireEvent.pointerDown(title, { clientY: 500, pointerId: 1 })
       fireEvent.pointerMove(document, { clientY: 400, pointerId: 1 })
-      expect(onSheetPx).toHaveBeenLastCalledWith(640)
+      expect(onSheetHeld).toHaveBeenLastCalledWith({ share: 640 / 700 })
       fireEvent.pointerMove(document, { clientY: 200, pointerId: 1 })
-      expect(onSheetPx).toHaveBeenLastCalledWith(700)
+      expect(onSheetHeld).toHaveBeenLastCalledWith({ share: 1 })
       fireEvent.pointerCancel(document, { pointerId: 1 })
       fireEvent.pointerDown(title, { clientY: 500, pointerId: 1 })
-      expect(onSheetPx).toHaveBeenLastCalledWith(null)
+      expect(onSheetHeld).toHaveBeenLastCalledWith(null)
     })
 
     // As a menu sheet does: the keyboard goes into the sheet as it opens,

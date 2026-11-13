@@ -2735,7 +2735,7 @@ describe('the map rows', () => {
     expect(drawBarPx).toBe(44)
     // Its 1px border, top and bottom, is the 46 the bar measures.
     expect(vendor(MAP_EDGE.belowDrawBar)).toBe(drawBarTop + drawBarPx + 2 + INSET)
-    expect(BOTTOM_SHEET.card).toContain(`max-h-[calc(100dvh-${BOTTOM + INSET}px)]`)
+    expect(BOTTOM_SHEET.opening).toBe(`max-h-[calc(100dvh-${BOTTOM + INSET}px)]`)
     const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child'))
     expect(rule.slice(rule.indexOf('{'), rule.indexOf('}'))).toContain('var(--map-vendor-top, var(--map-edge-inset))')
   })
@@ -3556,7 +3556,7 @@ describe('the layers palette', () => {
     expect(SHEET_ASIDE.card).toBe('invisible')
     expect(SHEET_ASIDE.keep).toContain('visible')
     expect(token(SHEET_ASIDE.keep, 'bg')).toBe(token(BOTTOM_SHEET.card, 'bg'))
-    expect(bottomSheetSource).toContain('${BOTTOM_SHEET.card}${aside ? ` ${SHEET_ASIDE.card}` : \'\'}')
+    expect(bottomSheetSource).toContain('${BOTTOM_SHEET.card} ${fit}${heldClass(held)}${aside ? ` ${SHEET_ASIDE.card}` : \'\'}')
     expect(SHEET_ASIDE.keep).toContain(ELEVATION.overlay)
   })
 })
@@ -5431,5 +5431,26 @@ describe('the browsing menu', () => {
     expect(MENU_BROWSE.heading.startsWith(`${MENU.heading} `)).toBe(true)
     expect(MENU_BROWSE.other.startsWith(`${MENU.option} `)).toBe(true)
     expect(MENU_BROWSE.region).toMatch(/\bfont-semibold\b/)
+  })
+})
+
+// A drag on a phone sheet's handle is the sheet's and never the browser's
+// (record 0291): both handles take no touch gesture of their own, and the
+// page turns off the overscroll Android reads as a pull to refresh.
+describe('sheet handles and pull to refresh', () => {
+  it('keeps the grip and the title row out of the browser\'s gestures', () => {
+    for (const handle of [BOTTOM_SHEET.grip, BOTTOM_SHEET.head]) expect(handle.split(/\s+/)).toContain('touch-none')
+  })
+
+  // A held sheet's height is its share of the ceiling's expression, so a
+  // turned screen sizes the two alike (record 0291).
+  it('sizes a held sheet as its share of the ceiling', () => {
+    const ceiling = BOTTOM_SHEET.full.slice('h-['.length, -1)
+    expect(BOTTOM_SHEET.held).toBe(`h-[calc(var(--sheet-share)*(${ceiling.slice('calc('.length, -1)}))]`)
+    expect(BOTTOM_SHEET.ceiling).toBe(`max-h-[${ceiling}]`)
+  })
+
+  it('turns off overscroll on the page', () => {
+    expect(indexCss).toMatch(/html,\s*body\s*\{\s*overscroll-behavior-y:\s*none;\s*\}/)
   })
 })
