@@ -49,7 +49,7 @@ const PRECIP_KEYS = ['precip_total_in', 'precip_avg_in_hr', 'precip_min_in_hr', 
 // Snowfall's four (#678), in precipitation's shape.
 const SNOWFALL_KEYS = ['snowfall_total_in', 'snowfall_avg_in_hr', 'snowfall_min_in_hr', 'snowfall_max_in_hr'] as const
 // Snow depth's three (#849), in temperature's shape.
-const SNOW_DEPTH_KEYS = ['snow_depth_min_in', 'snow_depth_max_in', 'snow_depth_avg_in']
+const SNOW_DEPTH_KEYS = ['snow_depth_min_in', 'snow_depth_max_in', 'snow_depth_avg_in'] as const
 const TEMP_KEYS = ['temp_min_f', 'temp_max_f', 'temp_avg_f']
 const WIND_KEYS = ['wind_min_mph', 'wind_max_mph', 'wind_avg_mph']
 

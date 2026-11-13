@@ -43,10 +43,10 @@ from app.routes.destinations import router as destinations_router
 from app.routes.fire_activity import router as fire_activity_router
 from app.routes.geocode import router as geocode_router
 from app.routes.landmarks import router as landmarks_router
-from app.routes.snow_depth import router as snow_depth_router
 from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
 from app.routes.notfound import router as notfound_router
 from app.routes.smoke import router as smoke_router
+from app.routes.snow_depth import router as snow_depth_router
 from app.routes.version import router as version_router
 from app.routes.wildfires import router as wildfires_router
 from app.services import http as upstream_http

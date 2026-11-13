@@ -456,7 +456,11 @@ uncertainty, not a fault in any of them, and the chart's model comparison is
 the way to see it. Open-Meteo also publishes a snow depth variable, which was
 measured on 2026-09-16 at the same summit and declined as a ranking metric:
 GFS and HRRR answered 26.86 m, GEM 0.13 m, ECMWF 0.01 m, ICON 0, and three
-models nothing.
+models nothing. Measured again on 2026-11-12, it was no better: GFS and HRRR
+read 28 m at Paradise while the SNOTEL station there read 0 to 2 in, and ECMWF
+and ICON read 0 at Rainier's summit. So snow depth past today is the newest
+measured depth, not a forecast ([The snow depth on a
+row](#the-snow-depth-on-a-row)).
 
 ### History, and the boundary inside it
 
@@ -1486,30 +1490,46 @@ cannot answer, the card keeps its name and says
 
 ### The snow depth on a row
 
-The same analysis is also a **ranking metric**, one number per destination
-(issues #449 and #849). It comes from a different door: the layer above is
-NOAA's rendered image, and the metric reads the numbers themselves out of the
-daily SNODAS grid the server holds.
+The same analysis is also a **ranking metric**, read over the window like
+every other one (issues #449 and #849). It comes from a different door: the
+layer above is NOAA's rendered image, and the metric reads the numbers
+themselves out of the daily SNODAS grids the server holds.
 
-**One grid a day, held by the server, not fetched per visitor.** NSIDC
+**A year of days, held by the server, not fetched per visitor.** NSIDC
 publishes each day's SNODAS products as one tar, and Bluebird Forecast pulls
 the **unmasked** snow depth grid out of it: 8,192 by 4,096 samples of big-endian
-integer millimetres, 64 MiB once unpacked, which is small enough to hold in
-memory and read as an array. A destination's depth is then one array lookup
-rather than a request, so a 1,500-destination analysis costs no upstream call
-at all. The server fills it in when it finds the destinations, so it arrives
-with the list rather than with the forecasts.
+integer millimetres, 64 MiB once unpacked. The server keeps today's grid in
+memory and writes every day of the last year to its database, but only at the
+cells a place sits in: 181,417 of the grid's 33.5 million on 2026-11-12, which
+is about 350 MB a year where the whole grid would be 24 GB. One pod at a time
+fills it, newest month first, a few days a run at two NSIDC downloads a minute,
+so a fresh database has the last weeks within the hour and the whole year in
+about four. After that a run is one `HEAD` for a day not published yet, and a
+month past a year old is dropped. The browser asks the server once per
+analysis for every destination it forecasts, and the server answers out of its
+own copy, so a 1,500-destination analysis costs NSIDC nothing.
 
-**The numbers are the 06 UTC analysis of the day the report names.** The day's
-tar lands at NSIDC around 13:15 UTC, and before that the server serves the
-previous day's grid and says so. The results header states the date beside the
-ranking (`Snow depth as of Nov 12`) rather than the forecast window, because
-the number is not a reading of that window: it is today's depth whatever days
-you asked for, so it has no minimum, mean or maximum, no chart line, and
-nothing for the map timeline to scrub, and the forecast grid paints nothing
-while it ranks. Ranking on it with several forecast models selected is refused
-for the same reason air quality is: one source answers, whatever model ranks
-the field.
+**Each day of the window reads its own depth, and every day after the newest
+reads the newest.** The numbers are the 06 UTC analysis of each day, and a
+window's days are UTC days. The day's tar lands at NSIDC around 13:15 UTC, so
+until then the newest day is yesterday. There is no forecast of snow depth worth
+ranking on (see [Open-Meteo](#open-meteo)), so a window that runs past the newest
+day counts each of those days as the newest depth: a trip next week ranks on
+the snow there now. The Avg, Min and Max are then over every day of the window,
+the column defaults to Max, a floor reads the Min and a ceiling the Max, as
+they do for temperature. The chart draws each day's depth across its hours and
+stops at the newest day rather than drawing the carried number, so it shows
+only what was measured, and the map timeline holds the newest depth past it,
+so a marker keeps the colour its column ranks it by. The forecast grid paints
+nothing while it ranks, because no lattice cell is a place the server keeps.
+Ranking on it with several forecast models selected is refused for the same
+reason air quality is: one source answers, whatever model ranks the field.
+
+**A coordinate no place shares reads the newest day alone.** The server keeps
+days only at the cells its places sit in, so a pasted coordinate in a cell no
+OpenStreetMap place shares has no history, and every day of its window reads
+today's grid. A server with no database reads today's grid the same way, at
+every destination.
 
 **The grid and the map layer cover the same ground.** Both run 24.1N to 58.23N
 and 130.5W to 62.25W, which covers the contiguous United States, southern
@@ -1526,14 +1546,15 @@ is.
 banded at five of NOAA's own edges, 3.9, 9.8, 39, 98 and 197 in, so a marker
 and the layer drawn under it turn at the same depth.
 
-**A file the server refuses means no snow depth that day.** The day's archive
+**A file the server refuses means no snow depth that day.** Each day's archive
 is checked before it is used: the download, the archive and each member inside
-it have a size they may not pass, and every number in the header must be a real
-number. A file that fails any of those checks is not read, and for that analysis
-day every row reads `N/A` and the header names no date, the same as a server
-that has no grid yet. The previous day's grid is not served in its place,
-because its date would then sit beside a column you would take for today's. The
-next day's file replaces the refusal as soon as NSIDC publishes it.
+it have a size they may not pass, every number in the header must be a real
+number, and the grid must be the shape the stored cells are numbered on. A file
+that fails any of those checks is not read, and that day has no depth: the
+chart has a gap there and the Avg, Min and Max are over the other days. A day
+NSIDC still answers 404 for two days after it is the same. A window whose every
+day is missing reads `N/A`. Another day's grid is never served in a refused
+day's place, because it would read as that day's.
 
 **The glacier caveat above applies to the column too, and it is the number a
 reader is most likely to misread.** Over permanent ice SNODAS accumulates year

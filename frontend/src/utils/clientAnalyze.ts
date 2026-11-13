@@ -365,6 +365,11 @@ export function assemble(
       aqi_min: aqi?.aqi_min ?? null,
       aqi_max: aqi?.aqi_max ?? null,
       ...cloudFields(cloud),
+      // Filled in by `withSnowDepth` once the pod answers (#849); the
+      // backend's `_assemble` reads them off the destination instead.
+      snow_depth_avg_in: null,
+      snow_depth_min_in: null,
+      snow_depth_max_in: null,
       series,
     })
   }

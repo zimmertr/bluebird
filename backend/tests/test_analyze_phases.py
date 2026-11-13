@@ -15,8 +15,8 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import dest, weather_metrics
-from test_snodas import a_snapshot, hold_grid
 from fastapi import Request
+from test_snodas import a_snapshot, hold_grid
 
 from app import limits, ratelimit
 from app.models import MAX_ANALYZE_PEAKS, AnalyzeRequest, DestinationResult

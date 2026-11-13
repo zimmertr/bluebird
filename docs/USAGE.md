@@ -168,7 +168,7 @@ The calendar is fully keyboard operable: Enter or Space on the field opens it wi
 
 ## Metrics
 
-Once you have set your destinations and forecast window, one table shapes the report. Two controls at the top say how the list is ordered: **Rank by** picks Lowest or Highest, and **Max results** says how far down it to go. Under them, one row per metric: its radio and its dropdown say how the row ranks, and its Min and Max boxes say who qualifies. The rows read in alphabetical order. The chart icon after each metric's name draws that metric as a plot on the results chart, and a second press takes the plot away. Snow depth has none, because it is one number for today with no hours to plot. The icon of the chart's first plot stays lit and takes no press, because that plot follows the ranking. Hold Shift and press another icon to set every row between the two. The icons grey once the chart holds four plots.
+Once you have set your destinations and forecast window, one table shapes the report. Two controls at the top say how the list is ordered: **Rank by** picks Lowest or Highest, and **Max results** says how far down it to go. Under them, one row per metric: its radio and its dropdown say how the row ranks, and its Min and Max boxes say who qualifies. The rows read in alphabetical order. The chart icon after each metric's name draws that metric as a plot on the results chart, and a second press takes the plot away. The icon of the chart's first plot stays lit and takes no press, because that plot follows the ranking. Hold Shift and press another icon to set every row between the two. The icons grey once the chart holds four plots.
 
 **A row greys out when the window or the model has nothing for it**: the cloud deck and the freezing level over an archive window, the freezing level under a model that publishes none (or with one ticked to compare), and air quality over a window that starts past its horizon. A greyed row can't be picked to rank by, and its boxes keep what you typed but filter nothing. If the row was already the ranking when it greyed, **Analyze** is held with a line saying why until you rank by something else or change the window or the model.
 
@@ -189,14 +189,14 @@ so Highest `Snowfall · Total` finds the destinations expecting the most fresh
 snow and Lowest finds the ones expecting none. How far to trust the number is
 in [DATA.md](DATA.md#open-meteo).
 
-**Snow depth is the one row with no dropdown**, and the one metric that is not
-a reading of your forecast window. It is how much snow is on the ground today,
-from the NOHRSC snow analysis, the same analysis the **Snow depth** layer draws,
-so there is no average, minimum or maximum to choose between and no hour it
-belongs to. Rank by it and the caption beside the results header says which day
-the analysis is from, `Snow depth as of Nov 12`, in place of the window it
-would otherwise name. On a glaciated summit the number is years of old snow,
-not this winter's, though it keeps its place in the ranking. [DATA.md](DATA.md#the-snow-depth-on-a-row) has the rest.
+**Snow depth is the snow on the ground on each day of your window**, in
+inches, from the NOHRSC snow analysis, the same analysis the **Snow depth**
+layer draws. It is measured once a day and nobody forecasts it well, so a day
+after today counts as the newest depth: a trip next week ranks on the snow
+there now. Its dropdown picks the average, the shallowest day or the deepest,
+and opens on the deepest. On the chart its line stops at today. On a glaciated
+summit the number is years of old snow, not this winter's, though it keeps its
+place in the ranking. [DATA.md](DATA.md#the-snow-depth-on-a-row) has the rest.
 
 **The cloud deck is in every analysis**, like every other metric, so you can
 rank by it or bound it at any time without analyzing again. The deck is the height where cloud forms
@@ -442,8 +442,8 @@ model published no number for it, which for a freezing-level ranking is the five
 models that carry no freezing level at all. A snowfall ranking paints the new snow
 each square's forecast expects; the **Snow depth** layer draws the snow already on
 the ground. A snow depth ranking draws no field and no grid row in the legend:
-snow depth comes from a snow analysis matched to each destination, not from a
-forecast at each point. The switch stays on, and the field comes back with any
+the server keeps snow depth only at the places it knows, and a square is not
+one. The switch stays on, and the field comes back with any
 other ranking.
 
 After a very large analysis it can take a while to start, because it shares a
@@ -694,7 +694,7 @@ Hovering a row reveals a × at its end (shown to the keyboard when Tab reaches i
 | Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
 | Snowfall · Total (in) | New snow over the window, in inches of snow rather than of water |
 | Snowfall · Avg/Min/Max (in/hr) | Average, lightest and heaviest single-hour snowfall rate |
-| Snow depth (in) | Snow on the ground today, from the NOHRSC snow analysis. Not a forecast and not a reading of the window. `≥1,290` marks the source file's own ceiling. `N/A` outside the analysis area |
+| Snow depth · Min/Max/Avg (in) | Shallowest, deepest and average snow on the ground over the window's days, from the NOHRSC snow analysis. A day after today counts as the newest depth. `≥1,290` marks the source file's own ceiling. `N/A` outside the analysis area |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
 | Cloud deck · Min/Max/Avg (ft) | The lowest height in the air column over the destination where the model's air is close to saturated, in feet above sea level, below the destination as readily as above it. 30,066 when nothing in the column is saturated. Shown only when the report fetched it. Blank over an archive window |
 
@@ -724,8 +724,8 @@ closure is not flagged, which does not make it open.
 A single-hour analysis ("now", or a chosen moment) collapses each of those
 groups to one column, because over one hour the average, the minimum and the
 maximum are the same number three times. Precipitation and snowfall each keep
-their hourly rate, which over one hour is the total too. Snow depth is already
-one column and stays as it is.
+their hourly rate, which over one hour is the total too. Snow depth keeps its
+average, which over one hour is that day's depth.
 
 The columns belonging to whichever metric you ranked by are shaded, and **each
 cell is shaded by its own number** rather than by the ranking. So a destination
@@ -767,10 +767,8 @@ The snow depth column wears snowfall's shades in snowfall's order, cyan for
 bare ground through to purple for the deepest, for the same reason. Its bands
 are the snow layer's own edges, 3.9, 9.8, 39, 98 and 197 inches, so a marker
 and the layer under it change colour at the same depth. The top band holds the
-glaciers, which read hundreds of inches all year. Ranking by it leaves the
-forecast player's markers on the one number they rank by, because today's depth
-has no hours to scrub through, and the forecast chart keeps whatever metric it
-was showing: there is no hourly series to draw.
+glaciers, which read hundreds of inches all year. During playback the
+markers read each hour's day, and hold the newest depth on every hour past it.
 
 The cloud deck columns use the same six colors in the opposite order, because
 a high deck is the good end: maroon at or below 3,000 ft, purple to 6,000, red to

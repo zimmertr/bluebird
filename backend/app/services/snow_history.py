@@ -303,7 +303,9 @@ async def _stored(cells: list[int], first: date, last: date) -> tuple[dict[int, 
     return out, (newest_row[0] if newest_row else None)
 
 
-async def window_depths(points: list[tuple[float, float]], start: datetime, end: datetime) -> tuple[list[WindowDepth], date | None]:
+async def window_depths(
+    points: list[tuple[float, float]], start: datetime, end: datetime
+) -> tuple[list[WindowDepth], date | None]:
     """What the window reads at each point, and the newest day measured.
 
     Today's grid answers for its own day wherever the history has no row, and
@@ -337,8 +339,8 @@ async def window_depths(points: list[tuple[float, float]], start: datetime, end:
             log.warning("Snow depth history could not be read: %r", exc)
 
     results: list[WindowDepth] = []
-    for (lat, lon), cell in zip(points, cells, strict=True):
-        depths = dict(stored.get(cell, {})) if cell is not None else {}
+    for (lat, lon), at in zip(points, cells, strict=True):
+        depths = dict(stored.get(at, {})) if at is not None else {}
         if grid_day is not None and depths.get(grid_day) is None and isinstance(grid, snodas.Snapshot):
             try:
                 depths[grid_day] = grid.depth_in(lat, lon)

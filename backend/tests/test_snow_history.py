@@ -7,11 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from test_snodas import a_snapshot, hold_grid
 
 from app.main import app
 from app.services import snow_history
 from app.services.snow_history import WindowDepth, pending_days, summarize, window_days
-from test_snodas import a_snapshot, hold_grid
 
 client = TestClient(app)
 
@@ -131,14 +131,18 @@ def test_the_route_reads_each_point_in_request_order(monkeypatch):
     assert outside == {"avg_in": None, "min_in": None, "max_in": None, "days": []}
 
 
+_HOUR = {"start_datetime": "2026-11-12T00:00:00Z", "end_datetime": "2026-11-12T01:00:00Z"}
+_POINT = [{"latitude": 0, "longitude": 0}]
+
+
 @pytest.mark.parametrize(
     "body",
     [
-        {"points": [], "start_datetime": "2026-11-12T00:00:00Z", "end_datetime": "2026-11-12T01:00:00Z"},
-        {"points": [{"latitude": 91, "longitude": 0}], "start_datetime": "2026-11-12T00:00:00Z", "end_datetime": "2026-11-12T01:00:00Z"},
-        {"points": [{"latitude": 0, "longitude": 0}], "start_datetime": "2026-11-12T02:00:00Z", "end_datetime": "2026-11-12T01:00:00Z"},
-        {"points": [{"latitude": 0, "longitude": 0}], "start_datetime": "2000-01-01T00:00:00Z", "end_datetime": "2000-01-02T00:00:00Z"},
-        {"points": [{"latitude": 0, "longitude": 0, "name": "x"}], "start_datetime": "2026-11-12T00:00:00Z", "end_datetime": "2026-11-12T01:00:00Z"},
+        {"points": [], **_HOUR},
+        {"points": [{"latitude": 91, "longitude": 0}], **_HOUR},
+        {"points": _POINT, "start_datetime": "2026-11-12T02:00:00Z", "end_datetime": "2026-11-12T01:00:00Z"},
+        {"points": _POINT, "start_datetime": "2000-01-01T00:00:00Z", "end_datetime": "2000-01-02T00:00:00Z"},
+        {"points": [{"latitude": 0, "longitude": 0, "name": "x"}], **_HOUR},
     ],
     ids=["no points", "latitude out of range", "end before start", "past the archive", "unknown field"],
 )
@@ -231,7 +235,8 @@ async def test_a_day_nsidc_never_published_is_recorded_and_not_asked_again(datab
 async def test_months_past_a_year_are_dropped(database):
     async with database.connection() as conn:
         await conn.execute(
-            "INSERT INTO snow_depth_days (cell, month, depth_mm) VALUES (1, '2025-01-01', '{1}'), (1, '2026-11-01', '{1}')"
+            "INSERT INTO snow_depth_days (cell, month, depth_mm) "
+            "VALUES (1, '2025-01-01', '{1}'), (1, '2026-11-01', '{1}')"
         )
         await conn.execute("INSERT INTO snow_depth_filled (day, outcome) SELECT d::date, 'filled'"
                            " FROM generate_series('2025-11-12'::date, '2026-11-12'::date, '1 day') d")
