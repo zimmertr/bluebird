@@ -1,4 +1,5 @@
 import type { DestinationResult, SnowDepthAtPoint, SnowDepthResponse } from '../types'
+import { isAbort } from './abort'
 import { apiFetch } from './apiFetch'
 import { geoKey } from './points'
 
@@ -41,7 +42,7 @@ export async function fetchSnowDepth(
     })
     return out
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') throw e
+    if (isAbort(e)) throw e
     return null
   }
 }
