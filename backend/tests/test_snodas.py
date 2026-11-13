@@ -21,7 +21,7 @@ from datetime import UTC, date, datetime
 import httpx
 import pytest
 
-from app.services import snodas
+from app.services import snodas, snow_history
 from app.services.errors import UpstreamError
 
 # Taken at import time, ahead of conftest's autouse fixture, which replaces the
@@ -550,9 +550,9 @@ async def test_a_refused_refresh_leaves_every_row_null_and_no_date(monkeypatch, 
     cache = _install(monkeypatch, a_snapshot("2026-09-21"), fresh=False)
     cache._fetch = lambda: snodas.fetch_snapshot(now=NOW)
     rows = [{"latitude": 39.5, "longitude": -98.5}]
-    snodas.fill_snow_depth(rows)
+    await fill(rows)
     await cache.settle()
-    assert snodas.fill_snow_depth(rows) is None
+    assert await fill(rows) is None
     assert rows[0]["snow_depth_in"] is None
 
 
@@ -579,7 +579,21 @@ async def test_refuses_a_download_that_runs_past_the_cap_without_declaring_it(
     )
 
 
-# ── The fill step, and never waiting for a grid ────────────────────────────
+# ── Reading today's grid for a window, and never waiting for one ──────────
+#
+# Through `snow_history.window_depths`, the one read every route makes, with no
+# database: today's grid answers for its own day and for every day after it.
+
+WINDOW_AT = datetime(2026, 9, 22, 12, tzinfo=UTC)
+
+
+async def fill(rows: list[dict], at: datetime = WINDOW_AT) -> str | None:
+    depths, newest = await snow_history.window_depths(
+        [(r["latitude"], r["longitude"]) for r in rows], at, at
+    )
+    for row, depth in zip(rows, depths, strict=True):
+        row["snow_depth_in"] = depth.max_in
+    return newest.isoformat() if newest else None
 
 
 def _install(monkeypatch, snapshot: snodas.Snapshot | None, *, fresh: bool = True):
@@ -596,7 +610,7 @@ def _install(monkeypatch, snapshot: snodas.Snapshot | None, *, fresh: bool = Tru
     return cache
 
 
-def test_fill_sets_the_depth_and_reports_the_grids_date(monkeypatch):
+async def test_fill_sets_the_depth_and_reports_the_grids_date(monkeypatch):
     _install(monkeypatch, a_snapshot("2026-09-22"))
     rows = [
         {"latitude": 39.5, "longitude": -98.5},
@@ -604,7 +618,7 @@ def test_fill_sets_the_depth_and_reports_the_grids_date(monkeypatch):
         {"latitude": 39.5, "longitude": -97.5},
         {"latitude": 10.0, "longitude": 10.0},
     ]
-    assert snodas.fill_snow_depth(rows) == "2026-09-22"
+    assert await fill(rows) == "2026-09-22"
     assert [r["snow_depth_in"] for r in rows] == [
         39.37,
         100.0,
@@ -613,23 +627,24 @@ def test_fill_sets_the_depth_and_reports_the_grids_date(monkeypatch):
     ]
 
 
-def test_fill_answers_nulls_and_no_date_with_no_grid_held(monkeypatch):
+async def test_fill_answers_nulls_and_no_date_with_no_grid_held(monkeypatch):
     # The first analyses after a pod restart. Every row reads as unknown and
     # the report carries no date to caption itself with, which is what stops a
     # blank column from being read as bare ground.
     _install(monkeypatch, None)
     rows = [{"latitude": 39.5, "longitude": -98.5}]
-    assert snodas.fill_snow_depth(rows) is None
+    assert await fill(rows) is None
     assert rows[0]["snow_depth_in"] is None
 
 
-def test_fill_degrades_to_nulls_when_the_grid_cannot_answer(monkeypatch):
-    # Issue #629: a grid whose lookup raises must not take the route with it.
+async def test_fill_degrades_to_nulls_when_the_grid_cannot_answer(monkeypatch):
+    # Issue #629: a grid whose lookup raises must not take the route with it:
+    # every row reads null.
     # The header checks keep a NaN origin out of a real snapshot; this one is
     # built past them, which is the case the fill exists to survive.
     _install(monkeypatch, dataclasses.replace(a_snapshot(), min_x=float("nan")))
     rows = [{"latitude": 39.5, "longitude": -98.5}, {"latitude": 38.5, "longitude": -99.5}]
-    assert snodas.fill_snow_depth(rows) is None
+    await fill(rows)
     assert [r["snow_depth_in"] for r in rows] == [None, None]
 
 
@@ -644,7 +659,7 @@ async def test_fill_never_waits_for_a_cold_grid(monkeypatch):
 
     cache = snodas.snow_cache(fetch=slow)
     monkeypatch.setattr(snodas, "GRID", cache)
-    assert snodas.fill_snow_depth([{"latitude": 39.5, "longitude": -98.5}]) is None
+    assert await fill([{"latitude": 39.5, "longitude": -98.5}]) is None
     await cache.settle()
     assert started == [True]
     assert cache.snapshot_or_none is not None
@@ -661,7 +676,7 @@ async def test_an_aged_grid_still_answers_while_it_refreshes(monkeypatch):
     cache._fetch = fetch
     rows = [{"latitude": 39.5, "longitude": -98.5}]
     # The stale grid answers this request rather than the fresh one.
-    assert snodas.fill_snow_depth(rows) == "2026-09-21"
+    assert await fill(rows) == "2026-09-21"
     await cache.settle()
     assert refreshed == [True]
     assert cache.snapshot_or_none.analysis_date == "2026-09-22"
@@ -677,7 +692,7 @@ async def test_a_failed_refresh_is_not_retried_on_every_request(monkeypatch):
     cache = snodas.snow_cache(fetch=refuse, retry_after_failure_s=3600)
     monkeypatch.setattr(snodas, "GRID", cache)
     for _ in range(3):
-        snodas.fill_snow_depth([{"latitude": 39.5, "longitude": -98.5}])
+        await fill([{"latitude": 39.5, "longitude": -98.5}])
         await cache.settle()
     assert attempts == [True]
 

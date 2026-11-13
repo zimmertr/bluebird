@@ -149,6 +149,19 @@ class RateLimits(BaseModel):
             "refetches on a 400 ms debounce from zoom 11 up."
         )
     )
+    snow_depth_per_minute: int = Field(
+        description=(
+            "Sustained `POST /api/snow-depth` requests per client address per "
+            "minute. It answers from the database alone and the app asks once "
+            "per analysis. 0 means the limit is disabled."
+        )
+    )
+    snow_depth_burst: int = Field(
+        description=(
+            "How many snow depth requests an idle client can send back-to-back "
+            "before the per-minute pace applies."
+        )
+    )
     fire_activity_per_minute: int = Field(
         description=(
             "Sustained `GET /api/fire-activity` requests per client address per "
@@ -520,6 +533,8 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 closures_burst=ratelimit.client.CLOSURES_LIMITER.burst,
                 landmarks_per_minute=ratelimit.client.LANDMARKS_LIMITER.per_minute,
                 landmarks_burst=ratelimit.client.LANDMARKS_LIMITER.burst,
+                snow_depth_per_minute=ratelimit.client.SNOW_DEPTH_LIMITER.per_minute,
+                snow_depth_burst=ratelimit.client.SNOW_DEPTH_LIMITER.burst,
                 fire_activity_per_minute=ratelimit.client.FIRE_ACTIVITY_LIMITER.per_minute,
                 fire_activity_burst=ratelimit.client.FIRE_ACTIVITY_LIMITER.burst,
             ),

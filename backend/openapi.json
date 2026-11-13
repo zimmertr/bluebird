@@ -263,7 +263,7 @@
                 "type": "null"
               }
             ],
-            "description": "Drop rows whose `snow_depth_in` is above this. Nulls pass, under the same terms.",
+            "description": "Drop rows whose `snow_depth_max_in` is above this, so no day of the window has more. Nulls pass, under the same terms.",
             "title": "Max Snow Depth In"
           },
           "max_snowfall_total_in": {
@@ -376,7 +376,7 @@
                 "type": "null"
               }
             ],
-            "description": "Drop rows whose `snow_depth_in` is below this. A row with a null `snow_depth_in` passes either bound: the destination is outside the snow grid, or this instance holds no grid, and neither says anything about how much snow is on the ground.",
+            "description": "Drop rows whose `snow_depth_min_in` is below this, so every day of the window has at least this much. A row with a null depth passes either bound: the destination is outside the snow grid, or this instance holds no depth for it, and neither says anything about how much snow is on the ground.",
             "title": "Min Snow Depth In"
           },
           "min_snowfall_total_in": {
@@ -482,7 +482,7 @@
                 "type": "null"
               }
             ],
-            "description": "The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.",
+            "description": "The newest day of the SNODAS analysis this instance holds, as `YYYY-MM-DD`: the day every later day of the window reads. Null when it holds none, which is also when every snow depth is null.",
             "title": "Snow Analysis Date"
           },
           "times": {
@@ -958,7 +958,7 @@
             ],
             "description": "Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`."
           },
-          "snow_depth_in": {
+          "snow_depth_avg_in": {
             "anyOf": [
               {
                 "type": "number"
@@ -967,8 +967,32 @@
                 "type": "null"
               }
             ],
-            "description": "Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season; that is ice rather than this season's snow. The value saturates at 1290.04, the 16-bit integer millimetre ceiling of the source file, so a row at that number holds at least that much and is permanent ice.",
-            "title": "Snow Depth In"
+            "description": "Mean snow depth over the window's days, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.",
+            "title": "Snow Depth Avg In"
+          },
+          "snow_depth_max_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most snow depth on any day of the window, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.",
+            "title": "Snow Depth Max In"
+          },
+          "snow_depth_min_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Least snow depth on any day of the window, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.",
+            "title": "Snow Depth Min In"
           },
           "snowfall_avg_in_hr": {
             "anyOf": [
@@ -1081,7 +1105,9 @@
           "snowfall_avg_in_hr",
           "snowfall_min_in_hr",
           "snowfall_max_in_hr",
-          "snow_depth_in",
+          "snow_depth_avg_in",
+          "snow_depth_min_in",
+          "snow_depth_max_in",
           "cloud_deck_min_ft",
           "cloud_deck_avg_ft",
           "cloud_deck_max_ft",
@@ -1204,18 +1230,6 @@
             "title": "Elevation Lookup Complete",
             "type": "boolean"
           },
-          "snow_analysis_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.",
-            "title": "Snow Analysis Date"
-          },
           "total": {
             "description": "Same as `len(destinations)`, for convenience.",
             "title": "Total",
@@ -1245,8 +1259,7 @@
           "total",
           "total_found",
           "truncated",
-          "elevation_lookup_complete",
-          "snow_analysis_date"
+          "elevation_lookup_complete"
         ],
         "title": "DestinationsResponse",
         "type": "object"
@@ -1293,18 +1306,6 @@
             "description": "OpenStreetMap identifier such as `node/12345`.",
             "title": "Osm Id"
           },
-          "snow_depth_in": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season; that is ice rather than this season's snow. The value saturates at 1290.04, the 16-bit integer millimetre ceiling of the source file, so a row at that number holds at least that much and is permanent ice.",
-            "title": "Snow Depth In"
-          },
           "type": {
             "description": "The discovery type this row matched, or `custom` for a caller-supplied row.",
             "title": "Type",
@@ -1317,8 +1318,7 @@
           "latitude",
           "longitude",
           "elevation_ft",
-          "osm_id",
-          "snow_depth_in"
+          "osm_id"
         ],
         "title": "DiscoveredDestination",
         "type": "object"
@@ -2031,6 +2031,16 @@
             "title": "Smoke Per Minute",
             "type": "integer"
           },
+          "snow_depth_burst": {
+            "description": "How many snow depth requests an idle client can send back-to-back before the per-minute pace applies.",
+            "title": "Snow Depth Burst",
+            "type": "integer"
+          },
+          "snow_depth_per_minute": {
+            "description": "Sustained `POST /api/snow-depth` requests per client address per minute. It answers from the database alone and the app asks once per analysis. 0 means the limit is disabled.",
+            "title": "Snow Depth Per Minute",
+            "type": "integer"
+          },
           "wildfires_burst": {
             "description": "How many wildfire requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce.",
             "title": "Wildfires Burst",
@@ -2057,6 +2067,8 @@
           "closures_burst",
           "landmarks_per_minute",
           "landmarks_burst",
+          "snow_depth_per_minute",
+          "snow_depth_burst",
           "fire_activity_per_minute",
           "fire_activity_burst"
         ],
@@ -2101,6 +2113,179 @@
         "title": "SmokeCollection",
         "type": "object"
       },
+      "SnowDay": {
+        "properties": {
+          "day": {
+            "description": "A UTC day of the window, `YYYY-MM-DD`.",
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "depth_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Snow depth that day, inches, or null where none was measured.",
+            "title": "Depth In"
+          }
+        },
+        "required": [
+          "day",
+          "depth_in"
+        ],
+        "title": "SnowDay",
+        "type": "object"
+      },
+      "SnowDepthAtPoint": {
+        "properties": {
+          "avg_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean snow depth over the window's days, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.",
+            "title": "Avg In"
+          },
+          "days": {
+            "description": "Each UTC day of the window up to the newest day analyzed, with its depth. It stops there rather than repeating the newest depth, so it holds only what was measured.",
+            "items": {
+              "$ref": "#/components/schemas/SnowDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "max_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most snow depth on any day of the window, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.",
+            "title": "Max In"
+          },
+          "min_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Least snow depth on any day of the window, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.",
+            "title": "Min In"
+          }
+        },
+        "required": [
+          "avg_in",
+          "min_in",
+          "max_in",
+          "days"
+        ],
+        "title": "SnowDepthAtPoint",
+        "type": "object"
+      },
+      "SnowDepthRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "end_datetime": {
+            "description": "The window's last instant, read as `start_datetime` is.",
+            "format": "date-time",
+            "title": "End Datetime",
+            "type": "string"
+          },
+          "points": {
+            "description": "The coordinates to read, in the order the answer returns them.",
+            "items": {
+              "$ref": "#/components/schemas/SnowPoint"
+            },
+            "maxItems": 1500,
+            "minItems": 1,
+            "title": "Points",
+            "type": "array"
+          },
+          "start_datetime": {
+            "description": "The window's first instant, ISO 8601. An offset is converted to UTC; a naive stamp is read as UTC.",
+            "format": "date-time",
+            "title": "Start Datetime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "points",
+          "start_datetime",
+          "end_datetime"
+        ],
+        "title": "SnowDepthRequest",
+        "type": "object"
+      },
+      "SnowDepthResponse": {
+        "properties": {
+          "points": {
+            "description": "One answer per requested point, in request order.",
+            "items": {
+              "$ref": "#/components/schemas/SnowDepthAtPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "snow_analysis_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest day of the SNODAS analysis this instance holds, as `YYYY-MM-DD`: the day every later day of the window reads. Null when it holds none, which is also when every snow depth is null.",
+            "title": "Snow Analysis Date"
+          }
+        },
+        "required": [
+          "snow_analysis_date",
+          "points"
+        ],
+        "title": "SnowDepthResponse",
+        "type": "object"
+      },
+      "SnowPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "latitude": {
+            "description": "Latitude in decimal degrees, -90 to 90.",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Longitude in decimal degrees, -180 to 180.",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "SnowPoint",
+        "type": "object"
+      },
       "SortBy": {
         "enum": [
           "precip_total_in",
@@ -2126,7 +2311,9 @@
           "snowfall_avg_in_hr",
           "snowfall_min_in_hr",
           "snowfall_max_in_hr",
-          "snow_depth_in"
+          "snow_depth_avg_in",
+          "snow_depth_min_in",
+          "snow_depth_max_in"
         ],
         "title": "SortBy",
         "type": "string"
@@ -2948,6 +3135,58 @@
         ]
       }
     },
+    "/api/snow-depth": {
+      "post": {
+        "description": "What a window reads at each point from the NOHRSC SNODAS snow analysis: the depth on each UTC day of the window up to the newest day analyzed, and the window's average, least and most, which count every later day as that newest depth.\n\nThis instance keeps a year of daily depths at every place its copy of OpenStreetMap holds inside the grid. A coordinate in a 1 km cell no such place shares reads the newest day alone. An instance without that copy reads today's analysis alone, at every point.\n\nNo upstream is asked: the answer comes from this instance's own copy.",
+        "operationId": "snow_depth_api_snow_depth_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnowDepthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnowDepthResponse"
+                }
+              }
+            },
+            "description": "Each point's daily depths and the window's aggregates."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A point or the window was malformed or out of range."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          }
+        },
+        "summary": "Snow depth over a window at a list of coordinates",
+        "tags": [
+          "snow depth"
+        ]
+      }
+    },
     "/api/version": {
       "get": {
         "description": "Answers what release is actually live, without cross-referencing the GitHub release, the image tag, and the manifests repo. Preview builds report `pr-<number>`. Local and Docker Compose builds report `dev` for every field, because nothing baked a real identity in.",
@@ -3112,6 +3351,10 @@
     {
       "description": "Every named trailhead and crag in OpenStreetMap, because the basemap's tiles carry no trailhead and cannot tell a crag from a route. Served from this instance's own copy of OpenStreetMap rather than asked of an upstream per map pan.",
       "name": "landmarks"
+    },
+    {
+      "description": "Daily snow depth from the NOHRSC SNODAS analysis, a year of it at every place this instance knows inside the grid, read for an analysis window. Served from this instance's own copy rather than asked of NSIDC per request.",
+      "name": "snow depth"
     }
   ]
 }

@@ -414,6 +414,7 @@ def _mirror_health_clear():
 _DB_TABLES = (
     "places", "places_pending", "snapshots", "refresh_state",
     "rate_buckets", "gates", "weight_bookings", "geocode_cache",
+    "snow_depth_days", "snow_depth_filled",
 )
 
 

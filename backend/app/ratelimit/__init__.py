@@ -57,6 +57,8 @@ from app.ratelimit.client import (
     RATE_LIMIT_LANDMARKS_PER_MINUTE,
     RATE_LIMIT_SMOKE_BURST,
     RATE_LIMIT_SMOKE_PER_MINUTE,
+    RATE_LIMIT_SNOW_DEPTH_BURST,
+    RATE_LIMIT_SNOW_DEPTH_PER_MINUTE,
     RATE_LIMIT_WILDFIRES_BURST,
     RATE_LIMIT_WILDFIRES_PER_MINUTE,
     InFlightLimiter,
@@ -74,6 +76,7 @@ from app.ratelimit.client import (
     geocode_rate_limit,
     landmarks_rate_limit,
     smoke_rate_limit,
+    snow_depth_rate_limit,
     wildfires_rate_limit,
 )
 from app.ratelimit.upstream import (
@@ -113,6 +116,8 @@ __all__ = [
     "RATE_LIMIT_CLOSURES_BURST",
     "RATE_LIMIT_LANDMARKS_PER_MINUTE",
     "RATE_LIMIT_LANDMARKS_BURST",
+    "RATE_LIMIT_SNOW_DEPTH_PER_MINUTE",
+    "RATE_LIMIT_SNOW_DEPTH_BURST",
     "RATE_LIMIT_FIRE_ACTIVITY_PER_MINUTE",
     "RATE_LIMIT_FIRE_ACTIVITY_BURST",
     "UPSTREAM_CONCURRENCY_WEATHER",
@@ -149,5 +154,6 @@ __all__ = [
     "smoke_rate_limit",
     "closures_rate_limit",
     "landmarks_rate_limit",
+    "snow_depth_rate_limit",
     "fire_activity_rate_limit",
 ]

@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 from conftest import dest, weather_metrics
+from test_snodas import a_snapshot, hold_grid
 from fastapi import Request
 
 from app import limits, ratelimit
@@ -27,6 +29,7 @@ from app.routes.analyze.phases import (
     Window,
     _apply_cap,
     _attach_late,
+    _attach_snow,
     _check_pacing,
     _check_window,
     _eager_fetches,
@@ -157,8 +160,24 @@ def test_apply_cap_cuts_to_the_highest_when_asked():
     assert (len(capped.destinations), capped.total_found, capped.truncated) == (
         MAX_ANALYZE_PEAKS, MAX_ANALYZE_PEAKS + 3, True,
     )
-    # The snow fill ran on the final set: every row carries the field.
-    assert all("snow_depth_in" in d for d in capped.destinations)
+
+
+# ── _attach_snow (#849) ────────────────────────────────────────────────────
+
+
+async def test_attach_snow_fills_every_final_candidate_and_names_the_newest_day(monkeypatch):
+    # No database in this suite, so today's grid is the newest day, and a
+    # window after it reads that day's depth on all of its days.
+    hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    capped = Capped([dest(39.5, -98.5), dest(10.0, 10.0)], None, False, None)
+    window = SimpleNamespace(
+        start=datetime(2026, 9, 23, tzinfo=UTC), end=datetime(2026, 9, 24, 23, tzinfo=UTC)
+    )
+    await _attach_snow(capped, window)
+    assert capped.snow_analysis_date == "2026-09-22"
+    inside, outside = capped.destinations
+    assert inside["snow_depth_avg_in"] == inside["snow_depth_min_in"] == inside["snow_depth_max_in"] == 39.37
+    assert (outside["snow_depth_avg_in"], outside["snow_depth_max_in"]) == (None, None)
 
 
 # ── _check_pacing (#581) ────────────────────────────────────────────────────

@@ -95,6 +95,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
             "closures_burst": ratelimit.client.CLOSURES_LIMITER.burst,
             "landmarks_per_minute": ratelimit.client.LANDMARKS_LIMITER.per_minute,
             "landmarks_burst": ratelimit.client.LANDMARKS_LIMITER.burst,
+            "snow_depth_per_minute": ratelimit.client.SNOW_DEPTH_LIMITER.per_minute,
+            "snow_depth_burst": ratelimit.client.SNOW_DEPTH_LIMITER.burst,
             "fire_activity_per_minute": ratelimit.client.FIRE_ACTIVITY_LIMITER.per_minute,
             "fire_activity_burst": ratelimit.client.FIRE_ACTIVITY_LIMITER.burst,
         },
@@ -188,7 +190,7 @@ def test_data_sources_are_named_and_linked():
 
 
 def test_publishes_the_snow_grid_as_a_source():
-    # A caller reading a `snow_depth_in` has to be able to find out where the
+    # A caller reading a snow depth has to be able to find out where the
     # number came from, and this is the only place the API says so.
     names = {source["name"] for source in _capabilities()["data_sources"]}
     assert "NOAA NOHRSC SNODAS" in names
@@ -196,10 +198,10 @@ def test_publishes_the_snow_grid_as_a_source():
 
 def test_snowfall_and_snow_depth_are_both_rankable():
     # Snowfall replaced snow depth in #678, and depth came back beside it in
-    # #849: one is the window's new snow, the other today's snowpack.
+    # #849: one is the window's new snow, the other the snowpack on its days.
     keys = set(_capabilities()["sort_keys"])
     assert {"snowfall_total_in", "snowfall_avg_in_hr", "snowfall_min_in_hr", "snowfall_max_in_hr"} <= keys
-    assert "snow_depth_in" in keys
+    assert {"snow_depth_avg_in", "snow_depth_min_in", "snow_depth_max_in"} <= keys
 
 
 def test_capabilities_is_documented_and_tagged():

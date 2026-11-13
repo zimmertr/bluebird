@@ -31,32 +31,27 @@ class DestinationType(str, Enum):
     custom = "custom"
 
 
-# What `snow_depth_in` means, on the two models that carry it.
-#
-# One constant rather than the per-class wording `_DiscoveryFields` keeps:
-# those four descriptions differ because the two endpoints genuinely do
-# different things with the same field, and this one is the same statement
-# about the same number wherever it appears.
-_SNOW_DEPTH_DESCRIPTION = (
-    "Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. "
-    "One number per destination that ignores the analyzed window entirely: it "
-    "is the current analysis rather than a forecast, so it has no minimum, "
-    "mean or maximum and no hourly series. Null outside the grid, which covers "
-    "the contiguous United States, southern Canada and northern Mexico, and "
-    "null while this instance holds no grid. Over permanent ice SNODAS "
-    "accumulates year over year, so a glaciated summit reads hundreds of "
-    "inches in every season; that is ice rather than this season's snow. The "
-    "value saturates at 1290.04, the 16-bit integer millimetre ceiling of the "
-    "source file, so a row at that number holds at least that much and is "
-    "permanent ice."
+# What the snow depth fields mean, wherever they appear (#849).
+_SNOW_DEPTH_TERMS = (
+    "From the NOHRSC SNODAS 1 km analysis, a measurement rather than a "
+    "forecast: each UTC day of the window up to the newest day analyzed reads "
+    "its own depth, and every day after that reads the newest depth. Null "
+    "outside the grid, which covers the contiguous United States, southern "
+    "Canada and northern Mexico, and null when this instance holds no depth "
+    "for the destination. Over permanent ice SNODAS accumulates year over "
+    "year, so a glaciated summit reads hundreds of inches in every season. A "
+    "value of 1290.04 is the source file's 16-bit millimetre ceiling: at least "
+    "that much, and permanent ice."
 )
+_SNOW_DEPTH_AVG_DESCRIPTION = f"Mean snow depth over the window's days, inches. {_SNOW_DEPTH_TERMS}"
+_SNOW_DEPTH_MIN_DESCRIPTION = f"Least snow depth on any day of the window, inches. {_SNOW_DEPTH_TERMS}"
+_SNOW_DEPTH_MAX_DESCRIPTION = f"Most snow depth on any day of the window, inches. {_SNOW_DEPTH_TERMS}"
 
-# The grid a report's snow depths came from, on the two responses that carry
-# one. Same wording for the same reason as the field above.
+# The newest day the snow depths could read, on the responses that carry them.
 _SNOW_DATE_DESCRIPTION = (
-    "The date of the SNODAS analysis behind every `snow_depth_in` on this "
-    "response, as `YYYY-MM-DD`. Null when this instance holds no grid, which "
-    "is also when every row's `snow_depth_in` is null."
+    "The newest day of the SNODAS analysis this instance holds, as "
+    "`YYYY-MM-DD`: the day every later day of the window reads. Null when it "
+    "holds none, which is also when every snow depth is null."
 )
 
 
@@ -98,10 +93,11 @@ class SortBy(str, Enum):
     snowfall_avg = "snowfall_avg_in_hr"
     snowfall_min = "snowfall_min_in_hr"
     snowfall_max = "snowfall_max_in_hr"
-    # The one key that is not a window aggregate: snow depth is today's number
-    # whatever window was analyzed, so the family has one member rather than
-    # three (issues #449 and #849).
-    snow_depth = "snow_depth_in"
+    # Snow depth (#849): a level read once a day, so it has temperature's three
+    # aggregates and no total.
+    snow_depth_avg = "snow_depth_avg_in"
+    snow_depth_min = "snow_depth_min_in"
+    snow_depth_max = "snow_depth_max_in"
 
 
 # Every request model refuses a field it does not declare (issue #563). Left to

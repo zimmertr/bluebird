@@ -89,6 +89,11 @@ RATE_LIMIT_FIRE_ACTIVITY_BURST = env_int("RATE_LIMIT_FIRE_ACTIVITY_BURST", 30)
 # on the trailheads under it (#760, carried from #734).
 RATE_LIMIT_LANDMARKS_PER_MINUTE = env_int("RATE_LIMIT_LANDMARKS_PER_MINUTE", 90)
 RATE_LIMIT_LANDMARKS_BURST = env_int("RATE_LIMIT_LANDMARKS_BURST", 30)
+# The snow depth history is read once per analysis, from the database alone, so
+# its bucket is the analysis pace with room for a few re-analyses in a row
+# (#849). Its own bucket so a map pan never spends it.
+RATE_LIMIT_SNOW_DEPTH_PER_MINUTE = env_int("RATE_LIMIT_SNOW_DEPTH_PER_MINUTE", 30)
+RATE_LIMIT_SNOW_DEPTH_BURST = env_int("RATE_LIMIT_SNOW_DEPTH_BURST", 10)
 
 # Discoveries one client key may have in flight at once. A bucket bounds how
 # often an address starts a discovery, not how many it holds open, and one
@@ -421,6 +426,9 @@ CLOSURES_LIMITER = RateLimiter(
 LANDMARKS_LIMITER = RateLimiter(
     RATE_LIMIT_LANDMARKS_PER_MINUTE, RATE_LIMIT_LANDMARKS_BURST, name="landmarks"
 )
+SNOW_DEPTH_LIMITER = RateLimiter(
+    RATE_LIMIT_SNOW_DEPTH_PER_MINUTE, RATE_LIMIT_SNOW_DEPTH_BURST, name="snow_depth"
+)
 FIRE_ACTIVITY_LIMITER = RateLimiter(
     RATE_LIMIT_FIRE_ACTIVITY_PER_MINUTE, RATE_LIMIT_FIRE_ACTIVITY_BURST, name="fire_activity"
 )
@@ -524,6 +532,11 @@ async def closures_rate_limit(request: Request) -> None:
 async def landmarks_rate_limit(request: Request) -> None:
     """Route dependency: the map markers' bucket, independent of the overlays."""
     await _throttle(LANDMARKS_LIMITER, request)
+
+
+async def snow_depth_rate_limit(request: Request) -> None:
+    """Route dependency: the snow depth history's bucket."""
+    await _throttle(SNOW_DEPTH_LIMITER, request)
 
 
 async def fire_activity_rate_limit(request: Request) -> None:

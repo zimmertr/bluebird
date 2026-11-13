@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import dataclasses
 import zlib
 
 import httpx
-import pytest
 from conftest import dest
 from fastapi.testclient import TestClient
-from test_snodas import a_snapshot, hold_grid
 
 from app import ratelimit
 from app.main import app
@@ -564,65 +561,10 @@ def test_over_cap_union_speaks_generically(monkeypatch):
     assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
-# ── Snow depth (#449, #849) ────────────────────────────────────────────────
-#
-# The grid is held by the pod, so discovery is where a browser analysis gets
-# its snow number: the SPA fetches its own forecasts and never asks the server
-# for weather at all.
-
-
-def _in_grid(name: str) -> dict:
-    """A peak inside test_snodas's synthetic grid, in its one-metre cell."""
-    return {**_peak(name), "latitude": 39.5, "longitude": -98.5}
-
-
-def test_fills_snow_depth_and_names_the_grids_date(monkeypatch):
-    _stub_osm(monkeypatch, [_in_grid("Alpha"), _peak("Elsewhere")])
-    hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+def test_carries_no_snow_depth(monkeypatch):
+    # Discovery has no window, and snow depth is read for a window's days
+    # (#849), so it rides POST /api/snow-depth and the analyze routes instead.
+    _stub_osm(monkeypatch, [_peak("Alpha", 5000.0)])
     body = client.post("/api/destinations", json=_payload()).json()
-    assert body["snow_analysis_date"] == "2026-09-22"
-    depths = {d["name"]: d["snow_depth_in"] for d in body["destinations"]}
-    assert depths["Alpha"] == 39.37
-    # Outside the grid's box, which is the same answer as a pod with no grid
-    # and is why the column reads N/A rather than zero.
-    assert depths["Elsewhere"] is None
-
-
-def test_answers_nulls_and_no_date_while_no_grid_is_held(monkeypatch):
-    # conftest leaves the cache on its never-fetched path, which is the state a
-    # pod is in for the first seconds after a restart.
-    _stub_osm(monkeypatch, [_in_grid("Alpha")])
-    body = client.post("/api/destinations", json=_payload()).json()
-    assert body["snow_analysis_date"] is None
-    assert body["destinations"][0]["snow_depth_in"] is None
-
-
-def test_a_grid_that_cannot_answer_reads_null_rather_than_failing_discovery(monkeypatch):
-    # Issue #629: a NaN in the held grid's origin answered every lookup with a
-    # ValueError, and this route with a 500, until the next day's file.
-    _stub_osm(monkeypatch, [_in_grid("Alpha")])
-    hold_grid(monkeypatch, dataclasses.replace(a_snapshot("2026-09-22"), min_x=float("nan")))
-    resp = client.post("/api/destinations", json=_payload())
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["destinations"][0]["snow_depth_in"] is None
-    assert body["snow_analysis_date"] is None
-
-
-def test_fills_a_resolved_custom_row_too(monkeypatch):
-    # A pasted coordinate is a destination like any other, and the fill runs
-    # after the custom merge so it reaches both kinds of row.
-    _stub_osm(monkeypatch, [])
-    hold_grid(monkeypatch, a_snapshot("2026-09-22"))
-    body = client.post(
-        "/api/destinations",
-        json={
-            "destination_types": [],
-            "elevation_lookup": False,
-            "custom_destinations": [
-                {"name": "Pasted", "latitude": 38.5, "longitude": -99.5},
-            ],
-        },
-    ).json()
-    assert body["destinations"][0]["snow_depth_in"] == pytest.approx(100.0)
-    assert body["snow_analysis_date"] == "2026-09-22"
+    assert "snow_analysis_date" not in body
+    assert "snow_depth_in" not in body["destinations"][0]

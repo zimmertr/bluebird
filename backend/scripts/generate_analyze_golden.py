@@ -278,8 +278,9 @@ CASES = [
         _peaks(sort_by="snowfall_total_in", sort_desc=True, max_snowfall_total_in=0.9),
         discovered=PEAKS,
     ),
-    # Today's snow depth off the held grid, ranked with its null last (#849).
-    Case("snow_depth", _custom(SNOW_CUSTOM, sort_by="snow_depth_in", sort_desc=True), snow=True),
+    # The held grid as the newest day, read for a window after it and ranked
+    # with its null last (#849).
+    Case("snow_depth", _custom(SNOW_CUSTOM, sort_by="snow_depth_max_in", sort_desc=True), snow=True),
 ]
 
 

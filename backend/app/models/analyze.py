@@ -26,7 +26,9 @@ from app.limits import (
 from app.models.common import (
     _RESPONSE_CONFIG,
     _SNOW_DATE_DESCRIPTION,
-    _SNOW_DEPTH_DESCRIPTION,
+    _SNOW_DEPTH_AVG_DESCRIPTION,
+    _SNOW_DEPTH_MAX_DESCRIPTION,
+    _SNOW_DEPTH_MIN_DESCRIPTION,
     ForecastMode,
     SortBy,
     _bound_broken,
@@ -228,16 +230,20 @@ class AnalyzeRequest(_DiscoveryFields):
         default=None,
         ge=0,
         description=(
-            "Drop rows whose `snow_depth_in` is below this. A row with a null "
-            "`snow_depth_in` passes either bound: the destination is outside "
-            "the snow grid, or this instance holds no grid, and neither says "
-            "anything about how much snow is on the ground."
+            "Drop rows whose `snow_depth_min_in` is below this, so every day of "
+            "the window has at least this much. A row with a null depth passes "
+            "either bound: the destination is outside the snow grid, or this "
+            "instance holds no depth for it, and neither says anything about "
+            "how much snow is on the ground."
         ),
     )
     max_snow_depth_in: float | None = Field(
         default=None,
         ge=0,
-        description="Drop rows whose `snow_depth_in` is above this. Nulls pass, under the same terms.",
+        description=(
+            "Drop rows whose `snow_depth_max_in` is above this, so no day of the "
+            "window has more. Nulls pass, under the same terms."
+        ),
     )
     min_cloud_deck_ft: float | None = Field(
         default=None,
@@ -592,9 +598,9 @@ class DestinationResult(BaseModel):
         default=None,
         description="Snowiest single hour in the window, inches. Null under the same terms.",
     )
-    snow_depth_in: float | None = Field(
-        default=None, description=_SNOW_DEPTH_DESCRIPTION
-    )
+    snow_depth_avg_in: float | None = Field(default=None, description=_SNOW_DEPTH_AVG_DESCRIPTION)
+    snow_depth_min_in: float | None = Field(default=None, description=_SNOW_DEPTH_MIN_DESCRIPTION)
+    snow_depth_max_in: float | None = Field(default=None, description=_SNOW_DEPTH_MAX_DESCRIPTION)
     cloud_deck_min_ft: float | None = Field(
         default=None,
         description=(

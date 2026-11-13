@@ -565,41 +565,6 @@ snow_cache = cache_factory(
 GRID = snow_cache()
 
 
-def fill_snow_depth(destinations: list[dict]) -> str | None:
-    """Set ``snow_depth_in`` on every row, and say which grid answered.
-
-    **Nothing here ever waits for a grid.** A cold or aged cache schedules its
-    own refresh and the call returns immediately, so the first analysis after a
-    pod restart answers nulls rather than holding a visitor for a 4.9 MB
-    download. Every row then reads N/A, which is the same thing a destination
-    outside the grid reads and is answered by the same absent date: a report
-    whose rows have no depth also has no analysis date to caption itself with.
-
-    The return is the date the numbers came from rather than a flag, because a
-    snow ranking states it on screen and a stale grid is only honest if it says
-    which day it is.
-
-    A refused day, and a grid whose lookup raises, read the same as no grid:
-    null on every row and no date. Snow depth is one column of a report, and
-    nothing about the grid may fail the discovery or the analysis it rides on
-    (#629). The header checks are what keep a grid that raises out of the
-    cache; this is the backstop if one gets past them.
-    """
-    held = GRID.current_or_schedule()
-    depths: list[float | None] = [None] * len(destinations)
-    analysis_date: str | None = None
-    if isinstance(held, Snapshot):
-        try:
-            depths = [held.depth_in(d["latitude"], d["longitude"]) for d in destinations]
-            analysis_date = held.analysis_date
-        except Exception as exc:  # noqa: BLE001 — a bad grid must never fail the route it rides on
-            log.warning("SNODAS grid for %s could not answer a lookup: %r", held.analysis_date, exc)
-            depths = [None] * len(destinations)
-    for destination, depth in zip(destinations, depths, strict=True):
-        destination["snow_depth_in"] = depth
-    return analysis_date
-
-
 async def warm_up() -> None:
     """Fetch the grid once at startup, behind everything else.
 

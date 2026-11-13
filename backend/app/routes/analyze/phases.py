@@ -55,7 +55,7 @@ from app.routes.analyze.events import (
     Status,
     _drain,
 )
-from app.services import air_quality, snodas, weather
+from app.services import air_quality, snow_history, weather
 from app.services.candidates import (
     _filter_elevation,
     _merge_custom,
@@ -258,8 +258,7 @@ async def _find_candidates(
 def _apply_cap(
     destinations: list[dict], request: AnalyzeRequest, noun: str
 ) -> Capped | Refusal | Result:
-    """The empty answer, the over-cap refusal, or the final candidate set with
-    today's snow depth on it."""
+    """The empty answer, the over-cap refusal, or the final candidate set."""
     if not destinations:
         log.info("No destinations to analyze (none found, or none within the elevation band)")
         return Result(AnalyzeResponse(results=[], total_queried=0, total_matched=0))
@@ -273,13 +272,23 @@ def _apply_cap(
         else:
             suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
             return Refusal(_refusal_body(len(destinations), noun, suggestion=suggestion))
+    return Capped(destinations, total_found, truncated, None)
 
-    # Today's snow depth, read off the held grid once the candidate set is
-    # final. It is not a forecast and costs no upstream call, so it rides here
-    # rather than beside the weather fetch, and a pod holding no grid answers
-    # nulls instead of waiting for one (`fill_snow_depth`).
-    snow_analysis_date = snodas.fill_snow_depth(destinations)
-    return Capped(destinations, total_found, truncated, snow_analysis_date)
+
+async def _attach_snow(capped: Capped, window: Window) -> None:
+    """The window's snow depths on every final candidate (#849).
+
+    Read from the pod's own history and today's held grid, so it costs no
+    upstream call and rides here rather than beside the weather fetch. A pod
+    with neither answers nulls rather than waiting (`snow_history`).
+    """
+    points = [(d["latitude"], d["longitude"]) for d in capped.destinations]
+    depths, newest = await snow_history.window_depths(points, window.start, window.end)
+    for destination, depth in zip(capped.destinations, depths, strict=True):
+        destination["snow_depth_avg_in"] = depth.avg_in
+        destination["snow_depth_min_in"] = depth.min_in
+        destination["snow_depth_max_in"] = depth.max_in
+    capped.snow_analysis_date = newest.isoformat() if newest else None
 
 
 def _pace_detail(count: int, noun: str, days: int) -> str:

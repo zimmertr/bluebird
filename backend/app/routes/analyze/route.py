@@ -27,6 +27,7 @@ from app.routes.analyze.phases import (
     Fetched,
     _apply_cap,
     _attach_late,
+    _attach_snow,
     _check_pacing,
     _check_window,
     _eager_fetches,
@@ -171,6 +172,7 @@ async def _run_analysis(
     if not isinstance(capped, Capped):
         yield capped
         return
+    await _attach_snow(capped, window)
 
     eager = _eager_fetches(request)
     refused = _check_pacing(capped.destinations, window, api_key, noun)
