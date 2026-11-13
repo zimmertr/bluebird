@@ -249,11 +249,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # no snow depth (`snow_history.window_depths`). The task reference is held
     # because asyncio only weakly references running tasks.
     warm_snow = asyncio.create_task(snodas.warm_up())
+    from app.services import snow_history
+
+    warm_memory = asyncio.create_task(snow_history.fill_memory())
     # The Open-Meteo client is built lazily on first use so it binds to this
     # loop; all we owe it is a close, so the pod's keep-alive connections go
     # away with the process rather than waiting on upstream's idle timeout.
     yield
     warm_snow.cancel()
+    warm_memory.cancel()
     await refresh.stop()
     await db.stop()
     telemetry.stop_metrics_server()

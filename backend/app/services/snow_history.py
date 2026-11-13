@@ -316,6 +316,9 @@ async def window_depths(
     cells = [cell_of(lat, lon) for lat, lon in points]
     stored: dict[int, dict[date, float | None]] = {}
     newest: date | None = None
+    if not db.available() and _MEMORY:
+        stored = {c: _MEMORY[c] for c in cells if c is not None and c in _MEMORY}
+        newest = _MEMORY_NEWEST
     if db.available():
         try:
             wanted = sorted({c for c in cells if c is not None})
@@ -348,3 +351,58 @@ async def window_depths(
                 depths[grid_day] = None
         results.append(summarize(days, depths, newest))
     return results, newest
+
+
+# --- EXPERIMENT (#849 preview only, never to merge) -------------------------
+# A pod with no usable database keeps the last month in memory at the cells of
+# every bundled coordinate list's peaks, so the preview can show real history.
+
+_MEMORY: dict[int, dict[date, float | None]] = {}
+_MEMORY_NEWEST: date | None = None
+_LISTS_DIR = "/app/coordinate-lists"
+MEMORY_DAYS = 30
+
+
+def _list_cells() -> list[int]:
+    import glob
+
+    cells: set[int] = set()
+    for path in glob.glob(f"{_LISTS_DIR}/*.csv"):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                parts = line.split(",")
+                try:
+                    cell = cell_of(float(parts[0]), float(parts[1]))
+                except (ValueError, IndexError):
+                    continue
+                if cell is not None:
+                    cells.add(cell)
+    return sorted(cells)
+
+
+async def fill_memory() -> None:
+    global _MEMORY_NEWEST
+    await db.wait_ready(30)
+    if db.available():
+        return
+    cells = _list_cells()
+    log.info("Snow depth memory experiment: %d cells, %d days", len(cells), MEMORY_DAYS)
+    today = datetime.now(UTC).date()
+    async with httpx.AsyncClient(timeout=snodas.REQUEST_TIMEOUT_S, headers=HEADERS) as client:
+        for n in range(MEMORY_DAYS + 1):
+            day = today - timedelta(days=n)
+            try:
+                got = await _fetch_day(client, day, today)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Snow depth memory: %s failed: %r", day.isoformat(), exc)
+                continue
+            if not isinstance(got, snodas.Snapshot):
+                log.info("Snow depth memory: %s %s", day.isoformat(), got)
+                continue
+            values = await asyncio.to_thread(sample, got, cells)
+            del got
+            for cell, mm in zip(cells, values, strict=True):
+                _MEMORY.setdefault(cell, {})[day] = inches(mm)
+            if _MEMORY_NEWEST is None or day > _MEMORY_NEWEST:
+                _MEMORY_NEWEST = day
+            log.info("Snow depth memory: %s filled", day.isoformat())

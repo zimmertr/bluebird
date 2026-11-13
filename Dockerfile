@@ -59,6 +59,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
     pip install --require-hashes -r requirements.txt
 COPY backend/app/ ./app/
+COPY frontend/src/coordinate-lists/ ./coordinate-lists/
 COPY --from=frontend-builder /app/frontend/dist/ ./static/
 # Swagger UI's assets, vendored so /docs renders without reaching out to a CDN.
 # Taken straight from the builder's node_modules rather than through a Vite
