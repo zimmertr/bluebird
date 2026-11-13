@@ -146,7 +146,7 @@ function blockerText(blocker: AnalyzeBlocker, facts: BlockerFacts): string {
       // The air-quality line's twin, and for the same reason: one source
       // answers whatever model ranks the field, so there is nothing for a
       // second chip to draw (TJ, 2026-09-22, and again 2026-11-12).
-      return `${NOUN.snow} is retrieved independently of the model and cannot be compared.`
+      return `${NOUN.snow_depth} is retrieved independently of the model and cannot be compared.`
   }
 }
 

@@ -37,9 +37,11 @@ export type SortBy =
   | 'snowfall_avg_in_hr'
   | 'snowfall_min_in_hr'
   | 'snowfall_max_in_hr'
-  // The one key that is not a window aggregate: snow depth is today's single
-  // number, so its family has one member rather than three (#449, #849).
-  | 'snow_depth_in'
+  // Snow depth (#849): a level read once a day, so temperature's three
+  // aggregates and no total.
+  | 'snow_depth_avg_in'
+  | 'snow_depth_min_in'
+  | 'snow_depth_max_in'
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
@@ -169,6 +171,35 @@ export interface HourlySeries {
   // map's playback arrows do not appear on that path. Same contract as
   // `series_times` below.
   wind_dir_deg?: (number | null)[]
+  // Inches of snow on the ground, the hour's UTC day's analysis (#849).
+  // Client-populated from POST /api/snow-depth, the same contract as
+  // `wind_dir_deg`. Null after the newest day analyzed, so a chart line stops
+  // where the measurements do.
+  snow_depth_in?: (number | null)[]
+}
+
+// POST /api/snow-depth (#849): a window's snow depth at a list of points.
+export interface SnowDepthRequest {
+  points: { latitude: number; longitude: number }[]
+  start_datetime: string
+  end_datetime: string
+}
+
+export interface SnowDay {
+  day: string
+  depth_in: number | null
+}
+
+export interface SnowDepthAtPoint {
+  avg_in: number | null
+  min_in: number | null
+  max_in: number | null
+  days: SnowDay[]
+}
+
+export interface SnowDepthResponse {
+  snow_analysis_date: string | null
+  points: SnowDepthAtPoint[]
 }
 
 export interface DestinationResult {
@@ -209,14 +240,16 @@ export interface DestinationResult {
   snowfall_avg_in_hr: number | null
   snowfall_min_in_hr: number | null
   snowfall_max_in_hr: number | null
-  // Snow on the ground TODAY, in inches, from the NOHRSC SNODAS grid the pod
-  // holds: not a forecast, and not a reading of the analyzed window at all
-  // (#449, #849). Null outside the grid, which covers the contiguous US and
-  // southern Canada, and null while the pod holds no grid; both read N/A
-  // rather than as a gap in the weather. Over permanent ice the model
-  // accumulates year over year, so a glaciated summit reads over a thousand
-  // inches.
-  snow_depth_in: number | null
+  // Snow on the ground over the window's UTC days, in inches, from the pod's
+  // year of NOHRSC SNODAS analyses (#849): a measurement, so every day after
+  // the newest analyzed reads that newest depth. Null outside the grid, which
+  // covers the contiguous US and southern Canada, and null where the pod holds
+  // no depth; both read N/A rather than as a gap in the weather. Over
+  // permanent ice the analysis accumulates year over year, so a glaciated
+  // summit reads over a thousand inches.
+  snow_depth_avg_in: number | null
+  snow_depth_min_in: number | null
+  snow_depth_max_in: number | null
   // The cloud deck in feet above sea level, reduced over the window (#670).
   // Null unless the analysis fetched the cloud column, and for archive hours,
   // which carry no pressure levels. A dry column reads CLOUD_DECK_CEILING_FT.
@@ -255,9 +288,8 @@ export interface AnalyzeResponse {
   // True only when the request opted into top_by_elevation and the found set
   // exceeded the analysis cap.
   truncated?: boolean
-  // Which day's SNODAS analysis every snow_depth_in above came from, as
-  // YYYY-MM-DD. Null when the pod holds no grid, which is also when every
-  // snow_depth_in is null.
+  // The newest day of SNODAS analysis the pod holds, YYYY-MM-DD: the day every
+  // later day of the window reads. Null when it holds none.
   snow_analysis_date?: string | null
 }
 
@@ -280,10 +312,6 @@ export interface DiscoveredDestination {
   longitude: number
   elevation_ft: number | null
   osm_id: string | null
-  // Today's snow depth, filled from the grid the pod holds. It arrives with
-  // discovery rather than with the forecasts because it is not a forecast:
-  // the browser path fetches its own weather and would otherwise never see it.
-  snow_depth_in?: number | null
 }
 
 export interface DestinationsResponse {
@@ -291,7 +319,6 @@ export interface DestinationsResponse {
   total: number
   total_found?: number | null
   truncated?: boolean
-  snow_analysis_date?: string | null
   // Whether the pod's elevation lookup finished (#673); absent reads as true.
   elevation_lookup_complete?: boolean
 }

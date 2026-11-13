@@ -9,7 +9,7 @@ import { DestinationResult } from '../../types'
 import { closureWarning, resultRow } from '../../testSupport/fixtures'
 import { SEP } from '../../metrics'
 import { normalizeWindow } from '../forecastWindow'
-import { SNOW_DEPTH_CEILING_IN } from '../snowCeiling'
+import { SNOW_DEPTH_CEILING_IN, isSnowDepthKey } from '../snowCeiling'
 
 // The coordinates are spelled out because this suite asserts on them: the file
 // must not carry a destination's position, and a fire warning is keyed by one.
@@ -184,8 +184,8 @@ describe('values a spreadsheet can compute over', () => {
     )
     const marked = WINDOW_COLUMNS.filter((c) => c.csvNull)
 
-    expect(marked).toHaveLength(4)
-    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(4)
+    expect(marked).toHaveLength(6)
+    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(6)
   })
 
   // A row whose numbers ARE there writes numbers, so the mark above can only
@@ -197,7 +197,9 @@ describe('values a spreadsheet can compute over', () => {
           freeze_min_ft: 9843,
           freeze_max_ft: 10171,
           freeze_avg_ft: 10007,
-          snow_depth_in: 62,
+          snow_depth_avg_in: 55,
+          snow_depth_min_in: 48,
+          snow_depth_max_in: 62,
         }),
       ],
       WINDOW_COLUMNS,
@@ -497,17 +499,17 @@ describe('the supplier credits', () => {
     expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).toContain(
       `Snow depth data by ${nohrsc.name},${nohrsc.href}`,
     )
-    const noSnow = WINDOW_COLUMNS.filter((c) => c.key !== 'snow_depth_in')
-    expect(noSnow).toHaveLength(WINDOW_COLUMNS.length - 1)
+    const noSnow = WINDOW_COLUMNS.filter((c) => !isSnowDepthKey(c.key as string))
+    expect(noSnow).toHaveLength(WINDOW_COLUMNS.length - 3)
     expect(buildResultsCsv([row()], noSnow, null)).not.toContain('NOHRSC')
   })
 
   // A depth at the source file's int16 ceiling is not a measurement, so the
   // file says "at least" rather than printing the number it was clipped to.
   it('writes the ceiling as at least, and a depth under it as its number', () => {
-    const csv = buildResultsCsv([row({ snow_depth_in: SNOW_DEPTH_CEILING_IN })], WINDOW_COLUMNS, null)
+    const csv = buildResultsCsv([row({ snow_depth_max_in: SNOW_DEPTH_CEILING_IN })], WINDOW_COLUMNS, null)
     expect(csv).toContain('≥1290')
-    expect(buildResultsCsv([row({ snow_depth_in: 62 })], WINDOW_COLUMNS, null)).not.toContain('≥')
+    expect(buildResultsCsv([row({ snow_depth_max_in: 62 })], WINDOW_COLUMNS, null)).not.toContain('≥')
   })
 
   // The order the columns they credit stand in: the snow depth column is a

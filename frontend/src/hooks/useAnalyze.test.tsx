@@ -573,7 +573,7 @@ describe('a ring\'s found field', () => {
     const { result } = renderHook(() => useAnalyze())
     const alone = { ...RING_REQUEST, custom_destinations: undefined }
     const counted = {
-      found: { candidates: FOUND, totalFound: null, truncated: false, snowAnalysisDate: null },
+      found: { candidates: FOUND, totalFound: null, truncated: false },
       key: fieldKey(RING, ['lake', 'peak'], false),
     }
     await act(() => result.current.analyze(alone, 'days', { counted }))
@@ -583,7 +583,7 @@ describe('a ring\'s found field', () => {
   })
 
   it('discovers for itself when the count answers a different question', async () => {
-    const counted = { found: { candidates: FOUND, totalFound: null, truncated: false, snowAnalysisDate: null }, key: fieldKey(RING, ['peak', 'lake'], false) }
+    const counted = { found: { candidates: FOUND, totalFound: null, truncated: false }, key: fieldKey(RING, ['peak', 'lake'], false) }
     // A list rides along, which the count never asked about.
     const withList = stubDiscovery()
     const { result } = renderHook(() => useAnalyze())

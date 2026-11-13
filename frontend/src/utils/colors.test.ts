@@ -253,7 +253,7 @@ describe('METRIC_SCALE', () => {
       'cloud_deck',
       'freeze',
       'precip',
-      'snow',
+      'snow_depth',
       'snowfall',
       'temp',
       'wind',
@@ -264,9 +264,10 @@ describe('METRIC_SCALE', () => {
   // five of the snow layer's own edges, so a marker turns where the layer
   // under it does (#849).
   it('bands snow depth on the snow layer\'s edges, in snowfall\'s shades', () => {
-    expect(METRIC_SCALE.snow.thresholds).toEqual([3.9, 9.8, 39, 98, 197])
-    expect(METRIC_SCALE.snow.colors).toEqual(METRIC_SCALE.snowfall.colors)
-    expect(METRIC_SCALE.snow.ink).toEqual(METRIC_SCALE.snowfall.ink)
+    expect(METRIC_SCALE.snow_depth.thresholds).toEqual([3.9, 9.8, 39, 98, 197])
+    expect(METRIC_SCALE.snow_depth.colors).toEqual(METRIC_SCALE.snowfall.colors)
+    expect(METRIC_SCALE.snow_depth.ink).toEqual(METRIC_SCALE.snowfall.ink)
+    expect(scaleFor('snow_depth_min_in', false)).toBe(METRIC_SCALE.snow_depth)
   })
 
   it('keeps thresholds strictly ascending with labels and colors aligned', () => {
@@ -460,7 +461,7 @@ describe('the verdict ramp', () => {
   // exceptions are spelled here so that adding one is a deliberate edit with
   // its reason on the family's entry in colors.ts and a decision record beside
   // it, and so that an exception which quietly moved onto the ramp fails too.
-  const EXCEPTIONS: ColoredFamily[] = ['temp', 'freeze', 'snowfall', 'snow']
+  const EXCEPTIONS: ColoredFamily[] = ['temp', 'freeze', 'snowfall', 'snow_depth']
 
   it('colours every family on it, or names the family as an exception', () => {
     for (const family of Object.keys(METRIC_SCALE) as ColoredFamily[]) {
@@ -769,7 +770,7 @@ describe('the light theme\'s cell ink (#706)', () => {
     temp: [7.26, 5.83, 6.05, 5.45, 5.44, 5.78],
     freeze: [7.26, 7.45, 8.06, 7.18, 5.83, 6.05],
     snowfall: [6.05, 5.83, 7.18, 8.06, 7.45, 7.26],
-    snow: [6.05, 5.83, 7.18, 8.06, 7.45, 7.26],
+    snow_depth: [6.05, 5.83, 7.18, 8.06, 7.45, 7.26],
   }
 
   it('prints every band\'s number at 4.5:1 or better on its own tint', () => {

@@ -7,8 +7,8 @@ describe('isSnowDepthKey', () => {
   // Read off the family's own key list, so the column and this module cannot
   // disagree about which cells the mark belongs on.
   it('answers for the snow column and nothing else', () => {
-    for (const key of FAMILY_KEYS.snow) expect(isSnowDepthKey(key)).toBe(true)
-    const snow = new Set<string>([...FAMILY_KEYS.snow])
+    for (const key of FAMILY_KEYS.snow_depth) expect(isSnowDepthKey(key)).toBe(true)
+    const snow = new Set<string>([...FAMILY_KEYS.snow_depth])
     for (const col of COLUMNS) {
       if (snow.has(col.key as string)) continue
       expect(isSnowDepthKey(col.key as string)).toBe(false)

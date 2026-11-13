@@ -14,7 +14,6 @@ import {
   RANKING_KEYS,
   aggregateToken,
   familyOf,
-  isSnapshotFamily,
 } from '../metrics'
 import { type Constraints, NO_CONSTRAINTS } from './constraints'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle } from './forecastGrid/forecastGrid'
@@ -26,7 +25,7 @@ import { isSortKey } from './tableColumns'
 import { parseCustomCsv } from './customDestinations'
 import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
-import { MAX_CHART_PANELS, isChartMetric, metricsFor } from './chart/chartData'
+import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
 import { presetListById } from './presetLists'
 
 /**
@@ -149,7 +148,7 @@ const round = (n: number): number => roundTo(n, POLY_PRECISION)
  * family.
  */
 export function chartDiffers(state: ShareableState): boolean {
-  return state.chart.length > 1 || state.chart[0] !== metricsFor(state.sortBy)[0]
+  return state.chart.length > 1 || state.chart[0] !== metricForSort(state.sortBy)
 }
 
 /** Whether the state holds a ring worth writing: three corners at least. */
@@ -307,10 +306,16 @@ function flag(
  * The param that carries a family's aggregate: the family's name with no
  * underscore, so `cloud_deck` writes `clouddeck` beside its own bounds,
  * `minclouddeck` and `maxclouddeck`. No link key carries an underscore (#864).
+ * Snow depth is the exception: `snowdepth` is the snow layer's switch, so its
+ * aggregate rides `depth` (#849).
  */
 export function aggregateParam(family: MetricFamily): string {
-  return family.replace(/_/g, '')
+  return family === 'snow_depth' ? 'depth' : family.replace(/_/g, '')
 }
+
+// A ranking key a link from before #849 carries for snow depth: today's one
+// number then, read now as the deepest day, the reading the family defaults to.
+const RENAMED_SORT_KEYS: Readonly<Record<string, SortBy>> = { snow_depth_in: 'snow_depth_max_in' }
 
 // An aggregate dropdown (#291): one param per metric family, valued by the
 // aggregate token its keys already spell (`wind=max`), written only off the
@@ -449,7 +454,8 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   {
     key: 'sort',
     encode: (state) => (state.sortBy !== DEFAULT_SORT ? state.sortBy : null),
-    decode: (raw, out) => {
+    decode: (given, out) => {
+      const raw = RENAMED_SORT_KEYS[given] ?? given
       if (!(RANKING_KEYS as readonly string[]).includes(raw)) return
       const sortBy = raw as SortBy
       out.sortBy = sortBy
@@ -460,9 +466,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     },
   },
   flag('desc', 'sortDesc'),
-  // A snapshot family has one key and no dropdown, so there is no choice to
-  // carry and no param to write (#449, #849).
-  ...RANKED_FAMILIES.filter((family) => !isSnapshotFamily(family)).map(aggregateRow),
+  ...RANKED_FAMILIES.map(aggregateRow),
   // Shape only, no ceiling: a link asking for more rows than this deployment
   // allows gets clamped down by the caller, never discarded. Dropping it here
   // is what made a shared `limit=500` open silently at the default instead of
@@ -781,11 +785,11 @@ export const FIELD_PARAMS = {
   compareModels: ['compare'],
   sortBy: ['sort'],
   sortDesc: ['desc'],
-  rowKeys: ['sort', ...RANKED_FAMILIES.filter((family) => !isSnapshotFamily(family)).map(aggregateParam)],
+  rowKeys: ['sort', ...RANKED_FAMILIES.map(aggregateParam)],
   constraints: [
     'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',
-    'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minsnow', 'maxsnow',
-    'minaqi', 'maxaqi', 'minclouddeck', 'maxclouddeck',
+    'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minsnow', 'maxsnow', 'minaqi', 'maxaqi',
+    'minclouddeck', 'maxclouddeck',
   ],
   limit: ['limit'],
   customCsv: ['customz'],

@@ -356,7 +356,7 @@ export const DATA = [
       },
       {
         selector:
-          'TemplateLiteral[quasis.0.value.raw=""][quasis.length=2]:has(> MemberExpression[object.name="NOUN"][property.name="snow"])' +
+          'TemplateLiteral[quasis.0.value.raw=""][quasis.length=2]:has(> MemberExpression[object.name="NOUN"][property.name="snow_depth"])' +
           ':has(> TemplateElement[value.raw=" is retrieved independently of the model and cannot be compared."])',
         message: 'Keep the approved snow depth comparison blocker.',
       },

@@ -127,7 +127,7 @@ function isMode(value: unknown): value is ResultsMode {
 function storedColumns(stored: StoredView): Set<string> | null {
   const cloud = FAMILY_KEYS.cloud_deck
   const snowfall = FAMILY_KEYS.snowfall
-  const snow = FAMILY_KEYS.snow
+  const snow = FAMILY_KEYS.snow_depth
   try {
     if (stored.columns9) return new Set(stored.columns9)
     if (stored.columns8) return new Set<string>([...stored.columns8, ...snow])

@@ -275,11 +275,11 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   // year, so a summit can read the file's 1,290-inch ceiling; a top band that
   // stopped at a season's depth would paint every glacier one colour with the
   // deepest seasonal pack.
-  snow: {
+  snow_depth: {
     thresholds: [3.9, 9.8, 39, 98, 197],
     colors: ['#67e8f9', '#38bdf8', '#93c5fd', '#a5b4fc', '#c4b5fd', '#d8b4fe'],
     ink: [...FREEZE_INK].reverse(),
-    unit: UNIT.snow,
+    unit: UNIT.snow_depth,
   },
   // The verdict ramp reversed (#510, which amends record 0113's colour
   // sentence): green at the top, because a high deck or a dry column is a

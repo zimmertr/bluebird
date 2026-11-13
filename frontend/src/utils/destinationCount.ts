@@ -97,7 +97,6 @@ export async function readCount(res: Response): Promise<CountAnswer | null> {
           candidates: body.destinations,
           totalFound: body.total_found ?? null,
           truncated: body.truncated ?? false,
-          snowAnalysisDate: body.snow_analysis_date ?? null,
         },
       }
     }

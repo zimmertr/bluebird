@@ -58,6 +58,7 @@ const full: ShareableState = {
     temp: 'temp_max_f',
     precip: 'precip_avg_in_hr',
     snowfall: 'snowfall_max_in_hr',
+    snow_depth: 'snow_depth_min_in',
     aqi: 'aqi_max',
     cloud_deck: 'cloud_deck_max_ft',
   },
@@ -158,7 +159,7 @@ const dateless: ShareableState = {
 describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
-      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&clouddeck=max&precip=avg&snowfall=max&temp=max' +
+      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&clouddeck=max&precip=avg&depth=min&snowfall=max&temp=max' +
         '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025&chart=temp,precip' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
@@ -193,12 +194,12 @@ describe('the codec table against the links it wrote before', () => {
     expect(decodeState(q)).toEqual(dec)
   })
 
-  // Snow depth left the ranking in #678 and came back in #849 under the same
-  // spellings, so a link sent before #678 opens ranked and bounded as it was
-  // written.
+  // Snow depth left the ranking in #678 and came back in #849 with a window's
+  // three aggregates, so a link sent before #678 ranked on today's one number
+  // opens on the deepest day, its bounds read as they were written.
   it('opens a link ranked on snow depth on that ranking again', () => {
     const out = decodeState('sort=snow_depth_in&desc=1&minsnow=2&maxsnow=80&limit=50&snowdepth=1')
-    expect(out?.sortBy).toBe('snow_depth_in')
+    expect(out?.sortBy).toBe('snow_depth_max_in')
     expect(out?.constraints).toMatchObject({ minSnowDepthIn: 2, maxSnowDepthIn: 80 })
     expect(out).toMatchObject({ sortDesc: true, limit: 50, showSnow: true })
   })
@@ -259,6 +260,7 @@ describe('the codec table', () => {
       'clouddeck',
       'freeze',
       'precip',
+      'depth',
       'snowfall',
       'temp',
       'wind',

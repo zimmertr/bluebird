@@ -18,7 +18,7 @@ const VIEW = analyzedView(
     limit: 1,
   },
   'days',
-  { discovery: discoveryKeys(null, [], false), compareModels: [], snowAnalysisDate: null },
+  { discovery: discoveryKeys(null, [], false), compareModels: [] },
   Date.parse('2026-07-20T12:00:00Z'),
   FALLBACK_WINDOW_LIMITS,
 )

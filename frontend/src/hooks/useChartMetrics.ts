@@ -48,9 +48,7 @@ export function useChartMetrics(restored: ChartMetrics | undefined, sortBy: Sort
   useEffect(() => {
     if (followedRef.current === sortBy) return
     followedRef.current = sortBy
-    // A snapshot ranking leaves the first slot where it is: it has no hours.
-    const metric = metricForSort(sortBy)
-    if (metric !== null) setMetrics((m) => pickMetric(m, 0, metric))
+    setMetrics((m) => pickMetric(m, 0, metricForSort(sortBy)))
   }, [sortBy])
 
   // Props of the memoized chart, so each keeps one identity (#337).

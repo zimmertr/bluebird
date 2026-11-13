@@ -46,7 +46,7 @@ export type MetricFamily =
   | 'wind'
   | 'freeze'
   | 'snowfall'
-  | 'snow'
+  | 'snow_depth'
   | 'aqi'
   | 'cloud_deck'
 
@@ -62,28 +62,10 @@ const FAMILIES: readonly MetricFamily[] = [
   'wind',
   'freeze',
   'snowfall',
-  'snow',
+  'snow_depth',
   'aqi',
   'cloud_deck',
 ]
-
-/**
- * The families that are a SNAPSHOT rather than a reduction over the window.
- *
- * Snow depth is one number for today whatever window was analyzed (#449,
- * #849): it comes off the NOHRSC grid the pod holds rather than out of a
- * forecast, so it has no aggregate to pick, no hourly series to plot, and
- * nothing for the map timeline to scrub. Everything that composes a name,
- * reads an aggregate or asks for a series asks here rather than testing for
- * one family by name, so a second such metric is one entry in this list.
- */
-export const SNAPSHOT_FAMILIES = ['snow'] as const
-
-export type SnapshotFamily = (typeof SNAPSHOT_FAMILIES)[number]
-
-export function isSnapshotFamily(family: MetricFamily): family is SnapshotFamily {
-  return (SNAPSHOT_FAMILIES as readonly MetricFamily[]).includes(family)
-}
 
 /**
  * The families whose numbers are read at the destination's height: the wind
@@ -112,7 +94,7 @@ export const RANKED_FAMILIES: readonly MetricFamily[] = [
   'cloud_deck',
   'freeze',
   'precip',
-  'snow',
+  'snow_depth',
   'snowfall',
   'temp',
   'wind',
@@ -131,9 +113,8 @@ export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
   temp: ['temp_avg_f', 'temp_max_f', 'temp_min_f'],
   freeze: ['freeze_avg_ft', 'freeze_max_ft', 'freeze_min_ft'],
   snowfall: ['snowfall_avg_in_hr', 'snowfall_max_in_hr', 'snowfall_min_in_hr', 'snowfall_total_in'],
-  // One key, because a snapshot has no aggregates to choose between. The row
-  // renders no dropdown for the same reason.
-  snow: ['snow_depth_in'],
+  // A level read once a day (#849), so temperature's three and no total.
+  snow_depth: ['snow_depth_avg_in', 'snow_depth_max_in', 'snow_depth_min_in'],
   aqi: ['aqi_avg', 'aqi_max', 'aqi_min'],
   cloud_deck: ['cloud_deck_avg_ft', 'cloud_deck_max_ft', 'cloud_deck_min_ft'],
 }
@@ -155,7 +136,8 @@ export const DEFAULT_FAMILY_KEY: Record<MetricFamily, SortBy> = {
   // is the night's number without a local-night definition to get wrong.
   freeze: 'freeze_min_ft',
   snowfall: 'snowfall_total_in',
-  snow: 'snow_depth_in',
+  // The deepest day: the most snow a trip in the window would meet (#849).
+  snow_depth: 'snow_depth_max_in',
   aqi: 'aqi_avg',
   // The lowest deck is the question the metric exists for: the hour the cloud
   // came closest to the ground is the one a climber plans around, and a dry
@@ -193,8 +175,8 @@ export const NOUN: Record<MetricFamily, string> = {
   // which no reader mistakes for the depth on the ground.
   snowfall: 'Snowfall',
   // Two words, because "Snow" alone would be a quantity of what: depth, water
-  // equivalent, or new snow over the window. The grid answers the first.
-  snow: 'Snow depth',
+  // equivalent, or new snow over the window. The analysis answers the first.
+  snow_depth: 'Snow depth',
   aqi: 'AQI',
   cloud_deck: 'Cloud deck',
 }
@@ -216,7 +198,9 @@ export const UNIT: Record<MetricFamily, string> = {
   // Inches of new snow, not of the water in it: the variable's own unit under
   // the `precipitation_unit=inch` every request sends.
   snowfall: 'in',
-  snow: 'in',
+  // Inches of snow on the ground, a level rather than an amount, so an hour of
+  // it reads in inches too.
+  snow_depth: 'in',
   aqi: '',
   // Above sea level, like the freezing level and for its reason: the reading
   // is the comparison against the elevation column.
@@ -305,8 +289,7 @@ export const SEP = '·'
 /**
  * The metric behind a ranking key or a result field: `temp_min_f` is
  * temperature, `precip_avg_in_hr` is precipitation, `snowfall_total_in` is
- * snowfall, `snow_depth_in` is snow depth. A family matches with its
- * underscore, so `snow` never claims a snowfall key.
+ * snowfall.
  *
  * Every one of those keys leads with its family, so the prefix is the answer.
  * Anything else is a caller mistake rather than a missing case — the table
@@ -327,16 +310,9 @@ export function familyOf(key: string): MetricFamily {
  * with its family, so the token is the answer — a lookup table here would be a
  * second copy of the key list waiting to miss one. Throws on an unknown token
  * for the same reason `familyOf` does.
- *
- * `null` is the snapshot families' answer and is not that case: they have no
- * aggregate because there is nothing to reduce, so their second segment names
- * the quantity instead. A caller composing a header or a dropdown reads the
- * null as "this metric has one column"; a key naming no family at all still
- * throws, because that is a caller about to label something it cannot name.
  */
-export function aggregateToken(sortBy: SortBy): 'total' | 'avg' | 'min' | 'max' | null {
+export function aggregateToken(sortBy: SortBy): 'total' | 'avg' | 'min' | 'max' {
   const family = familyOf(sortBy)
-  if (isSnapshotFamily(family)) return null
   const token = sortBy.slice(family.length + 1).split('_')[0]
   if (token === 'total' || token === 'avg' || token === 'min' || token === 'max') return token
   throw new Error(`no aggregate in "${sortBy}"`)
@@ -348,11 +324,10 @@ export function aggregateToken(sortBy: SortBy): 'total' | 'avg' | 'min' | 'max' 
  *
  * Before #291 this was a rule (precipitation totals, everything else
  * averages); now every aggregate column is rankable, it is a reading of the
- * key itself. `null` for a snapshot family, which has no aggregate to name.
+ * key itself.
  */
-export function windowAggregate(sortBy: SortBy): string | null {
+export function windowAggregate(sortBy: SortBy): string {
   const token = aggregateToken(sortBy)
-  if (token === null) return null
   const word = {
     total: AGGREGATE.total,
     avg: AGGREGATE.average,
@@ -370,15 +345,10 @@ export function windowAggregate(sortBy: SortBy): string | null {
  * and the window caption that follows it, which is why a point sample takes no
  * qualifier here: the caption already fixes the tense ("as of 12:09 PM"), and
  * "Highest Current Precipitation as of 12:09 PM" says it twice.
- *
- * A snapshot family is bare in both modes for the same reason at one remove:
- * it was never reduced over the window, so there is no word to put in front of
- * it, and its own caption says which day the number is.
  */
 export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
   const noun = NOUN[familyOf(sortBy)]
-  const aggregate = pointSample ? null : windowAggregate(sortBy)
-  return aggregate === null ? noun : `${aggregate} ${noun}`
+  return pointSample ? noun : `${windowAggregate(sortBy)} ${noun}`
 }
 
 /**
@@ -404,11 +374,10 @@ export function resultsHeading(
  * A metric named alongside its unit, for the surfaces that tabulate rather
  * than rank: "Precipitation · Total (in)", "AQI · Avg", "Wind (mph)".
  *
- * The aggregate is optional because three callers have none. A point-sample
+ * The aggregate is optional because two callers have none. A point-sample
  * analysis collapses its avg/min/max triplets to one column — they would be
- * the same hour three times — the forecast chart plots the raw hourly series,
- * which is the value before any aggregate is taken, and a snapshot family has
- * no aggregate at all, so `windowAggregate` hands this one `null`.
+ * the same hour three times — and the forecast chart plots the raw hourly
+ * series, which is the value before any aggregate is taken.
  *
  * The unit defaults to the metric's own but is overridable, because a column
  * can report a rate rather than the base quantity: precipitation is inches in

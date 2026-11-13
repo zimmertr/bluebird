@@ -47,8 +47,9 @@ function pixelHex(raster: { width: number; rgba: Uint8ClampedArray }, x = 0, y =
 }
 
 describe('gridRaster', () => {
-  // Snowfall is in every forecast a cell fetches (#678), so it paints like any
-  // other forecast family.
+  // Every ranking paints since snowfall replaced snow depth (#678): snow depth
+  // was matched to a destination at discovery, which no lattice cell goes
+  // through, where snowfall is in every forecast a cell fetches.
   it('paints a snowfall ranking like any other forecast family', () => {
     const spec = buildGrid(CASCADES, 25)!
     const snowy = spec.points.map((_, i) =>
@@ -87,14 +88,18 @@ describe('gridRaster', () => {
     expect(pixelAlpha(raster, spec, mid)).toBe(0)
   })
 
-  // Snow depth is matched to a destination at discovery, which no lattice cell
-  // goes through, so the grid draws nothing under it, even over cells that
-  // happen to carry a number (#579, #849). Every forecast family still paints.
-  it('draws no field under a ranking the grid cannot paint', () => {
+  // The pod keeps snow depth only at the places it knows, and no lattice cell
+  // is one, so the grid draws nothing under a snow depth ranking even over
+  // cells that happen to carry a number (#579, #849).
+  it('draws no field under a snow depth ranking', () => {
     const spec = buildGrid(CASCADES, 25)!
-    const snowy = spec.points.map((_, i) => gridCell(spec.cells[i], gridRow({ snow_depth_in: 40 }), spec.indices[i]))
-    expect(gridPaints('snow_depth_in')).toBe(false)
-    expect(gridRaster(spec, snowy, 'snow_depth_in', null)).toBeNull()
+    const snowy = spec.points.map((_, i) =>
+      gridCell(spec.cells[i], gridRow({ snow_depth_max_in: 40 }), spec.indices[i]),
+    )
+    for (const key of ['snow_depth_avg_in', 'snow_depth_min_in', 'snow_depth_max_in'] as const) {
+      expect(gridPaints(key)).toBe(false)
+      expect(gridRaster(spec, snowy, key, null)).toBeNull()
+    }
     expect(gridPaints('temp_avg_f')).toBe(true)
     expect(gridPaints('snowfall_total_in')).toBe(true)
   })

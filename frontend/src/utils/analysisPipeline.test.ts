@@ -140,7 +140,7 @@ describe('a polygon run', () => {
     expect(posted[0]).toMatchObject({ destination_types: ['peak', 'lake', 'trailhead', 'crag'] })
     expect(posted[0]).not.toHaveProperty('custom_destinations')
     expect(posted[0]).not.toHaveProperty('elevation_lookup')
-    expect(seen[0]).toEqual({ candidates: [CANDIDATE, lake], totalFound: null, truncated: false, snowAnalysisDate: null })
+    expect(seen[0]).toEqual({ candidates: [CANDIDATE, lake], totalFound: null, truncated: false })
     expect(ranked.mock.calls[0][1]).toEqual([CANDIDATE, lake])
   })
 
@@ -170,7 +170,7 @@ describe('a polygon run', () => {
   it('forecasts a held field without asking the pod, and still announces it', async () => {
     stubDestinations({ destinations: [discovered({ name: 'Fresh' })], total: 1 })
     const { seen, onDiscovered } = found()
-    const held = { candidates: [CANDIDATE], totalFound: 3000, truncated: true, snowAnalysisDate: null }
+    const held = { candidates: [CANDIDATE], totalFound: 3000, truncated: true }
     const out = await runAnalysisPipeline(REQUEST, options({ onDiscovered, found: held }))
     expect(posted).toHaveLength(0)
     expect(seen).toEqual([held])
@@ -197,7 +197,7 @@ describe('a polygon run', () => {
       { ...REQUEST, custom_destinations: [MINE] },
       options({
         onDiscovered,
-        found: { candidates: [CANDIDATE, mine], totalFound: null, truncated: false, snowAnalysisDate: null },
+        found: { candidates: [CANDIDATE, mine], totalFound: null, truncated: false },
         identity: { latest: () => identity },
         knownTypes: { [geoKey(47, -121)]: 'peak' },
       }),
@@ -212,7 +212,7 @@ describe('a polygon run', () => {
     const { seen, onDiscovered } = found()
     await runAnalysisPipeline(
       { ...REQUEST, polygon: undefined, custom_destinations: [MINE] },
-      options({ onDiscovered, found: { candidates: [CANDIDATE], totalFound: null, truncated: false, snowAnalysisDate: null } }),
+      options({ onDiscovered, found: { candidates: [CANDIDATE], totalFound: null, truncated: false } }),
     )
     expect(seen[0].candidates).toEqual([expect.objectContaining({ name: 'Mine' })])
   })
@@ -230,17 +230,11 @@ describe('a polygon run', () => {
 
 describe('discoverCandidates', () => {
   it('sends the discovery knobs with their defaults, and custom rows only when there are some', async () => {
-    stubDestinations({
-      destinations: [CANDIDATE],
-      total: 1,
-      total_found: 9,
-      truncated: true,
-      snow_analysis_date: '2026-11-12',
-    })
+    stubDestinations({ destinations: [CANDIDATE], total: 1, total_found: 9, truncated: true })
     const found = await discoverCandidates(REQUEST, signal)
     expect(posted[0]).toMatchObject({ include_unnamed_peaks: false, top_by_elevation: false })
     expect(posted[0]).not.toHaveProperty('custom_destinations')
-    expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true, snowAnalysisDate: '2026-11-12' })
+    expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true })
 
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
     await discoverCandidates({ ...REQUEST, custom_destinations: custom }, signal)
@@ -342,7 +336,7 @@ describe('runAnalysisPipeline', () => {
     const out = await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options())
     expect([...out.pending]).toEqual([geoKey(47, -121)])
     expect(out.held.columns?.size).toBe(1)
-    expect(await out.late).toEqual({ rows: [patched], columns: new Map(), snowAnalysisDate: null })
+    expect(await out.late).toEqual({ rows: [patched], columns: new Map() })
   })
 
   // #673: the list goes to the pod at once, with the elevations the browser's

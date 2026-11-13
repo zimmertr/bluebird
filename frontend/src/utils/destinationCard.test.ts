@@ -343,8 +343,8 @@ describe('a ranked card: type', () => {
   it('sets values in a monospace face in the grey and labels in the ink', () => {
     const html = rankedHtml({ ...base })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
-    // Twenty-four metric values, the elevation and the coordinates.
-    expect(values).toHaveLength(26)
+    // Twenty-six metric values, the elevation and the coordinates.
+    expect(values).toHaveLength(28)
     // A label that wandered inside a value span would read as part of the
     // number and defeat the whole split.
     for (const value of values) {

@@ -47,7 +47,7 @@ import {
   TOOLTIP_ROW_PX,
   tooltipCapacity,
 } from './chartData'
-import { RANKED_FAMILIES, RANKING_KEYS, familyOf, isSnapshotFamily } from '../../metrics'
+import { RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../../metrics'
 import { resultRow, series as seriesOf } from '../../testSupport/fixtures'
 
 function row(name: string, lat: number, over: Partial<HourlySeries>): DestinationResult {
@@ -68,19 +68,19 @@ describe('metricForSort', () => {
   // for the other two.
   it('answers with the key’s own family for every rankable key', () => {
     for (const key of RANKING_KEYS) {
-      const family = familyOf(key)
-      expect(metricForSort(key)).toBe(isSnapshotFamily(family) ? null : family)
+      expect(metricForSort(key)).toBe(familyOf(key))
     }
   })
 
-  // Snow depth is one number for today with no hours to draw (#849), so its
-  // ranking names no chart and the chart keeps the one on screen.
-  it('names no chart for a snow depth ranking', () => {
-    expect(metricForSort('snow_depth_in')).toBeNull()
+  // Snowfall is an hourly series like every other family (#678), so a
+  // snowfall ranking opens the snowfall chart, where snow depth kept the one
+  // on screen.
+  // Snow depth draws a line too, its days spread over their hours (#849).
+  it('follows a snow depth ranking onto the snow depth chart', () => {
+    expect(metricForSort('snow_depth_max_in')).toBe('snow_depth')
+    expect(CHART_METRICS.find((m) => m.key === 'snow_depth')!.label).toBe('Snow depth (in)')
   })
 
-  // Snowfall is an hourly series (#678), so a snowfall ranking opens the
-  // snowfall chart.
   it('follows a snowfall ranking onto the snowfall chart', () => {
     expect(metricForSort('snowfall_total_in')).toBe('snowfall')
     expect(metricForSort('snowfall_max_in_hr')).toBe('snowfall')
@@ -88,7 +88,7 @@ describe('metricForSort', () => {
 
   // In the panel's order, and in an hour's unit (record 0222).
   it('offers every metric family in the panel\'s order, each in an hour\'s unit', () => {
-    expect(CHART_METRICS.map((m) => m.key)).toEqual(RANKED_FAMILIES.filter((f) => !isSnapshotFamily(f)))
+    expect(CHART_METRICS.map((m) => m.key)).toEqual([...RANKED_FAMILIES])
     expect(CHART_METRICS.find((m) => m.key === 'precip')!.label).toBe('Precipitation (in/hr)')
     expect(CHART_METRICS.find((m) => m.key === 'snowfall')!.label).toBe('Snowfall (in/hr)')
     expect(CHART_METRICS.find((m) => m.key === 'wind')!.label).toBe('Wind (mph)')
@@ -779,7 +779,9 @@ describe('the chart metric slots', () => {
   })
 
   it('knows its own names', () => {
-    expect(RANKED_FAMILIES.filter((f) => !isSnapshotFamily(f)).every(isChartMetric)).toBe(true)
+    expect(RANKED_FAMILIES.every(isChartMetric)).toBe(true)
+    // Snow depth draws its daily analyses since #849.
+    expect(isChartMetric('snow_depth')).toBe(true)
     expect(isChartMetric('snow')).toBe(false)
   })
 })

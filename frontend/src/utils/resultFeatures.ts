@@ -2,7 +2,7 @@ import type { FeatureCollection } from 'geojson'
 import { DestinationResult, SortBy } from '../types'
 import { colorOnScale, hourlyScale, markerColor } from './colors'
 import { valueAt } from './chart/chartData'
-import { familyOf, isSnapshotFamily } from '../metrics'
+import { familyOf } from '../metrics'
 import { isFiniteNumber } from './numbers'
 
 // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day horizon), and
@@ -28,22 +28,16 @@ export const NO_VALUE = '#64748b'
  * tick is one hour, and for those two they are different quantities (see
  * `hourlyScale`). `valueAt` is the chart's own reader, so the hour a marker is
  * colored for is the hour the chart draws at the same playhead.
- *
- * A snapshot ranking has no hours to read, so playback leaves its markers on
- * the value they rank by (#449, #849). That is the honest picture rather than
- * a special case: the playhead moves over a grid of forecasts, and today's
- * snow depth is the same number at every one of them; it is the OTHER layers
- * the reader is scrubbing.
  */
 export function fillColor(
   row: DestinationResult,
   sortBy: SortBy,
   hourIndex: number | null,
 ): string {
-  const family = familyOf(sortBy)
-  if (hourIndex !== null && !isSnapshotFamily(family)) {
+  if (hourIndex !== null) {
     const scale = hourlyScale(sortBy)
-    const value = valueAt(row, family, hourIndex)
+    const family = familyOf(sortBy)
+    const value = family === 'snow_depth' ? heldDepthAt(row, hourIndex) : valueAt(row, family, hourIndex)
     return value == null || scale === null ? NO_VALUE : colorOnScale(value, scale)
   }
   // Every metric carries a scale now, so the null branch is the type's rather
@@ -51,6 +45,22 @@ export function fillColor(
   // neutral fill: the marker must stay on the map, and a band invented for the
   // occasion would say a height was measured that never was.
   return row[sortBy] == null ? NO_VALUE : markerColor(row[sortBy] as number, sortBy) ?? NO_VALUE
+}
+
+/**
+ * Snow depth at an hour, holding the newest depth past the newest day
+ * analyzed (TJ, 2026-11-12), so a marker scrubbed into next week keeps the
+ * colour the column ranks it by. The series itself stops there, so the chart
+ * draws only what was measured.
+ */
+function heldDepthAt(row: DestinationResult, hourIndex: number): number | null {
+  const depths = row.series?.snow_depth_in
+  if (!depths) return null
+  for (let i = Math.min(hourIndex, depths.length - 1); i >= 0; i--) {
+    const v = depths[i]
+    if (v != null) return v
+  }
+  return null
 }
 
 /**

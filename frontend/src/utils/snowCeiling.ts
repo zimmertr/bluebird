@@ -32,9 +32,9 @@ import { FAMILY_KEYS } from '../metrics'
  */
 export const SNOW_DEPTH_CEILING_IN = 1290.04
 
-/** The one column this module speaks for, read off the family's own key list. */
+/** The columns this module speaks for, read off the family's own key list. */
 export function isSnowDepthKey(key: string): boolean {
-  return (FAMILY_KEYS.snow as readonly string[]).includes(key)
+  return (FAMILY_KEYS.snow_depth as readonly string[]).includes(key)
 }
 
 /**

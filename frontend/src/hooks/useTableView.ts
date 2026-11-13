@@ -396,11 +396,10 @@ export function useTableView({
     (from: string, to: string) => {
       const base = allColumns.map((c) => c.key as string)
       // A key's family and aggregate, or null for a column that has none
-      // (the name, the type, the elevation, a flag, snow depth's one column).
+      // (the name, the type, the elevation, a flag).
       const parts = (key: string): [string, string] | null => {
         try {
-          const aggregate = windowAggregate(key as SortBy)
-          return aggregate === null ? null : [familyOf(key), aggregate]
+          return [familyOf(key), windowAggregate(key as SortBy)]
         } catch {
           return null
         }

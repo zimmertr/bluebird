@@ -34,6 +34,8 @@ import type {
   FireDetectionProps,
   HourlySeries,
   RefusalFields,
+  SnowDepthRequest,
+  SnowDepthResponse,
   SortBy,
 } from './types'
 
@@ -66,7 +68,7 @@ type Equal<A, B> =
  * and dropped wherever they appear, so the exemption is one list rather than
  * an `Omit` at each assertion that could quietly grow.
  */
-type ClientOnly = 'series_times' | 'wind_dir_deg' | 'terrain_ft'
+type ClientOnly = 'series_times' | 'wind_dir_deg' | 'terrain_ft' | 'snow_depth_in'
 
 /**
  * A type as it travels on the wire: client-only fields dropped, and every
@@ -320,6 +322,15 @@ export type FireDetectionGeometryIsAPoint = Assert<
   Extends<Schema['FireDetection']['geometry']['type'], FireActivityResponse['features'][number]['geometry']['type']>
 >
 
+// The snow depth route (#849): the body the browser sends, and the answer it
+// reads, in the direction each travels.
+export type SnowDepthRequestIsAccepted = Assert<
+  Extends<Wire<SnowDepthRequest>, Wire<Schema['SnowDepthRequest']>>
+>
+export type SnowDepthResponseIsReadable = Assert<
+  Extends<Wire<Schema['SnowDepthResponse']>, Wire<SnowDepthResponse>>
+>
+
 // ---------------------------------------------------------------------------
 // Every schema is accounted for. A model added to the backend fails this until
 // it is either asserted above or listed as unmirrored with a reason, which is
@@ -356,6 +367,11 @@ type Mirrored =
   | 'LandmarkCollection'
   | 'Limits'
   | 'PreviewConfig'
+  | 'SnowDay'
+  | 'SnowDepthAtPoint'
+  | 'SnowDepthRequest'
+  | 'SnowDepthResponse'
+  | 'SnowPoint'
   | 'SortBy'
   | 'ValidationError'
   | 'WildfireCollection'

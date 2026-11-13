@@ -79,7 +79,7 @@ const LOWER_BOUNDS = [
   ['minWindMph', 'wind_min_mph'],
   ['minFreezeFt', 'freeze_min_ft'],
   ['minSnowfallTotalIn', 'snowfall_total_in'],
-  ['minSnowDepthIn', 'snow_depth_in'],
+  ['minSnowDepthIn', 'snow_depth_min_in'],
   ['minAqi', 'aqi_max'],
   ['minCloudDeckFt', 'cloud_deck_min_ft'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
@@ -90,7 +90,7 @@ const UPPER_BOUNDS = [
   ['maxWindMph', 'wind_max_mph'],
   ['maxFreezeFt', 'freeze_max_ft'],
   ['maxSnowfallTotalIn', 'snowfall_total_in'],
-  ['maxSnowDepthIn', 'snow_depth_in'],
+  ['maxSnowDepthIn', 'snow_depth_max_in'],
   ['maxAqi', 'aqi_max'],
   ['maxCloudDeckFt', 'cloud_deck_max_ft'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
@@ -106,7 +106,7 @@ export const FAMILY_BOUNDS: Record<MetricFamily, readonly [lower: keyof Constrai
   wind: ['minWindMph', 'maxWindMph'],
   freeze: ['minFreezeFt', 'maxFreezeFt'],
   snowfall: ['minSnowfallTotalIn', 'maxSnowfallTotalIn'],
-  snow: ['minSnowDepthIn', 'maxSnowDepthIn'],
+  snow_depth: ['minSnowDepthIn', 'maxSnowDepthIn'],
   aqi: ['minAqi', 'maxAqi'],
   cloud_deck: ['minCloudDeckFt', 'maxCloudDeckFt'],
 }

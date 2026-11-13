@@ -107,6 +107,33 @@ describe('resultsFeatureCollection', () => {
     )
   })
 
+  // The depth series stops at the newest day analyzed, and an hour past it
+  // reads that newest depth, so a marker scrubbed into next week keeps the
+  // colour its column ranks it by (#849).
+  it('holds the newest snow depth on every hour past it', () => {
+    const snowy = (hour: number) =>
+      resultsFeatureCollection(
+        [result({ series: series({ snow_depth_in: [2, 50] }), snow_depth_max_in: 50 })],
+        'snow_depth_max_in',
+        true,
+        hour,
+      ).features[0].properties!.color
+    expect(snowy(0)).toBe(markerColor(2, 'snow_depth_max_in'))
+    expect(snowy(1)).toBe(markerColor(50, 'snow_depth_max_in'))
+    expect(snowy(5)).toBe(markerColor(50, 'snow_depth_max_in'))
+    expect(snowy(0)).not.toBe(snowy(5))
+  })
+
+  it('greys a snow depth hour before any day was measured', () => {
+    const props = resultsFeatureCollection(
+      [result({ series: series({ snow_depth_in: [null, 30] }) })],
+      'snow_depth_max_in',
+      true,
+      0,
+    ).features[0].properties!
+    expect(props.color).toBe(NO_VALUE)
+  })
+
   it('greys an hour with no value rather than scoring it as zero', () => {
     const props = resultsFeatureCollection([hourly()], 'aqi_avg', true, 1).features[0].properties!
     expect(props.color).toBe(NO_VALUE)

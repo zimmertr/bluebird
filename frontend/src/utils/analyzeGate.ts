@@ -229,9 +229,9 @@ export function analyzeGateFor(i: AnalyzeGateInputs): {
       // the picker shows several chips.
       compareAqi: rankFamily === 'aqi' && selected.length > 1,
       compareFreeze: freezeGaps.length > 0,
-      // The snow analysis is one national grid the pod holds, so it is the
-      // second metric no model answers.
-      compareSnow: rankFamily === 'snow' && selected.length > 1,
+      // The snow analysis is NOHRSC's, whatever model ranks the field, so it
+      // is the second metric no model answers.
+      compareSnow: rankFamily === 'snow_depth' && selected.length > 1,
       refused: refusalStands(i.refusal, i.failedView, i.panel),
       // Every row of the list is a destination the run would forecast, ring
       // or none, so a list over the cap is refused whatever the ring finds

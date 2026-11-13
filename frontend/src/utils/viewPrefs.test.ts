@@ -136,7 +136,13 @@ describe('the column-set migration', () => {
   // comes back with the snow depth column shown and the rest as it was.
   it('shows the snow depth column on a set stored before it returned', () => {
     withStored({ columns8: ['name', 'precip_total_in'] })
-    expect([...readViewPrefs().columns!]).toEqual(['name', 'precip_total_in', 'snow_depth_in'])
+    expect([...readViewPrefs().columns!]).toEqual([
+      'name',
+      'precip_total_in',
+      'snow_depth_avg_in',
+      'snow_depth_max_in',
+      'snow_depth_min_in',
+    ])
   })
 
   // `columns5` predates the Closure column (#550), so every older set comes
@@ -219,7 +225,7 @@ describe('the column-set migration', () => {
     expect(columns.has(WILDFIRE_KEY)).toBe(true)
     for (const key of FAMILY_KEYS.freeze) expect(columns.has(key)).toBe(true)
     for (const key of FAMILY_KEYS.snowfall) expect(columns.has(key)).toBe(true)
-    for (const key of FAMILY_KEYS.snow) expect(columns.has(key)).toBe(true)
+    for (const key of FAMILY_KEYS.snow_depth) expect(columns.has(key)).toBe(true)
     for (const key of FAMILY_KEYS.cloud_deck) expect(columns.has(key)).toBe(true)
   })
 

@@ -224,9 +224,11 @@ export function useChartCompare({
   // the ranking reads. Never on air quality, which comes from CAMS whatever
   // forecast model ranked the field, so a comparison there could only draw
   // the same line twice. That holds for every drawn panel (#499): a panel on
-  // air quality would draw each model's line over the destination's.
+  // air quality would draw each model's line over the destination's. Snow
+  // depth is the same case: it comes off NOHRSC's analysis whatever model
+  // ranked the field (#849).
   const compare = useModelCompare({
-    enabled: !chartMetrics.metrics.includes('aqi'),
+    enabled: !chartMetrics.metrics.includes('aqi') && !chartMetrics.metrics.includes('snow_depth'),
     destinations: chartedDestinations,
     rows: comparePoints,
     heldSeries: chartedSeries,

@@ -134,7 +134,7 @@ describe('resolveCustomOnly', () => {
 
   it('makes no call at all for an empty list', async () => {
     const spy = stubFetch(() => fakeResponse({ destinations: [] }))
-    expect(await resolveCustomOnly([])).toEqual({ destinations: [], lookupComplete: true, snowAnalysisDate: null })
+    expect(await resolveCustomOnly([])).toEqual({ destinations: [], lookupComplete: true })
     expect(spy).not.toHaveBeenCalled()
   })
 
@@ -1349,7 +1349,10 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
     elevation_ft: 8000 + i,
     osm_id: `node/${i}`,
   }))
-  const openMeteoCalls = () => vi.mocked(fetch).mock.calls.length
+  // The pod's snow depth answer rides beside these (#849) and is no Open-Meteo
+  // call, so it is not counted.
+  const openMeteoCalls = () =>
+    vi.mocked(fetch).mock.calls.filter(([url]) => !String(url).startsWith('/api/')).length
   const keyOf = (d: { latitude: number; longitude: number }) => geoKey(d.latitude, d.longitude)
 
   function stubWindy(precips: number[]) {
@@ -1503,6 +1506,44 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
     const patch = await out.late!
     expect(patch.rows.map((r) => r.elevation_ft).sort()).toEqual([8000, 8001, 8002])
     for (const r of patch.rows) expect(r.wind_avg_mph).toBeCloseTo(22.6, 1)
+  })
+
+  // One request to the pod for the rows this run forecasts, and none for a
+  // re-rank: a held row keeps the depth it came with, which is the same
+  // window's (#849).
+  it('reads snow depth for the new rows and keeps the held rows\' depth', async () => {
+    stubWindy(THREE_PRECIPS)
+    const omFetch = vi.mocked(fetch).getMockImplementation()!
+    const snowCalls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url !== '/api/snow-depth') return omFetch(url, init)
+        snowCalls.push(String(init!.body))
+        const { points } = JSON.parse(String(init!.body)) as { points: unknown[] }
+        return fakeResponse({
+          snow_analysis_date: '2026-07-21',
+          points: points.map((_, i) => ({
+            avg_in: 10 * (i + 1),
+            min_in: 5,
+            max_in: 20 * (i + 1),
+            days: [{ day: '2026-07-21', depth_in: 10 * (i + 1) }],
+          })),
+        })
+      }),
+    )
+    const first = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs })
+    expect(snowCalls).toHaveLength(1)
+    const byName = new Map(first.universe.map((r) => [r.name, r]))
+    expect(SENT.map((d) => byName.get(d.name)!.snow_depth_max_in)).toEqual([20, 40, 60])
+    expect(byName.get(SENT[0].name)!.series!.snow_depth_in!.every((v) => v === 10)).toBe(true)
+
+    const again = await runClientAnalysis(REQUEST, SENT, startMs, endMs, {
+      nowMs: startMs,
+      reuse: { rows: first.universe, times: first.response.times ?? [] },
+    })
+    expect(snowCalls).toHaveLength(1)
+    expect(again.universe.map((r) => r.snow_depth_max_in).sort()).toEqual([20, 40, 60])
   })
 
   it('refuses an over-cap list without waiting for the lookup', async () => {

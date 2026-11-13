@@ -28,7 +28,7 @@ import { FAMILY_KEYS } from '../metrics'
  */
 const UNAVAILABLE_KEYS: ReadonlySet<string> = new Set<string>([
   ...FAMILY_KEYS.freeze,
-  ...FAMILY_KEYS.snow,
+  ...FAMILY_KEYS.snow_depth,
 ])
 
 export function isUnavailableKey(key: string): boolean {

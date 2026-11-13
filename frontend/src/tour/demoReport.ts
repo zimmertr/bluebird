@@ -126,9 +126,10 @@ interface Summit {
    */
   deck: [number, number] | null
   /**
-   * Snow on the ground today, in inches: a November pack that deepens with
-   * height and with the wet side of the crest, and the file's ceiling on the
-   * two glaciated summits SNODAS fills to it (#849).
+   * Snow on the ground over the four days, in inches: a November pack that
+   * deepens with height and with the wet side of the crest, and the file's
+   * ceiling on the two glaciated summits SNODAS fills to it (#849). One number,
+   * so the demonstration's depth holds across its window.
    */
   snow: number
 }
@@ -368,7 +369,9 @@ export function demoReport(now = Date.now()): DemoReport {
       snowfall_avg_in_hr: sn.avg,
       snowfall_min_in_hr: sn.min,
       snowfall_max_in_hr: sn.max,
-      snow_depth_in: s.snow,
+      snow_depth_avg_in: s.snow,
+      snow_depth_min_in: s.snow,
+      snow_depth_max_in: s.snow,
       cloud_deck_min_ft: d.min,
       cloud_deck_max_ft: d.max,
       cloud_deck_avg_ft: d.avg,

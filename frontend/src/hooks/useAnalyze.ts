@@ -172,14 +172,11 @@ export function useAnalyze(
     holdFound(null)
     // Derived off the request unless the caller says otherwise: the weather-
     // only refresh re-fetches a polygon report through the custom path, so its
-    // request carries no polygon. The snow date is this run's alone, so a
-    // report whose pod answers with none never captions itself with the last
-    // one's.
+    // request carries no polygon.
     const facts: RecordedFacts = {
       discovery:
         discovery ?? discoveryKeys(request.polygon ?? null, request.destination_types, request.include_unnamed_peaks),
       compareModels,
-      snowAnalysisDate: null,
     }
     const view = () => analyzedView(request, kind, facts, Date.now(), windowLimits)
     viewRef.current = view
@@ -209,17 +206,11 @@ export function useAnalyze(
           hourlyCalls,
           compareModels,
           onDiscovered: (field) => {
-            facts.snowAnalysisDate = field.snowAnalysisDate
             run.announce(field.candidates.length)
             report.publishCandidates(field.candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))
             // A run with no polygon has no field to hold: its rows are the
             // reader's list, already pending as inputs.
             if (key !== null) holdFound({ found: field, key })
-          },
-          // A run with no polygon learns its snow date after it has announced
-          // its field, and almost always before the first row commits.
-          onResolved: (field) => {
-            facts.snowAnalysisDate = field.snowAnalysisDate
           },
           onPartial: (data, fieldSoFar) => report.commitArriving(data, fieldSoFar, view()),
           onProgress: run.onProgress,
@@ -250,7 +241,6 @@ export function useAnalyze(
         out.late?.then(
           (patch) => {
             if (runSeqRef.current !== runSeq) return
-            facts.snowAnalysisDate = patch.snowAnalysisDate
             report.patch(patch.rows, view())
             const held = heldForecastsRef.current
             if (held) {

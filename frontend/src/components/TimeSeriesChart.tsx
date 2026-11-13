@@ -341,8 +341,7 @@ function TimeSeriesChart({
   const [hush, setHush] = useState<number | null>(null)
   const tone = useMemo(() => {
     const scale = hourlyScale(sortBy)
-    const metric = metricForSort(sortBy)
-    return scale && metric ? { metric, scale } : null
+    return scale ? { metric: metricForSort(sortBy), scale } : null
   }, [sortBy])
   const rootRef = useRef<HTMLDivElement>(null)
   const onPin = useCallback((panel: number, t: number, clientX: number) => {
@@ -1606,8 +1605,7 @@ function ChartPanel({
   const highest = metric === metricForSort(sortBy) ? sortDesc : true
   const tone = useMemo(() => {
     const scale = hourlyScale(sortBy)
-    const metric = metricForSort(sortBy)
-    return scale && metric ? { metric, scale } : null
+    return scale ? { metric: metricForSort(sortBy), scale } : null
   }, [sortBy])
   // Memoized beside the y domain for the same reason: it is a walk over every
   // drawn value, and a hover re-renders without changing any of its inputs.

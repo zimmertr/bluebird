@@ -1,30 +1,17 @@
 import { DestinationResult, HourlySeries, SortBy } from '../../types'
 import { cloudDeckMark } from '../cloudDeckMark'
-import {
-  HOURLY_UNIT,
-  MetricFamily,
-  RANKED_FAMILIES,
-  SnapshotFamily,
-  familyOf,
-  formatPrecipRate,
-  isSnapshotFamily,
-  metricLabel,
-} from '../../metrics'
+import { HOURLY_UNIT, MetricFamily, RANKED_FAMILIES, familyOf, formatPrecipRate, metricLabel } from '../../metrics'
 import { setKey } from '../points'
 import { TYPE_COL } from '../tableColumns'
 import { clamp, grouped as groupDigits } from '../numbers'
 import { HOUR_MS } from '../forecastWindow'
 
 /**
- * The families this chart can plot: every one that is an hourly series.
- *
- * A snapshot family is excluded by construction rather than by a check at each
- * call site (#449, #849). Snow depth is one number for today, so there is
- * nothing to draw across an axis of hours, and `SERIES_FIELD` below would have
- * no field to name for it, which is what makes this a type error rather than
- * an empty line on screen.
+ * The families this chart can plot, which is every one: each is an hourly
+ * series. Snow depth's is its daily analyses spread over each day's hours,
+ * and stops at the newest day analyzed (#849).
  */
-export type ChartMetric = Exclude<MetricFamily, SnapshotFamily>
+export type ChartMetric = MetricFamily
 
 const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
@@ -32,6 +19,7 @@ const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   wind: 'wind_mph',
   freeze: 'freeze_ft',
   snowfall: 'snowfall_in',
+  snow_depth: 'snow_depth_in',
   aqi: 'aqi',
   cloud_deck: 'cloud_deck_ft',
 }
@@ -40,9 +28,7 @@ const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
 // (record 0222). No aggregate: these plot the raw hourly series, so a point is
 // that hour's own value rather than anything reduced over the window, and its
 // unit is an hour's (`in/hr` for precipitation, where the window's is `in`).
-export const CHART_METRICS: { key: ChartMetric; label: string }[] = RANKED_FAMILIES.filter(
-  (family): family is ChartMetric => !isSnapshotFamily(family),
-).map((key) => ({
+export const CHART_METRICS: { key: ChartMetric; label: string }[] = RANKED_FAMILIES.map((key) => ({
   key,
   label: metricLabel(key, null, HOURLY_UNIT[key]),
 }))
@@ -52,11 +38,8 @@ export const CHART_METRICS: { key: ChartMetric; label: string }[] = RANKED_FAMIL
 // Read off the ranking key's own family rather than matched against a list of
 // keys: since #291 a family has three or four rankable keys, and a list
 // naming one of them each opened the precipitation chart for the other two.
-// A snapshot ranking names no chart metric (#449, #849): it has no hourly
-// series, so the chart stays on what it shows rather than following it.
-export function metricForSort(sortBy: SortBy): ChartMetric | null {
-  const family = familyOf(sortBy)
-  return isSnapshotFamily(family) ? null : family
+export function metricForSort(sortBy: SortBy): ChartMetric {
+  return familyOf(sortBy)
 }
 
 /**
@@ -73,12 +56,9 @@ export type ChartMetrics = readonly ChartMetric[]
  */
 export const MAX_CHART_PANELS = 4
 
-/**
- * The slots a session opens on: the ranking's family alone, or the first
- * chart metric under a ranking the chart cannot draw.
- */
+/** The slots a session opens on: the ranking's family alone. */
 export function metricsFor(sortBy: SortBy): ChartMetrics {
-  return [metricForSort(sortBy) ?? CHART_METRICS[0].key]
+  return [metricForSort(sortBy)]
 }
 
 /**
@@ -249,6 +229,8 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
       // Present only on a report that fetched the cloud column (#117), and
       // spread for the reason the bearings below are.
       ...(row.series.cloud_deck_ft ? { cloud_deck_ft: remap(row.series.cloud_deck_ft) } : {}),
+      // Client-populated like the bearings (#849), and spread for their reason.
+      ...(row.series.snow_depth_in ? { snow_depth_in: remap(row.series.snow_depth_in) } : {}),
       // Remapped rather than dropped, and spread so a row that never carried
       // bearings still carries no key. The chart does not read them, but the
       // forecast grid aligns its cells through here (#246) and a silently

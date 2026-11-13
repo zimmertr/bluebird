@@ -34,7 +34,6 @@ import {
   RANKED_FAMILIES,
   UNIT,
   familyOf,
-  isSnapshotFamily,
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
@@ -125,12 +124,13 @@ const BOUNDS: Record<
     step: 0.1,
     hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'],
   },
-  snow: {
+  // The temperature's sentences with a day for an hour, because the depth is
+  // read once a day (#849): a floor on the shallowest day, a ceiling on the
+  // deepest.
+  snow_depth: {
     id: 'snow-depth',
     step: 1,
-    // No aggregate to name at either end: the row bounds today's one number,
-    // which is why it is also the row with no dropdown beside it.
-    hint: ["Today's depth must be at least this.", "Today's depth must be at most this."],
+    hint: ['The shallowest day must be at least this.', 'The deepest day must be at most this.'],
   },
   // The cloud row reuses the freezing level's sentences word for word,
   // because it bounds the same thing: a floor on the window's lowest hour and
@@ -183,12 +183,7 @@ const BOX_PLACEHOLDER: Record<MetricFamily, string> = {
 const AGGREGATE_OPTIONS = Object.fromEntries(
   RANKED_FAMILIES.map((family) => [
     family,
-    // A snapshot family has one key and no aggregate, so it has no menu to
-    // fill; its empty list is never drawn.
-    FAMILY_KEYS[family].flatMap((key) => {
-      const label = windowAggregate(key)
-      return label === null ? [] : [{ value: key, label }]
-    }),
+    FAMILY_KEYS[family].map((key) => ({ value: key, label: windowAggregate(key) })),
   ]),
 ) as Record<MetricFamily, { value: SortBy; label: string }[]>
 
@@ -281,13 +276,10 @@ export default function MetricsTable({
   const pressRange = useShiftRange(true)
   const full = charted.length >= MAX_CHART_PANELS
   function toggleChart(family: MetricFamily, e: SyntheticEvent) {
-    const on = !(charted as readonly MetricFamily[]).includes(family)
+    const on = !charted.includes(family)
     const keys = pressRange(RANKED_FAMILIES, family, shiftHeld(e)) as MetricFamily[]
-    // A range across the snow depth row passes it by: it has no panel.
     onChart(
-      keys.filter(
-        (key): key is ChartMetric => !isSnapshotFamily(key) && key !== charted[0] && !unanswered.has(key),
-      ),
+      keys.filter((key) => key !== charted[0] && !unanswered.has(key)),
       on,
     )
   }
@@ -401,7 +393,7 @@ export default function MetricsTable({
         {RANKED_FAMILIES.map((family) => {
           const rowKey = rowKeys[family]
           const isActive = familyOf(sortBy) === family
-          const drawn = (charted as readonly MetricFamily[]).includes(family)
+          const drawn = charted.includes(family)
           const first = charted[0] === family
           const bounds = BOUNDS[family]
           const edgeKeys = FAMILY_BOUNDS[family]
@@ -438,9 +430,7 @@ export default function MetricsTable({
                     chart keeps that slot for the ranking; it is the ranked
                     row's unless a link or the chart's own picker put another
                     metric there. No title: a tooltip does not exist on touch,
-                    and the pressed state is announced. A snapshot has no
-                    hours to draw, so its row has no panel to show (#849). */}
-                {!isSnapshotFamily(family) && (
+                    and the pressed state is announced. */}
                 <button
                   type="button"
                   aria-label={`Show ${NOUN[family]} on the chart`}
@@ -454,17 +444,8 @@ export default function MetricsTable({
                 >
                   <IconChart filled={drawn} />
                 </button>
-                )}
               </div>
-              {!pointSample && isSnapshotFamily(family) && (
-                // A snapshot has one column, so there is nothing to choose
-                // between and no dropdown to choose it with. The cell stays,
-                // empty: the grid's tracks are what line the bound boxes up
-                // with the section above, and a row that spanned two of them
-                // would pull its boxes out of column.
-                <div aria-hidden="true" />
-              )}
-              {!pointSample && !isSnapshotFamily(family) && (
+              {!pointSample && (
                 // flex, not block: an inline-level select in a block
                 // wrapper reserves baseline descender space below itself,
                 // which read as the dropdown sitting ~1px lower than the

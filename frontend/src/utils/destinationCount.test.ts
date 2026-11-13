@@ -71,7 +71,7 @@ describe('readCount', () => {
   it('reads a 200 as the ring field', async () => {
     const rows = [discovered(), discovered({ name: 'Other', latitude: 47.46 })]
     const answer = await readCount(fakeResponse({ destinations: rows, total: 2, total_found: null, truncated: false }))
-    expect(answer).toEqual({ kind: 'found', found: { candidates: rows, totalFound: null, truncated: false, snowAnalysisDate: null } })
+    expect(answer).toEqual({ kind: 'found', found: { candidates: rows, totalFound: null, truncated: false } })
     expect(countOf(answer!)).toBe(2)
   })
 

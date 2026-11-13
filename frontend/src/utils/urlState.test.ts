@@ -1065,7 +1065,7 @@ describe('decodeState tolerance', () => {
         temp: 'temp_min_f',
         freeze: 'freeze_min_ft',
         snowfall: 'snowfall_total_in',
-        snow: 'snow_depth_in',
+        snow_depth: 'snow_depth_max_in',
         aqi: 'aqi_avg',
         cloud_deck: 'cloud_deck_max_ft',
       })
