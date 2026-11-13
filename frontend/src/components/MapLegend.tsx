@@ -272,13 +272,11 @@ export function legendSections(
               markerScale.unit,
             ),
             ...(snowKeyed ? { credit: { href: NOHRSC_HREF, name: 'NOHRSC' } } : {}),
-            ramp: snowKeyed
-              ? { css: snowRampCss(), ticks: snowTicks(), bands: SNOW_RAMP.length }
-              : {
-                  css: scaleRampCss(markerScale),
-                  ticks: scaleTicks(markerScale),
-                  bands: markerScale.colors.length,
-                },
+            ramp: {
+              css: snowKeyed ? snowRampCss() : scaleRampCss(markerScale),
+              ticks: snowKeyed ? snowTicks() : scaleTicks(markerScale),
+              bands: snowKeyed ? SNOW_RAMP.length : markerScale.colors.length,
+            },
           },
         ]
       : []),

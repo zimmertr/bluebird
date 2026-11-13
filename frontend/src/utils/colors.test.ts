@@ -280,13 +280,13 @@ describe('METRIC_SCALE', () => {
     const { colors, darkInk } = METRIC_SCALE.snow_depth
     expect(darkInk).toHaveLength(colors.length)
     const ratios = colors.map((band, i) => round2(contrast(darkInk![i], mixOver(band, SLATE_800, 0.2))))
-    expect(ratios).toEqual([5.02, 4.65, 4.61, 4.61, 4.67, 4.68, 4.65, 4.61, 4.63, 4.61, 4.65, 4.65])
+    expect(ratios).toEqual([5.39, 5.4, 5.33, 5.36, 5.3, 5.36, 5.3, 5.28, 5.24, 5.31, 5.26, 5.26])
     for (const r of ratios) expect(r).toBeGreaterThanOrEqual(4.5)
     // At a band's bottom the cell reads that band's ink exactly: 20 in is the
-    // fifth band, NOAA's #3c3fc2, printed in #9193dd.
+    // fifth band, NOAA's #3c3fc2, printed in #9d9ee1 and #3a3cba.
     expect(cellInks(20, METRIC_SCALE.snow_depth)).toEqual({
       fill: 'rgba(60,63,194,0.2)',
-      ink: { dark: 'rgb(145,147,221)', light: 'rgb(60,63,194)' },
+      ink: { dark: 'rgb(157,158,225)', light: 'rgb(58,60,186)' },
     })
   })
 
@@ -303,18 +303,21 @@ describe('METRIC_SCALE', () => {
       }
       // One band per color; boundaries sit between adjacent colors, and the
       // legend prints every other boundary (#454), which on six bands is the
-      // bottom, the middle and the top.
-      expect(scaleTicks(cfg)).toHaveLength(3)
+      // bottom, the middle and the top. Snow depth's legend is the snow
+      // layer's own strip and ticks (#849), so its scale's ticks are unused.
+      if (cfg !== METRIC_SCALE.snow_depth) expect(scaleTicks(cfg)).toHaveLength(3)
       expect(cfg.thresholds).toHaveLength(cfg.colors.length - 1)
     }
   })
 
   // Six bands on every scale, which is the count `scaleTicks` reads the map
   // legend's three tick positions off. A seventh anywhere moves those, so this
-  // fails first.
-  it('gives every scale six bands', () => {
-    for (const cfg of Object.values(METRIC_SCALE)) {
-      expect(cfg.colors).toHaveLength(6)
+  // fails first. Snow depth is the exception: it wears the snow layer's eleven
+  // colours, the last repeated to hold the top band, and its legend row is the
+  // layer's own strip (#849).
+  it('gives every scale six bands, snow depth the snow layer\'s', () => {
+    for (const [family, cfg] of Object.entries(METRIC_SCALE)) {
+      expect(cfg.colors, family).toHaveLength(family === 'snow_depth' ? SNOW_RAMP.length + 1 : 6)
     }
     expect(METRIC_SCALE.aqi.thresholds).toEqual([50, 100, 150, 200, 300])
     // The one scale with no unit at all, so the map legend labels it with the
@@ -363,6 +366,8 @@ describe('METRIC_SCALE', () => {
     // swaps in, which is where the two rate scales come from.
     const scales = new Set([...Object.values(METRIC_SCALE), ...RANKING_KEYS.map((key) => hourlyScale(key)!)])
     for (const cfg of scales) {
+      // Snow depth's legend ticks are the snow layer's (#849).
+      if (cfg === METRIC_SCALE.snow_depth) continue
       // Thousands separators come out first: the freezing level groups its
       // digits the way every other number this app prints does, and "4,000"
       // would otherwise read back as two boundaries.
@@ -796,7 +801,7 @@ describe('the light theme\'s cell ink (#706)', () => {
     temp: [7.26, 5.83, 6.05, 5.45, 5.44, 5.78],
     freeze: [7.26, 7.45, 8.06, 7.18, 5.83, 6.05],
     snowfall: [6.05, 5.83, 7.18, 8.06, 7.45, 7.26],
-    snow_depth: [4.67, 4.64, 4.67, 4.67, 5.06, 5.49, 4.95, 4.68, 4.61, 4.8, 4.66, 4.66],
+    snow_depth: [5.32, 5.41, 5.32, 5.39, 5.35, 5.49, 5.41, 5.38, 5.4, 5.44, 5.35, 5.35],
   }
 
   it('prints every band\'s number at 4.5:1 or better on its own tint', () => {

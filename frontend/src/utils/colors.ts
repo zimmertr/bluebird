@@ -280,8 +280,10 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   //
   // NOAA's middle bands are too dark to be their own text on the dark panel,
   // so this is the one scale with a `darkInk`: each band's hue lightened, and
-  // `ink` each hue darkened, until it clears 4.6:1 on its 20% tint over its
-  // panel (measured 2026-11-12, pinned in colors.test.ts).
+  // `ink` each hue darkened, until it clears 4.6:1 on its 20% tint over both
+  // its panel and the map popup's grid band, which sits a shade off the panel
+  // in each theme (measured 2026-11-12, pinned in colors.test.ts and
+  // styles.test.ts).
   snow_depth: {
     thresholds: [0.39, 2.0, 3.9, 9.8, 20, 39, 59, 98, 197, 295, 394],
     colors: [
@@ -289,12 +291,12 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
       '#7d01bb', '#b404b1', '#a91377', '#992b50', '#8b4545', '#8b4545',
     ],
     ink: [
-      '#4f6b68', '#2b6e70', '#2c6885', '#345ba6', '#3c3fc2', '#5720c3',
-      '#7d01bb', '#990396', '#a21272', '#992b50', '#894444', '#894444',
+      '#486260', '#276365', '#285f79', '#2f5295', '#3a3cba', '#5720c3',
+      '#7501ae', '#8a0387', '#901065', '#8b2749', '#7c3d3d', '#7c3d3d',
     ],
     darkInk: [
-      '#abc1bf', '#66c1c4', '#7ab6d3', '#88a4da', '#9193dd', '#a784eb',
-      '#cb66fe', '#fb3df7', '#ed62bf', '#d9799a', '#c68c8c', '#c68c8c',
+      '#b4c7c6', '#83cdcf', '#91c2da', '#9ab1df', '#9d9ee1', '#b092ed',
+      '#d178fe', '#fb60f9', '#ef75c7', '#de89a6', '#cc9898', '#cc9898',
     ],
     unit: UNIT.snow_depth,
   },
