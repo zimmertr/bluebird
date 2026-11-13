@@ -72,6 +72,7 @@ interface ResultsSheetView {
     | 'chartPaneRef'
     | 'tableGrip'
     | 'tablePanelPx'
+    | 'raiseChart'
   >
   /** The chart and the comparison, and the Models popover's list (`useChartCompare`). */
   charts: Pick<

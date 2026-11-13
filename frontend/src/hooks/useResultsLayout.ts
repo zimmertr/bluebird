@@ -215,6 +215,10 @@ export function useResultsLayout({
     chart: number
     table: number
     legend: number
+    /** What the map│chart grip may not drag the chart over, which a raise is held to too (#925). */
+    chartReserved: number
+    /** Whether the tutorial holds the room, which a raise leaves alone (#925). */
+    held: boolean
   } | null>(null)
   // Both's split when it was last left, which a press back to Both shares
   // the room in. The opening heights until then.
@@ -589,6 +593,8 @@ export function useResultsLayout({
       chart: own.chart,
       table: own.table,
       legend: legendPx,
+      chartReserved: chartReservedPx,
+      held: heldRoom !== null,
     }
     // A render that lands mid-drag has written the chart's starting height
     // back; the drag's own goes on before the paint, and the sheet's height
@@ -820,6 +826,19 @@ export function useResultsLayout({
       endSheetDrag()
     },
   }
+  // The chart's panels need more room than they stand in (#925): a desk
+  // raises the chart by it, as a drag up the map│chart grip by that much
+  // would, held to the same ceiling, so the map gives the room and the
+  // height is the reader's from then on. Never lowers it, and never while
+  // the tutorial holds the room or the chart is not on screen.
+  const raiseChart = useCallback((byPx: number) => {
+    const shown = shownRef.current
+    if (!shown || !shown.desk || shown.collapsed || byPx <= 0) return
+    if (shown.mode === 'table' || shown.held) return
+    setHeightsChosen(true)
+    setChartRoomPx(null)
+    setChartHeight(Math.max(shown.chart, clampPanelHeight(shown.chart, byPx, shown.chartReserved, window.innerHeight)))
+  }, [])
   // In Both mode this grip is the chart│table divider and preserves the pair's
   // sum; alone, there is no chart to trade with, so it resizes the table
   // against the map exactly as the chart grip above does.
@@ -905,6 +924,7 @@ export function useResultsLayout({
     mapPx,
     chartGrip,
     tableGrip,
+    raiseChart,
   }
 }
 

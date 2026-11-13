@@ -613,6 +613,51 @@ describe('useResultsLayout', () => {
     expect(result.current.chartPanelPx).toBe(opened)
   })
 
+  // A chart whose panels fall short of their floors asks for the room (#925).
+  it("raises a desk's chart by what its panels ask, and never lowers it", () => {
+    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'chart' }))
+    const opened = result.current.chartPanelPx
+    act(() => result.current.raiseChart(60))
+    expect(result.current.chartPanelPx).toBe(opened + 60)
+    act(() => result.current.raiseChart(0))
+    act(() => result.current.raiseChart(-40))
+    expect(result.current.chartPanelPx).toBe(opened + 60)
+    // Held to the map│chart grip's ceiling, as a drag is.
+    act(() => result.current.raiseChart(5000))
+    const ceiling = result.current.chartPanelPx
+    expect(ceiling).toBeLessThan(1000)
+    act(() => result.current.chartGrip.onDragStart())
+    act(() => result.current.chartGrip.onDrag(5000))
+    act(() => result.current.chartGrip.onDragEnd())
+    expect(result.current.chartPanelPx).toBe(ceiling)
+  })
+
+  it('raises nothing in Table, on a phone, or while the tutorial holds the room', () => {
+    const table = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'table' }))
+    const tablePx = table.result.current.tablePanelPx
+    act(() => table.result.current.raiseChart(60))
+    expect(table.result.current.tablePanelPx).toBe(tablePx)
+    expect(table.result.current.chartShowing).toBe(false)
+
+    setDesktopQuery(false)
+    const phone = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both' }))
+    const phonePx = phone.result.current.chartPanelPx
+    act(() => phone.result.current.raiseChart(60))
+    expect(phone.result.current.chartPanelPx).toBe(phonePx)
+
+    setDesktopQuery(true)
+    const tour = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: { ...DESKTOP, modeChosen: 'chart', tallResults: true },
+    })
+    const heldPx = tour.result.current.chartPanelPx
+    act(() => tour.result.current.raiseChart(60))
+    expect(tour.result.current.chartPanelPx).toBe(heldPx)
+    // And the reader's own height is the one that comes back after.
+    tour.rerender({ ...DESKTOP, modeChosen: 'chart' })
+    const fresh = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'chart' }))
+    expect(tour.result.current.chartPanelPx).toBe(fresh.result.current.chartPanelPx)
+  })
+
   // In Both the divider trades one panel for the other and keeps the sum.
   it('keeps the pair its sum when the divider moves', () => {
     const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'both' }))
