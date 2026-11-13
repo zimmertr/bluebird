@@ -2807,16 +2807,41 @@ export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
   dim: 'absolute inset-0 bg-scrim/40',
   card:
-    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-100px)] flex-col ` +
+    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex flex-col ` +
     `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
+  /**
+   * The most a menu sheet OPENS at, one inset under the chip row, so a long
+   * list leaves the top of the map in view. Not the most it rises: once a
+   * drag holds it, `ceiling` takes this one's place (record 0291).
+   */
+  opening: 'max-h-[calc(100dvh-100px)]',
+  /**
+   * The most any sheet stands at, the Controls sheet too: the box it stands
+   * in less the status bar's band (record 0291). A percentage of that box
+   * rather than a number, so a rotation clamps a held sheet to the screen it
+   * now has and its grip stays on it.
+   */
+  ceiling: 'max-h-[calc(100%-env(safe-area-inset-top))]',
+  /** A sheet let go at the top: as tall as the ceiling, whatever the screen turns to. */
+  full: 'h-[calc(100%-env(safe-area-inset-top))]',
+  /**
+   * A sheet a drag held between its own height and the top: its share of the
+   * ceiling, which the card carries as `--sheet-share` (record 0291). CSS
+   * rather than px, so a turned screen gives it the same share of the room it
+   * now has.
+   */
+  held: 'h-[calc(var(--sheet-share)*(100%-env(safe-area-inset-top)))]',
   grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-edge',
   /**
    * 8px under the title row, the same 8px the grip keeps between its bar and
    * the row's top, so Done and the theme switch stand centred between the bar
    * and the rule under them. At 4px the row sat visibly low on the
-   * maintainer's phone (2026-10-27).
+   * maintainer's phone (2026-10-27). `touch-none` because the row is the
+   * sheet's handle as much as the grip is (record 0146): without it a finger
+   * drawn down the title was the browser's own pan, which Chrome and Firefox
+   * on Android read at the page's top as a pull to refresh (record 0291).
    */
-  head: 'flex flex-shrink-0 items-center gap-2 px-4 pb-2',
+  head: 'flex flex-shrink-0 touch-none items-center gap-2 px-4 pb-2',
   title: TEXT.subheading,
   done: `${CONTROL_SIZE} font-semibold ml-auto ${TAP.action} px-1 ${LINK_ACTION} ${FOCUS_RING}`,
   /**
@@ -2828,6 +2853,14 @@ export const BOTTOM_SHEET = {
   body:
     `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ${SAFE_AREA.pad} ` +
     `${SHEET_RULES} [&>*]:min-h-8`,
+  /**
+   * An invisible box as tall as the status bar's band at the screen's top,
+   * `env(safe-area-inset-top)`, which every sheet reads when a drag begins
+   * (record 0291): a sheet rises to the screen's top less that band, so its
+   * grip never stands under an iPhone's clock. 0 where the browser reports
+   * none. The probe `SAFE_AREA` keeps for the foot, turned over.
+   */
+  topBand: 'pointer-events-none invisible absolute top-0 left-0 w-0 h-[env(safe-area-inset-top)]',
 } as const
 
 /**
@@ -3434,6 +3467,13 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   one 8px down, where the Layers menu's `px-2.5 py-2` stands its own.
  * - `row`: a row's inset and shape, for a row that brings its own type and
  *   control (a checkbox row wears `CHOICE_ROW` beside it).
+ * - `sheetList`: `list` on a phone, where the rows stand in a bottom sheet
+ *   whose body is the one scroller. The same inset with no scroll box of its
+ *   own: inside the sheet `list`'s box never overflows, and its
+ *   `overscroll-contain` swallowed every flick over the rows, so the sheet
+ *   never scrolled and a long list's foot was out of reach (on a phone the
+ *   gesture moved the Controls sheet behind instead). `MESSAGE_LIST.sheet`
+ *   leaves the box out for the same reason.
  * - `cardRow`: the same inset and pitch for a row that stands straight on a
  *   card's 10px padding rather than in a `list` (the Layers rows): pulled out
  *   6px and padded back, so its words stay where they were and its fill
@@ -3476,6 +3516,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
 export const MENU = {
   card: `${SURFACE_CHIP_CARD.menu} ${LAYER.popover} flex flex-col`,
   list: `min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1.5 ${SCROLL_BARS}`,
+  sheetList: 'px-1 py-1.5',
   row: MENU_ROW,
   cardRow: '-mx-1.5 rounded px-1.5 py-0.5',
   option: `${TEXT.control} ${TAP.row} ${MENU_ROW} cursor-pointer`,

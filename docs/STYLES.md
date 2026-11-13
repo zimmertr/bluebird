@@ -900,7 +900,10 @@ The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`),
 the bottom sheet the menus below are, kept mounted: modal over the same dim,
 slid below the map while shut, its height a fixed share of the map that
 leaves the rows, the button's strip and the 76px the notice band had above it
-(`CONTROLS_MAP_PX`, kept at 256 so the sheet opens where it did). Its dim
+(`CONTROLS_MAP_PX`, kept at 256 so the sheet opens where it did), and never
+under half the map, so a phone held sideways opens it at half the screen
+rather than as a strip (record
+[0292](architectural-decision-records/0292-controls-sheet-opens-at-half-the-map-at-least.md)). Its dim
 stands one layer under its card (`scrim` on `LAYER.scrim`). It pushes nothing.
 The button, the scale and the (i) stay where they stood under the dim, as
 under every phone sheet. Measured 2026-10-21 at 360x740 and 390x844: the
@@ -1321,10 +1324,11 @@ model list and the calendar are `Menu`'s rows in a sheet (`sheet`), so they
 are written once for both widths. The Controls sheet is the same sheet, kept
 mounted (above). The dim covers the whole screen, the search row and the chips
 included, as a modal sheet's scrim does in Material. The grip and the title
-row drag the sheet, to just under the chips, shut, or anywhere between, and a
+row drag the sheet, to the top of the screen, shut, or anywhere between, and a
 double tap on the grip puts it back at its own height, through the gesture
-the results sheet's grips use.
-Record: [0136](architectural-decision-records/0136-phone-menus-are-bottom-sheets.md) Record: [0146](architectural-decision-records/0146-sheet-grips-drag.md) Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
+the results sheet's grips use. Every sheet, the Controls sheet too, shares that
+ceiling: the screen less the status bar's band (`BOTTOM_SHEET.topBand`).
+Record: [0291](architectural-decision-records/0291-every-phone-sheet-rises-to-the-top.md) Record: [0136](architectural-decision-records/0136-phone-menus-are-bottom-sheets.md) Record: [0146](architectural-decision-records/0146-sheet-grips-drag.md) Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
 
 ### Adding a new role
 

@@ -7,10 +7,10 @@ import { useHeldSheetPx } from './useHeldSheetPx'
 describe('useHeldSheetPx', () => {
   it('holds a dragged height while open and drops it when the sheet shuts', () => {
     const { result, rerender } = renderHook(({ open }) => useHeldSheetPx(open), { initialProps: { open: true } })
-    act(() => result.current[1](420))
-    expect(result.current[0]).toBe(420)
+    act(() => result.current[1]({ share: 0.5 }))
+    expect(result.current[0]).toEqual({ share: 0.5 })
     rerender({ open: true })
-    expect(result.current[0]).toBe(420)
+    expect(result.current[0]).toEqual({ share: 0.5 })
     rerender({ open: false })
     expect(result.current[0]).toBeNull()
     rerender({ open: true })

@@ -520,17 +520,15 @@ export function phoneCornerLiftPx(fabBottom: number): number {
  */
 export const CONTROLS_MAP_PX = 256
 
-/** The Controls sheet's height on a phone whose map is `mapPx` tall. */
-export function controlsSheetPx(mapPx: number): number {
-  return Math.max(0, mapPx - CONTROLS_MAP_PX)
-}
-
 /**
- * The most a Controls sheet rises under a drag on its grip (#696; record
- * 0146): where a dragged results sheet stops, the strip under the chip row.
+ * The Controls sheet's height on a phone whose map is `mapPx` tall: the map
+ * less `CONTROLS_MAP_PX`, and never under half the map (#927; record 0292).
+ * Upright, 256px is well under half, so the sheet opens where it always
+ * has; sideways, the strip took most of the screen and left the sheet its
+ * title alone, or nothing at all on a map 256px tall or less.
  */
-export function controlsFullPx(mapPx: number): number {
-  return Math.max(0, mapPx - DRAGGED_MAP_PX)
+export function controlsSheetPx(mapPx: number): number {
+  return Math.max(mapPx - CONTROLS_MAP_PX, Math.round(Math.max(0, mapPx) / 2))
 }
 
 /**

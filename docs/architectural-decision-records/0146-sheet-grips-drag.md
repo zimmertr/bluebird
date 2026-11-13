@@ -1,6 +1,6 @@
 # 0146. A phone sheet's grip drags it, to full, to closed or to anywhere between
 
-- Status: Accepted. Amends 0136 and 0141 (a swipe down the grip no longer only closes the sheet; the grip drags it).
+- Status: Accepted. Amends 0136 and 0141 (a swipe down the grip no longer only closes the sheet; the grip drags it). Amended by [0291](0291-every-phone-sheet-rises-to-the-top.md) (every sheet's full height is the screen's top).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696, on a Pixel 2026-10-14: the grips on the Layers, Legend, Columns, Models, Removed and Controls sheets did not drag; the drag, its stops and the double tap asked for the same evening
 - Issues and PRs: #696, #708, #336

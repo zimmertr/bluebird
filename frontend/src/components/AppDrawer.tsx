@@ -1,5 +1,6 @@
 import { useRef, type RefObject } from 'react'
 import BottomSheet from './BottomSheet'
+import type { SheetHeight } from '../utils/sheetDrag'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
@@ -24,14 +25,12 @@ interface AppDrawerProps {
   isDesktop: boolean
   /** A desk's panel is opening or closing (`useLayoutMotion`), on a layer of its own meanwhile. */
   moving?: boolean
-  /** The Controls sheet's height on a phone: its own share (`controlsSheetPx`), or where a drag left it. */
-  sheetPx: number
+  /** Where a drag left the Controls sheet on a phone, or null for its own share (`sheetRestPx`). */
+  sheetHeld: SheetHeight | null
   /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
   sheetRestPx: number
-  /** The most a drag raises it (`controlsFullPx`). */
-  sheetFullPx: number
   /** Holds it at a dragged height, or null for its own share. */
-  onSheetPx: (px: number | null) => void
+  onSheetHeld: (held: SheetHeight | null) => void
   /** Closes it: its close button at a desk, and on a phone Done, Escape or a press on the dim. */
   onClose: () => void
   /**
@@ -122,10 +121,9 @@ export default function AppDrawer({
   open,
   isDesktop,
   moving = false,
-  sheetPx,
+  sheetHeld,
   sheetRestPx,
-  sheetFullPx,
-  onSheetPx,
+  onSheetHeld,
   onClose,
   tourRuns = false,
   drawMode,
@@ -258,10 +256,9 @@ export default function AppDrawer({
         kept={{
           open,
           tourRuns,
-          heightPx: sheetPx,
+          held: sheetHeld,
           restPx: sheetRestPx,
-          fullPx: sheetFullPx,
-          onHeightPx: onSheetPx,
+          onHeld: onSheetHeld,
           actions: <ThemeButton theme={theme} onToggle={onToggleTheme} />,
         }}
       >

@@ -1,4 +1,4 @@
-# 0291. A desk's results grow to fit the chart's panels when a panel is added or the layout changes
+# 0293. A desk's results grow to fit the chart's panels when a panel is added or the layout changes
 
 - Status: Accepted; amends 0255
 - Date: 2026-11-12

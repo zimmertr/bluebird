@@ -396,11 +396,12 @@ describe('MenuSelect', () => {
     { value: 'min', label: 'Min' },
   ] as const
 
-  function Select({ onChange = () => {} }: { onChange?: (v: string) => void }) {
+  function Select({ onChange = () => {}, sheet = false }: { onChange?: (v: string) => void; sheet?: boolean }) {
     const [value, setValue] = useState<string>('max')
     return (
       <>
         <MenuSelect
+          sheet={sheet}
           label="Wind aggregate"
           value={value}
           options={OPTIONS}
@@ -418,6 +419,18 @@ describe('MenuSelect', () => {
   const field = () => screen.getByRole('button', { name: /^Wind aggregate/ })
   const list = () => screen.queryByRole('listbox', { name: 'Wind aggregate' })
   const option = (name: string) => screen.getByRole('option', { name })
+
+  // The sheet's body is the one scroller on a phone: a scroll box of the
+  // list's own never overflows there and swallowed every flick over the rows.
+  it('scrolls its rows in the card at a desk and in the sheet on a phone', async () => {
+    const desk = render(<Select />)
+    await desk.user.click(field())
+    expect(list()!.className).toBe(`${MENU.list} focus:outline-none`)
+    desk.unmount()
+    const phone = render(<Select sheet />)
+    await phone.user.click(field())
+    expect(list()!.className).toBe(`${MENU.sheetList} focus:outline-none`)
+  })
 
   // A screen reader hears what the select was called and what it holds.
   it('is a field named by its label and the value it shows', () => {
@@ -859,6 +872,20 @@ describe('MenuBrowse', () => {
     await user.click(pick('The Bulger List'))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(field('The Bulger List')).toBeTruthy()
+  })
+
+  // The sheet's body is the one scroller on a phone, so the rows carry no
+  // scroll box of their own there: one never overflowed and swallowed every
+  // flick, which left a long list's foot out of reach.
+  it('scrolls its rows in the card at a desk and in the sheet on a phone', async () => {
+    const rows = () => screen.getByRole('group', { name: 'Coordinate list' })
+    const desk = render(<Browse />)
+    await desk.user.click(field())
+    expect(rows().className).toBe(MENU.list)
+    desk.unmount()
+    const phone = render(<Browse sheet />)
+    await phone.user.click(field())
+    expect(rows().className).toBe(MENU.sheetList)
   })
 
   // Groups inside groups (#892): a continent opens to its countries and a
