@@ -48,9 +48,12 @@ test.describe('on a phone', () => {
   // the Controls sheet used to stop under the chips and the Analyze button's
   // strip, the menu sheets one inset under the chips. Let go there, each
   // stands over the search box and the Analyze button.
-  for (const [opener, name] of [
-    ['Open controls', 'Controls'],
-    ['Layers', 'Layers'],
+  // `down` is a drag from full on the turned screen that lands clear of the
+  // sheet's own height, which a release near takes: the Layers rows open at
+  // the cap, 290 of 390, so 120 down would snap back to them.
+  for (const [opener, name, down] of [
+    ['Open controls', 'Controls', 120],
+    ['Layers', 'Layers', 200],
   ] as const) {
     test(`the ${name} sheet rises to the top of the screen, over the search box and Analyze`, async ({ page }) => {
       await page.goto('/')
@@ -98,8 +101,8 @@ test.describe('on a phone', () => {
       expect(Math.round((await sheet.boundingBox())!.height)).toBe(390)
       const turned = (await sheet.locator(':scope > div').first().boundingBox())!
       expect(turned.y).toBeGreaterThanOrEqual(0)
-      await drag(page, { x: turned.x + turned.width / 2, y: turned.y + turned.height / 2 }, 120)
-      expect(Math.round((await sheet.boundingBox())!.y)).toBe(120)
+      await drag(page, { x: turned.x + turned.width / 2, y: turned.y + turned.height / 2 }, down)
+      expect(Math.round((await sheet.boundingBox())!.y)).toBe(down)
     })
   }
 
