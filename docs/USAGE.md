@@ -195,10 +195,8 @@ from the NOHRSC snow analysis, the same analysis the **Snow depth** layer draws,
 so there is no average, minimum or maximum to choose between and no hour it
 belongs to. Rank by it and the caption beside the results header says which day
 the analysis is from, `Snow depth as of Nov 12`, in place of the window it
-would otherwise name. A destination whose square of the analysis touches a
-mapped glacier reads `Glacier` after its depth, as the snow card does: that
-number is years of old snow, not this winter's, though it keeps its place in the
-ranking. [DATA.md](DATA.md#the-snow-depth-on-a-row) has the rest.
+would otherwise name. On a glaciated summit the number is years of old snow,
+not this winter's, though it keeps its place in the ranking. [DATA.md](DATA.md#the-snow-depth-on-a-row) has the rest.
 
 **The cloud deck is in every analysis**, like every other metric, so you can
 rank by it or bound it at any time without analyzing again. The deck is the height where cloud forms
@@ -696,7 +694,7 @@ Hovering a row reveals a × at its end (shown to the keyboard when Tab reaches i
 | Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
 | Snowfall · Total (in) | New snow over the window, in inches of snow rather than of water |
 | Snowfall · Avg/Min/Max (in/hr) | Average, lightest and heaviest single-hour snowfall rate |
-| Snow depth (in) | Snow on the ground today, from the NOHRSC snow analysis. Not a forecast and not a reading of the window. `≥1,290` marks the source file's own ceiling, and `Glacier` after a depth marks a square on a mapped glacier, whose number is years of old snow. `N/A` outside the analysis area |
+| Snow depth (in) | Snow on the ground today, from the NOHRSC snow analysis. Not a forecast and not a reading of the window. `≥1,290` marks the source file's own ceiling. `N/A` outside the analysis area |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
 | Cloud deck · Min/Max/Avg (ft) | The lowest height in the air column over the destination where the model's air is close to saturated, in feet above sea level, below the destination as readily as above it. 30,066 when nothing in the column is saturated. Shown only when the report fetched it. Blank over an archive window |
 

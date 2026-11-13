@@ -43,8 +43,6 @@ import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
 import { NO_VALUE_MARK } from '../utils/unavailableCell'
 import { grouped } from '../utils/numbers'
-import { isSnowDepthKey } from '../utils/snowCeiling'
-import { GLACIER_TITLE } from '../utils/snowPoint'
 
 // One body row of the results table, ranked or pending. Apart from the table
 // and memoized because a report can hold a thousand rows and most changes to
@@ -243,8 +241,6 @@ interface CellContext {
   closureStatus: ClosureProximityStatus
   closureWarning?: ClosureWarning
   closureUncovered: boolean
-  // The row's snow cell lies on a glacier (#849), so its depth is named for it.
-  onGlacier: boolean
   // The row's elevation lookup is still out (#673).
   heightPending: boolean
   // Centres the map on the row: the name button's fly-to.
@@ -458,35 +454,29 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
     return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
   }
   const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample)
-  // A depth on a glacier keeps its number, colour and link, and says whose
-  // number it is the way the snow card's heading does (#748, #849).
-  const glacier = isSnowDepthKey(key) && ctx.onGlacier ? ` ${GLACIER_TITLE}` : ''
   if (col.windyLayer) {
     return (
       <td className={cellClass} style={colorSty}>
         {sized(
           ctx.widths,
           key,
-          <>
-            <a
-              href={windyCellUrl(row, key, col.windyLayer, ctx.modelId, ctx.times)}
-              target="_blank"
-              rel="noopener noreferrer"
-              // The value is the link's name, so a reader hears the forecast:
-              // reading the table, tabbing, or saying "click 11.5" to voice
-              // control. A label here replaced the value in every cell (#575).
-              // Where the link goes rides as its description instead, one
-              // sentence per row in the row's filler cell. It names the
-              // destination and the site, never the layer: a layer name would be
-              // a metric spelled at a call site, which the linter's metric-name
-              // ban forbids.
-              aria-describedby={windyNoteId(ctx.rowId)}
-              className={LINK_QUIET}
-            >
-              {display}
-            </a>
-            {glacier}
-          </>,
+          <a
+            href={windyCellUrl(row, key, col.windyLayer, ctx.modelId, ctx.times)}
+            target="_blank"
+            rel="noopener noreferrer"
+            // The value is the link's name, so a reader hears the forecast:
+            // reading the table, tabbing, or saying "click 11.5" to voice
+            // control. A label here replaced the value in every cell (#575).
+            // Where the link goes rides as its description instead, one
+            // sentence per row in the row's filler cell. It names the
+            // destination and the site, never the layer: a layer name would be
+            // a metric spelled at a call site, which the linter's metric-name
+            // ban forbids.
+            aria-describedby={windyNoteId(ctx.rowId)}
+            className={LINK_QUIET}
+          >
+            {display}
+          </a>,
         )}
       </td>
     )
@@ -517,7 +507,6 @@ interface RowProps {
   closureStatus: ClosureProximityStatus
   closureWarning?: ClosureWarning
   closureUncovered: boolean
-  onGlacier: boolean
   heightPending: boolean
   // Absent when the table has no chart column.
   chartBox?: ChartBox
@@ -543,7 +532,6 @@ function ResultsTableRow({
   closureStatus,
   closureWarning,
   closureUncovered,
-  onGlacier,
   heightPending,
   chartBox,
   charted,
@@ -565,7 +553,6 @@ function ResultsTableRow({
     closureStatus,
     closureWarning,
     closureUncovered,
-    onGlacier,
     heightPending,
     onCenter: () => onFocusResult?.(row),
     rowId,

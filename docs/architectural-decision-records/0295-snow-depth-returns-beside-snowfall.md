@@ -1,11 +1,11 @@
-# 0295. Snow depth returns beside snowfall, read off the grid each pod holds, and a glacier's cell is named without moving its rank
+# 0295. Snow depth returns beside snowfall, read off the grid each pod holds
 
 - Status: Accepted. Supersedes [0120](0120-snowfall-replaces-snow-depth.md) in part (its snow depth half; its snowfall half stands), and reinstates [0053](0053-snow-depth-ceiling.md), [0054](0054-snodas-snow-depth.md) and [0104](0104-refused-snow-file-is-no-grid.md)
 - Date: 2026-11-12
 - Decider: the maintainer (TJ), on issue #849, 2026-11-03 ("File it, grid on the pod") and 2026-11-12
 - Issues and PRs: #849, #921, #678, #449, #463, #629, #748
 - Cited in code as: #849
-- Guide: [`CLAUDE.md`](../../CLAUDE.md), The Python and TypeScript mirrors (row 39) and the presentation knobs paragraph; [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `app/services/snodas.py` bullet; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `snowCeiling.ts` bullet; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), the `useGlacierCells.ts` bullet
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), The Python and TypeScript mirrors (row 39) and the presentation knobs paragraph; [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `app/services/snodas.py` bullet; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `snowCeiling.ts` bullet
 
 ## Context
 
@@ -19,7 +19,7 @@ The gaps record 0120 named are accepted this time, because they are the right sh
 
 Its colours are snowfall's six cold shades in snowfall's order, banded at five of the snow layer's own edges (3.9, 9.8, 39, 98 and 197 in), so a marker and the layer under it turn at the same depth.
 
-A cell whose 1 km square touches a glacier OpenStreetMap has mapped reads `Glacier` after its number, from the check the snow card names a glacier with (#748), asked for the rows on screen while the column is shown. The word marks the cell and nothing else: the number, its colour and its rank stay.
+A glacier's cell keeps its number, colour and rank, and the table does not mark it. The deepest glacier cells sit on the file's ceiling and print `≥1,290`, and the snow card names the glacier for a clicked point (#748).
 
 The grid stays per pod rather than in the shared cache's `snapshots` table.
 
@@ -35,6 +35,7 @@ The grid stays per pod rather than in the shared cache's `snapshots` table.
 - Ask NOAA's `identify` per displayed row from the browser: one request per row against a render server that refuses caching, about 0.63 s each, 200 requests per analysis on top of the layer's renders.
 - Hold the grid in the shared cache's `snapshots` table: the table holds gzipped rows a pod loads whole, so each pod would download 64 MiB from the database instead of from NSIDC, saving nothing.
 - A glacier cell that reads `Glacier` in place of its number and sorts last like `N/A`: the maintainer picked it first, then chose the number with the word after it on 2026-11-12, once it was clear the check answers after the report lands from tiles the browser fetches, so a ranking that depended on it would reorder under the reader or wait on the tiles.
+- `Glacier` after the number in a glacier's cell, from the snow card's check asked for the rows on screen: built, then removed on 2026-11-12 (the maintainer). It read as a statement about the number where the number was this winter's few inches on a cell touching ice (Mount Saint Helens, 4.8 in), broke the column's right-aligned numbers, and cost a tile check per row for a case the ceiling mark already shows.
 - Mask glacier cells to `N/A`: loses a true record winter at a bare cell in the same band.
 
 ## Consequences

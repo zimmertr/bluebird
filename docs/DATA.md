@@ -1538,13 +1538,11 @@ next day's file replaces the refusal as soon as NSIDC publishes it.
 **The glacier caveat above applies to the column too, and it is the number a
 reader is most likely to misread.** Over permanent ice SNODAS accumulates year
 over year, so a glaciated summit reads hundreds of inches in every season. That
-is old snow and firn rather than snow that fell this winter. So a cell whose
-1 km square touches a glacier OpenStreetMap has mapped reads `Glacier` after
-its number, from the same check the snow card names it with. The word arrives
-a moment after the table, from the basemap tiles the browser reads for it, and
-it changes nothing else: the number, its colour and its place in the ranking
-stay, so a glaciated summit can still top a ranking on the deepest snow. Only
-the rows on screen are asked about.
+is old snow and firn rather than snow that fell this winter, and it keeps its
+place in the ranking, so a glaciated summit can top a ranking on the deepest
+snow. The table does not mark it: the deepest of those cells sit on the file's
+ceiling and print `≥1,290`, and the snow card names the glacier for a clicked
+point.
 
 **1,290 in is the file's ceiling, not a measurement.** The depth member is
 16-bit integer millimetres, so the largest depth it can carry is 32,767 mm,
