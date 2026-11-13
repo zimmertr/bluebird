@@ -17,6 +17,7 @@ import {
   buildChartData,
   MAX_CHART_PANELS,
   addMetric,
+  chartFamilies,
   cardCells,
   isChartMetric,
   metricsFor,
@@ -755,6 +756,16 @@ describe('the chart metric slots', () => {
   it('removes any slot but the first', () => {
     expect(removeMetric(['precip', 'temp', 'wind'], 1)).toEqual(['precip', 'wind'])
     expect(removeMetric(['precip', 'temp', 'wind'], 0)).toEqual(['precip', 'temp', 'wind'])
+  })
+
+  // The Metrics table's chart toggles (record 0290).
+  it('draws and takes away families, never the first, up to the ceiling', () => {
+    const PTW: ChartMetrics = ['precip', 'temp', 'wind']
+    expect(chartFamilies(PTW, ['aqi'], true)).toEqual(['precip', 'temp', 'wind', 'aqi'])
+    expect(chartFamilies(PTW, ['aqi', 'freeze'], true)).toEqual(['precip', 'temp', 'wind', 'aqi'])
+    expect(chartFamilies(PTW, ['temp', 'precip'], false)).toEqual(['precip', 'wind'])
+    expect(chartFamilies(PTW, ['temp'], true)).toBe(PTW)
+    expect(chartFamilies(PTW, ['precip'], false)).toBe(PTW)
   })
 
   it('holds four panels at most', () => {

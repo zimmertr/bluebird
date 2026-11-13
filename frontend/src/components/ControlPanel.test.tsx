@@ -127,6 +127,8 @@ function props(over: Partial<Props> = {}): Props {
     maxAreaKm2: 100_000,
     archiveDays: 365,
     aqiForecastDays: 5,
+    charted: ['precip'],
+    onChart: noop,
     ...over,
   }
 }

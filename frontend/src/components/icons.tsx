@@ -279,8 +279,12 @@ export function IconGridBlocks({ className }: IconProps): ReactNode {
   )
 }
 
-/** The chart half of that switch. */
-export function IconChart({ className }: IconProps): ReactNode {
+/**
+ * The chart half of that switch, and a Metrics row's chart toggle (record
+ * 0290), whose pressed state fills under the line: the fill is the state, so
+ * the two read apart without their colour, as the star's do.
+ */
+export function IconChart({ filled = false, className }: IconProps & { filled?: boolean }): ReactNode {
   return (
     <svg
       viewBox="0 0 16 16"
@@ -290,6 +294,7 @@ export function IconChart({ className }: IconProps): ReactNode {
       className={join(ICON.control, className)}
       aria-hidden="true"
     >
+      {filled && <polygon points="2,12 6,6 9,9 14,3 14,14 2,14" fill="currentColor" stroke="none" opacity="0.45" />}
       <polyline points="2,12 6,6 9,9 14,3" />
     </svg>
   )

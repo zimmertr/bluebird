@@ -4,7 +4,7 @@ import { type ComponentProps, createRef } from 'react'
 import AppDrawer from './AppDrawer'
 import type { MapViewHandle } from './MapView'
 import { render } from '../testSupport/render'
-import { capabilities, panelMessages } from '../testSupport/fixtures'
+import { capabilities, chartMetricsOf, panelMessages } from '../testSupport/fixtures'
 import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
@@ -79,6 +79,7 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       destinationInputs={INPUTS}
       forecastSelection={SELECTION}
       rankingKnobs={KNOBS}
+      chartMetrics={chartMetricsOf()}
       caps={CAPS}
       mapRef={MAP}
       onPointAtSearch={NOOP}
