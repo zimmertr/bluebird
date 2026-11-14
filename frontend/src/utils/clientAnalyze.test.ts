@@ -1653,6 +1653,17 @@ describe('following the tail', () => {
     expect(labels).toEqual(['Retrieving air quality…', 'Retrieving cloud data…'])
   })
 
+  // #849: the cloud label carries its count once the caller can give one.
+  it('words the cloud label with its count when the caller counts it', async () => {
+    const cloud = deferred()
+    const labels: string[] = []
+    const done = followTail(Promise.resolve(), cloud.promise, (m) => labels.push(m), () => 'Retrieving cloud data: 50 of 100 peaks…')
+    await settle()
+    expect(labels).toEqual(['Retrieving cloud data: 50 of 100 peaks…'])
+    cloud.resolve()
+    await done
+  })
+
   it('names the cloud data alone when air quality answers first', async () => {
     const cloud = deferred()
     const labels: string[] = []

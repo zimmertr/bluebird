@@ -705,7 +705,10 @@ the plain number in both cases.
 
 The hour is null when no pressure level answered, whatever the 2 m humidity
 says: archive windows publish no pressure levels, so an archive hour has no
-deck. A destination with no known elevation walks the levels alone and still
+deck. The browser therefore asks for no cloud data at all for a window wholly
+in the archive (measured again 2026-11-13: every level null under the unit
+`undefined`), which spared a long archive window minutes of quota spent on
+nulls (#849). A destination with no known elevation walks the levels alone and still
 gets one, and the app measures a peak or a pasted point with none from the
 terrain height Open-Meteo reports for its coordinate.
 

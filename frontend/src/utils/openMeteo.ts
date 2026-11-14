@@ -979,7 +979,7 @@ export async function fetchWeather(
 
 export type FetchCloudOptions = Pick<
   FetchWeatherOptions,
-  'signal' | 'onPace' | 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation' | 'onColumn'
+  'signal' | 'onPace' | 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation' | 'onColumn' | 'onProgress'
 >
 
 // The cloud column (#117, #670): the weather fetch's twin over the same endpoints,
@@ -1002,10 +1002,20 @@ export async function fetchCloud(
     windowLimits = FALLBACK_WINDOW_LIMITS,
     terrainElevation = false,
     onColumn,
+    onProgress,
   }: FetchCloudOptions,
 ): Promise<CloudResult[]> {
   if (destinations.length === 0) return []
   const source = windowSource(startMs, endMs, nowMs, windowLimits)
+  // The archive serves no pressure-level humidity: every level answers null
+  // under the unit `undefined` (measured 2026-11-13, as the winds were on
+  // 2026-09-13), so a window wholly in the archive has no cloud deck to read.
+  // Asking anyway spent the weather budget on nulls and held the analysis on
+  // `Retrieving cloud data…` for minutes on a long window (#849).
+  if (source === 'archive') {
+    onProgress?.(destinations.length, destinations.length)
+    return new Array(destinations.length).fill(null)
+  }
   const spans = fetchSpans(startMs, endMs, nowMs, windowLimits)
   const reduceOptions: ReduceOptions = { model, nowMs, windowLimits, terrainElevation }
 
@@ -1020,6 +1030,9 @@ export async function fetchCloud(
   })
   const misses = missIdx.map((i) => destinations[i])
   if (misses.length === 0) return results
+  // Counted like the weather's, cache hits first, so the tail label can say
+  // how far the column has come rather than standing still (#849).
+  let processed = destinations.length - misses.length
 
   const tasks = chunked(misses, BATCH_SIZE).map((chunk, chunkIndex) => async (): Promise<CloudResult[]> => {
     const perSpan: HourlyPayload[][] = []
@@ -1056,7 +1069,7 @@ export async function fetchCloud(
       if (items.length !== chunk.length) throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
       perSpan.push(items)
     }
-    return chunk.map((c, j): CloudResult => {
+    const reduced = chunk.map((c, j): CloudResult => {
       const column = joinHours(
         perSpan.map((items) => items[j]),
         CLOUD_VARIABLES,
@@ -1064,6 +1077,9 @@ export async function fetchCloud(
       onColumn?.(missIdx[chunkIndex * BATCH_SIZE + j], column)
       return reduceCloud(column, c, startMs, endMs, reduceOptions)
     })
+    processed += chunk.length
+    onProgress?.(processed, destinations.length)
+    return reduced
   })
 
   const fetched = (await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)).flat()

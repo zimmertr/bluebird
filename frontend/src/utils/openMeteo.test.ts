@@ -1429,6 +1429,34 @@ describe('fetchCloud', () => {
     expect(out[0]?.cloud_deck_min_ft).toBe(CLOUD_DECK_CEILING_FT)
   })
 
+  // The archive answers every pressure-level humidity null (measured
+  // 2026-11-13), so a window wholly in it asks nothing and reads no deck (#849).
+  it('asks nothing for a window wholly in the archive', async () => {
+    const spy = vi.fn()
+    vi.stubGlobal('fetch', spy)
+    const onProgress = vi.fn()
+    const nowMs = startMs + 200 * 86_400_000
+    const out = await fetchCloud([{ latitude: 1, longitude: 1 }, { latitude: 2, longitude: 2 }], startMs, endMs, {
+      model: 'gfs_seamless',
+      nowMs,
+      onProgress,
+    })
+    expect(spy).not.toHaveBeenCalled()
+    expect(out).toEqual([null, null])
+    expect(onProgress).toHaveBeenCalledWith(2, 2)
+  })
+
+  it('counts its batches as they land', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(body(1))))
+    const onProgress = vi.fn()
+    await fetchCloud([{ latitude: 1, longitude: 1, elevation_ft: 328 }], startMs, endMs, {
+      model: 'gfs_seamless',
+      nowMs: startMs,
+      onProgress,
+    })
+    expect(onProgress).toHaveBeenLastCalledWith(1, 1)
+  })
+
   it('answers a second ask from the cache', async () => {
     const spy = vi.fn(async () => fakeResponse(body(1)))
     vi.stubGlobal('fetch', spy)

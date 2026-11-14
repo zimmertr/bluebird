@@ -67,6 +67,14 @@ export const RETRIEVING_MESSAGE = 'Retrieving forecasts…'
 export const AQI_TAIL_MESSAGE = 'Retrieving air quality…'
 export const CLOUD_TAIL_MESSAGE = 'Retrieving cloud data…'
 
+// The cloud label with its count once batches land (#849, approved by the
+// maintainer 2026-11-13), worded as the weather's progress is, so a long
+// cloud tail reads as moving rather than hung.
+const CLOUD_COUNT_PREFIX = 'Retrieving cloud data: '
+export function cloudTailMessage(processed: number, total: number, noun: string): string {
+  return `${CLOUD_COUNT_PREFIX}${processed} of ${total} ${noun}s…`
+}
+
 // Which tail label stands, given what is still out once the weather has
 // answered: air quality while it is open, then the cloud column, then none.
 export function tailMessage(open: { aqi: boolean; cloud: boolean }): string | null {
@@ -117,7 +125,11 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
   const detail = paceWaitLine(i.paceRemainingS ?? null, i.paceReason)
   // A tail label replaces the forecast count and its percentage once the
   // weather has answered; the bar stays full under it.
-  const tail = i.statusMessage !== null && TAIL_MESSAGES.includes(i.statusMessage) ? i.statusMessage : null
+  const tail =
+    i.statusMessage !== null &&
+    (TAIL_MESSAGES.includes(i.statusMessage) || i.statusMessage.startsWith(CLOUD_COUNT_PREFIX))
+      ? i.statusMessage
+      : null
   return {
     visible: true,
     message: tail ?? retrievingLabel(total, percent),
