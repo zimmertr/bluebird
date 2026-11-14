@@ -46,7 +46,6 @@ import {
   metricForSort,
   nearestKey,
   pixelToValue,
-  tracksCursor,
   valueAt,
   tooltipCapacity,
   TOOLTIP_CHROME_PX,
@@ -499,13 +498,6 @@ function TimeSeriesChart({
   // per render rather than memoized: the grid is fixed for the analysis, so this
   // only moves when the clock crosses an hour the chart is already drawing.
   const nowMs = nowWithinGrid(times, Date.now())
-  // Whether hovering may emphasize the nearest line. Past the budget it may not:
-  // the re-render rebuilds every line's path from every point, and the chart ends
-  // up lagging seconds behind the pointer. It falls back to a plain shared
-  // tooltip, and comes back on as soon as fewer lines are charted. See tracksCursor.
-  // Counted over every drawn panel's paths (#499): the emphasis dims a
-  // destination in each, so a hover re-renders every line once per panel.
-  const followCursor = tracksCursor(times.length, lines.length * count)
 
   // Render the focused line last (on top) with siblings dimmed. One nearest-line
   // computation feeds both the line emphasis and the tooltip ordering, in every
@@ -933,7 +925,6 @@ function TimeSeriesChart({
         sortBy={sortBy}
         sortDesc={sortDesc}
         margin={MARGIN}
-        followCursor={followCursor}
         showsCard={i === cardPanel}
         shownIndex={i === cardPanel ? shownIndex : null}
         onHover={onHover}
@@ -1488,7 +1479,6 @@ interface PanelProps {
   sortBy: SortBy
   sortDesc: boolean
   margin: PlotMargin
-  followCursor: boolean
   /** Whether this panel's tooltip draws the card; the other panel's draws nothing. */
   showsCard: boolean
   shownIndex: number | null
@@ -1564,7 +1554,6 @@ function ChartPanel({
   sortBy,
   sortDesc,
   margin,
-  followCursor,
   showsCard,
   shownIndex,
   onHover,
@@ -1637,8 +1626,8 @@ function ChartPanel({
   }
 
   // A finger (or a pen) on the chart reads the hour under it, as a resting
-  // mouse does: the tooltip at that hour and, where the chart may follow a
-  // cursor, the nearest line drawn over the rest. A horizontal drag keeps
+  // mouse does: the tooltip at that hour and the nearest line drawn over the
+  // rest. A horizontal drag keeps
   // reading, because the plot leaves only vertical panning to the browser
   // (`touch-pan-y` below); a vertical drag is the sheet's scroll, and the
   // browser cancels the pointer, which drops the reading. A lift drops it too
@@ -1664,10 +1653,6 @@ function ChartPanel({
     const box = el.getBoundingClientRect()
     const reading = fingerReading(e.clientX - box.left, e.clientY - box.top, box, times, yMin, yMax, margin, drawsAxis)
     if (reading === null) return
-    if (!followCursor) {
-      onFinger(index, reading.index, undefined, null)
-      return
-    }
     onFinger(index, reading.index, nearestAt(reading.index, reading.value), reading.value)
   }
 
@@ -1747,8 +1732,8 @@ function ChartPanel({
             data={data}
             margin={margin}
             syncId={syncId}
-            onMouseMove={followCursor ? handleMove : undefined}
-            onMouseLeave={followCursor ? onLeave : undefined}
+            onMouseMove={handleMove}
+            onMouseLeave={onLeave}
             onClick={onPlayheadChange || onPin ? handleClick : undefined}
             className={onPlayheadChange || onPin ? 'cursor-pointer' : undefined}
           >

@@ -484,50 +484,6 @@ export function nowWithinGrid(times: number[], nowMs: number): number | null {
   return nowMs >= times[0] && nowMs <= times[times.length - 1] ? nowMs : null
 }
 
-// Points on screen — lines charted x hours in the window — above which the chart
-// stops following the cursor. Both variables matter and they multiply, because the
-// work is per line per point: hovering only changes stroke widths, opacities and
-// the tooltip's row order, but it does so through React state, so Recharts rebuilds
-// every line's `d` attribute from all of its points to repaint a cosmetic
-// difference.
-//
-// Calibrated by the maintainer against the running app, holding destinations at 25
-// and varying the window so the count moved along one axis:
-//
-//   15,600 points  satisfactory
-//   21,000         satisfactory
-//   26,400         starting to degrade
-//   44,160         (20 destinations x 92 days) the point needing a limit
-//
-// Shape independence checked separately: 19,200 points as 100 lines x 8 days, as
-// 50 x 16, and as 20 x 40 all read the same, so the product is the right variable
-// rather than either term alone. 25,000 is the cap: the last count that read as
-// satisfactory was 21,000 and the next one read as degrading, so the line goes
-// between them rather than above both.
-//
-// Re-derive by sweeping one axis again; a subjective read is the right instrument
-// here, since the failure is "the chart lags the pointer" rather than a number.
-const CURSOR_POINT_BUDGET = 25_000
-
-/**
- * Should the chart follow the cursor — emphasizing the nearest line, dimming the
- * others, and ordering the tooltip by nearness?
- *
- * Only while it is affordable. Counted on hours rather than days so a narrowed
- * window is charged for what it actually draws, and on lines *charted* rather
- * than destinations analyzed, so unchecking rows in the table brings the
- * emphasis back. The tooltip itself is unaffected either way: Recharts tracks
- * the cursor for that on its own.
- *
- * `lineCount` is every path a hover redraws, which with a second panel is
- * each line twice (#499): a hover's emphasis dims a destination in both
- * panels, so both re-render on every move, and the budget was calibrated on
- * the cost of that re-render rather than on how many destinations it shows.
- */
-export function tracksCursor(timestampCount: number, lineCount: number): boolean {
-  return timestampCount * lineCount <= CURSOR_POINT_BUDGET
-}
-
 export type ChartPoint = { t: number } & Record<string, number | null>
 
 // One object per timestamp — { t, [lineKey]: value|null, … } — the shape
