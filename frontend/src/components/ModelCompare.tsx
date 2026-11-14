@@ -1,6 +1,6 @@
 import type { ComparedModel } from '../hooks/useModelCompare'
 import { STATUS, TEXT } from '../styles'
-import { paceWaitLine } from '../utils/pacing'
+import { type PaceReason, paceWaitLine } from '../utils/pacing'
 
 // What the comparison has to say beside the chart's metric radios: why a
 // model's lines are missing (#232), and why none of them have arrived yet
@@ -24,11 +24,13 @@ interface Props {
    * do, and both of those already count their wait down.
    */
   paceRemainingS: number | null
+  /** Why it waits, which picks the countdown's words. */
+  paceReason?: PaceReason
 }
 
-export default function ModelCompare({ compared, paceRemainingS }: Props) {
+export default function ModelCompare({ compared, paceRemainingS, paceReason }: Props) {
   const notes = compared.filter((m) => m.note !== null)
-  const wait = paceWaitLine(paceRemainingS)
+  const wait = paceWaitLine(paceRemainingS, paceReason)
   if (notes.length === 0 && wait === null) return null
 
   return (

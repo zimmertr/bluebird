@@ -49,6 +49,7 @@ import {
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 import { isAbort } from './abort'
+import type { PaceReason } from './pacing'
 import { utcDayKey } from './calendar/calendarDates'
 import { retryAfterSeconds } from './apiFetch'
 
@@ -620,8 +621,9 @@ export interface FetchWeatherOptions {
    * Both arrays are copies, so a caller may hold them.
    */
   onPartial?: (results: WeatherResult[], settled: boolean[]) => void
-  // The pacer or a minutely resume is about to sleep this many seconds.
-  onPace?: (seconds: number) => void
+  // The pacer, a minutely resume or an outage retry is about to sleep this
+  // many seconds, and why (`PaceReason`).
+  onPace?: (seconds: number, reason?: PaceReason) => void
   // Which model answers. Named on every FORECAST request rather than defaulted
   // here: omitting `models=` there takes Open-Meteo's `best_match` blend, which
   // chooses per location and never reports its choice, so two adjacent peaks in
@@ -685,11 +687,15 @@ const RESUME_MAX_WAIT_S = 60
 // bills the repeated request like any other, and a pacer that never heard of it
 // would book the rest of the minute as if it had not happened.
 //
-// A batch that outlives its deadline is asked once more, at once (#545). The
-// measured outliers were cold batches, which a second ask may find warm; a
-// second timeout says the service is stuck, and the analysis fails rather than
-// holding the reader a third time. No sleep and no second charge: a timeout
-// says nothing about quota, and the pacer already charged this batch.
+// A batch that outlives its deadline, or finds no host at all, is asked once
+// more at once (#545): the measured outliers were cold batches, which a second
+// ask may find warm. If that fails the same way, the host is stuck, and the
+// batch is asked again after each of `OUTAGE_WAITS_S`, narrated as an outage,
+// before the analysis fails (#849, TJ 2026-11-13): on 2026-11-13 the forecast
+// host hung for over a minute while the archive and air-quality hosts
+// answered, and every analysis failed though a minute's patience would have
+// finished it. No second charge: a request that hung was never answered, and
+// the pacer already charged this batch.
 //
 // A concurrency refusal is asked again inside `getJson`, so the minutely
 // resume above stays the only one that pays again, and a second concurrency
@@ -699,18 +705,54 @@ async function getJsonWithResume(
   params: Record<string, string>,
   signal: AbortSignal | undefined,
   spend: () => Promise<void>,
-  onPace?: (seconds: number) => void,
+  onPace?: (seconds: number, reason?: PaceReason) => void,
 ): Promise<unknown> {
   try {
     return await getJson(url, params, signal)
   } catch (e) {
-    if (e instanceof OpenMeteoTimeout) return await getJson(url, params, signal)
+    if (isOutage(e)) return await outlastOutage(url, params, signal, onPace)
     if (!(e instanceof OpenMeteoRateLimited) || e.scope !== 'minutely') throw e
     const waitS = Math.min(e.retryAfterS, RESUME_MAX_WAIT_S)
-    onPace?.(waitS)
+    onPace?.(waitS, 'quota')
     await abortableSleep(waitS * 1000, signal)
     await spend()
     return await getJson(url, params, signal)
+  }
+}
+
+/**
+ * The waits between asks once a stuck host has failed twice: about a minute
+ * in all (TJ, 2026-11-13), growing so a host coming back is not met by every
+ * batch at once.
+ */
+export const OUTAGE_WAITS_S = [10, 20, 30] as const
+
+function isOutage(e: unknown): boolean {
+  return e instanceof OpenMeteoTimeout || e instanceof OpenMeteoUnreachable
+}
+
+async function outlastOutage(
+  url: string,
+  params: Record<string, string>,
+  signal: AbortSignal | undefined,
+  onPace?: (seconds: number, reason?: PaceReason) => void,
+): Promise<unknown> {
+  try {
+    return await getJson(url, params, signal)
+  } catch (e) {
+    if (!isOutage(e)) throw e
+    let last = e
+    for (const waitS of OUTAGE_WAITS_S) {
+      onPace?.(waitS, 'outage')
+      await abortableSleep(waitS * 1000, signal)
+      try {
+        return await getJson(url, params, signal)
+      } catch (again) {
+        if (!isOutage(again)) throw again
+        last = again
+      }
+    }
+    throw last
   }
 }
 

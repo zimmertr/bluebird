@@ -1,3 +1,4 @@
+import type { PaceReason } from '../utils/pacing'
 import { useEffect, useState } from 'react'
 import { logoUrl } from '../logo'
 import type { Progress } from '../hooks/useAnalyze'
@@ -14,6 +15,8 @@ interface AnalysisOverlayProps {
   progress: Progress | null
   /** Seconds until the client pacer spends quota again, while it sleeps. */
   paceRemainingS: number | null
+  /** Why it waits: the quota refilling or Open-Meteo not answering. */
+  paceReason?: PaceReason
   /** Stops the analysis in flight. */
   onCancel: () => void
 }
@@ -33,6 +36,7 @@ export default function AnalysisOverlay({
   statusMessage,
   progress,
   paceRemainingS,
+  paceReason,
   onCancel,
 }: AnalysisOverlayProps) {
   // Elapsed-time counter for phases with no countable progress (the OSM
@@ -48,6 +52,7 @@ export default function AnalysisOverlay({
     // Live countdown while the client pacer sleeps off a quota deficit;
     // `usePacedFetch` ticks it.
     paceRemainingS,
+    paceReason,
   })
 
   useEffect(() => {

@@ -321,8 +321,8 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
             // The pacer narrating itself, exactly as the analysis overlay
             // already does. Without this a grid queued behind a large
             // analysis is silent for minutes.
-            onPace: (seconds) => {
-              if (!cancelled) onPace(seconds)
+            onPace: (seconds, reason) => {
+              if (!cancelled) onPace(seconds, reason)
             },
           })
           // The cloud column for the same chunk, which the markers above
@@ -334,8 +334,8 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
             windowLimits,
             terrainElevation: true,
             signal: ac.signal,
-            onPace: (seconds) => {
-              if (!cancelled) onPace(seconds)
+            onPace: (seconds, reason) => {
+              if (!cancelled) onPace(seconds, reason)
             },
           })
           if (cancelled) return

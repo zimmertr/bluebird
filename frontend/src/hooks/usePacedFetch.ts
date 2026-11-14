@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer } from 'react'
-import { paceReducer, paceRemainingS } from '../utils/pacing'
+import { type PaceReason, type PaceState, paceReducer, paceRemainingS } from '../utils/pacing'
 
 /**
  * One live countdown for a fetch the shared Open-Meteo budget is holding back
@@ -16,17 +16,20 @@ import { paceReducer, paceRemainingS } from '../utils/pacing'
 export interface PacedFetch {
   /** Seconds until the pacer resumes, or null when nothing is waiting. */
   paceRemainingS: number | null
+  /** Why it is waiting, which picks the countdown's words. */
+  paceReason: PaceReason
   /** Pass straight to `fetchWeather`'s `onPace`. */
-  onPace: (seconds: number) => void
+  onPace: (seconds: number, reason?: PaceReason) => void
   /** The wait is over: samples landed, the fetch finished, or it was aborted. */
   clear: () => void
 }
 
 export function usePacedFetch(): PacedFetch {
-  const [endMs, dispatch] = useReducer(paceReducer, null as number | null)
+  const [state, dispatch] = useReducer(paceReducer, null as PaceState | null)
+  const endMs = state?.endMs ?? null
 
-  const onPace = useCallback((seconds: number) => {
-    dispatch({ kind: 'pace', seconds, nowMs: Date.now() })
+  const onPace = useCallback((seconds: number, reason?: PaceReason) => {
+    dispatch({ kind: 'pace', seconds, nowMs: Date.now(), reason })
   }, [])
   const clear = useCallback(() => dispatch({ kind: 'clear' }), [])
 
@@ -44,5 +47,5 @@ export function usePacedFetch(): PacedFetch {
     return () => clearInterval(id)
   }, [endMs, tick])
 
-  return { paceRemainingS: paceRemainingS(endMs, Date.now()), onPace, clear }
+  return { paceRemainingS: paceRemainingS(endMs, Date.now()), paceReason: state?.reason ?? 'quota', onPace, clear }
 }

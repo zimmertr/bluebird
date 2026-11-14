@@ -28,6 +28,7 @@ vi.mock('./useModelCompare', () => ({
       reachEnds: [],
       results: {},
       paceRemainingS,
+      paceReason: 'quota' as const,
     }
   },
 }))

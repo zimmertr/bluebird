@@ -152,6 +152,7 @@ const ANALYSIS: MapStageProps['analysis'] = {
   statusMessage: null,
   progress: null,
   paceRemainingS: null,
+  paceReason: 'quota' as const,
   cancel: NOOP,
   analyzedAtMs: Date.parse('2026-11-03T21:36:00Z'),
 }

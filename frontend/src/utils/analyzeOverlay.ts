@@ -1,4 +1,4 @@
-import { paceWaitLine } from './pacing'
+import { type PaceReason, paceWaitLine } from './pacing'
 
 // Composes the full-screen loading overlay for an Analyze operation — a single
 // ranked analysis (searched places and CSV rows ride inside it as custom
@@ -38,6 +38,8 @@ export interface OverlayInputs {
   // when it is not sleeping. Rendered as a live countdown so a paced wait
   // reads as scheduled work, not a hang.
   paceRemainingS?: number | null
+  // Why it is waiting; the quota when absent.
+  paceReason?: PaceReason
 }
 
 // The discovery-phase heading. Shared with useAnalyze's optimistic seed so the
@@ -112,7 +114,7 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
   // During retrieval the detail line carries the live pace countdown when the
   // quota bucket is refilling. A paced analysis must never look hung: the
   // countdown plus the elapsed timer is what proves the wait is scheduled.
-  const detail = paceWaitLine(i.paceRemainingS ?? null)
+  const detail = paceWaitLine(i.paceRemainingS ?? null, i.paceReason)
   // A tail label replaces the forecast count and its percentage once the
   // weather has answered; the bar stays full under it.
   const tail = i.statusMessage !== null && TAIL_MESSAGES.includes(i.statusMessage) ? i.statusMessage : null

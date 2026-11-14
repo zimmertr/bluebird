@@ -127,6 +127,17 @@ describe('composeOverlay', () => {
     })
     expect(done.visible && done.detail).toBe(null)
   })
+
+  it('counts down a stuck host as an outage, not as the quota (#849)', () => {
+    const view = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      rankedProgress: { processed: 550, total: 908 },
+      paceRemainingS: 20,
+      paceReason: 'outage',
+    })
+    expect(view.visible && view.detail).toBe('Open-Meteo is unavailable · retrying in 20s')
+  })
 })
 
 // What the run still waits on once the weather has answered (#579): air

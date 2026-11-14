@@ -11,6 +11,7 @@
 // with whatever discovery found, so a second union in the browser would only
 // be a chance for the two to disagree.
 
+import type { PaceReason } from './pacing'
 import {
   AnalyzeRequest,
   AnalyzeResponse,
@@ -410,8 +411,9 @@ export interface ClientAnalysisCallbacks {
   // The tail label, once the weather has answered and air quality or the
   // cloud column is still out (`followTail`).
   onTail?: (message: string) => void
-  // The pacer (or a minutely resume) is about to wait this many seconds.
-  onPace?: (seconds: number) => void
+  // The pacer, a minutely resume or an outage retry is about to wait this
+  // many seconds, and why.
+  onPace?: (seconds: number, reason?: PaceReason) => void
   // Injectable for tests (horizon clamp inside fetchAqi).
   nowMs?: number
   // The live analysis cap from /api/capabilities; the compiled constant is

@@ -34,7 +34,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
   // The overlay's live countdown while the client pacer sleeps off a quota
   // deficit. Shared with the forecast grid and the model comparison, which
   // sleep against the same budget (#394).
-  const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
+  const { paceRemainingS, paceReason, onPace, clear: clearPace } = usePacedFetch()
   const abortRef = useRef<AbortController | null>(null)
 
   // Abort the in-flight request. The fetch loops swallow AbortError so no
@@ -129,5 +129,6 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     statusMessage,
     progress,
     paceRemainingS,
+    paceReason,
   }
 }

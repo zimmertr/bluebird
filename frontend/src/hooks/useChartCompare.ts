@@ -277,7 +277,7 @@ export function useChartCompare({
   // second model is selected, where `ModelCompare` says the same wait only
   // while the CHART draws a comparison. Null while the chart has it, because
   // one wait said twice is the reason it was put in one module.
-  const compareWait = compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS)
+  const compareWait = compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS, compare.paceReason)
 
   // Why a compared model has no rows, on the same terms as the wait. The note
   // is the chart's (`ModelCompare`), but the table loses that model's rows

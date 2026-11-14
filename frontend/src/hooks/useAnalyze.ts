@@ -306,6 +306,7 @@ export function useAnalyze(
     statusMessage: run.statusMessage,
     progress: run.progress,
     paceRemainingS: run.paceRemainingS,
+    paceReason: run.paceReason,
   }
 }
 
