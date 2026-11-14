@@ -726,7 +726,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     const shown = render(<>{topCard({ active: true, payload: [{ dataKey: 'x', value: 1 }], label: TIMES[T] })}</>)
     rects.mockRestore()
     const card = shown.container.firstElementChild as HTMLElement
-    expect(card.style.transform).toBe('translate(-140px, 0px)')
+    expect(card.style.transform).toBe('translate(-140px)')
     // As wide as its content, not shrunk to the hovered panel's box.
     expect(card.classList.contains('w-max')).toBe(true)
   })
@@ -842,7 +842,7 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(colShare()).toBe('0.5')
     expect(rowShare()).toBe('0.5')
     const rows = Array.from(container.firstElementChild!.lastElementChild!.children).slice(0, 2) as HTMLElement[]
-    expect((rows[0].children[1] as HTMLElement).style.transform).toBe('translate(608px, 0px)')
+    expect((rows[0].children[1] as HTMLElement).style.transform).toBe('translate(608px)')
     expect((rows[1].children[0] as HTMLElement).style.transform).toBe('translate(0px, 308px)')
     expect(cross.style.transform).toBe('translate(200px, 100px)')
     expect(cross.style.willChange).toBe('transform')
