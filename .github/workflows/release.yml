@@ -28,7 +28,7 @@ permissions: {}
 jobs:
   release:
     name: Release
-    uses: zimmertr/yggdrasil/.github/workflows/release.yml@f805e7b874e54e661d8dc8ad528883228bfc567b # v1.2.9
+    uses: zimmertr/yggdrasil/.github/workflows/release.yml@60088d4f7cc03c82288314b672ff30399210c5ed # v1.5.0
     permissions:
       contents: write # the tag and release
       packages: write # the two images, pushed to ghcr.io/zimmertr
