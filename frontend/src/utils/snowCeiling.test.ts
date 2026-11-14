@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SNOW_DEPTH_CEILING_IN, isSnowDepthKey, snowCellText } from './snowCeiling'
+import { SNOW_DEPTH_CEILING_IN, glacierRowCount, isSnowDepthKey, snowCellText } from './snowCeiling'
 import { FAMILY_KEYS } from '../metrics'
 import { COLUMNS } from './tableColumns'
 
@@ -52,5 +52,23 @@ describe('snowCellText', () => {
   // the pod and the browser agree on where that file stops counting.
   it('is the ceiling the backend derives', () => {
     expect(SNOW_DEPTH_CEILING_IN).toBe(1290.04)
+  })
+})
+
+describe('glacierRowCount', () => {
+  const rows = [
+    { snow_depth_max_in: SNOW_DEPTH_CEILING_IN },
+    { snow_depth_max_in: 384 },
+    { snow_depth_max_in: null },
+    { snow_depth_max_in: SNOW_DEPTH_CEILING_IN },
+  ]
+
+  it('counts the rows on the ceiling while snow depth ranks, whichever aggregate', () => {
+    expect(glacierRowCount('snow_depth_max_in', rows)).toBe(2)
+    expect(glacierRowCount('snow_depth_min_in', rows)).toBe(2)
+  })
+
+  it('counts nothing under any other ranking', () => {
+    expect(glacierRowCount('snowfall_total_in', rows)).toBe(0)
   })
 })

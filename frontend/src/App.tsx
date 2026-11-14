@@ -79,6 +79,7 @@ import { buildCustomList, customListSize, pendingDestinations } from './utils/cu
 import { analysisPoints } from './utils/model/modelDomain'
 import { actionWord, retryStands } from './utils/analyzeGate'
 import { usePanelMessages } from './hooks/usePanelMessages'
+import { glacierRowCount } from './utils/snowCeiling'
 import { useDemoMessages } from './tour/demoMessages'
 import { checkNoticeDue } from './utils/fireProximity'
 import {
@@ -614,6 +615,7 @@ export default function App() {
     limit,
     hourlyCalls: caps.openMeteoHourlyCalls,
     aqiPartial: analysis.aqiPartial,
+    glacierRows: glacierRowCount(sortBy, results),
     failureSeq,
     commitReasons,
     hasReport: response !== null,

@@ -22,7 +22,7 @@
 // derivation in this repository is: Vitest runs node-env, so logic left inside
 // a component is untestable by construction.
 
-import { FAMILY_KEYS } from '../metrics'
+import { FAMILY_KEYS, familyOf } from '../metrics'
 
 /**
  * The largest depth the source file can carry, in inches.
@@ -48,4 +48,26 @@ export function snowCellText(value: unknown, grouped = true): string | null {
   if (typeof value !== 'number' || value < SNOW_DEPTH_CEILING_IN) return null
   const whole = Math.round(SNOW_DEPTH_CEILING_IN)
   return `≥${grouped ? whole.toLocaleString(undefined, { maximumFractionDigits: 0 }) : whole}`
+}
+
+/**
+ * How many displayed rows sit on the ceiling while the ranking is snow depth,
+ * which the message list counts so a reader whose top rows are glacier ice
+ * learns the upper bound leaves them out (#849, TJ 2026-11-13). The ceiling is
+ * the test because it is free: a deep glacier under it, Glacier Peak's 384 in,
+ * does not count, where asking the glacier tiles per row would.
+ */
+export function glacierRowCount(
+  sortBy: string,
+  rows: readonly { snow_depth_max_in?: number | null }[],
+): number {
+  if (familyOf(sortBy) !== 'snow_depth') return 0
+  return rows.filter((r) => typeof r.snow_depth_max_in === 'number' && r.snow_depth_max_in >= SNOW_DEPTH_CEILING_IN).length
+}
+
+/** The message for those rows, in the maintainer's words (2026-11-13). */
+export function glacierNote(count: number): string {
+  return count === 1
+    ? '1 destination measures glacier snow. Set an upper bound to exclude it as an outlier.'
+    : `${count} destinations measure glacier snow. Set an upper bound to exclude them as outliers.`
 }

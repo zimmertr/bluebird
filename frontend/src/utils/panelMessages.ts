@@ -11,6 +11,7 @@ import type { WindowLimits, WindowSource } from './forecastWindow'
 import { grouped } from './numbers'
 import { capDetail, spendDetail } from './clientAnalyze'
 import { COVERAGE_PHRASE } from './openMeteoErrors'
+import { glacierNote } from './snowCeiling'
 import type { LinkDrop } from './urlState'
 
 // Which messages the panel has to say, and in what order. A module of its own
@@ -189,6 +190,8 @@ export interface PanelMessageInputs {
   // The report's air quality failed for some of its field and not all of it
   // (#803, D5): one refused batch nulls every batch after it (`fetchAqi`).
   aqiPartial: boolean
+  /** Displayed rows on the snow depth ceiling while snow depth ranks (`glacierRowCount`). Absent reads as none. */
+  glacierRows?: number
   wildfireCheckFailed: boolean
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
@@ -424,6 +427,11 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
             severity: 'warn' as const,
           },
         ]
+      : []),
+    // Keyed on the condition, not the count, so one dismissal holds while the
+    // reader changes the ring or the window (#849).
+    ...(p.hasReport && (p.glacierRows ?? 0) > 0
+      ? [{ key: 'snow:glacier', text: glacierNote(p.glacierRows ?? 0), severity: 'info' as const }]
       : []),
   ]
 }
