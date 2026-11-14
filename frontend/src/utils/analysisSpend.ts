@@ -1,5 +1,5 @@
 import { type ForecastSelection, selectionLocalWindow } from './calendar/calendarSelection'
-import type { WindowLimits } from './forecastWindow'
+import { type WindowLimits, windowSource } from './forecastWindow'
 import { roundTo } from './numbers'
 import { aqiSpan, callWeight, fetchSpans } from './openMeteo'
 import { CLOUD_VARIABLES, HOURLY_VARIABLES } from './openMeteoAggregate'
@@ -70,10 +70,13 @@ export function totalCalls(c: HostCalls): number {
  * One model's weather for `n` destinations, and its cloud column with it when
  * `cloud` is set, each priced per span and booked to the span's host: a window
  * crossing the archive boundary is two requests per batch (`fetchSpans`), one
- * to each host, as `fetchWeather` and `fetchCloud` send them.
+ * to each host, as `fetchWeather` and `fetchCloud` send them. A window wholly
+ * in the archive prices no cloud column, because `fetchCloud` asks nothing
+ * for one: the archive has no pressure-level humidity (#849).
  */
-export function modelCalls(n: number, w: SpendWindow, cloud: boolean): HostCalls {
+export function modelCalls(n: number, w: SpendWindow, wantsCloud: boolean): HostCalls {
   if (n <= 0) return NO_CALLS
+  const cloud = wantsCloud && windowSource(w.startMs, w.endMs, w.nowMs, w.windowLimits) !== 'archive'
   return fetchSpans(w.startMs, w.endMs, w.nowMs, w.windowLimits).reduce((sum, span) => {
     const calls =
       callWeight(n, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1) +
