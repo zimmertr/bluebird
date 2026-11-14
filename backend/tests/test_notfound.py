@@ -6,8 +6,6 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from starlette.routing import Mount
-from starlette.staticfiles import StaticFiles
 
 import app.routes.analyze.route as analyze_route
 from app.main import app
@@ -25,23 +23,8 @@ from generate_edge_not_found import render as render_edge_record  # noqa: E402
 client = TestClient(app)
 
 
-@pytest.fixture
-def static_mount(tmp_path):
-    """The SPA mount the image has, which a source checkout lacks.
-
-    Without build output there is no mount, and Starlette answers a path that
-    matches nothing with a slash redirect instead, which hides what the image
-    does with the same request.
-    """
-    (tmp_path / "404.html").write_text("<!doctype html><title>Not found</title>")
-    mount = Mount("/", StaticFiles(directory=tmp_path, html=True))
-    app.router.routes.append(mount)
-    yield
-    app.router.routes.remove(mount)
-
-
 @pytest.mark.parametrize("path", ["/api/nope", "/api/analyze/nope", "/api/v1/analyze"])
-def test_unknown_api_path_returns_a_json_404(path):
+def test_unknown_api_path_returns_a_json_404(static_mount, path):
     # Before the catch-all, these fell through to the SPA static mount and were
     # answered by StaticFiles, so an API typo was indistinguishable from a
     # missing web page and the body shape was an accident of the static handler.

@@ -1234,12 +1234,18 @@ flowchart LR
   image and the gates that check it later cannot disagree. Today its only
   entry skips pip's vendored-source SBOM, which Trivy would otherwise read as
   installed inventory (this repo found it, in its own copy, record 0278). This repo passes
-  the module its build arguments, the Actions layer cache, and the **smoke
-  test**, which runs the image and checks what only a built image can show: the build arguments reach `/api/version`, Swagger UI is
-  served from the image, and the license notices ship (#571):
-  `/third-party-licenses.txt` and `/swagger-ui/swagger-ui-bundle.js.LICENSE.txt`
-  answer, the first names every direct dependency in `frontend/package.json`
-  and `backend/requirements.in`, and `/app/LICENSE` is in the image. The
+  the module its build arguments, the Actions layer cache, and
+  **`tests/structure-test.yaml`**, which container-structure-test runs against
+  the built image for what only a built image can show: the sentinel
+  `APP_VERSION` reaches `/api/version` and the schema, `/docs` loads Swagger UI
+  from the image and names no third-party host, the SPA and Swagger UI's files
+  are in it, and the license notices ship (#571): the bundle's own notice beside
+  it, `third-party-licenses.txt` naming every direct dependency in
+  `frontend/package.json` and `backend/requirements.in`
+  (`backend/tests/test_structure_test.py` holds the file's list to both), and
+  `/app/LICENSE`. What the app answers for those files over HTTP is the
+  backend's own tests (`test_static.py`, `test_notfound.py`), against stand-ins
+  at the same paths. The
   build itself fails before that when a bundled or installed package has no
   license text, so this job is where a missing notice turns a PR red.
 - `pr.yml`'s **Database Tests** job (#760) runs the backend tests marked `db`,

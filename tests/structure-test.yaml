@@ -1,0 +1,83 @@
+# What only the built image can show, run by yggdrasil's docker-build module
+# against the image Docker Build makes (record 0060 there). The HTTP behaviour
+# behind each file is the backend's own tests, run from source; a source
+# checkout has no build output, so these are the half pytest cannot reach.
+# container-structure-test replaces the entry point for every command, so
+# each one names its program in full.
+schemaVersion: 2.0.0
+
+metadataTest:
+  # The sentinel pr.yml passes as a build argument. The command test below
+  # reads it back through the app, which is what proves the ARG -> ENV ->
+  # endpoint chain survived a Dockerfile edit; test_version.py holds the
+  # endpoint to the environment.
+  envVars:
+    - key: APP_VERSION
+      value: 0.0.0-ci
+  user: '10001:10001'
+  workdir: /app
+  exposedPorts: ['8000', '9464']
+  cmd: [uvicorn, app.main:app, --host, 0.0.0.0, --port, '8000']
+
+commandTests:
+  - name: the build arguments reach /api/version and openapi info.version
+    command: python
+    args: [-c, 'from app.main import app; from app.version import get_version; print(get_version()); print(app.openapi()["info"]["version"])']
+    expectedOutput: ['^0\.0\.0-ci\n0\.0\.0-ci\n$']
+
+  # /docs falls back to a CDN whenever static/swagger-ui is absent, and in a
+  # source checkout it always is. Without this, retargeting the Dockerfile's
+  # COPY would silently restore the third-party script surface that a strict
+  # CSP (#132) depends on being gone.
+  - name: /docs is self-hosted and names no third-party host
+    command: python
+    args: [-c, 'from app.main import _DOCS_HTML; print(_DOCS_HTML)']
+    expectedOutput: ['/swagger-ui/swagger-ui-bundle\.js']
+    excludedOutput: [jsdelivr, googleapis, tiangolo]
+
+fileExistenceTests:
+  - name: the SPA is in the image
+    path: /app/static/index.html
+    shouldExist: true
+  - name: Swagger UI's script is in the image
+    path: /app/static/swagger-ui/swagger-ui-bundle.js
+    shouldExist: true
+  - name: Swagger UI's stylesheet is in the image
+    path: /app/static/swagger-ui/swagger-ui.css
+    shouldExist: true
+  - name: the bundle's own notice ships beside it
+    path: /app/static/swagger-ui/swagger-ui-bundle.js.LICENSE.txt
+    shouldExist: true
+
+fileContentTests:
+  # The repository's own license ships in the image, unserved.
+  - name: the image carries the repository's LICENSE
+    path: /app/LICENSE
+    expectedContents: ['^# PolyForm Noncommercial License 1\.0\.0\n']
+
+  # The license notices (#571). The build writes the file from what it bundled
+  # and installed, and fails on a package with no text; this says the result
+  # ships and names every direct dependency, so a build that silently skipped
+  # either half cannot pass. One pattern per name in frontend/package.json's
+  # dependencies and backend/requirements.in, compared the way pip compares
+  # Python names; backend/tests/test_structure_test.py holds this list to both.
+  - name: the license file names every direct dependency
+    path: /app/static/third-party-licenses.txt
+    expectedContents:
+      - '(?im)^@mapbox/vector-tile \S+$'
+      - '(?im)^lz-string \S+$'
+      - '(?im)^maplibre-contour \S+$'
+      - '(?im)^maplibre-gl \S+$'
+      - '(?im)^pbf \S+$'
+      - '(?im)^react \S+$'
+      - '(?im)^react-dom \S+$'
+      - '(?im)^recharts \S+$'
+      - '(?im)^fastapi \S+$'
+      - '(?im)^uvicorn \S+$'
+      - '(?im)^httptools \S+$'
+      - '(?im)^uvloop \S+$'
+      - '(?im)^httpx \S+$'
+      - '(?im)^pydantic \S+$'
+      - '(?im)^prometheus[-_.]+client \S+$'
+      - '(?im)^psycopg \S+$'
+      - '(?im)^psycopg[-_.]+pool \S+$'
