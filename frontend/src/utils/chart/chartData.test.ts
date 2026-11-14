@@ -553,7 +553,209 @@ describe('nowWithinGrid', () => {
   })
 })
 
+// The hover card is drawn inside the plotting area, so a fixed eight rows
+// overhung the results table once the chart panel was dragged toward its floor.
+describe('tooltipCapacity', () => {
+  it('lists the full set when the chart is tall', () => {
+    expect(tooltipCapacity(600)).toBe(TOOLTIP_MAX_ROWS)
+  })
+
+  it('never lists more than is readable, however tall the chart', () => {
+    expect(tooltipCapacity(5000)).toBe(TOOLTIP_MAX_ROWS)
+  })
+
+  it('sheds rows as the chart shrinks', () => {
+    const tall = tooltipCapacity(400)
+    const short = tooltipCapacity(160)
+    expect(short).toBeLessThan(tall)
+  })
+
+  it('always leaves at least one row, so the card still says something', () => {
+    expect(tooltipCapacity(0)).toBe(TOOLTIP_MIN_ROWS)
+    expect(tooltipCapacity(-50)).toBe(TOOLTIP_MIN_ROWS)
+  })
+
+  // The property that matters: the card it describes fits the space given.
+  it('never asks for more height than the plot area has', () => {
+    for (const px of [80, 120, 160, 240, 320, 480]) {
+      const rows = tooltipCapacity(px)
+      const cardPx = rows * TOOLTIP_ROW_PX + TOOLTIP_CHROME_PX
+      // One row is the floor and may legitimately overhang a very short panel;
+      // above that the card must fit.
+      if (rows > TOOLTIP_MIN_ROWS) expect(cardPx).toBeLessThanOrEqual(px)
+    }
+  })
+})
+
+describe('comparedLineLabel', () => {
+  // Rank, destination, model. The #232 review's second finding was a key whose
+  // entries read differently from each other — a destination on one line, a
+  // model on the next — so this is the one spelling every entry takes.
+  it('reads rank, destination, then model', () => {
+    expect(comparedLineLabel(1, 'Mount Rainier', 'NOAA GFS')).toBe('1. Mount Rainier (NOAA GFS)')
+  })
+
+  // The ranking model's own lines take it too, which is what makes two entries
+  // for one destination comparable at a glance.
+  it("names the ranking model's own line the same way", () => {
+    expect(comparedLineLabel(1, 'Mount Rainier', 'ECMWF IFS')).toBe(
+      '1. Mount Rainier (ECMWF IFS)',
+    )
+  })
+})
+
+describe('modelNamed', () => {
+  // The legend chip's form: the hover box's name without the rank.
+  it('reads destination, then model', () => {
+    expect(modelNamed('Cathedral Peak', 'ECMWF IFS')).toBe('Cathedral Peak (ECMWF IFS)')
+  })
+
+  it('ends in the model suffix the legend chip draws apart', () => {
+    expect(modelNamed('Cathedral Peak', 'ECMWF IFS')).toBe(`Cathedral Peak${modelSuffix('ECMWF IFS')}`)
+  })
+
+  // One spelling for both, so the chip and the hover box cannot drift apart.
+  it('is the compared line label without its rank', () => {
+    expect(comparedLineLabel(3, 'Cathedral Peak', 'ECMWF IFS')).toBe(
+      `3. ${modelNamed('Cathedral Peak', 'ECMWF IFS')}`,
+    )
+  })
+})
+
+// A crag named for the peak it stands on is two rows of one name (#715). The
+// table tells them apart by its Type column; every name the chart prints
+// carries the type instead, and only while the collision is on screen.
+describe('a name two places share', () => {
+  const peak = resultRow({ name: 'The Tooth', type: 'peak', latitude: 47.41, longitude: -121.45 })
+  const crag = resultRow({ name: 'The Tooth', type: 'crag', latitude: 47.4108, longitude: -121.4492 })
+  const rainier = resultRow({ name: 'Mount Rainier', type: 'peak', latitude: 46.85, longitude: -121.76 })
+  const named = (rows: DestinationResult[]) => {
+    const shared = sharedNames(rows)
+    return rows.map((r) => lineNamed(r.name, collidingType(r, shared)))
+  }
+
+  it('leaves every name bare when none is shared', () => {
+    expect(named([peak, rainier])).toEqual(['The Tooth', 'Mount Rainier'])
+  })
+
+  it('names the type, as the Type column words it, on both of the pair', () => {
+    expect(named([crag, peak, rainier])).toEqual(['The Tooth (Crag)', 'The Tooth (Peak)', 'Mount Rainier'])
+  })
+
+  // Removals apply before the chart reads its rows, so a × that leaves one
+  // place with the name leaves nothing to tell apart.
+  it('drops the type again once one of the pair is removed', () => {
+    expect(named([crag, rainier])).toEqual(['The Tooth', 'Mount Rainier'])
+  })
+
+  // A comparison repeats a place once per model; one place is no collision.
+  it('counts places, not rows', () => {
+    expect(sharedNames([peak, { ...peak }]).size).toBe(0)
+  })
+
+  it('shares one bracket with the model under a comparison, type first', () => {
+    const shared = sharedNames([crag, peak])
+    expect(comparedLineLabel(1, crag.name, 'NOAA GFS', collidingType(crag, shared))).toBe(
+      '1. The Tooth (Crag, NOAA GFS)',
+    )
+    expect(modelNamed(crag.name, 'NOAA GFS', collidingType(crag, shared))).toBe(
+      `The Tooth${modelSuffix('NOAA GFS', 'Crag')}`,
+    )
+    expect(comparedLineLabel(1, rainier.name, 'NOAA GFS', collidingType(rainier, shared))).toBe(
+      '1. Mount Rainier (NOAA GFS)',
+    )
+  })
+})
+
+// The chart's slots (#499): one rule moves them, whether the ranking or a
+// picker asks, and a metric never stands in two.
+describe('the chart metric slots', () => {
+  const PT: ChartMetrics = ['precip', 'temp']
+
+  it('opens on the ranking, with one panel', () => {
+    expect(metricsFor('temp_max_f')).toEqual(['temp'])
+  })
+
+  it('follows a new ranking in the first slot, swapping with the slot that held it', () => {
+    expect(pickMetric(PT, 0, 'temp')).toEqual(['temp', 'precip'])
+    expect(pickMetric(['precip', 'temp', 'wind'], 0, 'wind')).toEqual(['wind', 'temp', 'precip'])
+    expect(pickMetric(PT, 0, 'aqi')).toEqual(['aqi', 'temp'])
+  })
+
+  it('swaps when any picker takes a metric another slot holds', () => {
+    expect(pickMetric(['precip', 'temp', 'wind', 'aqi'], 3, 'temp')).toEqual(['precip', 'aqi', 'wind', 'temp'])
+    expect(pickMetric(PT, 1, 'wind')).toEqual(['precip', 'wind'])
+  })
+
+  it('answers the same list when nothing moves', () => {
+    expect(pickMetric(PT, 0, 'precip')).toBe(PT)
+    expect(pickMetric(PT, 5, 'wind')).toBe(PT)
+    expect(removeMetric(PT, 0)).toBe(PT)
+  })
+
+  it('adds the first metric not drawn, up to the ceiling', () => {
+    const first = CHART_METRICS[0].key
+    expect(addMetric([CHART_METRICS[1].key])).toEqual([CHART_METRICS[1].key, first])
+    expect(addMetric([first])).toEqual([first, CHART_METRICS[1].key])
+    const full = CHART_METRICS.slice(0, MAX_CHART_PANELS).map((m) => m.key)
+    expect(addMetric(full)).toBe(full)
+  })
+
+  it('moves a panel among the slots after the first, the rest closing up', () => {
+    const four: ChartMetrics = ['precip', 'temp', 'wind', 'freeze']
+    expect(moveMetric(four, 2, 1)).toEqual(['precip', 'wind', 'temp', 'freeze'])
+    expect(moveMetric(four, 1, 3)).toEqual(['precip', 'wind', 'freeze', 'temp'])
+    // The first slot is the ranking's: nothing moves into it or out of it.
+    expect(moveMetric(four, 1, 0)).toBe(four)
+    expect(moveMetric(four, 0, 2)).toBe(four)
+    expect(moveMetric(four, 2, 2)).toBe(four)
+    expect(moveMetric(four, 2, 4)).toBe(four)
+  })
+
+  it('removes any slot but the first', () => {
+    expect(removeMetric(['precip', 'temp', 'wind'], 1)).toEqual(['precip', 'wind'])
+    expect(removeMetric(['precip', 'temp', 'wind'], 0)).toEqual(['precip', 'temp', 'wind'])
+  })
+
+  // The Metrics table's chart toggles (record 0290).
+  it('draws and takes away families, never the first, up to the ceiling', () => {
+    const PTW: ChartMetrics = ['precip', 'temp', 'wind']
+    expect(chartFamilies(PTW, ['aqi'], true)).toEqual(['precip', 'temp', 'wind', 'aqi'])
+    expect(chartFamilies(PTW, ['aqi', 'freeze'], true)).toEqual(['precip', 'temp', 'wind', 'aqi'])
+    expect(chartFamilies(PTW, ['temp', 'precip'], false)).toEqual(['precip', 'wind'])
+    expect(chartFamilies(PTW, ['temp'], true)).toBe(PTW)
+    expect(chartFamilies(PTW, ['precip'], false)).toBe(PTW)
+  })
+
+  it('holds four panels at most', () => {
+    expect(MAX_CHART_PANELS).toBe(4)
+  })
+
+  it('knows its own names', () => {
+    expect(RANKED_FAMILIES.every(isChartMetric)).toBe(true)
+    // Snow depth draws its daily analyses since #849.
+    expect(isChartMetric('snow_depth')).toBe(true)
+    expect(isChartMetric('snow')).toBe(false)
+  })
+})
+
 describe('cardCells', () => {
+  const line = {
+    key: 'k',
+    label: 'Sahale Mountain',
+    color: '#000000',
+    ranked: true,
+    series: seriesOf({ precip_in: [0.05, null], temp_f: [38.9, 40], aqi: [42, 43] }),
+  }
+
+  it("prints each metric's value bare, through its own format, first panel first", () => {
+    expect(cardCells(line, ['precip', 'temp', 'aqi'], 0)).toEqual([
+      formatTooltipValue(0.05, 'precip'),
+      formatTooltipValue(38.9, 'temp'),
+      '42',
+    ])
+  })
+
   it('leaves an empty cell where a metric has no value', () => {
     expect(cardCells(line, ['precip', 'temp'], 1)).toEqual(['', formatTooltipValue(40, 'temp')])
   })
