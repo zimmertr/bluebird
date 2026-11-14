@@ -1144,8 +1144,8 @@ measured.
 
 ## PR preview environments
 
-Every PR builds an image; **owner-authored** PRs additionally get a live,
-per-PR preview environment.
+Every PR from a branch in this repo into `main` builds an image;
+**owner-authored** PRs additionally get a live, per-PR preview environment.
 
 ```mermaid
 flowchart LR
@@ -1156,7 +1156,7 @@ flowchart LR
         checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, mypy, pytest, OpenAPI + API-type drift,<br/>database tests against PostGIS, planet fill build + suite + Trivy,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets, browser smoke + axe"]
         title["pr-title.yml<br/>PR Title: yggdrasil's pr-title module checks the type<br/>(also on a title edit)"]
         lint["lint.yml<br/>yggdrasil's lint module: actionlint, zizmor,<br/>Semgrep's base-image digest rule"]
-        preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
+        preview["pr-preview.yml<br/>yggdrasil's pr-preview module, pull_request<br/>(same-repo PRs into main)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
     end
@@ -1322,20 +1322,24 @@ flowchart LR
   Semgrep's rule that every Dockerfile `FROM` carries a digest. They are
   required checks, as `Lint / actionlint`, `Lint / zizmor` and
   `Lint / semgrep` (record 0279).
-- `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
-  repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
-  never execute with secrets. It builds `ghcr.io/zimmertr/bluebird-pr:pr-<N>-<head_sha>`,
+- `pr-preview.yml` calls yggdrasil's **pr-preview** module on
+  **`pull_request`**, for PRs into `main`. A fork's run gets no write token and
+  no secret, and the module skips it; Renovate's branches live in this repo, so
+  its runs get the `packages: write` the job asks for. Record:
+  [0300](architectural-decision-records/0300-previews-build-through-yggdrasils-module.md)
+  It builds `ghcr.io/zimmertr/bluebird-pr:pr-<N>-<head_sha>`,
   pushes it with the job's own `GITHUB_TOKEN`, and skips the build when that
   tag is already in GHCR: a re-run or a
   reopen on the same head commit asks for the same tag, and the image already
-  there is from the same source.
+  there is from the same source. Its cache is written under the PR's own ref,
+  so `cache-cleanup.yml` removes it when the PR closes.
 - **Preview tags can be replaced.** GHCR has no immutable tags, so a token
   that can write `ghcr.io/zimmertr/bluebird-pr` can replace the image behind
   a live preview's tag, and a preview's image reaches the same cluster as
   production. No such token is stored: the push uses the job's own
   `GITHUB_TOKEN`, which ends with the run (record 0280).
 - For the owner's own PRs it applies the **`create pr container`** label and posts
-  a sticky comment with the preview URL. Other authors (e.g. Renovate) still
+  a sticky comment with the preview URL, under the module's `pr-preview` header. Other authors (e.g. Renovate) still
   build an image but get no label, so no preview pod spins up.
 - Argo CD's `bluebird-pr` `ApplicationSet` uses a `pullRequest` generator that
   polls GitHub for the label every 150s and templates `bluebird-pr-<N>` from the
