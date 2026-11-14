@@ -309,8 +309,8 @@ class EncodedSlashMiddleware:
     It reads `raw_path`, the path as sent, because `path` has already been
     decoded. Every path is covered, not only `/api`: no route here takes a path
     parameter, so no request this app serves needs an encoded slash. The body
-    is the edge record's (`EDGE_PATH_PHRASE`), so both layers say the same
-    thing. Pure ASGI like the header middlewares, so it never buffers the
+    names the path with `EDGE_PATH_PHRASE`, as the gateway's does, so both
+    layers say the same thing. Pure ASGI like the header middlewares, so it never buffers the
     analyze stream it passes through.
     """
 

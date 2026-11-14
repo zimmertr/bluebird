@@ -1,6 +1,6 @@
 # 0081. The gateway's 404 is the app's, and a keyed route's CORS preflight reaches the pod
 
-- Status: Accepted
+- Status: Accepted, its record file and comparison superseded by [0299](0299-the-gateways-404-is-not-compared-with-the-apps.md)
 - Date: 2026-10-01
 - Decider: the maintainer (TJ), on issue #565 (option A, with a check pinning the two bodies that is visible but not blocking, and the preflight fixed now)
 - Issues and PRs: #565, #598, bluebird-helm#280, #240, #317, #324, #132
