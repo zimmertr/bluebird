@@ -1,6 +1,6 @@
 # 0279. The workflow and dependency rules are held by tools and config, not by tests of our own
 
-- Status: Accepted; supersedes 0099, 0100, 0197 and 0275 in part
+- Status: Accepted; supersedes 0099, 0100, 0197 and 0275 in part; amended by [0300](0300-previews-build-through-yggdrasils-module.md) (the `pull_request_target` silence is gone)
 - Date: 2026-11-06
 - Decider: the maintainer (TJ), 2026-11-06, in zimmertr/yggdrasil#6: "We shouldn't be rolling our own scripts when open source tools and frameworks exist and are community maintained to solve these problems." and, on the plan, "Makes sense to me."
 - Issues and PRs: zimmertr/yggdrasil#6 (step 4.4), zimmertr/yggdrasil#38, this PR
