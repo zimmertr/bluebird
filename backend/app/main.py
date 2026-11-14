@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import time
@@ -45,9 +46,11 @@ from app.routes.landmarks import router as landmarks_router
 from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
 from app.routes.notfound import router as notfound_router
 from app.routes.smoke import router as smoke_router
+from app.routes.snow_depth import router as snow_depth_router
 from app.routes.version import router as version_router
 from app.routes.wildfires import router as wildfires_router
 from app.services import http as upstream_http
+from app.services import snodas
 from app.services.places import update as places_update  # noqa: F401  registers the daily update
 from app.version import get_version
 
@@ -217,6 +220,15 @@ _TAGS = [
             "rather than asked of an upstream per map pan."
         ),
     },
+    {
+        "name": "snow depth",
+        "description": (
+            "Daily snow depth from the NOHRSC SNODAS analysis, a year of it at "
+            "every place this instance knows inside the grid, read for an "
+            "analysis window. Served from this instance's own copy rather than "
+            "asked of NSIDC per request."
+        ),
+    },
 ]
 
 @asynccontextmanager
@@ -231,10 +243,17 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # refresh loop runs on every pod and does work only where it takes a lock.
     await db.start()
     refresh.start()
+    # The snow grid, fetched behind startup rather than during it. A pod that
+    # waited on NSIDC would be a pod one upstream outage keeps out of the load
+    # balancer, and an analysis that runs before the grid lands simply reports
+    # no snow depth (`snow_history.window_depths`). The task reference is held
+    # because asyncio only weakly references running tasks.
+    warm_snow = asyncio.create_task(snodas.warm_up())
     # The Open-Meteo client is built lazily on first use so it binds to this
     # loop; all we owe it is a close, so the pod's keep-alive connections go
     # away with the process rather than waiting on upstream's idle timeout.
     yield
+    warm_snow.cancel()
     await refresh.stop()
     await db.stop()
     telemetry.stop_metrics_server()
@@ -460,6 +479,7 @@ app.include_router(wildfires_router, prefix="/api")
 app.include_router(smoke_router, prefix="/api")
 app.include_router(closures_router, prefix="/api")
 app.include_router(landmarks_router, prefix="/api")
+app.include_router(snow_depth_router, prefix="/api")
 app.include_router(fire_activity_router, prefix="/api")
 # Must stay last of the /api routers: it matches every path under the prefix, so
 # anything registered after it would be unreachable.

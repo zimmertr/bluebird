@@ -511,9 +511,9 @@ describe('encodeState', () => {
 
   it('omits every forecast bound when unset', () => {
     // Read off the codec table, so a bound added there is covered on arrival:
-    // two ends on each of the seven families.
+    // two ends on each of the eight families.
     const bounds = URL_PARAMS.map((r) => r.key).filter((k) => /^(min|max)/.test(k))
-    expect(bounds).toHaveLength(14)
+    expect(bounds).toHaveLength(16)
     const params = new URLSearchParams(encodeState(base, DEFAULT_MODEL))
     for (const k of bounds) expect(params.has(k), k).toBe(false)
   })
@@ -530,6 +530,8 @@ describe('encodeState', () => {
       maxFreezeFt: 12000,
       minSnowfallTotalIn: 2,
       maxSnowfallTotalIn: 60,
+      minSnowDepthIn: 12,
+      maxSnowDepthIn: 120,
       minAqi: 10,
       maxAqi: 100,
       minCloudDeckFt: 5000,
@@ -542,6 +544,7 @@ describe('encodeState', () => {
     expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
     expect(new URLSearchParams(qs).get('minsnowfall')).toBe('2')
+    expect(new URLSearchParams(qs).get('minsnow')).toBe('12')
     expect(new URLSearchParams(qs).get('minclouddeck')).toBe('5000')
     expect(new URLSearchParams(qs).get('maxclouddeck')).toBe('14000')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
@@ -1062,6 +1065,7 @@ describe('decodeState tolerance', () => {
         temp: 'temp_min_f',
         freeze: 'freeze_min_ft',
         snowfall: 'snowfall_total_in',
+        snow_depth: 'snow_depth_max_in',
         aqi: 'aqi_avg',
         cloud_deck: 'cloud_deck_max_ft',
       })

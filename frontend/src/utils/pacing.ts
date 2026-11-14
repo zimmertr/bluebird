@@ -11,10 +11,16 @@
 // a duration once, at the moment it decides to sleep; everything after that is
 // the clock's job, and a count stored in state would need a tick to stay true.
 
+/**
+ * Why a fetch is waiting: the shared budget refilling (`quota`), or Open-Meteo
+ * not answering and the batch about to be asked again (`outage`, #849).
+ */
+export type PaceReason = 'quota' | 'outage'
+
 /** What can happen to a wait. */
 export type PaceAction =
   /** The pacer is about to sleep this long. */
-  | { kind: 'pace'; seconds: number; nowMs: number }
+  | { kind: 'pace'; seconds: number; nowMs: number; reason?: PaceReason }
   /**
    * Nothing is waiting any more: samples landed, the fetch finished, or it was
    * aborted. One action for all three, because the reader cannot tell them
@@ -29,10 +35,15 @@ export type PaceAction =
  * the wait it is about to take, so the latest word is the true one. That is why
  * the state before the action is unread — both actions are absolute.
  */
-export function paceReducer(_endMs: number | null, action: PaceAction): number | null {
+export interface PaceState {
+  endMs: number
+  reason: PaceReason
+}
+
+export function paceReducer(_state: PaceState | null, action: PaceAction): PaceState | null {
   switch (action.kind) {
     case 'pace':
-      return action.nowMs + action.seconds * 1000
+      return { endMs: action.nowMs + action.seconds * 1000, reason: action.reason ?? 'quota' }
     case 'clear':
       return null
   }
@@ -62,8 +73,11 @@ export function paceRemainingS(endMs: number | null, nowMs: number): number | nu
  * heading (analyzeOverlay.ts, record 0205): 208px at 12px in the overlay
  * card's 230px, where the sentence it replaced was 205px.
  */
-export function paceWaitLine(remainingS: number | null): string | null {
-  return remainingS !== null && remainingS > 0
-    ? `Open-Meteo quota · resuming in ${remainingS}s`
-    : null
+export function paceWaitLine(remainingS: number | null, reason: PaceReason = 'quota'): string | null {
+  if (remainingS === null || remainingS <= 0) return null
+  // The outage line (TJ, 2026-11-13) names no quota: a host that hangs says
+  // nothing about the budget, and blaming it would send the reader the wrong way.
+  return reason === 'outage'
+    ? `Open-Meteo is unavailable · retrying in ${remainingS}s`
+    : `Open-Meteo quota · resuming in ${remainingS}s`
 }

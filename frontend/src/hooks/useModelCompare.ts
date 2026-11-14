@@ -178,7 +178,7 @@ export function useModelCompare({
   // was the one caller that took the pacer's word and said nothing, and a
   // reader who ticked a model after a large analysis watched an empty chart
   // for minutes with no way to tell waiting from broken.
-  const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
+  const { paceRemainingS, paceReason, onPace, clear: clearPace } = usePacedFetch()
 
   // "Now" is captured per analysis rather than read per render: it decides
   // where each model ends, and a value that moved every render would rebuild
@@ -446,5 +446,6 @@ export function useModelCompare({
     reachEnds,
     results: fetched.results,
     paceRemainingS,
+    paceReason,
   }
 }

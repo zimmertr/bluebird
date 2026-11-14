@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildGrid, type GridCell, type GridSpec } from './forecastGridLattice'
-import { gridRaster } from './forecastGridRaster'
+import { gridPaints, gridRaster } from './forecastGridRaster'
 import { resultsFeatureCollection } from '../resultFeatures'
 import { CASCADES, field, gridCell, gridRow, gridSpec, mesh, series, squareLattice } from '../../testSupport/fixtures'
 
@@ -86,6 +86,22 @@ describe('gridRaster', () => {
     const mid = Math.floor(spec.rows / 2) * spec.cols + Math.floor(spec.cols / 2)
     expect(kept.has(mid)).toBe(false)
     expect(pixelAlpha(raster, spec, mid)).toBe(0)
+  })
+
+  // The pod keeps snow depth only at the places it knows, and no lattice cell
+  // is one, so the grid draws nothing under a snow depth ranking even over
+  // cells that happen to carry a number (#579, #849).
+  it('draws no field under a snow depth ranking', () => {
+    const spec = buildGrid(CASCADES, 25)!
+    const snowy = spec.points.map((_, i) =>
+      gridCell(spec.cells[i], gridRow({ snow_depth_max_in: 40 }), spec.indices[i]),
+    )
+    for (const key of ['snow_depth_avg_in', 'snow_depth_min_in', 'snow_depth_max_in'] as const) {
+      expect(gridPaints(key)).toBe(false)
+      expect(gridRaster(spec, snowy, key, null)).toBeNull()
+    }
+    expect(gridPaints('temp_avg_f')).toBe(true)
+    expect(gridPaints('snowfall_total_in')).toBe(true)
   })
 
   it('flips rows, because a lattice counts north and an image counts south', () => {

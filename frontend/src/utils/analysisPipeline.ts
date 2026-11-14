@@ -1,3 +1,4 @@
+import type { PaceReason } from './pacing'
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
@@ -161,7 +162,7 @@ export interface PipelineOptions {
   onProgress: (processed: number, total: number, message: string) => void
   // The tail label, when air quality or the cloud column outlasts the weather.
   onTail?: (message: string) => void
-  onPace: (seconds: number) => void
+  onPace: (seconds: number, reason?: PaceReason) => void
   // What the places the server answers as "custom" really are, by coordinate
   // (`knownTypes`, #545). Applied before anything reads a row's type.
   knownTypes?: Readonly<Record<string, string>>

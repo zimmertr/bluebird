@@ -1,6 +1,6 @@
 # 0255. The chart draws up to four metrics, each a panel on one time axis
 
-- Status: Accepted; amended by 0258, 0264 and 0270 (a double press on a pinned card's corner puts it back at the size it was pinned at), by [0285](0285-link-carries-no-browser-habit.md) (the panels' layout is kept in the browser, not the link), and by [0293](0293-a-desk-chart-grows-for-its-panels.md) (a desk's results grow to the panels' floors when a panel is added or the layout changes)
+- Status: Accepted; amended by 0258, 0264 and 0270 (a double press on a pinned card's corner puts it back at the size it was pinned at), by [0285](0285-link-carries-no-browser-habit.md) (the panels' layout is kept in the browser, not the link), and by [0293](0293-a-desk-chart-grows-for-its-panels.md) (a desk's results grow to the panels' floors when a panel is added or the layout changes), and by [0297](0297-the-chart-follows-the-cursor-at-any-size.md) (no hover budget, so no panel spends one)
 - Date: 2026-10-29
 - Decider: the maintainer (TJ), who chose two stacked panels, the swap, and the link parameter on 2026-10-28, and on reviewing PR #828 on 2026-10-29 the card's headers, the + and the ×, four panels in a grid with one knob, and the names `Chart metric`, `Metric 2` to `Metric 4`, `Add a panel`, `Remove {metric label}` and `Resize the panels`
 - Issues and PRs: #499, #828

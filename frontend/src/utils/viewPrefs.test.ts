@@ -128,8 +128,21 @@ describe('reading the stored view', () => {
 // six inline reads, so a preference read anywhere else inherited none of it.
 describe('the column-set migration', () => {
   it('reads the current generation verbatim', () => {
-    withStored({ columns8: ['name', 'precip_total_in'] })
+    withStored({ columns9: ['name', 'precip_total_in'] })
     expect([...readViewPrefs().columns!]).toEqual(['name', 'precip_total_in'])
+  })
+
+  // `columns8` predates snow depth's return (#849), so a set stored under it
+  // comes back with the snow depth column shown and the rest as it was.
+  it('shows the snow depth column on a set stored before it returned', () => {
+    withStored({ columns8: ['name', 'precip_total_in'] })
+    expect([...readViewPrefs().columns!]).toEqual([
+      'name',
+      'precip_total_in',
+      'snow_depth_avg_in',
+      'snow_depth_max_in',
+      'snow_depth_min_in',
+    ])
   })
 
   // `columns5` predates the Closure column (#550), so every older set comes
@@ -212,6 +225,7 @@ describe('the column-set migration', () => {
     expect(columns.has(WILDFIRE_KEY)).toBe(true)
     for (const key of FAMILY_KEYS.freeze) expect(columns.has(key)).toBe(true)
     for (const key of FAMILY_KEYS.snowfall) expect(columns.has(key)).toBe(true)
+    for (const key of FAMILY_KEYS.snow_depth) expect(columns.has(key)).toBe(true)
     for (const key of FAMILY_KEYS.cloud_deck) expect(columns.has(key)).toBe(true)
   })
 
@@ -224,7 +238,8 @@ describe('the column-set migration', () => {
       columns5: ['elevation_ft'],
       columns6: ['osm_id'],
       columns7: ['type'],
-      columns8: ['name'],
+      columns8: ['type'],
+      columns9: ['name'],
     })
     expect([...readViewPrefs().columns!]).toEqual(['name'])
   })
@@ -287,10 +302,11 @@ describe('writing a preference', () => {
       columns5: ['osm_id'],
       columns6: ['name'],
       columns7: ['type'],
+      columns8: ['latitude'],
       modeChosen: 'both',
     })
     writeViewPrefs({ columns: new Set(['longitude']) })
-    expect(stored(storage)).toEqual({ modeChosen: 'both', columns8: ['longitude'] })
+    expect(stored(storage)).toEqual({ modeChosen: 'both', columns9: ['longitude'] })
   })
 
   it('round-trips a whole table shape', () => {

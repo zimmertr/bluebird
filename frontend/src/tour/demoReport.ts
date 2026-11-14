@@ -4,6 +4,7 @@ import { analyzedSnapshot, resultRow, series } from '../testSupport/fixtures'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import { HOUR_MS } from '../utils/forecastWindow'
 import { clamp } from '../utils/numbers'
+import { SNOW_DEPTH_CEILING_IN } from '../utils/snowCeiling'
 
 /**
  * The report the tutorial's results steps show (#536). A first-visit tour
@@ -124,6 +125,13 @@ interface Summit {
    * as plain heights.
    */
   deck: [number, number] | null
+  /**
+   * Snow on the ground over the four days, in inches: a November pack that
+   * deepens with height and with the wet side of the crest, and the file's
+   * ceiling on the two glaciated summits SNODAS fills to it (#849). One number,
+   * so the demonstration's depth holds across its window.
+   */
+  snow: number
 }
 
 // Twenty Washington summits (#850; the maintainer, 2026-11-04: "This looks a
@@ -139,26 +147,26 @@ interface Summit {
 // under the walk's ceiling, every summit colder than freezing reads a
 // freezing level under its top, and the cold wet ones carry snowfall.
 const SUMMITS: Summit[] = [
-  { name: 'Mount Si', latitude: 47.5069, longitude: -121.7390, elevation_ft: 4167, temp: [58, 26, 15], wind: [3, 14], aqi: [38, 71], precip: [0.3, 0.15], deck: [3200, 19000] },
-  { name: 'Mount Pilchuck', latitude: 48.0580, longitude: -121.7978, elevation_ft: 5341, temp: [55, 22, 14], wind: [4, 17], aqi: [30, 58], precip: [0.4, 0.2], deck: [3900, 18500] },
-  { name: 'Chair Peak', latitude: 47.4598, longitude: -121.4669, elevation_ft: 6238, temp: [49, 22, 13], wind: [6, 24], aqi: [34, 64], precip: [0.35, 0.18], deck: [4600, 20000] },
-  { name: 'Kaleetan Peak', latitude: 47.4625, longitude: -121.4782, elevation_ft: 6259, temp: [51, 14, 13], wind: [6, 22], aqi: [33, 61], precip: [0.33, 0.2], deck: [4800, 21000] },
-  { name: 'Three Fingers', latitude: 48.1699, longitude: -121.6879, elevation_ft: 6854, temp: [45, 18, 12], wind: [7, 25], aqi: [26, 49], precip: [0.45, 0.25], deck: [4300, 17500] },
-  { name: 'Mount Olympus', latitude: 47.8013, longitude: -123.7109, elevation_ft: 7980, temp: [44, 9, 9], wind: [12, 38], aqi: [16, 29], precip: [0.9, 0.5], deck: [2400, 15000] },
-  { name: 'Sloan Peak', latitude: 48.0415, longitude: -121.3403, elevation_ft: 7835, temp: [40, 18, 10], wind: [9, 28], aqi: [24, 44], precip: [0.4, 0.22], deck: [5600, 19500] },
-  { name: 'Mount Daniel', latitude: 47.5650, longitude: -121.1809, elevation_ft: 7960, temp: [39, 13, 10], wind: [8, 27], aqi: [29, 53], precip: [0.3, 0.15], deck: [6400, 22000] },
-  { name: 'Dragontail Peak', latitude: 47.4789, longitude: -120.8332, elevation_ft: 8840, temp: [36, 20, 8], wind: [7, 24], aqi: [36, 67], precip: [0, 0], deck: null },
-  { name: 'Mount Stuart', latitude: 47.4751, longitude: -120.9026, elevation_ft: 9415, temp: [35, 15, 8], wind: [9, 29], aqi: [37, 69], precip: [0, 0], deck: null },
-  { name: 'Mount St. Helens', latitude: 46.1914, longitude: -122.1956, elevation_ft: 8363, temp: [31, 9, 9], wind: [11, 33], aqi: [48, 112], precip: [0.35, 0.2], deck: [4500, 18000] },
-  { name: 'Bonanza Peak', latitude: 48.2382, longitude: -120.8664, elevation_ft: 9511, temp: [30, 16, 7], wind: [8, 26], aqi: [27, 47], precip: [0, 0], deck: null },
-  { name: 'Forbidden Peak', latitude: 48.5116, longitude: -121.0583, elevation_ft: 8815, temp: [27, 12, 7], wind: [10, 31], aqi: [21, 36], precip: [0.22, 0.1], deck: [7200, 21500] },
-  { name: 'Eldorado Peak', latitude: 48.5376, longitude: -121.1343, elevation_ft: 8868, temp: [26, 8, 7], wind: [9, 30], aqi: [20, 34], precip: [0.25, 0.12], deck: [6900, 21000] },
-  { name: 'Sahale Peak', latitude: 48.4911, longitude: -121.0385, elevation_ft: 8681, temp: [24, 12, 7], wind: [11, 32], aqi: [22, 37], precip: [0.2, 0.1], deck: [7500, 22500] },
-  { name: 'Mount Shuksan', latitude: 48.8311, longitude: -121.6030, elevation_ft: 9131, temp: [22, 7, 6], wind: [13, 36], aqi: [17, 28], precip: [0.45, 0.25], deck: [5200, 17000] },
-  { name: 'Glacier Peak', latitude: 48.1125, longitude: -121.1138, elevation_ft: 10541, temp: [17, 6, 5], wind: [14, 39], aqi: [19, 32], precip: [0.35, 0.2], deck: [6100, 20500] },
-  { name: 'Mount Baker', latitude: 48.7768, longitude: -121.8144, elevation_ft: 10781, temp: [16, 5, 5], wind: [15, 42], aqi: [15, 26], precip: [0.5, 0.3], deck: [4800, 16500] },
-  { name: 'Mount Adams', latitude: 46.2024, longitude: -121.4909, elevation_ft: 12281, temp: [14, 5, 4], inversion: 12, wind: [18, 46], aqi: [44, 96], precip: [0.25, 0.15], deck: [7800, 19000] },
-  { name: 'Mount Rainier', latitude: 46.8517, longitude: -121.7604, elevation_ft: 14411, temp: [12, 4, 4], inversion: 14, wind: [24, 58], aqi: [41, 88], precip: [0.4, 0.25], deck: [8600, 18500] },
+  { name: 'Mount Si', latitude: 47.5069, longitude: -121.7390, elevation_ft: 4167, temp: [58, 26, 15], wind: [3, 14], aqi: [38, 71], precip: [0.3, 0.15], deck: [3200, 19000], snow: 0 },
+  { name: 'Mount Pilchuck', latitude: 48.0580, longitude: -121.7978, elevation_ft: 5341, temp: [55, 22, 14], wind: [4, 17], aqi: [30, 58], precip: [0.4, 0.2], deck: [3900, 18500], snow: 6 },
+  { name: 'Chair Peak', latitude: 47.4598, longitude: -121.4669, elevation_ft: 6238, temp: [49, 22, 13], wind: [6, 24], aqi: [34, 64], precip: [0.35, 0.18], deck: [4600, 20000], snow: 18 },
+  { name: 'Kaleetan Peak', latitude: 47.4625, longitude: -121.4782, elevation_ft: 6259, temp: [51, 14, 13], wind: [6, 22], aqi: [33, 61], precip: [0.33, 0.2], deck: [4800, 21000], snow: 16 },
+  { name: 'Three Fingers', latitude: 48.1699, longitude: -121.6879, elevation_ft: 6854, temp: [45, 18, 12], wind: [7, 25], aqi: [26, 49], precip: [0.45, 0.25], deck: [4300, 17500], snow: 22 },
+  { name: 'Mount Olympus', latitude: 47.8013, longitude: -123.7109, elevation_ft: 7980, temp: [44, 9, 9], wind: [12, 38], aqi: [16, 29], precip: [0.9, 0.5], deck: [2400, 15000], snow: 48 },
+  { name: 'Sloan Peak', latitude: 48.0415, longitude: -121.3403, elevation_ft: 7835, temp: [40, 18, 10], wind: [9, 28], aqi: [24, 44], precip: [0.4, 0.22], deck: [5600, 19500], snow: 30 },
+  { name: 'Mount Daniel', latitude: 47.5650, longitude: -121.1809, elevation_ft: 7960, temp: [39, 13, 10], wind: [8, 27], aqi: [29, 53], precip: [0.3, 0.15], deck: [6400, 22000], snow: 34 },
+  { name: 'Dragontail Peak', latitude: 47.4789, longitude: -120.8332, elevation_ft: 8840, temp: [36, 20, 8], wind: [7, 24], aqi: [36, 67], precip: [0, 0], deck: null, snow: 12 },
+  { name: 'Mount Stuart', latitude: 47.4751, longitude: -120.9026, elevation_ft: 9415, temp: [35, 15, 8], wind: [9, 29], aqi: [37, 69], precip: [0, 0], deck: null, snow: 10 },
+  { name: 'Mount St. Helens', latitude: 46.1914, longitude: -122.1956, elevation_ft: 8363, temp: [31, 9, 9], wind: [11, 33], aqi: [48, 112], precip: [0.35, 0.2], deck: [4500, 18000], snow: 8 },
+  { name: 'Bonanza Peak', latitude: 48.2382, longitude: -120.8664, elevation_ft: 9511, temp: [30, 16, 7], wind: [8, 26], aqi: [27, 47], precip: [0, 0], deck: null, snow: 26 },
+  { name: 'Forbidden Peak', latitude: 48.5116, longitude: -121.0583, elevation_ft: 8815, temp: [27, 12, 7], wind: [10, 31], aqi: [21, 36], precip: [0.22, 0.1], deck: [7200, 21500], snow: 40 },
+  { name: 'Eldorado Peak', latitude: 48.5376, longitude: -121.1343, elevation_ft: 8868, temp: [26, 8, 7], wind: [9, 30], aqi: [20, 34], precip: [0.25, 0.12], deck: [6900, 21000], snow: 52 },
+  { name: 'Sahale Peak', latitude: 48.4911, longitude: -121.0385, elevation_ft: 8681, temp: [24, 12, 7], wind: [11, 32], aqi: [22, 37], precip: [0.2, 0.1], deck: [7500, 22500], snow: 44 },
+  { name: 'Mount Shuksan', latitude: 48.8311, longitude: -121.6030, elevation_ft: 9131, temp: [22, 7, 6], wind: [13, 36], aqi: [17, 28], precip: [0.45, 0.25], deck: [5200, 17000], snow: 60 },
+  { name: 'Glacier Peak', latitude: 48.1125, longitude: -121.1138, elevation_ft: 10541, temp: [17, 6, 5], wind: [14, 39], aqi: [19, 32], precip: [0.35, 0.2], deck: [6100, 20500], snow: 640 },
+  { name: 'Mount Baker', latitude: 48.7768, longitude: -121.8144, elevation_ft: 10781, temp: [16, 5, 5], wind: [15, 42], aqi: [15, 26], precip: [0.5, 0.3], deck: [4800, 16500], snow: SNOW_DEPTH_CEILING_IN },
+  { name: 'Mount Adams', latitude: 46.2024, longitude: -121.4909, elevation_ft: 12281, temp: [14, 5, 4], inversion: 12, wind: [18, 46], aqi: [44, 96], precip: [0.25, 0.15], deck: [7800, 19000], snow: 210 },
+  { name: 'Mount Rainier', latitude: 46.8517, longitude: -121.7604, elevation_ft: 14411, temp: [12, 4, 4], inversion: 14, wind: [24, 58], aqi: [41, 88], precip: [0.4, 0.25], deck: [8600, 18500], snow: SNOW_DEPTH_CEILING_IN },
 ]
 
 /** The hour the front reaches a summit: later the farther east it stands. */
@@ -361,6 +369,9 @@ export function demoReport(now = Date.now()): DemoReport {
       snowfall_avg_in_hr: sn.avg,
       snowfall_min_in_hr: sn.min,
       snowfall_max_in_hr: sn.max,
+      snow_depth_avg_in: s.snow,
+      snow_depth_min_in: s.snow,
+      snow_depth_max_in: s.snow,
       cloud_deck_min_ft: d.min,
       cloud_deck_max_ft: d.max,
       cloud_deck_avg_ft: d.avg,

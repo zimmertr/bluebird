@@ -1,6 +1,6 @@
 # 0054. Snow depth comes from one national SNODAS grid the pod holds
 
-- Status: Superseded by 0120
+- Status: Superseded by [0120](0120-snowfall-replaces-snow-depth.md); reinstated by [0295](0295-snow-depth-returns-beside-snowfall.md)
 - Date: 2026-09-22 (git: shipped in #463)
 - Decider: TJ (git: author and merger of #463)
 - Issues and PRs: #449, #463

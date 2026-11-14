@@ -263,6 +263,8 @@ export const TYPE_COL: ColDef = {
   csv: (v) => (typeof v === 'string' ? v : ''),
 }
 
+const wholeInches = (v: unknown) => grouped(Math.round(Number(v)))
+
 export const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
   TYPE_COL,
@@ -293,6 +295,15 @@ export const COLUMNS: ColDef[] = [
   { key: 'precip_avg_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.average, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
   { key: 'precip_min_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.minimum, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
   { key: 'precip_max_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.maximum, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },
+  // Snow on the ground over the window's days (#849), in temperature's order.
+  // Whole inches, grouped like the elevation column beside which it is read:
+  // the analysis resolves 1 km, and a tenth of an inch on a summit would be a
+  // precision nothing measured. Null is the row outside the grid or with no
+  // depth held, and both surfaces draw it as N/A, never the dash a missing
+  // hour gets. Windy's own name for the layer is `snowcover`.
+  { key: 'snow_depth_min_in', unit: UNIT.snow_depth, label: metricLabel('snow_depth', AGGREGATE.minimum), format: wholeInches, csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'snowcover' },
+  { key: 'snow_depth_max_in', unit: UNIT.snow_depth, label: metricLabel('snow_depth', AGGREGATE.maximum), format: wholeInches, csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'snowcover' },
+  { key: 'snow_depth_avg_in', unit: UNIT.snow_depth, label: metricLabel('snow_depth', AGGREGATE.average), format: wholeInches, csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'snowcover' },
   // New snow over the window (#678), shaped like precipitation's group: a
   // total in inches, three rates in inches per hour, at precipitation's
   // digits. A null is an hour the forecast left blank (HRRR past its hour 45),
@@ -363,6 +374,7 @@ const POINT_LABELS: Record<string, string> = {
   wind_avg_mph: metricLabel('wind'),
   freeze_avg_ft: metricLabel('freeze'),
   snowfall_avg_in_hr: metricLabel('snowfall', undefined, SNOWFALL_RATE),
+  snow_depth_avg_in: metricLabel('snow_depth'),
   aqi_avg: metricLabel('aqi'),
   cloud_deck_avg_ft: metricLabel('cloud_deck'),
 }

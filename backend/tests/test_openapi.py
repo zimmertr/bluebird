@@ -182,7 +182,14 @@ def test_every_request_body_refuses_fields_it_does_not_declare(schema):
         for name in _reachable(schema, bodies)
         if schema["components"]["schemas"][name].get("type") == "object"
     ]
-    assert sorted(objects) == ["AnalyzeRequest", "CustomDestination", "DestinationsRequest", "GeoPolygon"]
+    assert sorted(objects) == [
+        "AnalyzeRequest",
+        "CustomDestination",
+        "DestinationsRequest",
+        "GeoPolygon",
+        "SnowDepthRequest",
+        "SnowPoint",
+    ]
     for name in objects:
         assert schema["components"]["schemas"][name].get("additionalProperties") is False, name
 

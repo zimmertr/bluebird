@@ -116,6 +116,11 @@ interface Extreme {
  * the hour of one is not always the hour of the other. The maintainer chose to
  * link it anyway and to say so in the app instead (issue #361).
  */
+// Snow depth is absent although its floor and ceiling name a day: the column
+// reads NOHRSC's daily analysis, and Windy's snow cover is a forecast model's,
+// the very number #849 measured as wrong at summits. Its cell links to the
+// layer at Windy's own "now" rather than sending a day the layer would answer
+// with something else (#449, #849).
 const EXTREME: Readonly<Record<string, Extreme>> = {
   temp_min_f: { field: 'temp_f', lowest: true },
   temp_max_f: { field: 'temp_f', lowest: false },

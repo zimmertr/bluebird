@@ -55,7 +55,7 @@ from app.routes.analyze.events import (
     Status,
     _drain,
 )
-from app.services import air_quality, weather
+from app.services import air_quality, snow_history, weather
 from app.services.candidates import (
     _filter_elevation,
     _merge_custom,
@@ -103,6 +103,7 @@ class Capped:
     destinations: list[dict]
     total_found: int | None
     truncated: bool
+    snow_analysis_date: str | None
 
 
 @dataclass(slots=True, frozen=True)
@@ -271,7 +272,23 @@ def _apply_cap(
         else:
             suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
             return Refusal(_refusal_body(len(destinations), noun, suggestion=suggestion))
-    return Capped(destinations, total_found, truncated)
+    return Capped(destinations, total_found, truncated, None)
+
+
+async def _attach_snow(capped: Capped, window: Window) -> None:
+    """The window's snow depths on every final candidate (#849).
+
+    Read from the pod's own history and today's held grid, so it costs no
+    upstream call and rides here rather than beside the weather fetch. A pod
+    with neither answers nulls rather than waiting (`snow_history`).
+    """
+    points = [(d["latitude"], d["longitude"]) for d in capped.destinations]
+    depths, newest = await snow_history.window_depths(points, window.start, window.end)
+    for destination, depth in zip(capped.destinations, depths, strict=True):
+        destination["snow_depth_avg_in"] = depth.avg_in
+        destination["snow_depth_min_in"] = depth.min_in
+        destination["snow_depth_max_in"] = depth.max_in
+    capped.snow_analysis_date = newest.isoformat() if newest else None
 
 
 def _pace_detail(count: int, noun: str, days: int) -> str:
@@ -602,6 +619,7 @@ def _result(ranked: Ranked, capped: Capped, request: AnalyzeRequest) -> Result:
             total_matched=ranked.total_matched,
             times=ranked.times,
             total_found=capped.total_found,
+            snow_analysis_date=capped.snow_analysis_date,
             truncated=capped.truncated,
         )
     )

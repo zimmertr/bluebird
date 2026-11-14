@@ -31,6 +31,30 @@ class DestinationType(str, Enum):
     custom = "custom"
 
 
+# What the snow depth fields mean, wherever they appear (#849).
+_SNOW_DEPTH_TERMS = (
+    "From the NOHRSC SNODAS 1 km analysis, a measurement rather than a "
+    "forecast: each UTC day of the window up to the newest day analyzed reads "
+    "its own depth, and every day after that reads the newest depth. Null "
+    "outside the grid, which covers the contiguous United States, southern "
+    "Canada and northern Mexico, and null when this instance holds no depth "
+    "for the destination. Over permanent ice SNODAS accumulates year over "
+    "year, so a glaciated summit reads hundreds of inches in every season. A "
+    "value of 1290.04 is the source file's 16-bit millimetre ceiling: at least "
+    "that much, and permanent ice."
+)
+_SNOW_DEPTH_AVG_DESCRIPTION = f"Mean snow depth over the window's days, inches. {_SNOW_DEPTH_TERMS}"
+_SNOW_DEPTH_MIN_DESCRIPTION = f"Least snow depth on any day of the window, inches. {_SNOW_DEPTH_TERMS}"
+_SNOW_DEPTH_MAX_DESCRIPTION = f"Most snow depth on any day of the window, inches. {_SNOW_DEPTH_TERMS}"
+
+# The newest day the snow depths could read, on the responses that carry them.
+_SNOW_DATE_DESCRIPTION = (
+    "The newest day of the SNODAS analysis this instance holds, as "
+    "`YYYY-MM-DD`: the day every later day of the window reads. Null when it "
+    "holds none, which is also when every snow depth is null."
+)
+
+
 class ForecastMode(str, Enum):
     # `at` rather than `future` because a window may reach a year back (the
     # archive, see ARCHIVE_DATA_DAYS), so a single-moment sample is not
@@ -69,6 +93,11 @@ class SortBy(str, Enum):
     snowfall_avg = "snowfall_avg_in_hr"
     snowfall_min = "snowfall_min_in_hr"
     snowfall_max = "snowfall_max_in_hr"
+    # Snow depth (#849): a level read once a day, so it has temperature's three
+    # aggregates and no total.
+    snow_depth_avg = "snow_depth_avg_in"
+    snow_depth_min = "snow_depth_min_in"
+    snow_depth_max = "snow_depth_max_in"
 
 
 # Every request model refuses a field it does not declare (issue #563). Left to

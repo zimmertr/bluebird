@@ -432,6 +432,25 @@ describe('panelMessages', () => {
     })
   })
 
+  // #849: glacier cells read the ceiling and top a snow depth ranking.
+  describe('rows on the snow depth ceiling', () => {
+    it('says how many, as information, in the approved words', () => {
+      expect(only({ hasReport: true, glacierRows: 3 })).toEqual({
+        key: 'snow:glacier',
+        text: '3 destinations measure glacier snow. Set an upper bound to exclude them as outliers.',
+        severity: 'info',
+      })
+      expect(only({ hasReport: true, glacierRows: 1 })?.text).toBe(
+        '1 destination measures glacier snow. Set an upper bound to exclude it as an outlier.',
+      )
+    })
+
+    it('stays quiet with none, or with no report', () => {
+      expect(keys({ hasReport: true, glacierRows: 0 })).not.toContain('snow:glacier')
+      expect(keys({ hasReport: false, glacierRows: 2 })).not.toContain('snow:glacier')
+    })
+  })
+
   // The fixed order within the list: why the last run failed, why the report
   // is stale, what the window costs, why the button is disabled, then what a
   // delivered report is missing. `noticeBoxes` then splits it by severity and

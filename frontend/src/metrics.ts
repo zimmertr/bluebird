@@ -4,7 +4,7 @@ import { SortBy } from './types'
  * One vocabulary for the seven things Bluebird Forecast measures.
  *
  * Bluebird Forecast measures precipitation, temperature, wind, the freezing
- * level, snowfall, air quality and the cloud deck, and names
+ * level, snowfall, snow depth, air quality and the cloud deck, and names
  * them on six surfaces: the map legend, the ranking picker, the results header,
  * the results table, the forecast chart's radios, and a marker's popup. Before
  * this module each surface spelled them itself, so the same metric appeared as
@@ -46,6 +46,7 @@ export type MetricFamily =
   | 'wind'
   | 'freeze'
   | 'snowfall'
+  | 'snow_depth'
   | 'aqi'
   | 'cloud_deck'
 
@@ -61,6 +62,7 @@ const FAMILIES: readonly MetricFamily[] = [
   'wind',
   'freeze',
   'snowfall',
+  'snow_depth',
   'aqi',
   'cloud_deck',
 ]
@@ -92,6 +94,7 @@ export const RANKED_FAMILIES: readonly MetricFamily[] = [
   'cloud_deck',
   'freeze',
   'precip',
+  'snow_depth',
   'snowfall',
   'temp',
   'wind',
@@ -110,6 +113,8 @@ export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
   temp: ['temp_avg_f', 'temp_max_f', 'temp_min_f'],
   freeze: ['freeze_avg_ft', 'freeze_max_ft', 'freeze_min_ft'],
   snowfall: ['snowfall_avg_in_hr', 'snowfall_max_in_hr', 'snowfall_min_in_hr', 'snowfall_total_in'],
+  // A level read once a day (#849), so temperature's three and no total.
+  snow_depth: ['snow_depth_avg_in', 'snow_depth_max_in', 'snow_depth_min_in'],
   aqi: ['aqi_avg', 'aqi_max', 'aqi_min'],
   cloud_deck: ['cloud_deck_avg_ft', 'cloud_deck_max_ft', 'cloud_deck_min_ft'],
 }
@@ -131,6 +136,8 @@ export const DEFAULT_FAMILY_KEY: Record<MetricFamily, SortBy> = {
   // is the night's number without a local-night definition to get wrong.
   freeze: 'freeze_min_ft',
   snowfall: 'snowfall_total_in',
+  // The deepest day: the most snow a trip in the window would meet (#849).
+  snow_depth: 'snow_depth_max_in',
   aqi: 'aqi_avg',
   // The lowest deck is the question the metric exists for: the hour the cloud
   // came closest to the ground is the one a climber plans around, and a dry
@@ -167,6 +174,9 @@ export const NOUN: Record<MetricFamily, string> = {
   // New snow over the window, Open-Meteo's own name for the variable (#678),
   // which no reader mistakes for the depth on the ground.
   snowfall: 'Snowfall',
+  // Two words, because "Snow" alone would be a quantity of what: depth, water
+  // equivalent, or new snow over the window. The analysis answers the first.
+  snow_depth: 'Snow depth',
   aqi: 'AQI',
   cloud_deck: 'Cloud deck',
 }
@@ -188,6 +198,9 @@ export const UNIT: Record<MetricFamily, string> = {
   // Inches of new snow, not of the water in it: the variable's own unit under
   // the `precipitation_unit=inch` every request sends.
   snowfall: 'in',
+  // Inches of snow on the ground, a level rather than an amount, so an hour of
+  // it reads in inches too.
+  snow_depth: 'in',
   aqi: '',
   // Above sea level, like the freezing level and for its reason: the reading
   // is the comparison against the elevation column.

@@ -44,6 +44,7 @@ const READY_POLYGON: AnalyzeGate = {
   hasPins: false,
   compareAqi: false,
   compareFreeze: false,
+  compareSnow: false,
 }
 
 // The rule the type checkboxes grey on, which is the ring half of the polygon
@@ -185,6 +186,7 @@ describe('analyzeBlockers', () => {
           datesPending: on(5),
           compareAqi: on(6),
           compareFreeze: on(7),
+          compareSnow: false,
           refused: on(8),
           overCap: on(9) ? { found: 1501, noun: 'destination', limit: 1500 } : null,
           spend: on(10) ? { needed: 8357, limit: 5000 } : null,
@@ -234,6 +236,7 @@ describe('analyzeBlockers', () => {
         datesPending: true,
         compareAqi: true,
         compareFreeze: true,
+        compareSnow: true,
         archiveCloud: true,
         archiveFreeze: true,
         aqiHorizon: true,
@@ -248,6 +251,7 @@ describe('analyzeBlockers', () => {
       'dates',
       'compare-aqi',
       'compare-freeze',
+      'compare-snow',
       'archive-cloud',
       'archive-freeze',
       'aqi-horizon',
@@ -292,6 +296,7 @@ describe('a polygon with nothing checked', () => {
     datesPending: false,
     compareAqi: false,
     compareFreeze: false,
+    compareSnow: false,
     drawPointCount: 4,
   }
 
@@ -351,6 +356,19 @@ describe('a model selection the ranking cannot use', () => {
     expect(analyzeBlockers({ ...gate, drawPointCount: 4 })).toEqual(['compare-freeze'])
   })
 
+  // Snow depth comes off the pod's own snow analysis rather than any forecast
+  // model, so a comparison there is the air-quality case exactly (#849).
+  it('blocks a ranking on snow depth with models compared', () => {
+    const gate = { ...READY_POLYGON, compareSnow: true }
+    expect(canAnalyze(gate)).toBe(false)
+    expect(analyzeBlockers({ ...gate, drawPointCount: 4 })).toEqual(['compare-snow'])
+  })
+
+  it('lets a snow ranking through with one model selected', () => {
+    expect(canAnalyze({ ...READY_POLYGON, compareSnow: false })).toBe(true)
+    expect(analyzeBlockers({ ...READY_POLYGON, compareSnow: false, drawPointCount: 4 })).toEqual([])
+  })
+
   // The vetoes are about work already done, so they lead the missing-input
   // lines and follow the window's own problems.
   it('reports every contradiction and keeps them in order', () => {
@@ -361,8 +379,9 @@ describe('a model selection the ranking cannot use', () => {
         datesPending: true,
         compareAqi: true,
         compareFreeze: true,
+        compareSnow: true,
       }),
-    ).toEqual(['dates', 'compare-aqi', 'compare-freeze'])
+    ).toEqual(['dates', 'compare-aqi', 'compare-freeze', 'compare-snow'])
   })
 
   // An input the reader has yet to give is still worth saying beside them.

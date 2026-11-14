@@ -7,6 +7,7 @@ import { SortBy } from '../../types'
 import { NO_VALUE, fillColor } from '../resultFeatures'
 import type { GridCell, GridSpec } from './forecastGridLattice'
 import { hexToRgb } from '../colors'
+import { familyOf } from '../../metrics'
 
 /**
  * How the field is drawn. `blocks` is the default because it is the style that
@@ -19,6 +20,20 @@ export const GRID_STYLES: GridStyle[] = ['blocks', 'smooth']
 
 export function isGridStyle(value: string): value is GridStyle {
   return (GRID_STYLES as string[]).includes(value)
+}
+
+/**
+ * Whether the grid can paint this ranking at all.
+ *
+ * The lattice is a field of forecasts, and snow depth is not one: the pod
+ * keeps a history only at the places it knows, and no lattice cell is a
+ * place, so every cell has no value (#849). The one rule both the raster and
+ * the legend's grid row read, so the map cannot show a "Forecast grid" row
+ * over a field it never drew (#579). The layer's switch keeps its state:
+ * another ranking paints again.
+ */
+export function gridPaints(sortBy: SortBy): boolean {
+  return familyOf(sortBy) !== 'snow_depth'
 }
 
 /** A raster ready to be handed to an image source: RGBA, row 0 at the north. */
@@ -53,7 +68,7 @@ export function gridRaster(
   hourIndex: number | null,
   style: GridStyle = 'smooth',
 ): GridRaster | null {
-  if (cells.length === 0) return null
+  if (cells.length === 0 || !gridPaints(sortBy)) return null
   const { cols, rows } = spec
   const rgba = new Uint8ClampedArray(cols * rows * 4)
 

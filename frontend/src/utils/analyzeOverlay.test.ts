@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   AQI_TAIL_MESSAGE,
   CLOUD_TAIL_MESSAGE,
+  cloudTailMessage,
   composeOverlay,
   ELEVATION_MESSAGE,
   OverlayInputs,
@@ -127,6 +128,17 @@ describe('composeOverlay', () => {
     })
     expect(done.visible && done.detail).toBe(null)
   })
+
+  it('counts down a stuck host as an outage, not as the quota (#849)', () => {
+    const view = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      rankedProgress: { processed: 550, total: 908 },
+      paceRemainingS: 20,
+      paceReason: 'outage',
+    })
+    expect(view.visible && view.detail).toBe('Open-Meteo is unavailable · retrying in 20s')
+  })
 })
 
 // What the run still waits on once the weather has answered (#579): air
@@ -146,6 +158,17 @@ describe('the tail label', () => {
 
   it('names nothing once neither is out', () => {
     expect(tailMessage({ aqi: false, cloud: false })).toBeNull()
+  })
+
+  it('carries the cloud column\'s count in the approved words (#849)', () => {
+    expect(cloudTailMessage(50, 100, 'peak')).toBe('Retrieving cloud data: 50 of 100 peaks…')
+    const view = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      statusMessage: cloudTailMessage(50, 100, 'peak'),
+      rankedProgress: { processed: 100, total: 100 },
+    })
+    expect(view).toMatchObject({ message: 'Retrieving cloud data: 50 of 100 peaks…' })
   })
 
   it('replaces the forecast count and keeps the full bar', () => {

@@ -8,7 +8,7 @@ import type { MetricFamily } from '../metrics'
 import type { AnalyzeRequest, DestinationResult } from '../types'
 
 /**
- * The forecast bounds an analysis is narrowed by, mirroring the fourteen optional
+ * The forecast bounds an analysis is narrowed by, mirroring the sixteen optional
  * fields on `AnalyzeRequest`.
  *
  * Elevation is deliberately NOT in here, and the app sends no elevation bound
@@ -29,6 +29,8 @@ export interface Constraints {
   maxFreezeFt: number | null
   minSnowfallTotalIn: number | null
   maxSnowfallTotalIn: number | null
+  minSnowDepthIn: number | null
+  maxSnowDepthIn: number | null
   minAqi: number | null
   maxAqi: number | null
   minCloudDeckFt: number | null
@@ -46,6 +48,8 @@ export const NO_CONSTRAINTS: Constraints = {
   maxFreezeFt: null,
   minSnowfallTotalIn: null,
   maxSnowfallTotalIn: null,
+  minSnowDepthIn: null,
+  maxSnowDepthIn: null,
   minAqi: null,
   maxAqi: null,
   minCloudDeckFt: null,
@@ -65,13 +69,17 @@ export const NO_CONSTRAINTS: Constraints = {
 // Precipitation, snowfall and AQI have no minimum aggregate worth reading — a
 // per-hour precipitation floor would be 0.000 almost everywhere — so both of
 // their bounds compare one field, and the panel labels those rows with the
-// table column they compare so the screen says which.
+// table column they compare so the screen says which. Snow depth's two ends
+// also read one field, and for a third reason: it is today's single number
+// rather than a reduction over hours, so there is no best or worst hour to
+// choose.
 const LOWER_BOUNDS = [
   ['minPrecipTotalIn', 'precip_total_in'],
   ['minTempF', 'temp_min_f'],
   ['minWindMph', 'wind_min_mph'],
   ['minFreezeFt', 'freeze_min_ft'],
   ['minSnowfallTotalIn', 'snowfall_total_in'],
+  ['minSnowDepthIn', 'snow_depth_min_in'],
   ['minAqi', 'aqi_max'],
   ['minCloudDeckFt', 'cloud_deck_min_ft'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
@@ -82,6 +90,7 @@ const UPPER_BOUNDS = [
   ['maxWindMph', 'wind_max_mph'],
   ['maxFreezeFt', 'freeze_max_ft'],
   ['maxSnowfallTotalIn', 'snowfall_total_in'],
+  ['maxSnowDepthIn', 'snow_depth_max_in'],
   ['maxAqi', 'aqi_max'],
   ['maxCloudDeckFt', 'cloud_deck_max_ft'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
@@ -97,6 +106,7 @@ export const FAMILY_BOUNDS: Record<MetricFamily, readonly [lower: keyof Constrai
   wind: ['minWindMph', 'maxWindMph'],
   freeze: ['minFreezeFt', 'maxFreezeFt'],
   snowfall: ['minSnowfallTotalIn', 'maxSnowfallTotalIn'],
+  snow_depth: ['minSnowDepthIn', 'maxSnowDepthIn'],
   aqi: ['minAqi', 'maxAqi'],
   cloud_deck: ['minCloudDeckFt', 'maxCloudDeckFt'],
 }
@@ -136,6 +146,8 @@ export function constraintsFromRequest(request: AnalyzeRequest): Constraints {
     maxFreezeFt: request.max_freeze_ft ?? null,
     minSnowfallTotalIn: request.min_snowfall_total_in ?? null,
     maxSnowfallTotalIn: request.max_snowfall_total_in ?? null,
+    minSnowDepthIn: request.min_snow_depth_in ?? null,
+    maxSnowDepthIn: request.max_snow_depth_in ?? null,
     minAqi: request.min_aqi ?? null,
     maxAqi: request.max_aqi ?? null,
     minCloudDeckFt: request.min_cloud_deck_ft ?? null,
@@ -156,6 +168,8 @@ export function constraintFields(c: Constraints) {
     max_freeze_ft: c.maxFreezeFt,
     min_snowfall_total_in: c.minSnowfallTotalIn,
     max_snowfall_total_in: c.maxSnowfallTotalIn,
+    min_snow_depth_in: c.minSnowDepthIn,
+    max_snow_depth_in: c.maxSnowDepthIn,
     min_aqi: c.minAqi,
     max_aqi: c.maxAqi,
     min_cloud_deck_ft: c.minCloudDeckFt,
@@ -172,8 +186,9 @@ export function constraintFields(c: Constraints) {
  * publishes none at all, which is five of the eight, so dropping those rows
  * would empty the table outright for anyone who set the bound under the wrong
  * model; a missing snowfall means the forecast left those hours blank (HRRR
- * past its hour 45, #678). It is the same call `rankComparator` makes for a
- * nullable ranking key.
+ * past its hour 45, #678); a missing snow depth means the destination is
+ * outside the grid, or the pod holds no grid yet. It is the same call
+ * `rankComparator` makes for a nullable ranking key.
  */
 export function filterConstraints(
   rows: readonly DestinationResult[],

@@ -38,8 +38,8 @@ const CHART = {
   isSelected: () => true,
   setRange: NOOP,
 }
-const QUIET = { active: false, shown: [], paceRemainingS: null, lines: [], endLines: [] }
-const COMPARING = { active: true, shown: SHOWN, paceRemainingS: null, lines: [], endLines: [] }
+const QUIET = { active: false, shown: [], paceRemainingS: null, paceReason: 'quota' as const, lines: [], endLines: [] }
+const COMPARING = { active: true, shown: SHOWN, paceRemainingS: null, paceReason: 'quota' as const, lines: [], endLines: [] }
 const TABLE_VIEW = {
   tableRows: [ROW],
   tableColumns: [],

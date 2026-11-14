@@ -1,4 +1,4 @@
-import { paceWaitLine } from './pacing'
+import { type PaceReason, paceWaitLine } from './pacing'
 
 // Composes the full-screen loading overlay for an Analyze operation — a single
 // ranked analysis (searched places and CSV rows ride inside it as custom
@@ -38,6 +38,8 @@ export interface OverlayInputs {
   // when it is not sleeping. Rendered as a live countdown so a paced wait
   // reads as scheduled work, not a hang.
   paceRemainingS?: number | null
+  // Why it is waiting; the quota when absent.
+  paceReason?: PaceReason
 }
 
 // The discovery-phase heading. Shared with useAnalyze's optimistic seed so the
@@ -64,6 +66,14 @@ export const RETRIEVING_MESSAGE = 'Retrieving forecasts…'
 // still out, air quality first, because that is the order the run awaits them.
 export const AQI_TAIL_MESSAGE = 'Retrieving air quality…'
 export const CLOUD_TAIL_MESSAGE = 'Retrieving cloud data…'
+
+// The cloud label with its count once batches land (#849, approved by the
+// maintainer 2026-11-13), worded as the weather's progress is, so a long
+// cloud tail reads as moving rather than hung.
+const CLOUD_COUNT_PREFIX = 'Retrieving cloud data: '
+export function cloudTailMessage(processed: number, total: number, noun: string): string {
+  return `${CLOUD_COUNT_PREFIX}${processed} of ${total} ${noun}s…`
+}
 
 // Which tail label stands, given what is still out once the weather has
 // answered: air quality while it is open, then the cloud column, then none.
@@ -112,10 +122,14 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
   // During retrieval the detail line carries the live pace countdown when the
   // quota bucket is refilling. A paced analysis must never look hung: the
   // countdown plus the elapsed timer is what proves the wait is scheduled.
-  const detail = paceWaitLine(i.paceRemainingS ?? null)
+  const detail = paceWaitLine(i.paceRemainingS ?? null, i.paceReason)
   // A tail label replaces the forecast count and its percentage once the
   // weather has answered; the bar stays full under it.
-  const tail = i.statusMessage !== null && TAIL_MESSAGES.includes(i.statusMessage) ? i.statusMessage : null
+  const tail =
+    i.statusMessage !== null &&
+    (TAIL_MESSAGES.includes(i.statusMessage) || i.statusMessage.startsWith(CLOUD_COUNT_PREFIX))
+      ? i.statusMessage
+      : null
   return {
     visible: true,
     message: tail ?? retrievingLabel(total, percent),

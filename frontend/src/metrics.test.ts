@@ -87,7 +87,7 @@ describe('the rankable keys', () => {
 
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
-    expect(RANKING_KEYS).toHaveLength(23)
+    expect(RANKING_KEYS).toHaveLength(26)
   })
 
   // The pre-#291 rankable four: what each row holds until the user says
@@ -102,6 +102,8 @@ describe('the rankable keys', () => {
       freeze: 'freeze_min_ft',
       // The window's total, as precipitation's is: how much fell (#678).
       snowfall: 'snowfall_total_in',
+      // The deepest day of the window (#849).
+      snow_depth: 'snow_depth_max_in',
       aqi: 'aqi_avg',
       // #670, TJ's default: the lowest deck, the hour the cloud came closest
       // to the ground.
@@ -133,7 +135,7 @@ describe('aggregateToken', () => {
       [AGGREGATE.maximum]: 'max',
     }
 
-    expect(RANKING_KEYS).toHaveLength(23)
+    expect(RANKING_KEYS).toHaveLength(26)
     for (const key of RANKING_KEYS) {
       expect(aggregateToken(key)).toBe(TOKENS[windowAggregate(key)])
     }
@@ -149,8 +151,8 @@ describe('aggregateToken', () => {
     expect(() => aggregateToken('elevation_ft' as SortBy)).toThrow(/elevation_ft/)
   })
 
-  // Snow depth's key left the app with its column (#678), so it names no
-  // family and has no aggregate to read.
+  // Snow depth's one key from before #849 has no aggregate segment, so it is
+  // read only through the link decoder's alias, never as a ranking key.
   it('throws on the retired snow depth key', () => {
     expect(() => aggregateToken('snow_depth_in' as SortBy)).toThrow(/snow_depth_in/)
   })
@@ -163,6 +165,7 @@ describe('the vocabulary', () => {
       'cloud_deck',
       'freeze',
       'precip',
+      'snow_depth',
       'snowfall',
       'temp',
       'wind',
@@ -175,6 +178,8 @@ describe('the vocabulary', () => {
     expect(NOUN.freeze).toBe('Freezing level')
     // Open-Meteo's own name for the variable, and one word (#678).
     expect(NOUN.snowfall).toBe('Snowfall')
+    // Two words, so it is never read as new snow (#849).
+    expect(NOUN.snow_depth).toBe('Snow depth')
     // The one initialism: a word people read as a word, not a clipped noun.
     // Deliberately not "AQI (PM2.5)" — air_quality.py fetches Open-Meteo's
     // `us_aqi`, the EPA index combined across every pollutant, so naming one
@@ -189,6 +194,8 @@ describe('the vocabulary', () => {
   // prefix rather than the key's first word.
   it('reads a family whose id holds an underscore', () => {
     expect(familyOf('cloud_deck_min_ft')).toBe('cloud_deck')
+    expect(familyOf('snow_depth_max_in')).toBe('snow_depth')
+    expect(aggregateToken('snow_depth_min_in')).toBe('min')
     expect(aggregateToken('cloud_deck_max_ft')).toBe('max')
     expect(aggregateToken('cloud_deck_avg_ft')).toBe('avg')
     // #117's retired keys belong to no family (#670).
@@ -213,6 +220,7 @@ describe('the vocabulary', () => {
     expect(UNIT.freeze).toBe('ft')
     // Inches of snow, not of the water in it.
     expect(UNIT.snowfall).toBe('in')
+    expect(UNIT.snow_depth).toBe('in')
   })
 })
 
@@ -229,7 +237,6 @@ describe('familyOf', () => {
   it('throws on a key that names no metric', () => {
     expect(() => familyOf('elevation_ft')).toThrow(/elevation_ft/)
     expect(() => familyOf('name')).toThrow()
-    expect(() => familyOf('snow_depth_in')).toThrow(/snow_depth_in/)
   })
 })
 

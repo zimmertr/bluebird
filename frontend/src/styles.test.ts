@@ -4431,10 +4431,12 @@ describe('the popup card', () => {
     // panel, and the light band is darker than the panel the light inks were
     // measured on (`colors.test.ts`), so each light ink is measured again on
     // its tint over the band. The worst, 4.69:1, still clears AA (the panel
-    // read 5.42:1 at worst). Measured 2026-11-03.
+    // read 5.42:1 at worst). Measured 2026-11-03. Snow depth's inks were
+    // derived against this band too (#849), and the worst of them, 4.61:1,
+    // is now the worst of all. Measured 2026-11-12.
     const band = paint(GRID_BAND_COLOR, 'light')
     const inks = Object.values(METRIC_SCALE).flatMap((scale) => scale.colors.map((tint, i) => contrast(scale.ink[i], mixOver(tint, band, 0.2))))
-    expect(round2(Math.min(...inks))).toBe(4.69)
+    expect(round2(Math.min(...inks))).toBe(4.61)
     expect(mapCss).toMatch(/\.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-dark\);/)
     expect(mapCss).toMatch(/:root\[data-theme="light"\] \.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-light\);/)
   })

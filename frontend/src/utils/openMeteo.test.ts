@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ARCHIVE_URL,
   FORECAST_URL,
+  OUTAGE_WAITS_S,
   REQUEST_DEADLINE_MS,
   callWeight,
   fetchAqi,
@@ -650,7 +651,7 @@ describe('fetchWeather', () => {
       })
       await vi.advanceTimersByTimeAsync(60_100)
       await pending
-      expect(onPace).toHaveBeenCalledWith(60)
+      expect(onPace).toHaveBeenCalledWith(60, 'quota')
       expect(fetchSpy).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
@@ -673,15 +674,22 @@ describe('fetchWeather', () => {
     // fetch rejects with a TypeError when the request never completes
     // (offline, DNS, blocked CORS). That must read as "unreachable", not
     // crash through as an unclassified error.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
+    // It is asked again through the outage waits first (#849), so the clock
+    // is faked to run them out.
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi.fn(async () => {
         throw new TypeError('Failed to fetch')
-      }),
-    )
-    await expect(
-      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
-    ).rejects.toBeInstanceOf(OpenMeteoUnreachable)
+      })
+      vi.stubGlobal('fetch', fetchSpy)
+      const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+      const failed = expect(pending).rejects.toBeInstanceOf(OpenMeteoUnreachable)
+      await vi.advanceTimersByTimeAsync(OUTAGE_WAITS_S.reduce((a, b) => a + b, 0) * 1000)
+      await failed
+      expect(fetchSpy).toHaveBeenCalledTimes(2 + OUTAGE_WAITS_S.length)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('lets a user cancel pass through untranslated', async () => {
@@ -1421,6 +1429,34 @@ describe('fetchCloud', () => {
     expect(out[0]?.cloud_deck_min_ft).toBe(CLOUD_DECK_CEILING_FT)
   })
 
+  // The archive answers every pressure-level humidity null (measured
+  // 2026-11-13), so a window wholly in it asks nothing and reads no deck (#849).
+  it('asks nothing for a window wholly in the archive', async () => {
+    const spy = vi.fn()
+    vi.stubGlobal('fetch', spy)
+    const onProgress = vi.fn()
+    const nowMs = startMs + 200 * 86_400_000
+    const out = await fetchCloud([{ latitude: 1, longitude: 1 }, { latitude: 2, longitude: 2 }], startMs, endMs, {
+      model: 'gfs_seamless',
+      nowMs,
+      onProgress,
+    })
+    expect(spy).not.toHaveBeenCalled()
+    expect(out).toEqual([null, null])
+    expect(onProgress).toHaveBeenCalledWith(2, 2)
+  })
+
+  it('counts its batches as they land', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(body(1))))
+    const onProgress = vi.fn()
+    await fetchCloud([{ latitude: 1, longitude: 1, elevation_ft: 328 }], startMs, endMs, {
+      model: 'gfs_seamless',
+      nowMs: startMs,
+      onProgress,
+    })
+    expect(onProgress).toHaveBeenLastCalledWith(1, 1)
+  })
+
   it('answers a second ask from the cache', async () => {
     const spy = vi.fn(async () => fakeResponse(body(1)))
     vi.stubGlobal('fetch', spy)
@@ -1493,18 +1529,48 @@ describe('the per-request deadline', () => {
     expect(out[0]?.precip_total_in).toBe(0.3)
   })
 
-  it('fails with the timeout sentence when the second ask times out too', async () => {
+  // A stuck host (#849): after the second timeout the batch waits out each of
+  // OUTAGE_WAITS_S, saying so as an outage, and fails with the timeout
+  // sentence only when the last ask hangs too.
+  it('outlasts a stuck host through the outage waits, then fails with the timeout sentence', async () => {
     const fetchSpy = vi.fn(hang)
     vi.stubGlobal('fetch', fetchSpy)
-    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+    const onPace = vi.fn()
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      onPace,
+    })
     // Attached before the clock moves, so the rejection is never unhandled.
     const failed = expect(pending).rejects.toBeInstanceOf(OpenMeteoTimeout)
 
-    await vi.advanceTimersByTimeAsync(3 * REQUEST_DEADLINE_MS)
+    const waitsMs = OUTAGE_WAITS_S.reduce((a, b) => a + b, 0) * 1000
+    await vi.advanceTimersByTimeAsync((2 + OUTAGE_WAITS_S.length) * REQUEST_DEADLINE_MS + waitsMs)
     await failed
     await expect(pending).rejects.toThrow(TIMEOUT_MESSAGE)
-    // One retry, not a loop: a third ask would hold the reader a third time.
+    expect(fetchSpy).toHaveBeenCalledTimes(2 + OUTAGE_WAITS_S.length)
+    expect(onPace.mock.calls).toEqual(OUTAGE_WAITS_S.map((s) => [s, 'outage']))
+  })
+
+  it('finishes the batch when the host answers after an outage wait', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockImplementationOnce(hang)
+      .mockImplementationOnce(hang)
+      .mockResolvedValueOnce(fakeResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const onPace = vi.fn()
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      onPace,
+    })
+
+    await vi.advanceTimersByTimeAsync(2 * REQUEST_DEADLINE_MS)
+    expect(onPace).toHaveBeenCalledWith(OUTAGE_WAITS_S[0], 'outage')
     expect(fetchSpy).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(OUTAGE_WAITS_S[0] * 1000)
+    const out = await pending
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+    expect(out[0]?.precip_total_in).toBe(0.3)
   })
 
   it('lets the reader\'s cancel through as a cancel, and does not retry it', async () => {

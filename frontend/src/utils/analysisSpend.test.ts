@@ -99,6 +99,19 @@ describe('analysisCalls', () => {
     expect(totalCalls(split)).toBeGreaterThanOrEqual(whole.forecast)
   })
 
+  // fetchCloud asks nothing for a window wholly in the archive (#849), so the
+  // price must not hold an analysis for a column it never fetches.
+  it('prices no cloud column for a window wholly in the archive', () => {
+    const archive = { ...SHORT, startMs: NOW - 120 * DAY, endMs: NOW - 70 * DAY }
+    const withCloud = modelCalls(100, archive, true)
+    expect(withCloud).toEqual(modelCalls(100, archive, false))
+    expect(withCloud.forecast).toBe(0)
+    expect(withCloud.archive).toBeCloseTo(callWeight(100, archive.startMs, archive.endMs, HOURLY_VARIABLES.length, 1), 6)
+    // A window crossing the boundary still fetches cloud, so still prices it.
+    const crossing = { ...SHORT, startMs: NOW - 70 * DAY, endMs: NOW }
+    expect(totalCalls(modelCalls(10, crossing, true))).toBeGreaterThan(totalCalls(modelCalls(10, crossing, false)))
+  })
+
   it('costs nothing for nothing', () => {
     expect(spend(SHORT, 0)).toEqual(NO_CALLS)
   })

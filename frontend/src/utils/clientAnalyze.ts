@@ -11,6 +11,7 @@
 // with whatever discovery found, so a second union in the browser would only
 // be a chance for the two to disagree.
 
+import type { PaceReason } from './pacing'
 import {
   AnalyzeRequest,
   AnalyzeResponse,
@@ -24,8 +25,9 @@ import {
   HourlySeries,
 } from '../types'
 import { familyOf } from '../metrics'
-import { AQI_TAIL_MESSAGE, ELEVATION_MESSAGE, tailMessage } from './analyzeOverlay'
+import { AQI_TAIL_MESSAGE, CLOUD_TAIL_MESSAGE, ELEVATION_MESSAGE, cloudTailMessage, tailMessage } from './analyzeOverlay'
 import { postDestinations } from './apiFetch'
+import { fetchSnowDepth, withSnowDepth } from './snowHistory'
 import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
@@ -364,6 +366,11 @@ export function assemble(
       aqi_min: aqi?.aqi_min ?? null,
       aqi_max: aqi?.aqi_max ?? null,
       ...cloudFields(cloud),
+      // Filled in by `withSnowDepth` once the pod answers (#849); the
+      // backend's `_assemble` reads them off the destination instead.
+      snow_depth_avg_in: null,
+      snow_depth_min_in: null,
+      snow_depth_max_in: null,
       series,
     })
   }
@@ -377,11 +384,14 @@ export function assemble(
  * One macrotask passes before the first label, so a tail that answers in the
  * same tick as the weather never flashes a label. Air quality is named first and the cloud
  * column once air quality has answered, one label at a time and never back.
+ * `cloudLabel`, when given, words the cloud label with its count; it is called
+ * once the cloud label stands, which is the caller's cue to keep it current.
  */
 export async function followTail(
   aqi: Promise<unknown> | null,
   cloud: Promise<unknown> | null,
   onTail: ((message: string) => void) | undefined,
+  cloudLabel?: () => string,
 ): Promise<void> {
   const open = { aqi: aqi !== null, cloud: cloud !== null }
   void aqi?.then(() => (open.aqi = false))
@@ -392,7 +402,7 @@ export async function followTail(
   if (!open.aqi && !open.cloud) return
   await new Promise<void>((resolve) => setTimeout(resolve, 0))
   for (let label = tailMessage(open); label !== null; label = tailMessage(open)) {
-    onTail?.(label)
+    onTail?.(label === CLOUD_TAIL_MESSAGE && cloudLabel ? cloudLabel() : label)
     await (label === AQI_TAIL_MESSAGE ? aqi : cloud)
   }
 }
@@ -404,8 +414,9 @@ export interface ClientAnalysisCallbacks {
   // The tail label, once the weather has answered and air quality or the
   // cloud column is still out (`followTail`).
   onTail?: (message: string) => void
-  // The pacer (or a minutely resume) is about to wait this many seconds.
-  onPace?: (seconds: number) => void
+  // The pacer, a minutely resume or an outage retry is about to wait this
+  // many seconds, and why.
+  onPace?: (seconds: number, reason?: PaceReason) => void
   // Injectable for tests (horizon clamp inside fetchAqi).
   nowMs?: number
   // The live analysis cap from /api/capabilities; the compiled constant is
@@ -889,9 +900,17 @@ export async function runClientAnalysis(
     // same weather budget, so the pacer still sees one analysis's worth of
     // spend. The deck walk inserts the 2 m point at the same height the wind
     // is read at, which is what the shared `coords` carry.
+    // How far the cloud column has come, which its tail label counts once
+    // the weather has answered (#849), and whether that label stands yet.
+    const cloudCount = { processed: 0, total: coords.length, shown: false }
+    const cloudLabel = () => cloudTailMessage(cloudCount.processed, cloudCount.total, noun)
     const cloudPending: Promise<CloudResult[] | null> = fetchCloud(coords, startMs, endMs, {
       signal: internal.signal,
       onPace,
+      onProgress: (processed, total) => {
+        Object.assign(cloudCount, { processed, total })
+        if (cloudCount.shown) onTail?.(cloudLabel())
+      },
       model: request.forecast_model,
       nowMs,
       windowLimits,
@@ -901,6 +920,15 @@ export async function runClientAnalysis(
       internal.abort()
       return null
     })
+
+    // Snow depth for the rows this run forecasts (#849): one request to the
+    // pod, which answers from its own database, so it overlaps the weather and
+    // spends no Open-Meteo budget. A held row keeps the depth it came with,
+    // which is the same window's, because reuse is only legal within one, so
+    // a re-rank asks nothing. Best effort, like air quality.
+    const snowPending = fetchSnowDepth(unforecast, startMs, endMs, internal.signal)
+    // A weather failure aborts it before anything awaits it.
+    snowPending.catch(() => {})
 
     // AQI rides ALONGSIDE weather for the whole field rather than trailing the
     // ranking for the displayed rows. Open-Meteo bills weighted calls per
@@ -944,7 +972,10 @@ export async function runClientAnalysis(
     let times: number[] = []
     if (wxPending !== null) {
       const wxList = await wxPending
-      await followTail(aqiPending, cloudPending, onTail)
+      await followTail(aqiPending, cloudPending, onTail, () => {
+        cloudCount.shown = true
+        return cloudLabel()
+      })
       // Never null on this branch: the new candidates are in `aqiCoords`.
       const aqi = (await aqiPending) ?? { results: [], failed: [] }
       const cloudList = await cloudPending
@@ -980,7 +1011,11 @@ export async function runClientAnalysis(
     fetched.forEach((r, i) => {
       if (fetchedAqiFailed[i]) aqiFailed.add(geoKey(r.latitude, r.longitude))
     })
-    const results = [...held, ...fetched]
+    const snow = await snowPending
+    const results = [
+      ...held,
+      ...fetched.map((r) => withSnowDepth(r, snow?.get(geoKey(r.latitude, r.longitude)), times)),
+    ]
 
     // What the lookup's answer changes about the report (#673): the rows it
     // placed, reduced again from their kept columns at the height it returned.

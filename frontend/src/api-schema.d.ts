@@ -247,6 +247,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/snow-depth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Snow depth over a window at a list of coordinates
+         * @description What a window reads at each point from the NOHRSC SNODAS snow analysis: the depth on each UTC day of the window up to the newest day analyzed, and the window's average, least and most, which count every later day as that newest depth.
+         *
+         *     This instance keeps a year of daily depths at every place its copy of OpenStreetMap holds inside the grid. A coordinate in a 1 km cell no such place shares reads the newest day alone, and an instance without that copy reads today's analysis alone, at every point: a window that reaches the newest day reads its depth there and after, and one that ends before it reads null.
+         *
+         *     No upstream is asked: the answer comes from this instance's own copy.
+         */
+        post: operations["snow_depth_api_snow_depth_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/version": {
         parameters: {
             query?: never;
@@ -475,6 +499,11 @@ export interface components {
              */
             max_precip_total_in?: number | null;
             /**
+             * Max Snow Depth In
+             * @description Drop rows whose `snow_depth_max_in` is above this, so no day of the window has more. Nulls pass, under the same terms.
+             */
+            max_snow_depth_in?: number | null;
+            /**
              * Max Snowfall Total In
              * @description Drop rows whose `snowfall_total_in` is above this. Nulls pass.
              */
@@ -514,6 +543,11 @@ export interface components {
              * @description Drop rows whose `precip_total_in` is below this.
              */
             min_precip_total_in?: number | null;
+            /**
+             * Min Snow Depth In
+             * @description Drop rows whose `snow_depth_min_in` is below this, so every day of the window has at least this much. A row with a null depth passes either bound: the destination is outside the snow grid, or this instance holds no depth for it, and neither says anything about how much snow is on the ground.
+             */
+            min_snow_depth_in?: number | null;
             /**
              * Min Snowfall Total In
              * @description Drop rows whose `snowfall_total_in` is below this. A row with a null `snowfall_total_in` passes either bound.
@@ -564,6 +598,11 @@ export interface components {
              * @description Ranked destinations, best first, at most `limit` of them.
              */
             results: components["schemas"]["DestinationResult"][];
+            /**
+             * Snow Analysis Date
+             * @description The newest day of the SNODAS analysis this instance holds, as `YYYY-MM-DD`: the day every later day of the window reads. Null when it holds none, which is also when every snow depth is null.
+             */
+            snow_analysis_date: string | null;
             /**
              * Times
              * @description Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window, and sent in both shapes: under `include_series: false` it is the only statement of which hours the aggregates reduced.
@@ -863,6 +902,21 @@ export interface components {
             precip_total_in: number;
             /** @description Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`. */
             series: components["schemas"]["HourlySeries"] | null;
+            /**
+             * Snow Depth Avg In
+             * @description Mean snow depth over the window's days, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.
+             */
+            snow_depth_avg_in: number | null;
+            /**
+             * Snow Depth Max In
+             * @description Most snow depth on any day of the window, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.
+             */
+            snow_depth_max_in: number | null;
+            /**
+             * Snow Depth Min In
+             * @description Least snow depth on any day of the window, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.
+             */
+            snow_depth_min_in: number | null;
             /**
              * Snowfall Avg In Hr
              * @description Mean hourly snowfall, inches. Null under the same terms.
@@ -1523,6 +1577,16 @@ export interface components {
              */
             smoke_per_minute: number;
             /**
+             * Snow Depth Burst
+             * @description How many snow depth requests an idle client can send back-to-back before the per-minute pace applies.
+             */
+            snow_depth_burst: number;
+            /**
+             * Snow Depth Per Minute
+             * @description Sustained `POST /api/snow-depth` requests per client address per minute. It answers from the database alone and the app asks once per analysis. 0 means the limit is disabled.
+             */
+            snow_depth_per_minute: number;
+            /**
              * Wildfires Burst
              * @description How many wildfire requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce.
              */
@@ -1566,11 +1630,94 @@ export interface components {
              */
             type: "FeatureCollection";
         };
+        /** SnowDay */
+        SnowDay: {
+            /**
+             * Day
+             * Format: date
+             * @description A UTC day of the window, `YYYY-MM-DD`.
+             */
+            day: string;
+            /**
+             * Depth In
+             * @description Snow depth that day, inches, or null where none was measured.
+             */
+            depth_in: number | null;
+        };
+        /** SnowDepthAtPoint */
+        SnowDepthAtPoint: {
+            /**
+             * Avg In
+             * @description Mean snow depth over the window's days, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.
+             */
+            avg_in: number | null;
+            /**
+             * Days
+             * @description Each UTC day of the window up to the newest day analyzed, with its depth. It stops there rather than repeating the newest depth, so it holds only what was measured.
+             */
+            days: components["schemas"]["SnowDay"][];
+            /**
+             * Max In
+             * @description Most snow depth on any day of the window, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.
+             */
+            max_in: number | null;
+            /**
+             * Min In
+             * @description Least snow depth on any day of the window, inches. From the NOHRSC SNODAS 1 km analysis, a measurement rather than a forecast: each UTC day of the window up to the newest day analyzed reads its own depth, and every day after that reads the newest depth. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null when this instance holds no depth for the destination. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season. A value of 1290.04 is the source file's 16-bit millimetre ceiling: at least that much, and permanent ice.
+             */
+            min_in: number | null;
+        };
+        /** SnowDepthRequest */
+        SnowDepthRequest: {
+            /**
+             * End Datetime
+             * Format: date-time
+             * @description The window's last instant, read as `start_datetime` is.
+             */
+            end_datetime: string;
+            /**
+             * Points
+             * @description The coordinates to read, in the order the answer returns them.
+             */
+            points: components["schemas"]["SnowPoint"][];
+            /**
+             * Start Datetime
+             * Format: date-time
+             * @description The window's first instant, ISO 8601. An offset is converted to UTC; a naive stamp is read as UTC.
+             */
+            start_datetime: string;
+        };
+        /** SnowDepthResponse */
+        SnowDepthResponse: {
+            /**
+             * Points
+             * @description One answer per requested point, in request order.
+             */
+            points: components["schemas"]["SnowDepthAtPoint"][];
+            /**
+             * Snow Analysis Date
+             * @description The newest day of the SNODAS analysis this instance holds, as `YYYY-MM-DD`: the day every later day of the window reads. Null when it holds none, which is also when every snow depth is null.
+             */
+            snow_analysis_date: string | null;
+        };
+        /** SnowPoint */
+        SnowPoint: {
+            /**
+             * Latitude
+             * @description Latitude in decimal degrees, -90 to 90.
+             */
+            latitude: number;
+            /**
+             * Longitude
+             * @description Longitude in decimal degrees, -180 to 180.
+             */
+            longitude: number;
+        };
         /**
          * SortBy
          * @enum {string}
          */
-        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max" | "cloud_deck_min_ft" | "cloud_deck_avg_ft" | "cloud_deck_max_ft" | "snowfall_total_in" | "snowfall_avg_in_hr" | "snowfall_min_in_hr" | "snowfall_max_in_hr";
+        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max" | "cloud_deck_min_ft" | "cloud_deck_avg_ft" | "cloud_deck_max_ft" | "snowfall_total_in" | "snowfall_avg_in_hr" | "snowfall_min_in_hr" | "snowfall_max_in_hr" | "snow_depth_avg_in" | "snow_depth_min_in" | "snow_depth_max_in";
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -2151,6 +2298,48 @@ export interface operations {
             };
             /** @description No fetch from NOAA has completed yet, or every refresh has failed for more than 24 hours since the last good one, so there is nothing to serve. Transient; `Retry-After` says when to retry. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    snow_depth_api_snow_depth_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnowDepthRequest"];
+            };
+        };
+        responses: {
+            /** @description Each point's daily depths and the window's aggregates. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnowDepthResponse"];
+                };
+            };
+            /** @description A point or the window was malformed or out of range. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

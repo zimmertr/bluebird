@@ -100,6 +100,21 @@ describe('MapLegend', () => {
     ])
   })
 
+  // A snow depth ranking's markers wear the snow layer's colours (#849), so
+  // the layer is that metric's field and one row keys both, crediting NOHRSC
+  // and drawn as the layer's own strip.
+  it('keys a snow depth ranking and the snow layer with one row', () => {
+    const snow = { ...BASE, sortBy: 'snow_depth_max_in' as const, markerScale: rankedScale('snow_depth_max_in') }
+    const both = legendSections({ ...snow, hasColoredMarkers: true, overlays: { ...NONE, showSnow: true } }, 'id')
+    expect(both.map((s) => s.label)).toEqual(['Snow depth (in)'])
+    expect(both[0].credit).toEqual({ href: 'https://www.nohrsc.noaa.gov/nsa/', name: 'NOHRSC' })
+    const layerOnly = legendSections({ ...BASE, overlays: { ...NONE, showSnow: true } }, 'id')
+    expect(both[0].ramp).toEqual(layerOnly[0].ramp)
+    // Another ranking keeps the layer's own row beside its key.
+    const temp = legendSections({ ...BASE, hasColoredMarkers: true, overlays: { ...NONE, showSnow: true } }, 'id')
+    expect(temp.map((s) => s.label)).toEqual(['Temperature (°F)', 'Snow depth (in)'])
+  })
+
   // A chip shows a letter, and the word it stands for was its title alone,
   // which reaches a pointer and nobody else (#576). The word is in the chip
   // as hidden text too.

@@ -306,10 +306,16 @@ function flag(
  * The param that carries a family's aggregate: the family's name with no
  * underscore, so `cloud_deck` writes `clouddeck` beside its own bounds,
  * `minclouddeck` and `maxclouddeck`. No link key carries an underscore (#864).
+ * Snow depth is the exception: `snowdepth` is the snow layer's switch, so its
+ * aggregate rides `depth` (#849).
  */
 export function aggregateParam(family: MetricFamily): string {
-  return family.replace(/_/g, '')
+  return family === 'snow_depth' ? 'depth' : family.replace(/_/g, '')
 }
+
+// A ranking key a link from before #849 carries for snow depth: today's one
+// number then, read now as the deepest day, the reading the family defaults to.
+const RENAMED_SORT_KEYS: Readonly<Record<string, SortBy>> = { snow_depth_in: 'snow_depth_max_in' }
 
 // An aggregate dropdown (#291): one param per metric family, valued by the
 // aggregate token its keys already spell (`wind=max`), written only off the
@@ -448,7 +454,8 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   {
     key: 'sort',
     encode: (state) => (state.sortBy !== DEFAULT_SORT ? state.sortBy : null),
-    decode: (raw, out) => {
+    decode: (given, out) => {
+      const raw = RENAMED_SORT_KEYS[given] ?? given
       if (!(RANKING_KEYS as readonly string[]).includes(raw)) return
       const sortBy = raw as SortBy
       out.sortBy = sortBy
@@ -459,8 +466,6 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     },
   },
   flag('desc', 'sortDesc'),
-  // Snow depth's key left the ranking keys in #678, so an old link ranked on
-  // it fails the check above and opens on the default ranking.
   ...RANKED_FAMILIES.map(aggregateRow),
   // Shape only, no ceiling: a link asking for more rows than this deployment
   // allows gets clamped down by the caller, never discarded. Dropping it here
@@ -567,7 +572,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     encode: ({ selection }) => (selection.kind === 'days' && selection.hours ? selection.hours.end : null),
   },
   // The forecast bounds, spelled out rather than abbreviated the way
-  // `minel`/`maxel` were: fourteen terse keys would be fourteen guesses in the
+  // `minel`/`maxel` were: sixteen terse keys would be sixteen guesses in the
   // address bar, and readability is what the URL convention buys (#210).
   // `minel` and `maxel` have no row, so they are deliberately not read. They
   // carried the elevation band the panel dropped in #341, so an old link still
@@ -576,9 +581,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   // and `maxcloudcover` are retired the same way, with the `cloud_base` and
   // `cloud_cover` aggregate params: the cloud deck replaced both families
   // (#670), and a bound on a number the app no longer computes is no bound.
-  // `minsnow` and `maxsnow` bounded the snow depth snowfall replaced (#678),
-  // and are retired on the same terms rather than read as a snowfall bound,
-  // which is a different quantity in the same unit.
+  // `minsnow` and `maxsnow` bound snow depth, retired when snowfall replaced
+  // it (#678) and read again since it came back beside snowfall (#849), so a
+  // link from before the retirement opens on its bound once more.
   bound('minprecip', 'minPrecipTotalIn'),
   bound('maxprecip', 'maxPrecipTotalIn'),
   bound('mintemp', 'minTempF'),
@@ -589,6 +594,8 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   bound('maxfreeze', 'maxFreezeFt'),
   bound('minsnowfall', 'minSnowfallTotalIn'),
   bound('maxsnowfall', 'maxSnowfallTotalIn'),
+  bound('minsnow', 'minSnowDepthIn'),
+  bound('maxsnow', 'maxSnowDepthIn'),
   bound('minaqi', 'minAqi'),
   bound('maxaqi', 'maxAqi'),
   bound('minclouddeck', 'minCloudDeckFt'),
@@ -781,7 +788,7 @@ export const FIELD_PARAMS = {
   rowKeys: ['sort', ...RANKED_FAMILIES.map(aggregateParam)],
   constraints: [
     'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',
-    'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minaqi', 'maxaqi',
+    'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minsnow', 'maxsnow', 'minaqi', 'maxaqi',
     'minclouddeck', 'maxclouddeck',
   ],
   limit: ['limit'],

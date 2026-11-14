@@ -72,8 +72,11 @@ describe('scaleTicks', () => {
   // Three of five, because five collide: at the 10px step the row is set in,
   // the freezing level's boundaries measure 28 to 33px each and land 27px
   // apart (Chrome, 2026-09-17).
+  // Snow depth's legend row draws the snow layer's own ticks instead (#849).
+  const SIX_BAND = Object.values(METRIC_SCALE).filter((s) => s !== METRIC_SCALE.snow_depth)
+
   it('prints the bottom, the middle and the top boundary', () => {
-    for (const scale of Object.values(METRIC_SCALE)) {
+    for (const scale of SIX_BAND) {
       const ticks = scaleTicks(scale)
       expect(ticks).toHaveLength(3)
       expect(ticks.map((t) => t.at)).toEqual([1, 3, 5])
@@ -84,7 +87,7 @@ describe('scaleTicks', () => {
   // disagree with it, which is what the hand-written band captions did until
   // #454.
   it('reads every tick back as the threshold it names', () => {
-    for (const scale of Object.values(METRIC_SCALE)) {
+    for (const scale of SIX_BAND) {
       const read = scaleTicks(scale).map((t) => Number(t.label.replace(/,/g, '').match(/[\d.]+/)![0]))
       expect(read).toEqual([scale.thresholds[0], scale.thresholds[2], scale.thresholds[4]])
     }

@@ -305,9 +305,9 @@ export default function ResultsPanels({
   const compareControls = useMemo(
     () =>
       compare.active ? (
-        <ModelCompare compared={compare.shown} paceRemainingS={compare.paceRemainingS} />
+        <ModelCompare compared={compare.shown} paceRemainingS={compare.paceRemainingS} paceReason={compare.paceReason} />
       ) : undefined,
-    [compare.active, compare.shown, compare.paceRemainingS],
+    [compare.active, compare.shown, compare.paceRemainingS, compare.paceReason],
   )
   return (
     <>

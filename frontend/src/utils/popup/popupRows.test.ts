@@ -115,6 +115,8 @@ describe('popupGroups over a Current lookup', () => {
       `${NOUN.cloud_deck} (${UNIT.cloud_deck})`,
       `${NOUN.freeze} (${UNIT.freeze})`,
       `${NOUN.precip} (in/hr)`,
+      // One day's depth, which an hour reads as one number (#849).
+      `${NOUN.snow_depth} (${UNIT.snow_depth})`,
       // An hour of new snow is a rate, as an hour of rain is (#678).
       `${NOUN.snowfall} (in/hr)`,
       `${NOUN.temp} (${UNIT.temp})`,

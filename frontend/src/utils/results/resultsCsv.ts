@@ -31,6 +31,7 @@ import type { ClosureWarning } from '../closureProximity'
 import { MINUTE_MS, type ResolvedWindow } from '../forecastWindow'
 import { geoKey } from '../points'
 import { UNAVAILABLE } from '../unavailableCell'
+import { isSnowDepthKey, snowCellText } from '../snowCeiling'
 
 /**
  * The leading position column, named rather than numbered.
@@ -159,6 +160,11 @@ function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null
   }
   const raw = row[col.key]
   if (raw == null) return col.csvNull ?? ''
+  // A depth at the source file's ceiling says so here too, ungrouped like
+  // every other number in the file. The bare ceiling in a spreadsheet reads as
+  // a measurement, which is the one thing it is not.
+  const clipped = isSnowDepthKey(col.key as string) ? snowCellText(raw, false) : null
+  if (clipped !== null) return clipped
   const project = col.csv ?? col.format
   return project ? project(raw) : String(raw)
 }
@@ -227,7 +233,7 @@ function credit(lead: string, sourceName: string, suffix = ''): string[] {
 
 /**
  * A credit for a source that publishes no license: the US Forest Service's
- * orders are a federal work. The same two cells, with the source's own link
+ * orders and NOHRSC's snow analysis are federal works. The same two cells, with the source's own link
  * where a license URI would stand, so the row keeps the shape of the ones
  * above it and still says where the data came from.
  */
@@ -249,18 +255,20 @@ function unlicensedCredit(lead: string, sourceName: string): string[] {
  * the shape the forecast-window rows above them wear; the comma inside the
  * words is quoted away by escapeCell like any other cell.
  *
- * Only suppliers the file actually used appear: NIFC exactly when the wildfire
- * column is present, the Forest Service exactly when the Closure column is,
- * and CAMS and ERA5 are absent because their figures reach the file through
- * Open-Meteo, which is the credit their arrangements ask for. The column
- * credits follow the order their columns stand in. The snow layer's supplier,
- * NOHRSC, is never here: the layer writes no column (#678).
+ * Only suppliers the file actually used appear: NOHRSC exactly when the snow
+ * depth column is present, NIFC exactly when the wildfire column is, the
+ * Forest Service exactly when the Closure column is, and CAMS and ERA5 are
+ * absent because their figures reach the file through Open-Meteo, which is
+ * the credit their arrangements ask for. The column credits follow the order
+ * their columns stand in, so the snow depth row, a metric among the others,
+ * comes before the two flag columns that close every data row.
  */
-function creditRows(fireColumn: boolean, closureColumn: boolean): string[][] {
+function creditRows(snowColumn: boolean, fireColumn: boolean, closureColumn: boolean): string[][] {
   const rows = [
     credit('Weather data by', 'Open-Meteo'),
     credit('Destination data ©', 'OpenStreetMap', ' contributors'),
   ]
+  if (snowColumn) rows.push(unlicensedCredit('Snow depth data by', 'NOAA NOHRSC'))
   if (fireColumn) rows.push(credit('Wildfire data by', 'NIFC'))
   if (closureColumn) rows.push(unlicensedCredit('Closure data by', 'US Forest Service'))
   return rows
@@ -447,7 +455,11 @@ export function buildResultsCsv(
     ...body,
     ...windowRows,
     [''],
-    ...creditRows(fireWarnings != null, closureWarnings != null),
+    ...creditRows(
+      columns.some((c) => isSnowDepthKey(c.key as string)),
+      fireWarnings != null,
+      closureWarnings != null,
+    ),
   ]
   return BOM + doc.map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
 }

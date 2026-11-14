@@ -870,14 +870,12 @@ describe('TimeSeriesChart with more than one metric', () => {
     expect(screen.getByRole('separator', { name: 'Resize the rows' })).toBeTruthy()
   })
 
-  it('counts every drawn panel against the hover budget', () => {
-    // 48 hours x 300 lines is 14,400 paths in one panel and 28,800 in two.
+  // No hover budget (record 0297): every panel follows the cursor at a size
+  // the old budget refused, 48 hours x 300 lines in each of two panels.
+  it('follows the cursor in every panel at any size', () => {
     const many = Array.from({ length: 300 }, (_, i) => resultRow({ name: `P${i}`, latitude: i / 100 }))
-    render(<TimeSeriesChart {...props({ rows: many, metrics: ['precip'] })} />)
-    expect(chart.charts[chart.charts.length - 1].onMouseMove).toBeDefined()
-    chart.charts = []
     render(<TimeSeriesChart {...props({ rows: many, metrics: ['precip', 'temp'] })} />)
-    expect(last(chart.charts, 2).every((c) => c.onMouseMove === undefined)).toBe(true)
+    expect(last(chart.charts, 2).every((c) => c.onMouseMove !== undefined)).toBe(true)
   })
 
   it('stands a picker per slot at a desk, an × after each but the first and a + after the last', () => {

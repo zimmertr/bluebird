@@ -97,6 +97,7 @@ export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
   dates: 'error',
   'compare-aqi': 'error',
   'compare-freeze': 'error',
+  'compare-snow': 'error',
   destinations: 'error',
   polygon: 'error',
   types: 'error',

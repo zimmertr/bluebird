@@ -37,6 +37,11 @@ export type SortBy =
   | 'snowfall_avg_in_hr'
   | 'snowfall_min_in_hr'
   | 'snowfall_max_in_hr'
+  // Snow depth (#849): a level read once a day, so temperature's three
+  // aggregates and no total.
+  | 'snow_depth_avg_in'
+  | 'snow_depth_min_in'
+  | 'snow_depth_max_in'
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
@@ -106,6 +111,8 @@ export interface AnalyzeRequest {
   max_freeze_ft?: number | null
   min_snowfall_total_in?: number | null
   max_snowfall_total_in?: number | null
+  min_snow_depth_in?: number | null
+  max_snow_depth_in?: number | null
   min_aqi?: number | null
   max_aqi?: number | null
   min_cloud_deck_ft?: number | null
@@ -164,6 +171,35 @@ export interface HourlySeries {
   // map's playback arrows do not appear on that path. Same contract as
   // `series_times` below.
   wind_dir_deg?: (number | null)[]
+  // Inches of snow on the ground, the hour's UTC day's analysis (#849).
+  // Client-populated from POST /api/snow-depth, the same contract as
+  // `wind_dir_deg`. Null after the newest day analyzed, so a chart line stops
+  // where the measurements do.
+  snow_depth_in?: (number | null)[]
+}
+
+// POST /api/snow-depth (#849): a window's snow depth at a list of points.
+export interface SnowDepthRequest {
+  points: { latitude: number; longitude: number }[]
+  start_datetime: string
+  end_datetime: string
+}
+
+export interface SnowDay {
+  day: string
+  depth_in: number | null
+}
+
+export interface SnowDepthAtPoint {
+  avg_in: number | null
+  min_in: number | null
+  max_in: number | null
+  days: SnowDay[]
+}
+
+export interface SnowDepthResponse {
+  snow_analysis_date: string | null
+  points: SnowDepthAtPoint[]
 }
 
 export interface DestinationResult {
@@ -204,6 +240,16 @@ export interface DestinationResult {
   snowfall_avg_in_hr: number | null
   snowfall_min_in_hr: number | null
   snowfall_max_in_hr: number | null
+  // Snow on the ground over the window's UTC days, in inches, from the pod's
+  // year of NOHRSC SNODAS analyses (#849): a measurement, so every day after
+  // the newest analyzed reads that newest depth. Null outside the grid, which
+  // covers the contiguous US and southern Canada, and null where the pod holds
+  // no depth; both read N/A rather than as a gap in the weather. Over
+  // permanent ice the analysis accumulates year over year, so a glaciated
+  // summit reads over a thousand inches.
+  snow_depth_avg_in: number | null
+  snow_depth_min_in: number | null
+  snow_depth_max_in: number | null
   // The cloud deck in feet above sea level, reduced over the window (#670).
   // Null unless the analysis fetched the cloud column, and for archive hours,
   // which carry no pressure levels. A dry column reads CLOUD_DECK_CEILING_FT.
@@ -242,6 +288,9 @@ export interface AnalyzeResponse {
   // True only when the request opted into top_by_elevation and the found set
   // exceeded the analysis cap.
   truncated?: boolean
+  // The newest day of SNODAS analysis the pod holds, YYYY-MM-DD: the day every
+  // later day of the window reads. Null when it holds none.
+  snow_analysis_date?: string | null
 }
 
 // Structured fields riding on an over-limit 400 (or the stream's error

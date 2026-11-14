@@ -13,7 +13,6 @@ import {
   sharedNames,
   gridRemapper,
   nowWithinGrid,
-  tracksCursor,
   buildChartData,
   MAX_CHART_PANELS,
   addMetric,
@@ -75,6 +74,12 @@ describe('metricForSort', () => {
   // Snowfall is an hourly series like every other family (#678), so a
   // snowfall ranking opens the snowfall chart, where snow depth kept the one
   // on screen.
+  // Snow depth draws a line too, its days spread over their hours (#849).
+  it('follows a snow depth ranking onto the snow depth chart', () => {
+    expect(metricForSort('snow_depth_max_in')).toBe('snow_depth')
+    expect(CHART_METRICS.find((m) => m.key === 'snow_depth')!.label).toBe('Snow depth (in)')
+  })
+
   it('follows a snowfall ranking onto the snowfall chart', () => {
     expect(metricForSort('snowfall_total_in')).toBe('snowfall')
     expect(metricForSort('snowfall_max_in_hr')).toBe('snowfall')
@@ -548,52 +553,6 @@ describe('nowWithinGrid', () => {
   })
 })
 
-// The cap exists because hovering rebuilds every line's path from every point, so
-// the two variables multiply. Calibrated against the running app; the numbers
-// below are the maintainer's own verdicts at the boundary.
-describe('tracksCursor', () => {
-  it('follows the cursor through the sizes that read as smooth', () => {
-    expect(tracksCursor(624, 25)).toBe(true) // 15,600 points, satisfactory
-    expect(tracksCursor(840, 25)).toBe(true) // 21,000, satisfactory
-  })
-
-  // The cap sits between the last count that read as satisfactory and the first
-  // that read as degrading, so the degrading band is excluded rather than admitted.
-  it('stops at the first size that read as degrading', () => {
-    expect(tracksCursor(840, 25)).toBe(true) // 21,000, satisfactory
-    expect(tracksCursor(1056, 25)).toBe(false) // 26,400, starting to degrade
-    expect(tracksCursor(2208, 20)).toBe(false) // 44,160, the case needing a limit
-  })
-
-  // Shape independence, checked in the app at 19,200 points across three very
-  // different shapes: the product is the variable, not either term on its own.
-  it('judges by the product, not by lines or hours alone', () => {
-    expect(tracksCursor(192, 100)).toBe(true) // 100 lines, 8 days
-    expect(tracksCursor(384, 50)).toBe(true) // 50 lines, 16 days
-    expect(tracksCursor(960, 20)).toBe(true) // 20 lines, 40 days
-    // Many lines alone is fine, and many hours alone is fine; together they are not.
-    expect(tracksCursor(24, 200)).toBe(true)
-    expect(tracksCursor(2544, 5)).toBe(true)
-    expect(tracksCursor(2544, 100)).toBe(false)
-  })
-
-  // Both edges of the cap, so a change to it has to be deliberate.
-  it('admits exactly the budget and refuses one point past it', () => {
-    expect(tracksCursor(25_000, 1)).toBe(true)
-    expect(tracksCursor(25_001, 1)).toBe(false)
-  })
-
-  it('charges for hours rather than days, so a narrowed window buys back the emphasis', () => {
-    // 30 whole days at 40 lines is over; the same days narrowed to 12 hours is not.
-    expect(tracksCursor(30 * 24, 40)).toBe(false) // 28,800
-    expect(tracksCursor(30 * 12, 40)).toBe(true) // 14,400
-  })
-
-  it('is unbothered by an empty chart', () => {
-    expect(tracksCursor(0, 0)).toBe(true)
-  })
-})
-
 // The hover card is drawn inside the plotting area, so a fixed eight rows
 // overhung the results table once the chart panel was dragged toward its floor.
 describe('tooltipCapacity', () => {
@@ -774,7 +733,9 @@ describe('the chart metric slots', () => {
 
   it('knows its own names', () => {
     expect(RANKED_FAMILIES.every(isChartMetric)).toBe(true)
-    expect(isChartMetric('snow_depth')).toBe(false)
+    // Snow depth draws its daily analyses since #849.
+    expect(isChartMetric('snow_depth')).toBe(true)
+    expect(isChartMetric('snow')).toBe(false)
   })
 })
 
@@ -800,11 +761,3 @@ describe('cardCells', () => {
   })
 })
 
-describe('tracksCursor over two panels', () => {
-  // A hover redraws every line in both panels, so two metrics spend the
-  // budget twice (#499): 384 hours x 40 lines fits one panel, not two.
-  it('is spent by every path drawn', () => {
-    expect(tracksCursor(384, 40)).toBe(true)
-    expect(tracksCursor(384, 40 * 2)).toBe(false)
-  })
-})

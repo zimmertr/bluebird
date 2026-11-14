@@ -32,6 +32,7 @@ import { writeViewPrefs } from '../utils/viewPrefs'
 import { CLOSURE_ROW_LABELS, USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import { FIRE_ACTIVITY_ROW_LABEL, FIRMS_HREF, fireActivityLegendChips } from '../utils/fireActivity'
 import { GRID_STYLE_NAMES } from '../utils/forecastGrid/forecastGridLegend'
+import { gridPaints } from '../utils/forecastGrid/forecastGridRaster'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF, RADAR_ROW_LABEL, radarSwatchCss } from '../utils/radar'
@@ -204,7 +205,13 @@ export function legendSections(
     showFireActivity,
     showSlope,
   } = overlays
-  const { gridPainted, gridCued, gridFailed, gridLegend, gridStyle, setGridStyle } = grid
+  // The grid's states mean nothing under a ranking it cannot paint, so the
+  // grid neither keys the metric nor gets a row of its own then.
+  const gridShows = gridPaints(sortBy)
+  const gridPainted = gridShows && grid.gridPainted
+  const gridCued = gridShows && grid.gridCued
+  const gridFailed = gridShows && grid.gridFailed
+  const { gridLegend, gridStyle, setGridStyle } = grid
   // ONE box, gaining and losing sections as the report and the
   // layers change (#454). It was two — the layer rows in one, the
   // six-row metric key in another — which cost a border, a gap and
@@ -224,6 +231,13 @@ export function legendSections(
   //
   // Written in order rather than sorted, so the source reads as
   // the card does.
+  // A snow depth ranking's markers wear the snow layer's own colours (#849),
+  // so the layer is that metric's field and one row keys both: the metric's,
+  // drawn as the layer's strip and crediting NOHRSC, with the layer's own row
+  // left out while it stands.
+  const metricKeyed =
+    markerScale !== null && rankedFieldHasValue && (hasColoredMarkers || gridPainted || gridCued)
+  const snowKeyed = metricKeyed && familyOf(sortBy) === 'snow_depth'
   const sections: LegendSectionSpec[] = [
     // Keyed to the markers OR to the grid, because either can be
     // the only colored thing on screen: a live filter can empty
@@ -239,9 +253,7 @@ export function legendSections(
     // reduced, and — for wind — which datum produced it (#361)
     // are all stated by the results header and the table's own
     // column headers.
-    ...(markerScale !== null &&
-    rankedFieldHasValue &&
-    (hasColoredMarkers || gridPainted || gridCued)
+    ...(markerScale !== null && metricKeyed
       ? [
           {
             // `Temperature (°F)`, by the same composer the table
@@ -259,10 +271,11 @@ export function legendSections(
               undefined,
               markerScale.unit,
             ),
+            ...(snowKeyed ? { credit: { href: NOHRSC_HREF, name: 'NOHRSC' } } : {}),
             ramp: {
-              css: scaleRampCss(markerScale),
-              ticks: scaleTicks(markerScale),
-              bands: markerScale.colors.length,
+              css: snowKeyed ? snowRampCss() : scaleRampCss(markerScale),
+              ticks: snowKeyed ? snowTicks() : scaleTicks(markerScale),
+              bands: snowKeyed ? SNOW_RAMP.length : markerScale.colors.length,
             },
           },
         ]
@@ -431,7 +444,7 @@ export function legendSections(
     // because those boundaries are NOAA's own classification —
     // the picture and its key have to agree, which is why both
     // read `snowDepth.ts`.
-    ...(showSnow
+    ...(showSnow && !snowKeyed
       ? [
           {
             label: SNOW_LABEL,

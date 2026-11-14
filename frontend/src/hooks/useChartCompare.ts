@@ -224,9 +224,11 @@ export function useChartCompare({
   // the ranking reads. Never on air quality, which comes from CAMS whatever
   // forecast model ranked the field, so a comparison there could only draw
   // the same line twice. That holds for every drawn panel (#499): a panel on
-  // air quality would draw each model's line over the destination's.
+  // air quality would draw each model's line over the destination's. Snow
+  // depth is the same case: it comes off NOHRSC's analysis whatever model
+  // ranked the field (#849).
   const compare = useModelCompare({
-    enabled: !chartMetrics.metrics.includes('aqi'),
+    enabled: !chartMetrics.metrics.includes('aqi') && !chartMetrics.metrics.includes('snow_depth'),
     destinations: chartedDestinations,
     rows: comparePoints,
     heldSeries: chartedSeries,
@@ -275,7 +277,7 @@ export function useChartCompare({
   // second model is selected, where `ModelCompare` says the same wait only
   // while the CHART draws a comparison. Null while the chart has it, because
   // one wait said twice is the reason it was put in one module.
-  const compareWait = compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS)
+  const compareWait = compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS, compare.paceReason)
 
   // Why a compared model has no rows, on the same terms as the wait. The note
   // is the chart's (`ModelCompare`), but the table loses that model's rows

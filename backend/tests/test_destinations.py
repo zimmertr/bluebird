@@ -562,8 +562,8 @@ def test_over_cap_union_speaks_generically(monkeypatch):
 
 
 def test_carries_no_snow_depth(monkeypatch):
-    # Snow depth left the API in #678: the pod holds no snow grid, so a row
-    # and the response carry nothing about it.
+    # Discovery has no window, and snow depth is read for a window's days
+    # (#849), so it rides POST /api/snow-depth and the analyze routes instead.
     _stub_osm(monkeypatch, [_peak("Alpha", 5000.0)])
     body = client.post("/api/destinations", json=_payload()).json()
     assert "snow_analysis_date" not in body

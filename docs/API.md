@@ -271,6 +271,7 @@ meant to prevent.
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
 | `GET /api/closures` | Forest Service closure orders in a bounding box: closed areas in Regions 3, 4 and 6, or closed trails, roads and sites in Region 6 (Oregon and Washington). |
 | `GET /api/landmarks` | Named trailheads and crags in a bounding box, from the deployment's own copy of OpenStreetMap. |
+| `POST /api/snow-depth` | Snow depth over a window at a list of coordinates, from the deployment's own year of NOHRSC analyses. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
@@ -703,6 +704,57 @@ upstream, so a map pan costs OpenStreetMap nothing. The route has a
 per-address bucket of its own, published under `limits.rate` as
 `landmarks_per_minute` and `landmarks_burst`.
 
+### Snow depth over a window
+
+`POST /api/snow-depth` is the same reading for coordinates you send, with the
+depth of each day. It asks no upstream: the answer comes from this instance's
+own copy, and it is how the web app reads the column, once per analysis.
+
+```bash
+curl -s https://bluebirdforecast.com/api/snow-depth \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "points": [
+      { "latitude": 46.7860, "longitude": -121.7350 },
+      { "latitude": 63.0700, "longitude": -151.0000 }
+    ],
+    "start_datetime": "2026-11-10T00:00:00Z",
+    "end_datetime": "2026-11-14T23:00:00Z"
+  }' | jq
+```
+
+```json
+{
+  "snow_analysis_date": "2026-11-12",
+  "points": [
+    {
+      "avg_in": 3.78,
+      "min_in": 1.97,
+      "max_in": 4.33,
+      "days": [
+        { "day": "2026-11-10", "depth_in": 1.97 },
+        { "day": "2026-11-11", "depth_in": 3.94 },
+        { "day": "2026-11-12", "depth_in": 4.33 }
+      ]
+    },
+    { "avg_in": null, "min_in": null, "max_in": null, "days": [] }
+  ]
+}
+```
+
+The answer is one entry per point, in the order sent. `days` runs from the
+window's first UTC day to its last or the newest day analyzed, whichever comes
+first, and stops there rather than repeating the newest depth; the aggregates
+count the two days after it, the 13th and the 14th, as 4.33 each. A point
+outside the grid reads `null` and no days. The server keeps days only at the
+1 km cells its OpenStreetMap places sit in, so a coordinate in a cell no place
+shares reads the newest day alone, and an instance without that copy reads
+today's grid alone at every point: a window that reaches the newest day reads
+its depth there and after it, and a window that ends before it reads `null`. A window takes the analyze routes' reach,
+and a list takes up to the analysis cap; both are on
+[`/api/capabilities`](#discovering-the-limits), with the route's per-address
+limit under `limits.rate` as `snow_depth_per_minute` and `snow_depth_burst`.
+
 ### Resolving your own coordinates
 
 The same endpoint also answers a second question: what does OpenStreetMap know
@@ -813,6 +865,7 @@ number or omitted, and they combine as an AND:
 | `min_wind_mph` / `max_wind_mph` | its `wind_min_mph` is at or above the floor **and** its `wind_max_mph` at or below the ceiling |
 | `min_freeze_ft` / `max_freeze_ft` | its `freeze_min_ft` is at or above the floor **and** its `freeze_max_ft` at or below the ceiling |
 | `min_snowfall_total_in` / `max_snowfall_total_in` | its `snowfall_total_in` is inside the range |
+| `min_snow_depth_in` / `max_snow_depth_in` | its `snow_depth_min_in` is at or above the floor **and** its `snow_depth_max_in` at or below the ceiling |
 | `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
 | `min_cloud_deck_ft` / `max_cloud_deck_ft` | its `cloud_deck_min_ft` is at or above the floor **and** its `cloud_deck_max_ft` at or below the ceiling |
 
@@ -949,6 +1002,9 @@ EOF
     "snowfall_avg_in_hr": 0.0323,
     "snowfall_min_in_hr": 0,
     "snowfall_max_in_hr": 0.11,
+    "snow_depth_avg_in": 1290.04,
+    "snow_depth_min_in": 1290.04,
+    "snow_depth_max_in": 1290.04,
     "cloud_deck_min_ft": 6200,
     "cloud_deck_avg_ft": 11850,
     "cloud_deck_max_ft": 30066,
@@ -1217,8 +1273,8 @@ row nothing else. A null passes either bound and ranks last in either
 direction, exactly as a null AQI does. Both bounds read `snowfall_total_in`,
 and all four fields are accepted by `sort_by`. They replaced the snow depth
 field, its date and its bounds in
-[#678](https://github.com/zimmertr/bluebird/issues/678), and a request naming
-one of those is a `422`.
+[#678](https://github.com/zimmertr/bluebird/issues/678), and those came back
+beside them in [#849](https://github.com/zimmertr/bluebird/issues/849).
 
 ```bash
 # $START and $END as set under "Choosing a forecast window".
@@ -1244,6 +1300,37 @@ EOF
 
 That ranks the destinations expecting the most new snow, among those expecting
 at least two inches over the window.
+
+Snow depth is the one metric on a row that is not a forecast.
+`snow_depth_avg_in`, `snow_depth_min_in` and `snow_depth_max_in` are the
+average, the shallowest and the deepest snow on the ground over the window's
+UTC days, in inches, read from the NOHRSC SNODAS 1 km analyses this server
+keeps for the last year. Each day up to the newest day analyzed reads its own
+depth, and every later day counts as that newest depth, because no forecast of
+snow depth is worth ranking on ([DATA.md](DATA.md#the-snow-depth-on-a-row)).
+`snow_analysis_date` on the response names that newest day, as `YYYY-MM-DD`;
+NSIDC publishes each day's grid around 13:15 UTC, and before that the newest is
+yesterday. `series` carries no snow depth; `POST /api/snow-depth`
+([Snow depth over a window](#snow-depth-over-a-window)) has the days. All three fields are accepted by `sort_by`, `min_snow_depth_in` reads the
+minimum and `max_snow_depth_in` the maximum. They were one field for today
+until [#849](https://github.com/zimmertr/bluebird/issues/849), `snow_depth_in`,
+which a share link still reads as `snow_depth_max_in`.
+
+They are `null` when the destination is outside the grid, which covers the
+contiguous United States, southern Canada and northern Mexico, or when this
+instance holds no day of the window. Neither is a statement about the ground,
+so a null passes either bound and ranks last in either direction, exactly as a
+null AQI does, and a missing grid never fails an analysis.
+
+**Over permanent ice, read the number as ice, and `1290.04` as a ceiling.**
+SNODAS does not melt permanent snow and ice out, so the depth there accumulates
+year over year. The source file carries depth as 16-bit integer millimetres, so
+`1290.04` (32,767 mm) is the largest value it can hold and the model's own
+answer over deep ice is higher: a row at that number holds at least that much
+and is permanent ice rather than a season's snow. It is the worked example
+above. The API answers that plain number; the web app prints `≥1,290` in
+its place, which is a display decision rather than a contract.
+[DATA.md's snow depth section](DATA.md#snow-depth) has the rest.
 
 `POST /api/destinations` also answers `elevation_lookup_complete`. A
 `custom_destinations` row sent without an `elevation_ft` is matched to the

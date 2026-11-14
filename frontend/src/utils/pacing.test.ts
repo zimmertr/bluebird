@@ -8,7 +8,14 @@ const NOW = Date.parse('2026-09-16T12:00:00Z')
 
 describe('the paced-fetch reducer', () => {
   it('turns the pacer’s duration into a deadline', () => {
-    expect(paceReducer(null, { kind: 'pace', seconds: 45, nowMs: NOW })).toBe(NOW + 45_000)
+    expect(paceReducer(null, { kind: 'pace', seconds: 45, nowMs: NOW })).toEqual({
+      endMs: NOW + 45_000,
+      reason: 'quota',
+    })
+  })
+
+  it('keeps why it waits, so an outage is not blamed on the quota (#849)', () => {
+    expect(paceReducer(null, { kind: 'pace', seconds: 10, nowMs: NOW, reason: 'outage' })?.reason).toBe('outage')
   })
 
   it('takes the latest word rather than extending the wait', () => {
@@ -17,7 +24,7 @@ describe('the paced-fetch reducer', () => {
     // would count one wait twice.
     const first = paceReducer(null, { kind: 'pace', seconds: 60, nowMs: NOW })
     const second = paceReducer(first, { kind: 'pace', seconds: 5, nowMs: NOW + 1_000 })
-    expect(second).toBe(NOW + 6_000)
+    expect(second?.endMs).toBe(NOW + 6_000)
   })
 
   // An abort arrives at the same action: a cancelled analysis and a finished
@@ -55,6 +62,10 @@ describe('the seconds left on a wait', () => {
 describe('the wait line', () => {
   it('is the one line the analysis overlay and the comparison show', () => {
     expect(paceWaitLine(34)).toBe('Open-Meteo quota · resuming in 34s')
+  })
+
+  it('names an outage rather than the quota while a stuck host is waited out (#849)', () => {
+    expect(paceWaitLine(20, 'outage')).toBe('Open-Meteo is unavailable · retrying in 20s')
   })
 
   it('says nothing when nothing is waiting', () => {

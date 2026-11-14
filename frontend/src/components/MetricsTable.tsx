@@ -124,6 +124,14 @@ const BOUNDS: Record<
     step: 0.1,
     hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'],
   },
+  // The temperature's sentences with a day for an hour, because the depth is
+  // read once a day (#849): a floor on the shallowest day, a ceiling on the
+  // deepest.
+  snow_depth: {
+    id: 'snow-depth',
+    step: 1,
+    hint: ['The shallowest day must be at least this.', 'The deepest day must be at most this.'],
+  },
   // The cloud row reuses the freezing level's sentences word for word,
   // because it bounds the same thing: a floor on the window's lowest hour and
   // a ceiling on its highest (#117, #670).
