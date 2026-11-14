@@ -92,8 +92,9 @@ describe('TimelineTransport', () => {
   it('places each mark at its own position along the track', () => {
     render(<TimelineTransport {...props()} />)
     expect(screen.getByText('Mon').style.marginLeft).toBe('0px')
-    // jsdom reorders a calc's terms, so the parts are read rather than the string.
-    expect(screen.getByText('Tue').style.marginLeft).toMatch(/^calc\(7px \+ .*0\.5.*100% - 14px/)
+    // jsdom simplifies a calc, and halfway along the thumb's inset cancels out:
+    // 7px + (100% - 14px) * 0.5. markPlacement's own test pins the formula.
+    expect(screen.getByText('Tue').style.marginLeft).toBe('calc(50% + 0px)')
     expect(screen.getByText('Tue').style.transform).toBe('translateX(-50%)')
     expect(screen.getByText('Wed').style.transform).toBe('translateX(-100%)')
   })
