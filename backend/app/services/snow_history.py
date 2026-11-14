@@ -180,9 +180,21 @@ async def run(now: datetime | None = None) -> None:
         rows = await (
             await conn.execute("SELECT day FROM snow_depth_filled WHERE day >= %s", (first,))
         ).fetchall()
-        days = pending_days({r[0] for r in rows}, today)
-        if days:
-            await _fill(conn, days, today)
+        done = {r[0] for r in rows}
+        # A day NSIDC has not published yet records nothing, and today is
+        # always one until about 13:15 UTC. Its month is the newest with a day
+        # undone, so without this every run asked for that day alone and the
+        # older months waited on it: the rehearsal on 2026-11-13 filled 13
+        # days in two runs and then nothing (#849). So a run that records
+        # nothing moves on to the next month that has days to fill. Each pass
+        # either records a day or sets more days aside, and an unpublished day
+        # costs one HEAD, so the loop stays short and the downloads stay at
+        # `DAYS_PER_RUN`.
+        waiting: set[date] = set()
+        while days := pending_days(done | waiting, today):
+            if await _fill(conn, days, today):
+                break
+            waiting.update(days)
         await conn.execute(
             "DELETE FROM snow_depth_days WHERE month < %s",
             (first.replace(day=1),),
@@ -190,7 +202,14 @@ async def run(now: datetime | None = None) -> None:
         await conn.execute("DELETE FROM snow_depth_filled WHERE day < %s", (first,))
 
 
-async def _fill(conn: AsyncConnection, days: list[date], today: date) -> None:
+async def _fill(conn: AsyncConnection, days: list[date], today: date) -> bool:
+    """Fetch and write these days of one month.
+
+    True when the run should stop here: a day was recorded, or a download
+    failed. Only a month whose days are all unpublished hands over to the
+    one before, so an NSIDC that is down stops the run at its first day
+    rather than walking it back through the year.
+    """
     params = {
         "min_x": MIN_X,
         "max_x": MAX_X,
@@ -203,9 +222,19 @@ async def _fill(conn: AsyncConnection, days: list[date], today: date) -> None:
     month = days[0].replace(day=1)
     by_cell: list[list[int | None]] = [[None] * 31 for _ in cells]
     outcomes: dict[date, str] = {}
+    failed = False
     async with httpx.AsyncClient(timeout=snodas.REQUEST_TIMEOUT_S, headers=HEADERS) as client:
         for day in days:
-            got = await _fetch_day(client, day, today)
+            # One day's failure is that day's alone: NSIDC answered a 500 for
+            # one archive on 2026-11-13 and the same file a minute later, and
+            # raising here threw away every day the run had already read. The
+            # day stays unrecorded, so a later run asks for it again.
+            try:
+                got = await _fetch_day(client, day, today)
+            except httpx.HTTPError as exc:
+                log.warning("SNODAS file for %s could not be read for the history: %r", day.isoformat(), exc)
+                failed = True
+                continue
             if got is None:
                 continue
             if isinstance(got, str):
@@ -233,6 +262,7 @@ async def _fill(conn: AsyncConnection, days: list[date], today: date) -> None:
         ", ".join(f"{d.isoformat()} {o}" for d, o in sorted(outcomes.items())) or "nothing new",
         len(cells),
     )
+    return bool(outcomes) or failed
 
 
 SOURCE = refresh.Source("snow-history", INTERVAL_S, run, deadline_s=DEADLINE_S)

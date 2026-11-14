@@ -5,10 +5,12 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from test_snodas import a_snapshot, hold_grid
 
+from app import db
 from app.main import app
 from app.services import snow_history
 from app.services.snow_history import WindowDepth, pending_days, summarize, window_days
@@ -53,6 +55,52 @@ def test_a_month_with_nothing_left_hands_over_to_the_one_before():
     today = date(2026, 11, 3)
     done = {date(2026, 11, d) for d in (1, 2, 3)}
     assert pending_days(done, today)[0] == date(2026, 10, 31)
+
+
+@pytest.mark.db
+async def test_a_day_not_published_yet_does_not_hold_the_older_months(database, monkeypatch):
+    # The rehearsal on 2026-11-13: November filled, then every run asked for
+    # today alone, which NSIDC publishes at about 13:15 UTC, and October never
+    # started. A run that records nothing moves on to the month before.
+    now = datetime(2026, 11, 14, 2, tzinfo=UTC)
+    async with db.connection() as conn:
+        for d in range(1, 14):
+            await conn.execute(
+                "INSERT INTO snow_depth_filled (day, outcome) VALUES (%s, 'filled')", (date(2026, 11, d),)
+            )
+    asked: list[list[date]] = []
+
+    async def fake_fill(_conn, days, _today):
+        asked.append(days)
+        return date(2026, 11, 14) not in days
+
+    monkeypatch.setattr(snow_history, "_fill", fake_fill)
+    await snow_history.run(now)
+    assert asked == [
+        [date(2026, 11, 14)],
+        [date(2026, 10, 31) - timedelta(days=n) for n in range(snow_history.DAYS_PER_RUN)],
+    ]
+
+
+@pytest.mark.db
+async def test_one_failed_download_costs_its_own_day_and_ends_the_run(database, monkeypatch):
+    # NSIDC answered one archive with a 500 on 2026-11-13 and the same file a
+    # minute later. The days read around it are kept, the failed one is asked
+    # again next run, and the run does not walk back into older months.
+    now = datetime(2026, 11, 14, 20, tzinfo=UTC)
+    bad = date(2026, 11, 12)
+
+    async def fake_fetch(_client, day, _today):
+        if day == bad:
+            raise httpx.ConnectError("boom")
+        return "missing"
+
+    monkeypatch.setattr(snow_history, "_fetch_day", fake_fetch)
+    await snow_history.run(now)
+    async with db.connection() as conn:
+        days = {r[0] for r in await (await conn.execute("SELECT day FROM snow_depth_filled")).fetchall()}
+    asked = [date(2026, 11, 14) - timedelta(days=n) for n in range(snow_history.DAYS_PER_RUN)]
+    assert days == set(asked) - {bad}
 
 
 def test_nothing_older_than_a_year_is_asked_for():
