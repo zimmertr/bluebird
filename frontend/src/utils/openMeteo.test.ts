@@ -651,7 +651,7 @@ describe('fetchWeather', () => {
       })
       await vi.advanceTimersByTimeAsync(60_100)
       await pending
-      expect(onPace).toHaveBeenCalledWith(60)
+      expect(onPace).toHaveBeenCalledWith(60, 'quota')
       expect(fetchSpy).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
