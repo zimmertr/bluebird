@@ -246,7 +246,7 @@ jobs:
     # name, then the module's); renaming either strands PRs on a phantom
     # "Expected" check that never reports.
     name: Docker Build
-    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@60088d4f7cc03c82288314b672ff30399210c5ed # v1.5.0
+    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@f5661bbe5864dfae07e6dbd603489e2326980b3d # v2.0.0
     permissions:
       contents: read
       pull-requests: write # the sticky scan comment
