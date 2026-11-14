@@ -507,7 +507,7 @@ export function nowWithinGrid(times: number[], nowMs: number): number | null {
 //
 // Re-derive by sweeping one axis again; a subjective read is the right instrument
 // here, since the failure is "the chart lags the pointer" rather than a number.
-const CURSOR_POINT_BUDGET = 25_000
+const CURSOR_POINT_BUDGET = Number.POSITIVE_INFINITY
 
 /**
  * Should the chart follow the cursor — emphasizing the nearest line, dimming the
