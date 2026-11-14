@@ -260,7 +260,7 @@ export interface paths {
          * Snow depth over a window at a list of coordinates
          * @description What a window reads at each point from the NOHRSC SNODAS snow analysis: the depth on each UTC day of the window up to the newest day analyzed, and the window's average, least and most, which count every later day as that newest depth.
          *
-         *     This instance keeps a year of daily depths at every place its copy of OpenStreetMap holds inside the grid. A coordinate in a 1 km cell no such place shares reads the newest day alone. An instance without that copy reads today's analysis alone, at every point.
+         *     This instance keeps a year of daily depths at every place its copy of OpenStreetMap holds inside the grid. A coordinate in a 1 km cell no such place shares reads the newest day alone, and an instance without that copy reads today's analysis alone, at every point: a window that reaches the newest day reads its depth there and after, and one that ends before it reads null.
          *
          *     No upstream is asked: the answer comes from this instance's own copy.
          */
