@@ -20,6 +20,8 @@ from typing import Any
 
 import httpx
 import pytest
+from starlette.routing import Mount
+from starlette.staticfiles import StaticFiles
 
 from app import db, ratelimit
 
@@ -441,3 +443,26 @@ async def database(monkeypatch):
         )
     yield db
     await db.stop()
+
+
+@pytest.fixture
+def static_mount(tmp_path):
+    """The SPA mount the image has, which a source checkout lacks.
+
+    Without build output there is no mount, and Starlette answers a path that
+    matches nothing with a slash redirect instead, which hides what the image
+    does with the same request. The files are stand-ins for the build output at
+    the paths the image serves them from; tests/structure-test.yaml checks that
+    the image holds the real ones.
+    """
+    (tmp_path / "404.html").write_text("<!doctype html><title>Not found</title>")
+    (tmp_path / "index.html").write_text("<!doctype html><title>Bluebird Forecast</title>")
+    (tmp_path / "third-party-licenses.txt").write_text("react 19.0.0\n")
+    swagger = tmp_path / "swagger-ui"
+    swagger.mkdir()
+    (swagger / "swagger-ui-bundle.js").write_text("// bundle\n")
+    (swagger / "swagger-ui-bundle.js.LICENSE.txt").write_text("notice\n")
+    mount = Mount("/", StaticFiles(directory=tmp_path, html=True))
+    _main.app.router.routes.append(mount)
+    yield
+    _main.app.router.routes.remove(mount)

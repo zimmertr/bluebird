@@ -1,6 +1,6 @@
 # 0109. The gateway removes `CF-Connecting-IP` from every request that did not come through the tunnel, and the app is unchanged
 
-- Status: Accepted
+- Status: Accepted, amended by [0299](0299-the-gateways-404-is-not-compared-with-the-apps.md) (the request walk is gone; helm-unittest pins the route pairs)
 - Date: 2026-10-06
 - Decider: the maintainer, choosing between the two remedies #631 left open after PR #657; the mechanism (a route pair keyed on the gateway's own `X-Forwarded-For` hop) was chosen by Claude in the security fix pass and is in the pull requests below for review
 - Issues and PRs: #631, bluebird-helm#331, Kubernetes-Manifests#1390

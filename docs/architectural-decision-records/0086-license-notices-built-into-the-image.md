@@ -1,6 +1,6 @@
 # 0086. The image builds its own third-party license file from what it ships, and a package with no text fails the build
 
-- Status: Accepted
+- Status: Accepted, amended by [0298](0298-the-image-is-checked-by-a-structure-test.md) (the structure test enforces the notices in Docker Build)
 - Date: 2026-10-01
 - Decider: the maintainer (TJ), on issue #571 (option A: generate the file at build time, rather than serve `NOTICES.md`)
 - Issues and PRs: #571, #602

@@ -1,6 +1,6 @@
 # 0276. The PR title check and Docker Build run on yggdrasil's modules
 
-- Status: Accepted
+- Status: Accepted, amended by [0298](0298-the-image-is-checked-by-a-structure-test.md) (the smoke test became a structure test)
 - Date: 2026-11-06
 - Decider: the maintainer (TJ), 2026-11-06, in zimmertr/yggdrasil#6: "Sounds good to me, lets begin"
 - Issues and PRs: zimmertr/yggdrasil#6 (step 4.1), this PR

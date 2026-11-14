@@ -14,7 +14,7 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image, plus a second image for the planet fill that builds the shared cache's places table (`fill/`, #760). |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact to GHCR only (not listed on Artifact Hub, bluebird-helm record 0003). Its `pr.yml` runs `Chart / Chart`, yggdrasil's chart module with this chart's own renders in it; a PR publishes no chart. Its `edge-404.yml` runs `Edge 404 matches the app / Chart` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Chart / Chart` that walk does block a PR, because it reads the chart alone. Like this repo, it runs yggdrasil's `pr-title`, `lint`, `auto-merge` and `release` modules (zimmertr/yggdrasil#7), and its `chart` module (zimmertr/yggdrasil#74). |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact to GHCR only (not listed on Artifact Hub, bluebird-helm record 0003). Its `pr.yml` runs `Chart / Chart`, yggdrasil's chart module, which lints and renders the chart and runs its helm-unittest suites, every route of the VirtualService among them; a PR publishes no chart. Like this repo, it runs yggdrasil's `pr-title`, `lint`, `auto-merge` and `release` modules (zimmertr/yggdrasil#7), and its `chart` module (zimmertr/yggdrasil#74). |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **GHCR** | `ghcr.io/zimmertr/bluebird` (release images), `ghcr.io/zimmertr/bluebird-fill` (the planet fill, released beside each app image at the same version), `ghcr.io/zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://ghcr.io/zimmertr/bluebird-helm`. Every push uses the job's own `GITHUB_TOKEN`. Docker Hub keeps what was pushed there before 2026-11-11, because older chart versions name it (record 0280). |
 | **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`; since #760 the CloudNativePG operator (an app of its own, in `postgres-system`), the PostgreSQL it runs for the app in `bluebird-system`, and the planet fill's CronJob. |
@@ -1234,12 +1234,18 @@ flowchart LR
   image and the gates that check it later cannot disagree. Today its only
   entry skips pip's vendored-source SBOM, which Trivy would otherwise read as
   installed inventory (this repo found it, in its own copy, record 0278). This repo passes
-  the module its build arguments, the Actions layer cache, and the **smoke
-  test**, which runs the image and checks what only a built image can show: the build arguments reach `/api/version`, Swagger UI is
-  served from the image, and the license notices ship (#571):
-  `/third-party-licenses.txt` and `/swagger-ui/swagger-ui-bundle.js.LICENSE.txt`
-  answer, the first names every direct dependency in `frontend/package.json`
-  and `backend/requirements.in`, and `/app/LICENSE` is in the image. The
+  the module its build arguments, the Actions layer cache, and
+  **`tests/structure-test.yaml`**, which container-structure-test runs against
+  the built image for what only a built image can show: the sentinel
+  `APP_VERSION` reaches `/api/version` and the schema, `/docs` loads Swagger UI
+  from the image and names no third-party host, the SPA and Swagger UI's files
+  are in it, and the license notices ship (#571): the bundle's own notice beside
+  it, `third-party-licenses.txt` naming every direct dependency in
+  `frontend/package.json` and `backend/requirements.in`
+  (`backend/tests/test_structure_test.py` holds the file's list to both), and
+  `/app/LICENSE`. What the app answers for those files over HTTP is the
+  backend's own tests (`test_static.py`, `test_notfound.py`), against stand-ins
+  at the same paths. Record: [0298](architectural-decision-records/0298-the-image-is-checked-by-a-structure-test.md) The
   build itself fails before that when a bundled or installed package has no
   license text, so this job is where a missing notice turns a PR red.
 - `pr.yml`'s **Database Tests** job (#760) runs the backend tests marked `db`,

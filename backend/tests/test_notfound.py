@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-import json
-import sys
-from pathlib import Path
-
 import pytest
+from conftest import FAKE_API_KEY
 from fastapi.testclient import TestClient
-from starlette.routing import Mount
-from starlette.staticfiles import StaticFiles
 
 import app.routes.analyze.route as analyze_route
 from app.main import app
@@ -15,33 +10,11 @@ from app.routes.analyze.route import API_KEY_HEADER
 from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
 from app.security_headers import APP_CSP, BASE_HEADERS
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPTS))
-
-from conftest import FAKE_API_KEY  # noqa: E402
-from generate_edge_not_found import OUT as EDGE_RECORD  # noqa: E402 — after the sys.path insert above
-from generate_edge_not_found import render as render_edge_record  # noqa: E402
-
 client = TestClient(app)
 
 
-@pytest.fixture
-def static_mount(tmp_path):
-    """The SPA mount the image has, which a source checkout lacks.
-
-    Without build output there is no mount, and Starlette answers a path that
-    matches nothing with a slash redirect instead, which hides what the image
-    does with the same request.
-    """
-    (tmp_path / "404.html").write_text("<!doctype html><title>Not found</title>")
-    mount = Mount("/", StaticFiles(directory=tmp_path, html=True))
-    app.router.routes.append(mount)
-    yield
-    app.router.routes.remove(mount)
-
-
 @pytest.mark.parametrize("path", ["/api/nope", "/api/analyze/nope", "/api/v1/analyze"])
-def test_unknown_api_path_returns_a_json_404(path):
+def test_unknown_api_path_returns_a_json_404(static_mount, path):
     # Before the catch-all, these fell through to the SPA static mount and were
     # answered by StaticFiles, so an API typo was indistinguishable from a
     # missing web page and the body shape was an accident of the static handler.
@@ -79,33 +52,6 @@ def test_the_body_is_one_builder_with_the_path_in_it():
     # The gateway's copy is this builder with a phrase for the path, so the
     # route must not grow a field the builder does not carry.
     assert client.get("/api/nope").json() == not_found_body("/api/nope")
-
-
-def test_the_edge_record_is_what_the_script_writes():
-    # bluebird-helm's Edge 404 workflow compares the chart's directResponse
-    # against this file on main, so a stale file would let the chart pass
-    # against a body the pod no longer sends.
-    assert EDGE_RECORD.read_text() == render_edge_record(), (
-        "backend/edge_not_found.json is stale.\n"
-        "Regenerate it, then update the chart's -api-internal route to match:\n"
-        "    cd backend && python scripts/generate_edge_not_found.py"
-    )
-
-
-def test_the_edge_record_is_the_pods_404_with_a_phrase_for_the_path():
-    record = json.loads(EDGE_RECORD.read_text())
-    assert record["status"] == 404
-    assert record["body"] == not_found_body(EDGE_PATH_PHRASE)
-    assert record["body"]["error"] == {"code": "not_found", "retryable": False}
-    # The #132 set an API path earns, read from the module that defines it,
-    # so a header the generator stopped recording fails here by name.
-    headers = record["headers"]
-    for name, value in BASE_HEADERS.items():
-        assert headers[name.lower()] == value
-    assert headers["content-security-policy"] == APP_CSP
-    assert headers["cache-control"] == "no-cache"
-    assert headers["content-type"] == "application/json"
-    assert headers["access-control-allow-origin"] == "*"
 
 
 def test_unknown_api_path_points_at_the_docs():
@@ -183,12 +129,12 @@ def test_an_encoded_slash_is_the_edge_404_and_reaches_no_route(analyses, method,
     response = client.request(method, path, json={}, headers={"Origin": "https://example.com"})
     assert response.status_code == 404
     assert analyses == []
-    # The same answer the gateway gives the same path, so a caller cannot tell
-    # which layer refused it, and the pod adds no sentence of its own.
-    record = json.loads(EDGE_RECORD.read_text())
-    assert response.json() == record["body"]
-    sent = {k.lower(): v for k, v in response.headers.items() if k.lower() != "content-length"}
-    assert sent == record["headers"]
+    # The body the gateway gives an unpublished path, so the pod adds no
+    # sentence of its own, and the #132 headers an API path earns.
+    assert response.json() == not_found_body(EDGE_PATH_PHRASE)
+    for name, value in BASE_HEADERS.items():
+        assert response.headers[name] == value
+    assert response.headers["content-security-policy"] == APP_CSP
 
 
 def test_the_plain_analyze_path_still_reaches_the_route(analyses):
