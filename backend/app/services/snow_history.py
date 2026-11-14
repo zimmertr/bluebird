@@ -233,7 +233,13 @@ async def _fill(conn: AsyncConnection, days: list[date], today: date) -> bool:
                 got = await _fetch_day(client, day, today)
             except httpx.HTTPError as exc:
                 log.warning("SNODAS file for %s could not be read for the history: %r", day.isoformat(), exc)
-                failed = True
+                # A day not due yet fails like one not published: NSIDC
+                # answered today's unpublished file with 500s and dropped
+                # connections rather than a 404 on 2026-11-14, and counting
+                # that as a failure stopped every run on today, so the older
+                # months waited until 13:15 UTC (#849). Only an older day's
+                # failure says NSIDC is down, and ends the run.
+                failed = failed or (today - day).days > PUBLISH_GRACE_DAYS
                 continue
             if got is None:
                 continue

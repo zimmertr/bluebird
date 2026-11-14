@@ -88,7 +88,8 @@ async def test_one_failed_download_costs_its_own_day_and_ends_the_run(database, 
     # minute later. The days read around it are kept, the failed one is asked
     # again next run, and the run does not walk back into older months.
     now = datetime(2026, 11, 14, 20, tzinfo=UTC)
-    bad = date(2026, 11, 12)
+    # Older than the publishing grace, so its failure says NSIDC is down.
+    bad = date(2026, 11, 10)
 
     async def fake_fetch(_client, day, _today):
         if day == bad:
@@ -101,6 +102,32 @@ async def test_one_failed_download_costs_its_own_day_and_ends_the_run(database, 
         days = {r[0] for r in await (await conn.execute("SELECT day FROM snow_depth_filled")).fetchall()}
     asked = [date(2026, 11, 14) - timedelta(days=n) for n in range(snow_history.DAYS_PER_RUN)]
     assert days == set(asked) - {bad}
+
+
+@pytest.mark.db
+async def test_a_failure_on_a_day_not_due_yet_does_not_hold_the_older_months(database, monkeypatch):
+    # 2026-11-14 in production: NSIDC answered today's unpublished file with
+    # 500s instead of a 404, and every run stopped on it. A day inside the
+    # publishing grace fails like one not published, and the run moves on.
+    now = datetime(2026, 11, 14, 4, tzinfo=UTC)
+    async with db.connection() as conn:
+        for d in range(1, 14):
+            await conn.execute(
+                "INSERT INTO snow_depth_filled (day, outcome) VALUES (%s, 'filled')", (date(2026, 11, d),)
+            )
+
+    async def fake_fetch(_client, day, _today):
+        if day == date(2026, 11, 14):
+            raise httpx.ConnectError("not published")
+        return "missing"
+
+    monkeypatch.setattr(snow_history, "_fetch_day", fake_fetch)
+    await snow_history.run(now)
+    async with db.connection() as conn:
+        days = {r[0] for r in await (await conn.execute("SELECT day FROM snow_depth_filled")).fetchall()}
+    october = {date(2026, 10, 31) - timedelta(days=n) for n in range(snow_history.DAYS_PER_RUN)}
+    assert october <= days
+    assert date(2026, 11, 14) not in days
 
 
 def test_nothing_older_than_a_year_is_asked_for():
