@@ -1530,9 +1530,10 @@ reason air quality is: one source answers, whatever model ranks the field.
 
 **A coordinate no place shares reads the newest day alone.** The server keeps
 days only at the cells its places sit in, so a pasted coordinate in a cell no
-OpenStreetMap place shares has no history, and every day of its window reads
-today's grid. A server with no database reads today's grid the same way, at
-every destination.
+OpenStreetMap place shares has no history: a window that reaches today reads
+today's depth for today and every day after it, and a window that ends before
+today reads `N/A`. A server with no database reads every destination that
+way, which is why a PR preview shows `N/A` for a window in the past.
 
 **The grid and the map layer cover the same ground.** Both run 24.1N to 58.23N
 and 130.5W to 62.25W, which covers the contiguous United States, southern

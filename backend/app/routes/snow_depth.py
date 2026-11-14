@@ -93,8 +93,10 @@ class SnowDepthResponse(BaseModel):
         "every later day as that newest depth.\n\n"
         "This instance keeps a year of daily depths at every place its copy of "
         "OpenStreetMap holds inside the grid. A coordinate in a 1 km cell no "
-        "such place shares reads the newest day alone. An instance without "
-        "that copy reads today's analysis alone, at every point.\n\n"
+        "such place shares reads the newest day alone, and an instance without "
+        "that copy reads today's analysis alone, at every point: a window "
+        "that reaches the newest day reads its depth there and after, and "
+        "one that ends before it reads null.\n\n"
         "No upstream is asked: the answer comes from this instance's own "
         "copy."
     ),

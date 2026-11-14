@@ -749,7 +749,8 @@ count the two days after it, the 13th and the 14th, as 4.33 each. A point
 outside the grid reads `null` and no days. The server keeps days only at the
 1 km cells its OpenStreetMap places sit in, so a coordinate in a cell no place
 shares reads the newest day alone, and an instance without that copy reads
-today's grid alone at every point. A window takes the analyze routes' reach,
+today's grid alone at every point: a window that reaches the newest day reads
+its depth there and after it, and a window that ends before it reads `null`. A window takes the analyze routes' reach,
 and a list takes up to the analysis cap; both are on
 [`/api/capabilities`](#discovering-the-limits), with the route's per-address
 limit under `limits.rate` as `snow_depth_per_minute` and `snow_depth_burst`.
