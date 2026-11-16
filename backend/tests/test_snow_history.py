@@ -72,7 +72,7 @@ async def test_a_day_not_published_yet_does_not_hold_the_older_months(database, 
 
     async def fake_fill(_conn, days, _today):
         asked.append(days)
-        return date(2026, 11, 14) not in days
+        return snow_history._Pass(recorded=date(2026, 11, 14) not in days, error=None, down=False)
 
     monkeypatch.setattr(snow_history, "_fill", fake_fill)
     await snow_history.run(now)
@@ -83,10 +83,10 @@ async def test_a_day_not_published_yet_does_not_hold_the_older_months(database, 
 
 
 @pytest.mark.db
-async def test_one_failed_download_costs_its_own_day_and_ends_the_run(database, monkeypatch):
+async def test_one_failed_download_keeps_the_days_before_it_and_ends_the_run(database, monkeypatch):
     # NSIDC answered one archive with a 500 on 2026-11-13 and the same file a
-    # minute later. The days read around it are kept, the failed one is asked
-    # again next run, and the run does not walk back into older months.
+    # minute later. The days read before it are kept, the failed one is asked
+    # again next run, and the run asks for nothing after it.
     now = datetime(2026, 11, 14, 20, tzinfo=UTC)
     # Older than the publishing grace, so its failure says NSIDC is down.
     bad = date(2026, 11, 10)
@@ -100,8 +100,7 @@ async def test_one_failed_download_costs_its_own_day_and_ends_the_run(database, 
     await snow_history.run(now)
     async with db.connection() as conn:
         days = {r[0] for r in await (await conn.execute("SELECT day FROM snow_depth_filled")).fetchall()}
-    asked = [date(2026, 11, 14) - timedelta(days=n) for n in range(snow_history.DAYS_PER_RUN)]
-    assert days == set(asked) - {bad}
+    assert days == {date(2026, 11, d) for d in (11, 12, 13, 14)}
 
 
 @pytest.mark.db
@@ -319,3 +318,30 @@ async def test_months_past_a_year_are_dropped(database):
     async with database.connection() as conn:
         months = await (await conn.execute("SELECT month FROM snow_depth_days")).fetchall()
     assert [m for (m,) in months] == [date(2026, 11, 1)]
+
+
+@pytest.mark.db
+async def test_a_run_that_cannot_reach_nsidc_asks_once_past_the_grace_and_fails(database, monkeypatch):
+    # 2026-11-14: NSIDC refused the cluster's address outright. Each run asked
+    # for every day it wanted, and the run counted as a success, so the next
+    # came round in five minutes. Now the run stops at the first older day and
+    # raises, and the refresh loop backs off.
+    now = datetime(2026, 11, 14, 20, tzinfo=UTC)
+    async with db.connection() as conn:
+        for d in range(1, 14):
+            await conn.execute(
+                "INSERT INTO snow_depth_filled (day, outcome) VALUES (%s, 'filled')", (date(2026, 11, d),)
+            )
+    asked: list[date] = []
+
+    async def fake_fetch(_client, day, _today):
+        asked.append(day)
+        raise httpx.ConnectError("refused")
+
+    monkeypatch.setattr(snow_history, "_fetch_day", fake_fetch)
+    with pytest.raises(httpx.ConnectError):
+        await snow_history.run(now)
+    assert asked == [date(2026, 11, 14), date(2026, 10, 31)]
+    async with db.connection() as conn:
+        left = await (await conn.execute("SELECT count(*) FROM snow_depth_filled")).fetchone()
+    assert left and left[0] == 13

@@ -10,6 +10,7 @@ import pytest
 
 from app import db
 from app.db import refresh
+from app.services.errors import UpstreamRateLimited
 
 pytestmark = pytest.mark.db
 
@@ -50,6 +51,43 @@ async def test_a_failed_refresh_backs_off_and_records_why(database):
     assert state and state.failures == 1 and state.last_error == "upstream said no"
     # Backing off: not due again straight away, so no second attempt.
     assert await refresh.run_if_due(source) is False
+
+
+async def test_a_source_with_its_own_backoff_waits_that_long_after_a_failure(database):
+    # The snow depth history's: NSIDC shut the cluster out on 2026-11-14, and
+    # a minute's backoff kept asking (#849).
+    async def run() -> None:
+        raise RuntimeError("refused")
+
+    source = refresh.Source(name="test-patient", interval_s=60, run=run, backoff_first_s=3600, backoff_max_s=7200)
+    assert await refresh.run_if_due(source) is True
+    async with db.connection() as conn:
+        row = await (
+            await conn.execute(
+                "SELECT extract(epoch FROM next_due - now())::float8 FROM refresh_state WHERE source = %s",
+                (source.name,),
+            )
+        ).fetchone()
+    # A fifth of jitter either way around the first wait.
+    assert row and 0.8 * 3600 - 5 <= row[0] <= 1.2 * 3600
+
+
+async def test_a_refusal_with_a_longer_retry_after_waits_that_long(database):
+    # An ArcGIS quota that said an hour was asked again in a minute: the wait
+    # was recorded, and the next try came on the backoff alone.
+    async def run() -> None:
+        raise UpstreamRateLimited("ArcGIS", "hourly", 3600, "quota exceeded")
+
+    source = refresh.Source(name="test-quota", interval_s=60, run=run)
+    assert await refresh.run_if_due(source) is True
+    async with db.connection() as conn:
+        row = await (
+            await conn.execute(
+                "SELECT extract(epoch FROM next_due - now())::float8 FROM refresh_state WHERE source = %s",
+                (source.name,),
+            )
+        ).fetchone()
+    assert row and 3600 - 5 <= row[0] <= 3600
 
 
 async def test_a_held_lock_turns_a_second_pod_away(database):
@@ -97,6 +135,10 @@ def test_backoff_doubles_from_a_minute_to_an_hour():
     assert refresh.backoff_s(2, rand=mid) == 120
     assert refresh.backoff_s(7, rand=mid) == 3600
     assert refresh.backoff_s(20, rand=mid) == 3600
+    # A source's own bounds replace the minute and the hour.
+    assert refresh.backoff_s(1, first_s=600, max_s=21600, rand=mid) == 600
+    assert refresh.backoff_s(3, first_s=600, max_s=21600, rand=mid) == 2400
+    assert refresh.backoff_s(9, first_s=600, max_s=21600, rand=mid) == 21600
 
 
 def test_lock_keys_are_stable_and_distinct():

@@ -141,15 +141,74 @@ def test_geocode_caches_an_empty_answer(monkeypatch):
 
 
 def test_geocode_does_not_cache_a_failure(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(geocode_mod, "_clock", lambda: now[0])
     calls = _patch_counting(monkeypatch, httpx.ConnectError("down"))
     assert client.get("/api/geocode", params={"q": "Seattle"}).status_code == 502
+    now[0] = geocode_mod.HOLD_FIRST_S
     assert client.get("/api/geocode", params={"q": "Seattle"}).status_code == 502
     assert len(calls) == 2
 
 
+def test_after_a_failure_nominatim_is_held_off_and_the_hold_doubles(monkeypatch):
+    # Its policy blocks an address that keeps asking through refusals, and the
+    # gate's spacing alone kept asking at its full rate.
+    now = [0.0]
+    monkeypatch.setattr(geocode_mod, "_clock", lambda: now[0])
+    calls = _patch_counting(monkeypatch, httpx.ConnectError("down"))
+    first = client.get("/api/geocode", params={"q": "Seattle"})
+    # Inside the hold: the same 502, with nothing sent.
+    now[0] = geocode_mod.HOLD_FIRST_S - 1
+    held = client.get("/api/geocode", params={"q": "Tacoma"})
+    assert held.status_code == 502 and held.json()["detail"] == first.json()["detail"]
+    assert len(calls) == 1
+    # Past it, one search goes out, fails, and holds twice as long.
+    now[0] = geocode_mod.HOLD_FIRST_S
+    client.get("/api/geocode", params={"q": "Tacoma"})
+    now[0] += 2 * geocode_mod.HOLD_FIRST_S - 1
+    client.get("/api/geocode", params={"q": "Tacoma"})
+    assert len(calls) == 2
+    now[0] += 1
+    client.get("/api/geocode", params={"q": "Tacoma"})
+    assert len(calls) == 3
+
+
+def test_a_longer_retry_after_holds_nominatim_off_that_long(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(geocode_mod, "_clock", lambda: now[0])
+    refused = httpx.HTTPStatusError(
+        "429",
+        request=httpx.Request("GET", geocode_mod.NOMINATIM_URL),
+        response=httpx.Response(429, headers={"Retry-After": "600"}),
+    )
+    calls = _patch_counting(monkeypatch, refused)
+    client.get("/api/geocode", params={"q": "Seattle"})
+    now[0] = 599
+    client.get("/api/geocode", params={"q": "Seattle"})
+    assert len(calls) == 1
+    now[0] = 600
+    client.get("/api/geocode", params={"q": "Seattle"})
+    assert len(calls) == 2
+
+
+def test_a_success_ends_the_doubling(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(geocode_mod, "_clock", lambda: now[0])
+    _patch_counting(monkeypatch, httpx.ConnectError("down"))
+    client.get("/api/geocode", params={"q": "Seattle"})
+    now[0] = geocode_mod.HOLD_FIRST_S
+    calls = _patch_counting(monkeypatch, fake_response([]))
+    assert client.get("/api/geocode", params={"q": "Seattle"}).status_code == 200
+    assert geocode_mod.HOLD.failures == 0
+    assert len(calls) == 1
+
+
 def test_geocode_does_not_cache_a_non_list_payload(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(geocode_mod, "_clock", lambda: now[0])
     calls = _patch_counting(monkeypatch, fake_response({"error": "unexpected"}))
     client.get("/api/geocode", params={"q": "Seattle"})
+    now[0] = geocode_mod.HOLD_FIRST_S
     client.get("/api/geocode", params={"q": "Seattle"})
     assert len(calls) == 2
 

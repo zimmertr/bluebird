@@ -94,6 +94,10 @@ TTL_S = env_int("SNODAS_CACHE_TTL_S", 3600)
 # outage becomes its own upstream attempt. Longer than theirs because the
 # product changes once a day, so nothing is lost by waiting.
 RETRY_AFTER_FAILURE_S = env_int("SNODAS_RETRY_AFTER_FAILURE_S", 300)
+# Each failure in a row doubles that wait, up to six hours, the history fill's
+# ceiling in `snow_history.py`: NSIDC refused the cluster's address outright on
+# 2026-11-14, and a flat five minutes on every pod kept knocking (#849).
+MAX_RETRY_AFTER_FAILURE_S = 6 * 3600
 
 # Generous: the September archive measured 4.9 MB and a midwinter one is larger,
 # off a government file server rather than a tuned API.
@@ -559,6 +563,7 @@ snow_cache = cache_factory(
     fetch=fetch_snapshot,
     ttl_s=TTL_S,
     retry_after_failure_s=RETRY_AFTER_FAILURE_S,
+    max_retry_after_failure_s=MAX_RETRY_AFTER_FAILURE_S,
     describe=_describe,
 )
 

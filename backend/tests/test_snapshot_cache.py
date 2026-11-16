@@ -173,6 +173,70 @@ async def test_a_failed_refresh_backs_off_instead_of_retrying_per_request():
     assert len(calls) == 3
 
 
+async def test_a_ceiling_doubles_the_wait_after_each_failure_in_a_row():
+    # The snow grid's: NSIDC shut the cluster out on 2026-11-14, and a flat
+    # five minutes on every pod kept knocking (#849).
+    clock = _Clock()
+    calls: list[int] = []
+    answers: list[object] = [UpstreamError("down")] * 4 + ["ok", UpstreamError("down"), "ok"]
+
+    async def fetch() -> str:
+        calls.append(1)
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return str(answer)
+
+    cache = SnapshotCache(
+        label="test", fetch=fetch, ttl_s=600, retry_after_failure_s=60,
+        max_retry_after_failure_s=200, clock=clock,
+    )
+
+    async def attempt_after(wait_s: float) -> int:
+        """Calls made once `wait_s` has passed, checking just before it too."""
+        clock.now += wait_s - 1
+        with pytest.raises(UpstreamError):
+            await cache.get()
+        before = len(calls)
+        clock.now += 1
+        try:
+            await cache.get()
+        except UpstreamError:
+            pass
+        assert len(calls) == before + 1
+        return len(calls)
+
+    with pytest.raises(UpstreamError):
+        await cache.get()
+    await attempt_after(60)
+    await attempt_after(120)
+    await attempt_after(200)  # 240, held at the ceiling
+    # The fifth lands, and a later failure starts again from the first wait.
+    await attempt_after(200)
+    clock.now += 601
+    await cache.get()
+    await cache.settle()
+    assert len(calls) == 6
+    clock.now += 61
+    await cache.get()
+    await cache.settle()
+    assert len(calls) == 7
+
+
+async def test_a_longer_retry_after_is_waited_out_whole():
+    clock = _Clock()
+    refused = UpstreamRateLimited("ArcGIS", "hourly", 3600, "quota exceeded")
+    cache, calls = _cache(clock, [refused, "ok"])
+    with pytest.raises(UpstreamRateLimited):
+        await cache.get()
+    clock.now += 3599
+    with pytest.raises(UpstreamRateLimited):
+        await cache.get()
+    assert len(calls) == 1
+    clock.now += 1
+    assert await cache.get() == "ok"
+
+
 # ── A pod that has never filled (review of #552) ─────────────────────────────
 
 

@@ -8,10 +8,12 @@ elect and nothing to configure.
 
 When a source is due and how long it backs off after a failure live in
 `refresh_state`, shared, so a failure on one pod is not retried at once by the
-next. The backoff doubles from a minute to an hour, with a fifth either way of
-jitter so pods that started together drift apart; a refresh still backing off
-when its next interval comes round simply is that interval, so a source never
-has two attempts in flight. A pod whose database is read-only or missing runs
+next. The backoff doubles from a minute to an hour, unless a source names its
+own first wait and ceiling, with a fifth either way of jitter so pods that
+started together drift apart, and is never shorter than a `Retry-After` the
+upstream sent; a refresh still backing off when its next
+interval comes round simply is that interval, so a source never has two
+attempts in flight. A pod whose database is read-only or missing runs
 no refresh at all.
 """
 
@@ -44,6 +46,12 @@ class Source:
     # A refresh that outruns this is a failure, so a hung upstream cannot hold
     # the lock, and the pooled connection under it, for good.
     deadline_s: float = 300.0
+    # A source whose upstream may shut us out for asking too often waits
+    # longer between failures: NSIDC refused the cluster's address outright
+    # on 2026-11-14 after the snow depth backfill, and a minute's backoff kept
+    # knocking about 4,000 times a day (#849).
+    backoff_first_s: float = BACKOFF_FIRST_S
+    backoff_max_s: float = BACKOFF_MAX_S
 
 
 @dataclass(frozen=True)
@@ -62,9 +70,15 @@ def register(source: Source) -> None:
     _sources[source.name] = source
 
 
-def backoff_s(failures: int, *, rand: Callable[[float, float], float] = random.uniform) -> float:
+def backoff_s(
+    failures: int,
+    *,
+    first_s: float = BACKOFF_FIRST_S,
+    max_s: float = BACKOFF_MAX_S,
+    rand: Callable[[float, float], float] = random.uniform,
+) -> float:
     """The wait after `failures` consecutive failures, jittered by a fifth."""
-    base = min(BACKOFF_FIRST_S * 2 ** max(failures - 1, 0), BACKOFF_MAX_S)
+    base = min(first_s * 2 ** max(failures - 1, 0), max_s)
     return base * rand(0.8, 1.2)
 
 
@@ -96,7 +110,16 @@ async def run_if_due(source: Source) -> bool:
                 await asyncio.wait_for(source.run(), source.deadline_s)
             except Exception as exc:  # noqa: BLE001  a failed refresh is recorded, never raised
                 failures += 1
-                wait = backoff_s(failures)
+                wait = backoff_s(
+                    failures, first_s=source.backoff_first_s, max_s=source.backoff_max_s
+                )
+                # An upstream that names its own wait gets at least that. The
+                # wait was recorded and shown, but the next try came on the
+                # backoff alone, so an ArcGIS quota that said an hour was asked
+                # again in a minute.
+                retry_after = getattr(exc, "retry_after_s", None)
+                if isinstance(retry_after, int | float):
+                    wait = max(wait, float(retry_after))
                 message = log_reason(exc)
                 log.warning(
                     "Refresh of %s failed (%s); next try in %.0f s", source.name, message, wait

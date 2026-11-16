@@ -30,6 +30,7 @@ from app import db, ratelimit
 # test modules import the app anyway and got this for free, so a single-file
 # run like `pytest tests/test_osm.py` used to fail on the missing attribute.
 from app import main as _main  # noqa: F401
+from app.routes import geocode
 from app.services import aggregation, cache, fire_activity, hms, http, nifc, osm, snodas, usfs_closures
 
 # The loop's own sleep, held before any test patches `asyncio.sleep`: the stub
@@ -393,6 +394,7 @@ def _caches_clear():
     cache.ENRICH_CACHE.clear()
     cache.FORECAST_CACHE.clear()
     cache.GEOCODE_CACHE.clear()
+    geocode.reset_hold()
     yield
     cache.DISCOVERY_CACHE.clear()
     cache.ENRICH_CACHE.clear()
