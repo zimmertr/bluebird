@@ -5,9 +5,11 @@ at a time, under the refresh lock, it downloads NSIDC's daily file for every
 day of the last `KEEP_DAYS` it has not dealt with, samples the cell under
 every place the places table holds inside the grid, and writes one row per
 cell per month to `snow_depth_days`. The newest month fills first, a few days
-a run, so a fresh database has the last weeks within the hour and the whole
-year in about four hours, at two NSIDC downloads a minute. After that a run
-costs one HEAD for a day not published yet.
+a run, so a fresh database has the last weeks within a few hours and the
+whole year in about twelve, at one NSIDC download every two minutes. After
+that a run costs one HEAD for a day not published yet. A run that cannot
+reach NSIDC fails, so the refresh loop waits longer each time, up to six
+hours.
 
 Only cells that hold a place are kept: 181,417 of the grid's 33.5 million on
 2026-11-12, which is what makes a year about 350 MB rather than the 24 GB the
@@ -32,6 +34,7 @@ import logging
 import struct
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from typing import NamedTuple
 
 import httpx
 from psycopg import AsyncConnection
@@ -59,11 +62,20 @@ MIN_Y = MAX_Y - ROWS * RES
 # A year back, the calendar's own reach, so every past window it offers has
 # depth, plus today.
 KEEP_DAYS = ARCHIVE_DATA_DAYS + 1
-# Days fetched per run, and how often a run comes round. Eight days of 5 to 40
-# MB at most every five minutes is about two downloads a minute.
-DAYS_PER_RUN = 8
-INTERVAL_S = 300.0
+# Days fetched per run, and how often a run comes round: five days of 5 to 40
+# MB every ten minutes is 30 downloads an hour. It was eight every five
+# minutes, 96 an hour, until NSIDC refused the cluster's address outright on
+# 2026-11-14, a day into the first production backfill (#849). Nothing says
+# what NSIDC tolerates, so this is a guess at polite that a year still fills
+# overnight under.
+DAYS_PER_RUN = 5
+INTERVAL_S = 600.0
 DEADLINE_S = 900.0
+# A run that cannot reach NSIDC fails, and the refresh loop waits this long
+# before the next, doubling to the ceiling: six hours, so a refusal like
+# 2026-11-14's costs a few dozen attempts a day rather than thousands.
+BACKOFF_FIRST_S = INTERVAL_S
+BACKOFF_MAX_S = 6 * 3600.0
 # A file NSIDC has not published by then never will be: a 404 for a day older
 # than this is recorded as missing rather than asked again.
 PUBLISH_GRACE_DAYS = 2
@@ -172,8 +184,23 @@ async def _fetch_day(client: httpx.AsyncClient, day: date, today: date) -> snoda
     return snap
 
 
+class _Pass(NamedTuple):
+    """What one month's fill did."""
+
+    # A day was written as filled, refused or missing.
+    recorded: bool
+    # The last download that failed, or None.
+    error: httpx.HTTPError | None
+    # A day past the publishing grace failed, which says NSIDC is down.
+    down: bool
+
+
 async def run(now: datetime | None = None) -> None:
-    """One refresh: fill up to `DAYS_PER_RUN` days, then drop what is past a year."""
+    """One refresh: fill up to `DAYS_PER_RUN` days, then drop what is past a year.
+
+    Raises the last failed download when the run recorded nothing, so the
+    refresh loop backs off rather than asking again in `INTERVAL_S`.
+    """
     today = (now or datetime.now(UTC)).date()
     first = today - timedelta(days=KEEP_DAYS - 1)
     async with db.connection() as conn:
@@ -191,8 +218,12 @@ async def run(now: datetime | None = None) -> None:
         # costs one HEAD, so the loop stays short and the downloads stay at
         # `DAYS_PER_RUN`.
         waiting: set[date] = set()
+        recorded = False
+        error: httpx.HTTPError | None = None
         while days := pending_days(done | waiting, today):
-            if await _fill(conn, days, today):
+            got = await _fill(conn, days, today)
+            recorded, error = got.recorded, got.error or error
+            if got.recorded or got.down:
                 break
             waiting.update(days)
         await conn.execute(
@@ -200,15 +231,18 @@ async def run(now: datetime | None = None) -> None:
             (first.replace(day=1),),
         )
         await conn.execute("DELETE FROM snow_depth_filled WHERE day < %s", (first,))
+    if error is not None and not recorded:
+        raise error
 
 
-async def _fill(conn: AsyncConnection, days: list[date], today: date) -> bool:
+async def _fill(conn: AsyncConnection, days: list[date], today: date) -> _Pass:
     """Fetch and write these days of one month.
 
-    True when the run should stop here: a day was recorded, or a download
-    failed. Only a month whose days are all unpublished hands over to the
-    one before, so an NSIDC that is down stops the run at its first day
-    rather than walking it back through the year.
+    The run stops here when a day was recorded or NSIDC is down. Only a month
+    whose days are all unpublished hands over to the one before, and a day
+    past the grace that fails ends the month's downloads at once, so an NSIDC
+    that is down costs one attempt past the newest days rather than one per
+    day of the month.
     """
     params = {
         "min_x": MIN_X,
@@ -222,7 +256,8 @@ async def _fill(conn: AsyncConnection, days: list[date], today: date) -> bool:
     month = days[0].replace(day=1)
     by_cell: list[list[int | None]] = [[None] * 31 for _ in cells]
     outcomes: dict[date, str] = {}
-    failed = False
+    error: httpx.HTTPError | None = None
+    down = False
     async with httpx.AsyncClient(timeout=snodas.REQUEST_TIMEOUT_S, headers=HEADERS) as client:
         for day in days:
             # One day's failure is that day's alone: NSIDC answered a 500 for
@@ -239,7 +274,10 @@ async def _fill(conn: AsyncConnection, days: list[date], today: date) -> bool:
                 # that as a failure stopped every run on today, so the older
                 # months waited until 13:15 UTC (#849). Only an older day's
                 # failure says NSIDC is down, and ends the run.
-                failed = failed or (today - day).days > PUBLISH_GRACE_DAYS
+                error = exc
+                if (today - day).days > PUBLISH_GRACE_DAYS:
+                    down = True
+                    break
                 continue
             if got is None:
                 continue
@@ -268,10 +306,17 @@ async def _fill(conn: AsyncConnection, days: list[date], today: date) -> bool:
         ", ".join(f"{d.isoformat()} {o}" for d, o in sorted(outcomes.items())) or "nothing new",
         len(cells),
     )
-    return bool(outcomes) or failed
+    return _Pass(recorded=bool(outcomes), error=error, down=down)
 
 
-SOURCE = refresh.Source("snow-history", INTERVAL_S, run, deadline_s=DEADLINE_S)
+SOURCE = refresh.Source(
+    "snow-history",
+    INTERVAL_S,
+    run,
+    deadline_s=DEADLINE_S,
+    backoff_first_s=BACKOFF_FIRST_S,
+    backoff_max_s=BACKOFF_MAX_S,
+)
 refresh.register(SOURCE)
 
 

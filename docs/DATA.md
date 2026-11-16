@@ -1505,10 +1505,13 @@ integer millimetres, 64 MiB once unpacked. The server keeps today's grid in
 memory and writes every day of the last year to its database, but only at the
 cells a place sits in: 181,417 of the grid's 33.5 million on 2026-11-12, which
 is about 350 MB a year where the whole grid would be 24 GB. One pod at a time
-fills it, newest month first, a few days a run at two NSIDC downloads a minute,
-so a fresh database has the last weeks within the hour and the whole year in
-about four. After that a run is one `HEAD` for a day not published yet, and a
-month past a year old is dropped. The browser asks the server once per
+fills it, newest month first, a few days a run at one NSIDC download every two
+minutes, so a fresh database has the last weeks within a few hours and the
+whole year in about twelve. After that a run is one `HEAD` for a day not
+published yet, and a month past a year old is dropped. NSIDC refused the
+cluster's address outright a day into the first fill, at more than three times
+that pace, so a run that cannot reach it now waits longer each time, up to six
+hours. The browser asks the server once per
 analysis for every destination it forecasts, and the server answers out of its
 own copy, so a 1,500-destination analysis costs NSIDC nothing.
 

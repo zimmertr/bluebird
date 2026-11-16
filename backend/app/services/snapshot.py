@@ -203,6 +203,7 @@ class SnapshotCache[T]:
         fetch: Callable[[], Awaitable[T]],
         ttl_s: float,
         retry_after_failure_s: float,
+        max_retry_after_failure_s: float | None = None,
         describe: Callable[[T], str] = lambda _: "ok",
         clock: Callable[[], float] = time.monotonic,
         max_stale_s: float = MAX_STALE_S,
@@ -213,6 +214,12 @@ class SnapshotCache[T]:
         self._fetch = fetch
         self._ttl_s = ttl_s
         self._retry_after_failure_s = retry_after_failure_s
+        # When set, each consecutive failure doubles the wait up to this. Only
+        # the snow grid sets it: NSIDC refused the cluster's address outright
+        # on 2026-11-14, and three pods retrying every five minutes was a
+        # knock every hundred seconds for as long as the refusal stood (#849).
+        self._max_retry_after_failure_s = max_retry_after_failure_s or retry_after_failure_s
+        self._failures = 0
         self._describe = describe
         self._clock = clock
         self._max_stale_s = max_stale_s
@@ -454,7 +461,12 @@ class SnapshotCache[T]:
                 snapshot = await self._fetch()
         except Exception as exc:  # noqa: BLE001 — a refresh must never take the pod with it
             self._last_error = exc
-            self._fresh_until = self._clock() + self._retry_after_failure_s
+            self._failures += 1
+            wait = min(
+                self._retry_after_failure_s * 2 ** (self._failures - 1),
+                self._max_retry_after_failure_s,
+            )
+            self._fresh_until = self._clock() + wait
             telemetry.SNAPSHOT_REFRESH_FAILURES.labels(provider=self._label).inc()
             # A deadline's TimeoutError has no message of its own, and nor
             # does a reset connection, which must not read as the deadline.
@@ -467,6 +479,7 @@ class SnapshotCache[T]:
                 log.warning("%s refresh failed (%s); still serving the last good snapshot", self._label, reason)
             return
         self._last_error = None
+        self._failures = 0
         self._snapshot = snapshot
         self._fetched_at = self._clock()
         self._fresh_until = self._fetched_at + self._ttl_s
@@ -540,6 +553,7 @@ def cache_factory[T](
     retry_after_failure_s: float,
     describe: Callable[[T], str],
     shared: Shared[T] | None = None,
+    max_retry_after_failure_s: float | None = None,
 ) -> Callable[..., SnapshotCache[T]]:
     """One overlay's own cache factory, wired to its upstream and its knobs.
 
@@ -560,6 +574,7 @@ def cache_factory[T](
         *,
         ttl_s: float = ttl_s,
         retry_after_failure_s: float = retry_after_failure_s,
+        max_retry_after_failure_s: float | None = max_retry_after_failure_s,
         clock: Callable[[], float] = time.monotonic,
         fetch: Callable[[], Awaitable[T]] = fetch,
         max_stale_s: float = MAX_STALE_S,
@@ -570,6 +585,7 @@ def cache_factory[T](
             fetch=fetch,
             ttl_s=ttl_s,
             retry_after_failure_s=retry_after_failure_s,
+            max_retry_after_failure_s=max_retry_after_failure_s,
             describe=describe,
             clock=clock,
             max_stale_s=max_stale_s,
