@@ -204,8 +204,11 @@ def test_a_success_ends_the_doubling(monkeypatch):
 
 
 def test_geocode_does_not_cache_a_non_list_payload(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(geocode_mod, "_clock", lambda: now[0])
     calls = _patch_counting(monkeypatch, fake_response({"error": "unexpected"}))
     client.get("/api/geocode", params={"q": "Seattle"})
+    now[0] = geocode_mod.HOLD_FIRST_S
     client.get("/api/geocode", params={"q": "Seattle"})
     assert len(calls) == 2
 
