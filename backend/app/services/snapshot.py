@@ -86,6 +86,12 @@ MAX_STALE_S = 24 * 60 * 60
 # those, and leaves the edge 40 s for the lock wait and the response itself.
 REFRESH_DEADLINE_S = 60.0
 
+# How long a pod's own failed refreshes may push the next one out: each failure
+# in a row doubles the cache's first wait up to this, the shared refresh loop's
+# ceiling, so an upstream that is down is asked once an hour rather than once a
+# minute. The snow grid sets a longer one (#849).
+MAX_RETRY_AFTER_FAILURE_S = 3600.0
+
 # How long a pod serves the shared row it last read before asking whether a
 # newer one has landed (#760). The refresh loop that writes the row looks for
 # due work every `refresh.TICK_S`, so reading more often than that finds
@@ -203,7 +209,7 @@ class SnapshotCache[T]:
         fetch: Callable[[], Awaitable[T]],
         ttl_s: float,
         retry_after_failure_s: float,
-        max_retry_after_failure_s: float | None = None,
+        max_retry_after_failure_s: float = MAX_RETRY_AFTER_FAILURE_S,
         describe: Callable[[T], str] = lambda _: "ok",
         clock: Callable[[], float] = time.monotonic,
         max_stale_s: float = MAX_STALE_S,
@@ -214,11 +220,12 @@ class SnapshotCache[T]:
         self._fetch = fetch
         self._ttl_s = ttl_s
         self._retry_after_failure_s = retry_after_failure_s
-        # When set, each consecutive failure doubles the wait up to this. Only
-        # the snow grid sets it: NSIDC refused the cluster's address outright
-        # on 2026-11-14, and three pods retrying every five minutes was a
-        # knock every hundred seconds for as long as the refusal stood (#849).
-        self._max_retry_after_failure_s = max_retry_after_failure_s or retry_after_failure_s
+        # Each consecutive failure doubles the wait up to this, and a
+        # `Retry-After` the upstream sent is waited out whole. The wait was
+        # flat until NSIDC refused the cluster's address outright on
+        # 2026-11-14, when three pods retrying every five minutes knocked
+        # every hundred seconds for as long as the refusal stood (#849).
+        self._max_retry_after_failure_s = max(max_retry_after_failure_s, retry_after_failure_s)
         self._failures = 0
         self._describe = describe
         self._clock = clock
@@ -466,6 +473,9 @@ class SnapshotCache[T]:
                 self._retry_after_failure_s * 2 ** (self._failures - 1),
                 self._max_retry_after_failure_s,
             )
+            retry_after = getattr(exc, "retry_after_s", None)
+            if isinstance(retry_after, int | float):
+                wait = max(wait, float(retry_after))
             self._fresh_until = self._clock() + wait
             telemetry.SNAPSHOT_REFRESH_FAILURES.labels(provider=self._label).inc()
             # A deadline's TimeoutError has no message of its own, and nor
@@ -553,7 +563,7 @@ def cache_factory[T](
     retry_after_failure_s: float,
     describe: Callable[[T], str],
     shared: Shared[T] | None = None,
-    max_retry_after_failure_s: float | None = None,
+    max_retry_after_failure_s: float = MAX_RETRY_AFTER_FAILURE_S,
 ) -> Callable[..., SnapshotCache[T]]:
     """One overlay's own cache factory, wired to its upstream and its knobs.
 
@@ -574,7 +584,7 @@ def cache_factory[T](
         *,
         ttl_s: float = ttl_s,
         retry_after_failure_s: float = retry_after_failure_s,
-        max_retry_after_failure_s: float | None = max_retry_after_failure_s,
+        max_retry_after_failure_s: float = max_retry_after_failure_s,
         clock: Callable[[], float] = time.monotonic,
         fetch: Callable[[], Awaitable[T]] = fetch,
         max_stale_s: float = MAX_STALE_S,

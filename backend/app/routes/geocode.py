@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -14,7 +17,7 @@ from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.ratelimit import shared
 from app.services import cache
-from app.services.errors import classify_http_error, log_reason
+from app.services.errors import classify_http_error, log_reason, retry_after_header
 from app.services.http import USER_AGENT
 
 log = logging.getLogger(__name__)
@@ -33,6 +36,43 @@ PROVIDER = "Nominatim (place search)"
 # slowly was never cut off (#630). A visitor is waiting on this one, so it is
 # short beside the other upstreams'.
 TIMEOUT_S = 10.0
+
+# After Nominatim fails or refuses a search, this pod sends it nothing for a
+# minute, doubling with each failure in a row up to an hour, or for its
+# `Retry-After` when that is longer, and answers each search meanwhile with the
+# failure's own 502. The policy blocks an address that keeps asking through
+# refusals, and the gate's spacing alone kept asking at its full rate. Per pod,
+# so ten replicas send at most ten searches a hold. NSIDC refused the
+# cluster's address outright on 2026-11-14 for less (#849).
+HOLD_FIRST_S = 60.0
+HOLD_MAX_S = 3600.0
+
+
+@dataclass
+class _Hold:
+    until: float = 0.0
+    failures: int = 0
+    detail: str = ""
+
+
+HOLD = _Hold()
+# Read through the module, so a test can move this clock.
+_clock: Callable[[], float] = time.monotonic
+
+
+def reset_hold() -> None:
+    """Forget every failure, so each test starts with Nominatim open."""
+    HOLD.until, HOLD.failures, HOLD.detail = 0.0, 0, ""
+
+
+def _failed(detail: str, exc: BaseException | None = None) -> ApiError:
+    """Hold Nominatim off after a failure, and the 502 that reports it."""
+    HOLD.failures += 1
+    wait = min(HOLD_FIRST_S * 2 ** (HOLD.failures - 1), HOLD_MAX_S)
+    if isinstance(exc, httpx.HTTPStatusError):
+        wait = max(wait, retry_after_header(exc.response) or 0)
+    HOLD.until, HOLD.detail = _clock() + wait, detail
+    return ApiError(status_code=502, detail=detail, code=ErrorCode.upstream_unavailable)
 
 
 # ── The search cache ──────────────────────────────────────────────────────────
@@ -144,6 +184,8 @@ async def geocode(
     if cached is not None:
         log.debug("Geocode query %r served from cache", q)
         return cached
+    if _clock() < HOLD.until:
+        raise ApiError(status_code=502, detail=HOLD.detail, code=ErrorCode.upstream_unavailable)
     # Pace the shared egress IP to Nominatim's ~1 req/s policy before opening
     # a connection; a full queue sheds here rather than piling onto them.
     try:
@@ -176,19 +218,13 @@ async def geocode(
     # `classify_http_error` words each one.
     except (httpx.HTTPError, TimeoutError, ValueError, RecursionError) as exc:
         log.warning("Nominatim request failed: %s", log_reason(exc, deadline_s=TIMEOUT_S))
-        raise ApiError(
-            status_code=502,
-            detail=classify_http_error(exc, PROVIDER),
-            code=ErrorCode.upstream_unavailable,
-        ) from exc
+        raise _failed(classify_http_error(exc, PROVIDER), exc) from exc
 
     if not isinstance(rows, list):
         log.warning("Nominatim returned a non-list payload: %r", type(rows))
-        raise ApiError(
-            status_code=502,
-            detail=f"{PROVIDER} returned an unexpected response.",
-            code=ErrorCode.upstream_unavailable,
-        )
+        raise _failed(f"{PROVIDER} returned an unexpected response.")
+
+    HOLD.failures = 0
 
     log.info("Geocode query %r returned %d place(s)", q, len(rows))
     # An empty list is a real answer and is cached too; failures above never

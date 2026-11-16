@@ -223,6 +223,20 @@ async def test_a_ceiling_doubles_the_wait_after_each_failure_in_a_row():
     assert len(calls) == 7
 
 
+async def test_a_longer_retry_after_is_waited_out_whole():
+    clock = _Clock()
+    refused = UpstreamRateLimited("ArcGIS", "hourly", 3600, "quota exceeded")
+    cache, calls = _cache(clock, [refused, "ok"])
+    with pytest.raises(UpstreamRateLimited):
+        await cache.get()
+    clock.now += 3599
+    with pytest.raises(UpstreamRateLimited):
+        await cache.get()
+    assert len(calls) == 1
+    clock.now += 1
+    assert await cache.get() == "ok"
+
+
 # ── A pod that has never filled (review of #552) ─────────────────────────────
 
 

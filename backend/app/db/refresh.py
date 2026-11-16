@@ -10,7 +10,8 @@ When a source is due and how long it backs off after a failure live in
 `refresh_state`, shared, so a failure on one pod is not retried at once by the
 next. The backoff doubles from a minute to an hour, unless a source names its
 own first wait and ceiling, with a fifth either way of jitter so pods that
-started together drift apart; a refresh still backing off when its next
+started together drift apart, and is never shorter than a `Retry-After` the
+upstream sent; a refresh still backing off when its next
 interval comes round simply is that interval, so a source never has two
 attempts in flight. A pod whose database is read-only or missing runs
 no refresh at all.
@@ -112,6 +113,13 @@ async def run_if_due(source: Source) -> bool:
                 wait = backoff_s(
                     failures, first_s=source.backoff_first_s, max_s=source.backoff_max_s
                 )
+                # An upstream that names its own wait gets at least that. The
+                # wait was recorded and shown, but the next try came on the
+                # backoff alone, so an ArcGIS quota that said an hour was asked
+                # again in a minute.
+                retry_after = getattr(exc, "retry_after_s", None)
+                if isinstance(retry_after, int | float):
+                    wait = max(wait, float(retry_after))
                 message = log_reason(exc)
                 log.warning(
                     "Refresh of %s failed (%s); next try in %.0f s", source.name, message, wait

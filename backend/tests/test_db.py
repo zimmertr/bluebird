@@ -10,6 +10,7 @@ import pytest
 
 from app import db
 from app.db import refresh
+from app.services.errors import UpstreamRateLimited
 
 pytestmark = pytest.mark.db
 
@@ -69,6 +70,24 @@ async def test_a_source_with_its_own_backoff_waits_that_long_after_a_failure(dat
         ).fetchone()
     # A fifth of jitter either way around the first wait.
     assert row and 0.8 * 3600 - 5 <= row[0] <= 1.2 * 3600
+
+
+async def test_a_refusal_with_a_longer_retry_after_waits_that_long(database):
+    # An ArcGIS quota that said an hour was asked again in a minute: the wait
+    # was recorded, and the next try came on the backoff alone.
+    async def run() -> None:
+        raise UpstreamRateLimited("ArcGIS", "hourly", 3600, "quota exceeded")
+
+    source = refresh.Source(name="test-quota", interval_s=60, run=run)
+    assert await refresh.run_if_due(source) is True
+    async with db.connection() as conn:
+        row = await (
+            await conn.execute(
+                "SELECT extract(epoch FROM next_due - now())::float8 FROM refresh_state WHERE source = %s",
+                (source.name,),
+            )
+        ).fetchone()
+    assert row and 3600 - 5 <= row[0] <= 3600
 
 
 async def test_a_held_lock_turns_a_second_pod_away(database):
