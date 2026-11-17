@@ -387,10 +387,13 @@ export const STYLES = [
     // button's corner, which the maintainer chose over a trigger shape,
     // opening the one list, and which keeps its severity colour while the
     // list is out because the colour is its message (the maintainer,
-    // 2026-10-30).
+    // 2026-10-30). A section's heading in a desk's controls card (record
+    // 0305) is no trigger at all: it opens its own section in place, where a
+    // trigger opens a card or a sheet over the page, and `aria-expanded` is
+    // how a disclosure says which state it is in.
     name: 'style-menu-trigger',
     files: SOURCES,
-    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge],
+    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge, 'src/components/PanelSection.tsx'],
     probe: 'src/components/ResultsBar.tsx',
     ban: [
       {

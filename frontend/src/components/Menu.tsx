@@ -117,7 +117,9 @@ interface MenuButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
  * record 0251). The shape is the one thing a call site picks; whatever it adds
  * in `className` is layout and width, never a colour or a state, which the
  * linter's `style-trigger-no-look` fails. Every button with `aria-expanded` in
- * the app is one of these but the message badge (`style-menu-trigger`).
+ * the app is one of these but the message badge and a section's heading in a
+ * desk's controls card, which opens its section in place and no menu
+ * (`style-menu-trigger`).
  */
 export function MenuButton({ shape, open, chevron = true, chevronClassName, className, children, ref, ...rest }: MenuButtonProps) {
   return (
