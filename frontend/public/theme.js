@@ -1,7 +1,8 @@
-// The stored theme, on the root before the first paint (#706). Classic and
-// same-origin, because the CSP allows 'self' and no inline script.
+// The stored theme, or the device's when none is (#706, #843), on the root
+// before the first paint. Classic and same-origin: the CSP allows no inline.
 try {
-  if (localStorage.getItem('bluebird_forecast_theme') === 'light') {
+  var t = localStorage.getItem('bluebird_forecast_theme')
+  if (t === 'light' || (t !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches)) {
     document.documentElement.dataset.theme = 'light'
   }
 } catch (e) {}

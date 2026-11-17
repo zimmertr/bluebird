@@ -1818,6 +1818,12 @@ describe('tap targets', () => {
     expect(HEADER_BUTTON).not.toContain('touch:')
     expect(px(HEADER_BUTTON, 'h')).toBe(32)
     expect(px(HEADER_BUTTON, 'w')).toBe(32)
+    // The theme menu's trigger stands beside the close button in the same
+    // box (#843), so the pair stays even.
+    expect(MENU_TRIGGER.header).not.toContain(TAP.action)
+    expect(MENU_TRIGGER.header).not.toContain('touch:')
+    expect(px(MENU_TRIGGER.header, 'h')).toBe(32)
+    expect(px(MENU_TRIGGER.header, 'w')).toBe(32)
     expect(TRANSPORT_PLAY).not.toContain('min-w')
     expect(TRANSPORT_PLAY.split(' ')).toEqual(expect.arrayContaining(['h-7', 'w-7', 'touch:h-8', 'touch:w-8']))
   })
@@ -4631,9 +4637,11 @@ describe('the one menu', () => {
 
   // Three trigger shapes, on purpose (TJ, 2026-10-20: "Three shapes,
   // recorded"): a pill on the map, a field in the panel, a button in the
-  // results bar's group. Everything else is the one menu.
-  it('keeps three trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'segment', 'square'])
+  // results bar's group. Everything else is the one menu. The segment and the
+  // square came with the chart's picker (#499), and the header's round button
+  // with the theme menu (#843), each the look of what it stands beside.
+  it('keeps the trigger shapes and no more', () => {
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())

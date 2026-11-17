@@ -43,8 +43,15 @@ export const THEME_KEY = 'bluebird_forecast_theme'
  */
 export const STARRED_LISTS_KEY = 'bluebird_forecast_starred_lists'
 
-/** The two themes. Dark is the default, whatever the OS prefers (#706). */
+/** The two themes the app paints in (#706). */
 export type Theme = 'dark' | 'light'
+
+/**
+ * What the reader chose in the theme menu (#843): one of the two themes, or
+ * the device's own setting, which is the default and is what a browser that
+ * never chose follows.
+ */
+export type ThemeChoice = 'system' | Theme
 
 /** Which views the results area shows: chart-only, table-only, or both. */
 export type ResultsMode = 'chart' | 'table' | 'both'
@@ -264,29 +271,31 @@ export function setWelcomed(): void {
 }
 
 /**
- * The theme this browser chose, or dark when it never chose one. Only `light`
- * is ever stored, so anything else in the key, a value no build wrote
- * included, reads as the default.
+ * The theme this browser chose, or `system` when it never chose one (#843).
+ * Anything else in the key, a value no build wrote included, reads as
+ * `system` too.
  */
-export function readTheme(): Theme {
+export function readThemeChoice(): ThemeChoice {
   try {
-    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'
+    const stored = localStorage.getItem(THEME_KEY)
+    return stored === 'light' || stored === 'dark' ? stored : 'system'
   } catch {
-    return 'dark'
+    return 'system'
   }
 }
 
 /**
- * Record the theme. Dark removes the key rather than storing it, so a browser
- * that switched back keeps nothing, which is what the privacy page's account
- * of this key says.
+ * Record the choice. Dark and light are stored by name, because since #843
+ * the absence means "follow the device" rather than dark; `system` removes
+ * the key, so a browser that went back to following the device keeps
+ * nothing, which is what the privacy page's account of this key says.
  */
-export function writeTheme(theme: Theme): void {
+export function writeThemeChoice(choice: ThemeChoice): void {
   try {
-    if (theme === 'light') localStorage.setItem(THEME_KEY, 'light')
-    else localStorage.removeItem(THEME_KEY)
+    if (choice === 'system') localStorage.removeItem(THEME_KEY)
+    else localStorage.setItem(THEME_KEY, choice)
   } catch {
-    // A storage that refuses keeps the theme for this visit only.
+    // A storage that refuses keeps the choice for this visit only.
   }
 }
 

@@ -5,6 +5,7 @@ import { readFileSync } from 'fs'
 import { dirname, join } from 'path'
 // @ts-expect-error node builtin, untyped in this project
 import { fileURLToPath } from 'url'
+import { LIGHT_QUERY } from './hooks/useTheme'
 import { THEME_KEY } from './utils/viewPrefs'
 
 // `public/theme.js` is the one script that runs before the first paint
@@ -22,26 +23,38 @@ describe('the theme before the first paint (#706)', () => {
     expect(keys).toEqual([THEME_KEY])
   })
 
-  // Light is the only value stored, and the only one the script acts on, so a
-  // stray value reads as dark here as it does in `readTheme`.
-  // The script is run, with a stand-in storage and root, rather than read: a
-  // pattern over its text cannot tell `=== 'light'` from `=== 'light' || true`.
-  it('marks the root light on the stored light and on nothing else', () => {
-    const run = (getItem: (key: string) => string | null) => {
+  // The stored choice wins, and with none stored (or a value no build wrote)
+  // the device's own setting decides, as `readThemeChoice` and `useTheme` do
+  // (#843). The script is run, with a stand-in storage, root and media query,
+  // rather than read: a pattern over its text cannot tell `=== 'light'` from
+  // `=== 'light' || true`.
+  it('marks the root light on a stored light, or on a light device with no choice stored', () => {
+    const run = (getItem: (key: string) => string | null, deviceLight = false) => {
       const doc = { documentElement: { dataset: {} as Record<string, string> } }
-      new Function('localStorage', 'document', script)({ getItem }, doc)
-      return doc.documentElement.dataset.theme
+      const asked: string[] = []
+      const matchMedia = (query: string) => {
+        asked.push(query)
+        return { matches: deviceLight && query === LIGHT_QUERY }
+      }
+      new Function('localStorage', 'document', 'matchMedia', script)({ getItem }, doc, matchMedia)
+      return { theme: doc.documentElement.dataset.theme, asked }
     }
-    expect(run((key) => (key === THEME_KEY ? 'light' : null))).toBe('light')
-    expect(run(() => 'dark')).toBeUndefined()
-    expect(run(() => null)).toBeUndefined()
+    const stored = (value: string | null) => (key: string) => (key === THEME_KEY ? value : null)
+    expect(run(stored('light')).theme).toBe('light')
+    expect(run(stored('light'), true).theme).toBe('light')
+    expect(run(stored('dark')).theme).toBeUndefined()
+    // A chosen dark holds on a light device, without asking it.
+    expect(run(stored('dark'), true)).toEqual({ theme: undefined, asked: [] })
+    expect(run(stored(null)).theme).toBeUndefined()
+    expect(run(stored(null), true)).toEqual({ theme: 'light', asked: [LIGHT_QUERY] })
+    expect(run(stored('sepia'), true).theme).toBe('light')
     // A storage that throws (a private window, blocked site data) leaves the
     // page dark rather than failing the load.
     let theme: string | undefined = 'unset'
     expect(() => {
       theme = run(() => {
         throw new Error('blocked')
-      })
+      }, true).theme
     }).not.toThrow()
     expect(theme).toBeUndefined()
   })

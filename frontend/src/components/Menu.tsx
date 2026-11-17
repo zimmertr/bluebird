@@ -137,6 +137,8 @@ export function MenuButton({ shape, open, chevron = true, chevronClassName, clas
 interface MenuOption<V extends string> {
   value: V
   label: string
+  /** A glyph before the label, which the `header` trigger wears for the current value (#843). */
+  icon?: ReactNode
 }
 
 interface MenuSelectProps<V extends string> {
@@ -147,8 +149,12 @@ interface MenuSelectProps<V extends string> {
   onChange: (value: V) => void
   /** The field's width and insets, from the role its call site already wore. */
   className: string
-  /** A field of its own, or the left segment of a group that wears the field's look (#499). */
-  shape?: 'field' | 'segment'
+  /**
+   * A field of its own, the left segment of a group that wears the field's
+   * look (#499), or a header's round button that wears the current value's
+   * glyph in place of its words (#843), which a screen reader still hears.
+   */
+  shape?: 'field' | 'segment' | 'header'
   /** Out of play, as a Metrics row the window cannot answer is (#803): the field takes no press. */
   disabled?: boolean
   /** A phone: the list opens in a bottom sheet headed by `label`, as the model list does (record 0252). */
@@ -201,6 +207,8 @@ export function MenuSelect<V extends string>({
   const listId = useId()
   const nameId = useId()
   const valueId = useId()
+  const glyphOnly = shape === 'header'
+  const current = options[selectedIndex]
 
   function openList() {
     setActive(selectedIndex)
@@ -230,6 +238,7 @@ export function MenuSelect<V extends string>({
         ref={triggerRef}
         shape={shape}
         open={open}
+        chevron={!glyphOnly}
         aria-haspopup={sheet ? 'dialog' : 'listbox'}
         aria-labelledby={`${nameId} ${valueId}`}
         disabled={disabled}
@@ -250,8 +259,9 @@ export function MenuSelect<V extends string>({
         <span id={nameId} className={SR_ONLY}>
           {label}
         </span>
-        <span id={valueId} className="block min-w-0 truncate">
-          {options[selectedIndex]?.label ?? value}
+        {glyphOnly && current?.icon}
+        <span id={valueId} className={glyphOnly ? SR_ONLY : 'block min-w-0 truncate'}>
+          {current?.label ?? value}
         </span>
       </MenuButton>
       {(box || (sheet && open)) && (
@@ -278,10 +288,11 @@ export function MenuSelect<V extends string>({
                 aria-selected={option.value === value}
                 onPointerEnter={() => setActive(i)}
                 onClick={() => pick(i)}
-                className={`${MENU.option} ${i === active ? MENU.active : ''} ${
+                className={`${MENU.option} ${option.icon ? MENU.glyphRow : ''} ${i === active ? MENU.active : ''} ${
                   option.value === value ? MENU.current : ''
                 }`}
               >
+                {option.icon}
                 {option.label}
               </div>
             ))}

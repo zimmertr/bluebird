@@ -1039,21 +1039,24 @@ export const STYLES = [
     ],
   },
   {
-    // The theme is the header switch's, and dark is the default whatever the
-    // operating system says (#706, record 0158). Tailwind's dark variant is a
-    // prefers-color-scheme query, so a class wearing it paints by the system's
-    // setting under a switch that may say the opposite, and a matchMedia on
-    // the same query does the same in script. A colour that differs by theme
-    // is a token in index.css with a value in each block. styles.test.ts holds
-    // the stylesheets to the same rule, since ESLint does not read CSS.
+    // The theme is the header menu's (#706, #843; records 0158 and 0302):
+    // the reader's choice, or the device's setting while they choose System,
+    // and either way one attribute on the root that every colour reads.
+    // Tailwind's dark variant is a prefers-color-scheme query, so a class
+    // wearing it paints by the device under a menu that may say the
+    // opposite, and a matchMedia on the same query does the same in script.
+    // useTheme.ts is the one module that asks the device, and it answers by
+    // writing the attribute. A colour that differs by theme is a token in
+    // index.css with a value in each block. styles.test.ts holds the
+    // stylesheets to the same rule, since ESLint does not read CSS.
     name: 'style-no-os-theme',
     files: SHIPPED,
-    ignores: TESTS,
+    ignores: [...TESTS, 'src/hooks/useTheme.ts'],
     probe: 'src/styles.ts',
     ban: [
       {
         selector: text(String.raw`(^|\s)dark:(\[|[a-z])|prefers-color-scheme`),
-        message: "The theme is the switch's, not the system's. Give the colour a token in index.css with a value in each theme.",
+        message: "The theme is the menu's: only useTheme.ts asks the device. Give the colour a token in index.css with a value in each theme.",
       },
     ],
   },

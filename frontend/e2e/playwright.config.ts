@@ -29,6 +29,10 @@ export default defineConfig({
     // The zone Vitest pins and the suite's isoDay counts days in.
     timezoneId: 'America/Los_Angeles',
     viewport: { width: 1280, height: 720 },
+    // A dark device, so a page with no stored theme opens dark, as every spec
+    // written before the app followed the device expects (#843). A spec that
+    // means light stores it, or asks for a light device itself.
+    colorScheme: 'dark',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

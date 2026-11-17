@@ -30,16 +30,21 @@ function field() {
 
 const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
 
-// One press on the theme button, timed inside the page. `syncMs` is the
+// One pick in the theme menu (#843), timed inside the page from the press on
+// the row: the menu is opened first and untimed, and the row is whichever of
+// Light and Dark is not the current choice, so the samples alternate. `syncMs` is the
 // dispatch to two task yields later; `frameMs` the dispatch to the second
 // animation frame after it, by which the first frame has painted; `settledMs`
 // the dispatch to the end of the last CSS transition it started, and
 // `transitions` how many it started; `longMs` the long tasks observed, summed.
-function pressTheme(
+async function pressTheme(
   page: Page,
 ): Promise<{ syncMs: number; frameMs: number; settledMs: number; transitions: number; longMs: number; nodes: number }> {
+  await page.getByRole('button', { name: /^Theme / }).first().click()
+  await expect(page.getByRole('listbox', { name: 'Theme' })).toBeVisible()
   return page.evaluate(async () => {
-    const button = document.querySelector('button[aria-label^="Switch to"]') as HTMLButtonElement
+    const rows = [...document.querySelectorAll<HTMLElement>('[role="listbox"][aria-label="Theme"] [role="option"]')]
+    const button = rows.slice(1).find((row) => row.getAttribute('aria-selected') === 'false')!
     const yieldTask = () =>
       new Promise<void>((resolve) => {
         const channel = new MessageChannel()

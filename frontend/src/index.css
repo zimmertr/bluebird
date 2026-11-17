@@ -90,9 +90,11 @@ body {
 /* Two themes, one set of names (#706; record 0158). Every colour role in
    styles.ts paints a semantic token below rather than a palette step, so a
    theme is a second set of values for the same names and no role is spelled
-   twice. Dark is the default whatever the OS says (the maintainer's call on
-   #706); light applies only under `data-theme="light"` on the root, which
-   `useTheme` writes, and `public/theme.js` before the first paint.
+   twice. Light applies only under `data-theme="light"` on the root, which
+   `useTheme` writes from the reader's choice or, while they choose System,
+   the device's setting (#843, record 0302), and `public/theme.js` before the
+   first paint. Nothing here reads the device itself: the attribute is the
+   one truth, so a chosen dark holds on a light device.
 
    Dark values are Tailwind's own variables, so the dark theme is the palette
    it always painted, step for step, and every ratio `styles.test.ts` pins for

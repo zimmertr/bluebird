@@ -2,7 +2,7 @@
 
 Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exports the roles every component composes. This page documents what each role is for, what is enforced, and the measured numbers that keep the app consistent.
 
-The app has two themes since #706, dark by default and light behind the switch in the panel's header. Every colour role paints a semantic token rather than a palette step (see [Two themes](#two-themes) below), so where a row on this page names a slate or sky step, that is the dark theme's value, and the light one is in that section's table.
+The app has two themes since #706, and since #843 it opens in the device's own setting until a reader picks one from the theme menu in the panel's header. Every colour role paints a semantic token rather than a palette step (see [Two themes](#two-themes) below), so where a row on this page names a slate or sky step, that is the dark theme's value, and the light one is in that section's table.
 
 ## Roles
 
@@ -90,8 +90,8 @@ The app has two themes since #706, dark by default and light behind the switch i
 | `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), `well` is the recessed well that slider's layers stack in, and `track` is the rail the map timeline's scrubber slides on |
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint (the rule under the header, the one over the footer, and since #697 the panel's right edge against the map and the results), and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `PANEL_BODY` | The panel's scrolling body: `px-4 py-4`, the shared bar with its width kept (`scrollbar-gutter: stable`, so the column never jumps when a section opens), and both scroll shadows reaching across the padding |
-| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687). `actions` is the top-right spot its round buttons share, the theme switch on the close button's left (#706). `actions` stands 12px down so the buttons centre at 28px with the logo (record [0226](architectural-decision-records/0226-header-lockup-centred-tagline-italic.md)), and `title` starts the name and the tagline together at the left: the maintainer tried them centred, with the tagline in italics, and had both put back (record [0229](architectural-decision-records/0229-header-left-upright-no-the.md)) |
-| `HEADER_BUTTON` | A round button in a panel's header: the desk panel's close button and the theme switch, and the switch again beside Done in a phone's Controls sheet title row (`BOTTOM_SHEET.actions`). A 32px circle on either pointer, a finger's height and no wider, where `TAP.action`'s 44px width would draw a capsule (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)). The close button's recipe, named once it had a twin (#706) |
+| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687). `actions` is the top-right spot its round buttons share, the theme menu on the close button's left (#706, #843). `actions` stands 12px down so the buttons centre at 28px with the logo (record [0226](architectural-decision-records/0226-header-lockup-centred-tagline-italic.md)), and `title` starts the name and the tagline together at the left: the maintainer tried them centred, with the tagline in italics, and had both put back (record [0229](architectural-decision-records/0229-header-left-upright-no-the.md)) |
+| `HEADER_BUTTON` | A round button in a panel's header: the desk panel's close button, whose shape the theme menu's trigger wears beside it as `MENU_TRIGGER.header`, and again beside Done in a phone's Controls sheet title row (`BOTTOM_SHEET.actions`). A 32px circle on either pointer, a finger's height and no wider, where `TAP.action`'s 44px width would draw a capsule (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)). The close button's recipe, named once it had a twin (#706) |
 | `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the `edge` and `panel` tokens (slate-500 on slate-800 in dark); the root's `color-scheme` turns every bar it does not reach to the theme too (#697, record 0128) |
 | `SCROLL_SHADOW` | A slate-950 shade at 70% (in light, the ink at 12%) over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label a finger's 32px (#687, record 0130, record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
@@ -251,10 +251,10 @@ A button's shape says where it stands. A circle floats on the map with nothing b
 
 ## Two themes
 
-Dark is the default and stays the default whatever the operating system says;
-light applies only once a reader presses the switch (#706). The two are one set
-of names with two sets of values, so no role is spelled twice.
-Record: [0158](architectural-decision-records/0158-light-theme-behind-semantic-tokens.md)
+The app follows the device's light or dark setting until a reader picks Light
+or Dark from the theme menu, and picking System hands it back (#843). The two
+are one set of names with two sets of values, so no role is spelled twice.
+Record: [0302](architectural-decision-records/0302-the-theme-follows-the-device-until-the-reader-picks.md)
 
 **How it is built.** `frontend/src/index.css` registers each token in an
 `@theme inline` block as `--color-<token>: var(--ui-<token>)`, which gives it a
@@ -299,17 +299,25 @@ between `rule` and `edge`, the range hover, the shade, the thumb) are measured
 below. `SWATCH_CHIP` keeps `text-slate-900` in both themes on purpose: its
 letter stands on the smoke key's own chip colour, which does not change.
 
-**The switch.** `ThemeButton` is a round `HEADER_BUTTON` beside the close button
-at a desk and beside Done in a phone's Controls sheet title row; no other sheet
-shows it. Its glyph is the theme a press goes to, a sun while dark and a moon
-while light, and its name says the same. `useTheme` writes `data-theme` on the
-root and the choice to `bluebird_forecast_theme` in localStorage (`viewPrefs.ts`),
-and stores nothing for dark. The choice is not in the URL: a link carries a
-session, not a browser's habit. A page would paint dark for a frame before React
-read the key, so `frontend/public/theme.js` (291 bytes, a classic script on the
-same origin, which the CSP's `script-src 'self'` allows) sets the attribute from
-the head of every HTML entry before the stylesheet; `theme.test.ts` holds its key
-to `THEME_KEY` and its place in the four files. A switch lands in one frame:
+**The menu.** `ThemeMenu` is a round button (`MENU_TRIGGER.header`, the
+`HEADER_BUTTON` shape with the one trigger's states) beside the close button at
+a desk and beside Done in a phone's Controls sheet title row; no other sheet
+shows it. It is `MenuSelect` in the `header` shape: it wears the current
+choice's glyph, a monitor for System, a sun for Light and a moon for Dark, is
+named `Theme` and the choice, and opens the one menu with System, Light and
+Dark, each row leading with its glyph (`MENU.glyphRow`), as a card at a desk and
+a sheet headed Theme on a phone. `useTheme` writes `data-theme` on the root, and
+a pick to `bluebird_forecast_theme` in localStorage (`viewPrefs.ts`): `light` or
+`dark` by name, nothing for System. While the choice is System it reads
+`matchMedia('(prefers-color-scheme: light)')` and follows its `change` event,
+so the open app repaints when the device does; CSS reads the attribute alone.
+The choice is not in the URL: a link carries a session, not a browser's habit.
+A page would paint dark for a frame before React read the key, so
+`frontend/public/theme.js` (386 bytes, a classic script on the same origin,
+which the CSP's `script-src 'self'` allows) sets the attribute from the head of
+every HTML entry before the stylesheet, from the stored choice or, with none,
+the device's; `theme.test.ts` holds its key to `THEME_KEY`, its query to
+`LIGHT_QUERY` and its place in the four files. A switch lands in one frame:
 `useTheme` holds every CSS transition off while the new tokens resolve
 (`.theme-switching` in `index.css`), so no hover fade starts on every row at
 once (record [0211](architectural-decision-records/0211-theme-switch-renders-nothing.md)).
@@ -445,8 +453,8 @@ button against the panel's in a browser. Record: [0163](architectural-decision-r
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend card |
 | The accent ratios are pinned | `styles.test.ts` | 4.56, 3.20, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
 | Every light value is measured where it lands | `styles.test.ts`, `colors.test.ts`, `chartColors.test.ts` | The test parses both token blocks out of `index.css`, reads each dark token back to the slate or sky step it always was, and pins the light theme's ratios role by role (see The light theme below); the cell inks and chart lines per theme |
-| The theme is the switch's, never the operating system's | `checks/styles.js`, `styles.test.ts` | `style-no-os-theme` bans a `dark:` variant and `prefers-color-scheme` in any string or template under `src/`, tests aside, because either paints by the system's setting under a switch that may say the opposite; the test holds `index.css` and `map.css` to the same, since ESLint does not read CSS (#706) |
-| A stored light theme paints before React does | `theme.test.ts` | `public/theme.js` reads `THEME_KEY`, stays under 400 bytes, and is in the head of all four HTML entries before the module script, with no inline script anywhere |
+| Only `useTheme` asks the device | `checks/styles.js`, `styles.test.ts` | `style-no-os-theme` bans a `dark:` variant and `prefers-color-scheme` in any string or template under `src/`, tests and `hooks/useTheme.ts` aside, because either paints by the device under a menu that may say the opposite; `useTheme` answers the device by writing `data-theme`, which every colour reads; the test holds `index.css` and `map.css` to the same, since ESLint does not read CSS (#706, #843) |
+| The right theme paints before React does | `theme.test.ts` | `public/theme.js` reads `THEME_KEY`, asks `LIGHT_QUERY` only with no choice stored, stays under 400 bytes, and is in the head of all four HTML entries before the module script, with no inline script anywhere |
 | No component draws its own glyph | `checks/styles.js` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
 | Nor does the map popup | `checks/styles.js`, `styles.test.ts` | `style-popup-glyph` bans the same tag in `utils/popup/popupChrome.ts`, which builds markup rather than elements; the test pins its glyph size to the `inline` step |
 | No call site sizes an icon | `checks/styles.js`, `styles.test.ts` | `style-call-site-classes` bans a height or width utility on any `<Icon…>` element; the test pins the four `ICON` steps by measured pixels, and the key set too |

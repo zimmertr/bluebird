@@ -71,8 +71,8 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       sheetRestPx={600}
       onSheetHeld={NOOP}
       onClose={onClose}
-      theme="dark"
-      onToggleTheme={NOOP}
+      themeChoice="system"
+      onThemeChoice={NOOP}
       onTutorial={NOOP}
       drawMode={DRAW}
       destinationInputs={INPUTS}
@@ -96,24 +96,23 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
 }
 
 describe('AppDrawer', () => {
-  // The theme switch at a desk (#706): in the header, beside the close
-  // button and in its box, offering the theme it goes to.
-  it('carries the theme switch beside its close button at a desk', () => {
-    const onToggleTheme = vi.fn()
-    render(drawer(true, NOOP, { onToggleTheme }))
-    const toLight = screen.getByRole('button', { name: 'Switch to light theme' })
+  // The theme menu at a desk (#843): in the header, beside the close button
+  // and in its box, named by the choice it holds, and a pick reaches App.
+  it('carries the theme menu beside its close button at a desk', () => {
+    const onThemeChoice = vi.fn()
+    render(drawer(true, NOOP, { onThemeChoice }))
+    const theme = screen.getByRole('button', { name: 'Theme System' })
     const close = screen.getByRole('button', { name: 'Close controls' })
-    expect(toLight.parentElement).toBe(close.parentElement)
-    expect(toLight.nextElementSibling).toBe(close)
-    expect(toLight.className).toBe(close.className)
-    fireEvent.click(toLight)
-    expect(onToggleTheme).toHaveBeenCalledOnce()
+    expect(theme.parentElement).toBe(close.parentElement)
+    expect(theme.nextElementSibling).toBe(close)
+    fireEvent.click(theme)
+    fireEvent.click(screen.getByRole('option', { name: 'Light' }))
+    expect(onThemeChoice).toHaveBeenCalledExactlyOnceWith('light')
   })
 
-  it('offers the dark theme while light', () => {
-    render(drawer(true, NOOP, { theme: 'light' }))
-    expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Switch to light theme' })).toBeNull()
+  it('names the theme menu by the choice it holds', () => {
+    render(drawer(true, NOOP, { themeChoice: 'dark' }))
+    expect(screen.getByRole('button', { name: 'Theme Dark' })).toBeTruthy()
   })
 
   it('closes from its own button', () => {
@@ -220,17 +219,20 @@ describe('AppDrawer', () => {
       expect(container.contains(sheet())).toBe(true)
     })
 
-    // On a phone the switch is the Controls sheet's alone, in its title row
-    // beside Done (#706).
-    it('carries the theme switch in its title row, beside Done', () => {
-      const onToggleTheme = vi.fn()
-      render(drawer(true, NOOP, { isDesktop: false, sheetRestPx: 540, onToggleTheme }))
-      const toLight = screen.getByRole('button', { name: 'Switch to light theme' })
+    // On a phone the menu is the Controls sheet's alone, in its title row
+    // beside Done (#706), and its rows open in a sheet headed Theme (#843).
+    it('carries the theme menu in its title row, beside Done', () => {
+      const onThemeChoice = vi.fn()
+      render(drawer(true, NOOP, { isDesktop: false, sheetRestPx: 540, onThemeChoice }))
+      const theme = screen.getByRole('button', { name: 'Theme System' })
       const done = screen.getByRole('button', { name: 'Done' })
-      expect(toLight.nextElementSibling).toBe(done)
+      expect(theme.nextElementSibling).toBe(done)
+      expect(theme.getAttribute('aria-haspopup')).toBe('dialog')
       expect(screen.queryByRole('button', { name: 'Close controls' })).toBeNull()
-      fireEvent.click(toLight)
-      expect(onToggleTheme).toHaveBeenCalledOnce()
+      fireEvent.click(theme)
+      expect(screen.getByRole('dialog', { name: 'Theme' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('option', { name: 'Dark' }))
+      expect(onThemeChoice).toHaveBeenCalledExactlyOnceWith('dark')
     })
 
     it('closes from Done, from Escape and from a press on the dim', () => {
@@ -298,7 +300,7 @@ describe('AppDrawer', () => {
       const done = screen.getByRole('button', { name: 'Done' })
       done.focus()
       expect(fireEvent.keyDown(document, { key: 'Tab' })).toBe(false)
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Switch to light theme' }))
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Theme System' }))
       rerender(page(false))
       expect(document.activeElement).toBe(chip)
       expect(onClose).not.toHaveBeenCalled()

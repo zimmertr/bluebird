@@ -2955,17 +2955,20 @@ export const PANEL_HEADER = {
 
 /**
  * A button in a panel's header: the desk panel's close button and the theme
- * switch beside it, and the switch again in a phone's Controls sheet beside
- * Done (#706). A 32px square on either pointer, a finger's height (`TAP`,
- * record 0223), and no wider: `TAP.action`'s 44px width would draw it as a
- * bar. `SQUARE_BUTTON`'s shape without its frame.
+ * menu's trigger beside it, and the trigger again in a phone's Controls sheet
+ * beside Done (#706, #843). A 32px square on either pointer, a finger's
+ * height (`TAP`, record 0223), and no wider: `TAP.action`'s 44px width would
+ * draw it as a bar. `SQUARE_BUTTON`'s shape without its frame.
+ *
+ * `HEADER_FACE` is the shape alone, which the close button wears with a
+ * plain button's hover and focus and the theme menu's trigger wears as
+ * `MENU_TRIGGER.header`, with the one trigger's states.
  */
 // No frame (TJ 2026-10-30): the header's two stand in chrome rather than among
 // the panel's fields, and the frame drew them as form controls; the square
 // keeps the shape rule, the raised fill at 80% the quiet they had as circles.
-export const HEADER_BUTTON =
-  `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.control} ` +
-  `bg-raised/80 transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
+const HEADER_FACE = `flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.control} bg-raised/80`
+export const HEADER_BUTTON = `${HEADER_FACE} transition-colors ${ACCENT.hoverText} ${FOCUS_RING}`
 
 /**
  * Movement that answers a reader's action, at two speeds, and stops where
@@ -3418,6 +3421,14 @@ export const MENU_TRIGGER = {
   square:
     `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} text-ink-faint ` +
     `flex size-5.5 flex-shrink-0 items-center justify-center touch:size-8 ${TRIGGER_STATE}`,
+  /**
+   * The theme menu's trigger (#843): the header's round button
+   * (`HEADER_FACE`) beside the close button, wearing the chosen theme's
+   * glyph, and the one trigger's states, so it lights while its menu is out
+   * as every trigger does. It wears no chevron: the close button beside it
+   * has none, and the pair would stand uneven.
+   */
+  header: `${HEADER_FACE} ${TRIGGER_STATE}`,
 } as const
 
 /**
@@ -3440,6 +3451,7 @@ export const MENU_CHEVRON = {
   field: ICON_ADORNMENT,
   segment: ICON_ADORNMENT,
   square: '',
+  header: '',
 } as const
 
 // A row's shape in any menu: 6px in from the list's 4px, so its words stand
@@ -3486,6 +3498,9 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   link inside it (Removed rows), which lights on its own.
  * - `option`: a row a reader picks, at the control type, 20px apart.
  * - `active`: the row under the pointer or the arrow keys, in the raised fill.
+ * - `glyphRow`: an `option` that leads with its glyph, the theme menu's
+ *   (#843), 8px from its word, so a reader learns which glyph the trigger
+ *   wears for which choice.
  * - `current`: the value a list that replaced a select holds, set semibold
  *   the way the model list sets its ranking model. No check mark: the weight
  *   says it, and a mark would take a column from every row.
@@ -3524,6 +3539,7 @@ export const MENU = {
   hover: 'hover:bg-raised',
   current: 'font-semibold',
   heading: `${TEXT.caption} font-semibold`,
+  glyphRow: 'flex items-center gap-2',
   description: `${MICRO_SIZE} italic text-ink-soft`,
   foot: `border-t ${SURFACE_DIVIDER} px-2.5 py-2`,
   divider: `-mx-1 my-1 border-t ${SURFACE_DIVIDER}`,

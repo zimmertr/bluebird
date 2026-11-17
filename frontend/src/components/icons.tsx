@@ -175,10 +175,10 @@ export function IconMenu({ className }: IconProps): ReactNode {
 }
 
 /**
- * The theme switch's two faces (#706), each the theme a press goes to: a sun
- * while the app is dark, a moon while it is light. Drawn on the Layers
- * glyph's grid and stroke, round-capped like the close cross they stand
- * beside in the panel header.
+ * The theme menu's three glyphs (#706, #843), each the choice it names, on
+ * the menu's trigger and beside its row: a sun for Light, a moon for Dark and
+ * a monitor for System. Drawn on the Layers glyph's grid and stroke,
+ * round-capped like the close cross they stand beside in the panel header.
  */
 export function IconSun({ className }: IconProps): ReactNode {
   return (
@@ -204,7 +204,7 @@ export function IconSun({ className }: IconProps): ReactNode {
   )
 }
 
-/** The theme switch while the app is light: a crescent, the face it goes to. */
+/** Dark, in the theme menu: a crescent. */
 export function IconMoon({ className }: IconProps): ReactNode {
   return (
     <svg
@@ -218,6 +218,30 @@ export function IconMoon({ className }: IconProps): ReactNode {
       aria-hidden="true"
     >
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  )
+}
+
+/**
+ * System, in the theme menu (#843): a screen on its stand, the device whose
+ * own setting the choice follows. The maintainer picked it over a half-filled
+ * circle and a split sun and moon (2026-11-16).
+ */
+export function IconMonitor({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <line x1="8" y1="20" x2="16" y2="20" />
+      <line x1="12" y1="16" x2="12" y2="20" />
     </svg>
   )
 }
