@@ -6,11 +6,11 @@ import {
   THEME_KEY,
   hasWelcomed,
   readStarredLists,
-  readTheme,
+  readThemeChoice,
   readViewPrefs,
   setWelcomed,
   writeStarredLists,
-  writeTheme,
+  writeThemeChoice,
   writeViewPrefs,
 } from './viewPrefs'
 
@@ -392,7 +392,7 @@ describe('a storage that will not answer', () => {
     })
     try {
       expect(hasWelcomed()).toBe(false)
-      expect(readTheme()).toBe('dark')
+      expect(readThemeChoice()).toBe('system')
       expect(readViewPrefs()).toEqual({
         modeChosen: null,
         columns: null,
@@ -405,7 +405,7 @@ describe('a storage that will not answer', () => {
       })
       expect(() => writeViewPrefs({ modeChosen: 'both' })).not.toThrow()
       expect(() => setWelcomed()).not.toThrow()
-      expect(() => writeTheme('light')).not.toThrow()
+      expect(() => writeThemeChoice('light')).not.toThrow()
     } finally {
       delete (globalThis as { localStorage?: unknown }).localStorage
       if (own) Object.defineProperty(globalThis, 'localStorage', own)
@@ -418,37 +418,41 @@ describe('a storage that will not answer', () => {
   })
 })
 
-describe('the theme (#706)', () => {
+describe('the theme (#706, #843)', () => {
   it('keeps it under a key of its own, beside the view object rather than in it', () => {
     expect(THEME_KEY).toBe('bluebird_forecast_theme')
     expect(THEME_KEY).not.toBe(VIEW_KEY)
   })
 
-  it('reads dark when nothing is stored, whatever the OS prefers', () => {
+  it('reads System when nothing is stored, so the device decides', () => {
     vi.stubGlobal('localStorage', fakeStorage())
-    expect(readTheme()).toBe('dark')
+    expect(readThemeChoice()).toBe('system')
   })
 
-  it('reads light only when light is what is stored', () => {
+  it('reads a stored light or dark, and System on anything else', () => {
     vi.stubGlobal('localStorage', fakeStorage({ [THEME_KEY]: 'light' }))
-    expect(readTheme()).toBe('light')
+    expect(readThemeChoice()).toBe('light')
+    vi.stubGlobal('localStorage', fakeStorage({ [THEME_KEY]: 'dark' }))
+    expect(readThemeChoice()).toBe('dark')
     vi.stubGlobal('localStorage', fakeStorage({ [THEME_KEY]: 'sepia' }))
-    expect(readTheme()).toBe('dark')
+    expect(readThemeChoice()).toBe('system')
   })
 
-  it('stores light and forgets the key on dark, leaving the view object alone', () => {
+  it('stores light and dark by name and forgets the key on System, leaving the view object alone', () => {
     const storage = withStored({ legendOpen: true })
-    writeTheme('light')
+    writeThemeChoice('light')
     expect(storage.getItem(THEME_KEY)).toBe('light')
-    writeTheme('dark')
+    writeThemeChoice('dark')
+    expect(storage.getItem(THEME_KEY)).toBe('dark')
+    writeThemeChoice('system')
     expect(storage.getItem(THEME_KEY)).toBeNull()
     expect(stored(storage)).toEqual({ legendOpen: true })
   })
 
-  it('answers dark and does not throw when there is no storage, or it refuses', () => {
+  it('answers System and does not throw when there is no storage, or it refuses', () => {
     vi.stubGlobal('localStorage', undefined)
-    expect(readTheme()).toBe('dark')
-    expect(() => writeTheme('light')).not.toThrow()
+    expect(readThemeChoice()).toBe('system')
+    expect(() => writeThemeChoice('light')).not.toThrow()
     vi.stubGlobal('localStorage', {
       getItem: () => {
         throw new Error('denied')
@@ -460,8 +464,9 @@ describe('the theme (#706)', () => {
         throw new Error('denied')
       },
     })
-    expect(readTheme()).toBe('dark')
-    expect(() => writeTheme('dark')).not.toThrow()
+    expect(readThemeChoice()).toBe('system')
+    expect(() => writeThemeChoice('dark')).not.toThrow()
+    expect(() => writeThemeChoice('system')).not.toThrow()
   })
 })
 

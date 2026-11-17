@@ -172,7 +172,7 @@ export default function App() {
   const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
   const isDesktop = useIsDesktop()
-  const { theme, toggleTheme } = useTheme()
+  const { choice: themeChoice, setChoice: setThemeChoice } = useTheme()
   // The controls panel is docked on desktop and the Controls sheet on phones
   // (record 0141). It starts open on a desktop and closed on a phone
   // (`useDrawer`, #696); a close button collapses it to widen the map.
@@ -791,8 +791,8 @@ export default function App() {
         onSheetHeld={setControlsHeld}
         onClose={closeDrawer}
         tourRuns={tour.index !== null}
-        theme={theme}
-        onToggleTheme={toggleTheme}
+        themeChoice={themeChoice}
+        onThemeChoice={setThemeChoice}
         drawMode={drawMode}
         destinationInputs={destinationInputs}
         forecastSelection={forecastSelection}

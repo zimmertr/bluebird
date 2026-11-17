@@ -4,7 +4,7 @@ import type { SheetHeight } from '../utils/sheetDrag'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
-import ThemeButton from './ThemeButton'
+import ThemeMenu from './ThemeMenu'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useHeldFailure } from '../hooks/useOpenOnFailure'
 import type { LiveCapabilities } from '../hooks/useCapabilities'
@@ -16,7 +16,7 @@ import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ActionWord } from '../utils/analyzeGate'
 import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER } from '../styles'
-import type { Theme } from '../utils/viewPrefs'
+import type { ThemeChoice } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
   /** Whether the panel is open: docked on a desktop, the Controls sheet on a phone. */
@@ -103,9 +103,9 @@ interface AppDrawerProps {
   onTutorial: () => void
   /** The tour cannot start now (a draw or a run is under way), so the footer's link is inert. */
   tutorialWaits?: boolean
-  /** The theme, and the switch the header carries (`useTheme`, #706). */
-  theme: Theme
-  onToggleTheme: () => void
+  /** The theme choice, and the setter the header's theme menu calls (`useTheme`, #843). */
+  themeChoice: ThemeChoice
+  onThemeChoice: (choice: ThemeChoice) => void
 }
 
 /**
@@ -144,8 +144,8 @@ export default function AppDrawer({
   actionWord,
   onTutorial,
   tutorialWaits,
-  theme,
-  onToggleTheme,
+  themeChoice,
+  onThemeChoice,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
   const {
@@ -259,7 +259,7 @@ export default function AppDrawer({
           held: sheetHeld,
           restPx: sheetRestPx,
           onHeld: onSheetHeld,
-          actions: <ThemeButton theme={theme} onToggle={onToggleTheme} />,
+          actions: <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} sheet />,
         }}
       >
         {panel}
@@ -281,10 +281,10 @@ export default function AppDrawer({
         inert={!open}
         className={`${DESK_PANEL.card} ${open ? '' : DESK_PANEL.shut} ${moving ? LAYOUT_HOLD.layer : ''}`}
       >
-        {/* The header's buttons: the theme switch, then the close button,
+        {/* The header's buttons: the theme menu, then the close button,
             which collapses the panel. */}
         <div className={PANEL_HEADER.actions}>
-          <ThemeButton theme={theme} onToggle={onToggleTheme} />
+          <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} />
           <button
             ref={closeRef}
             onClick={onClose}

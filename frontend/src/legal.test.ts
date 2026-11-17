@@ -352,7 +352,7 @@ describe('the privacy copy, held to the code', () => {
   )
 
   it('dates the policy to the change that last corrected it', () => {
-    expect(privacyPage).toMatch(/Last updated 11 November 2026\./)
+    expect(privacyPage).toMatch(/Last updated 16 November 2026\./)
   })
 
   // The page names each key by what it keeps, and says how many there are.
@@ -371,7 +371,7 @@ describe('the privacy copy, held to the code', () => {
     }
     const described: Record<string, RegExp> = {
       [WELCOME_KEY]: /local storage keeps whether you dismissed the welcome dialog/,
-      [THEME_KEY]: /whether you chose the light theme/,
+      [THEME_KEY]: /whether you chose the light or dark theme/,
       [STARRED_LISTS_KEY]: /which coordinate lists you starred/,
       [VIEW_KEY]: /how you laid out the results and the map: which views are open, which columns show and in what order, how the chart's panels are arranged, whether the forecast player shows, how faded each base map is, and whether the map's legend is folded/,
       [STORAGE_KEY]: /Session storage, which ends when you close the tab, keeps the forecasts fetched/,

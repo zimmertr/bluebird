@@ -1,30 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, renderHook } from '@testing-library/react'
+import { renderHook } from '@testing-library/react'
 import { useIsDesktop } from './useIsDesktop'
-
-// jsdom has no matchMedia: a list the test flips, carrying the listener
-// methods the hook subscribes with.
-function mediaList(matches: boolean) {
-  const listeners = new Set<() => void>()
-  const list = {
-    matches,
-    media: '',
-    addEventListener: vi.fn((_type: string, fn: () => void) => listeners.add(fn)),
-    removeEventListener: vi.fn((_type: string, fn: () => void) => listeners.delete(fn)),
-  }
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn((query: string) => Object.assign(list, { media: query })),
-  )
-  return {
-    list,
-    listeners,
-    cross(to: boolean) {
-      list.matches = to
-      act(() => listeners.forEach((fn) => fn()))
-    },
-  }
-}
+import { mediaList } from '../testSupport/mediaList'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -36,9 +13,9 @@ describe('useIsDesktop', () => {
     const { result, unmount } = renderHook(() => useIsDesktop())
     expect(media.list.media).toBe('(min-width: 1024px)')
     expect(result.current).toBe(true)
-    media.cross(false)
+    media.flip(false)
     expect(result.current).toBe(false)
-    media.cross(true)
+    media.flip(true)
     expect(result.current).toBe(true)
     unmount()
     expect(media.listeners.size).toBe(0)

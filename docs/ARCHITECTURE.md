@@ -27,8 +27,9 @@ logo the app draws is a 256px asset imported through the bundler, which is what
 gives it a content hash and therefore an `immutable` cache header; the 1024px
 `public/icon.png` is left unhashed for the Open Graph card and the iOS
 home-screen icon, and no page load fetches it. `public/theme.js` is unhashed
-too, because every HTML entry names it: it is the few lines that put a stored
-light theme on the page before the first paint (#706), a file rather than an
+too, because every HTML entry names it: it is the few lines that put the stored
+theme, or the device's when none is stored, on the page before the first paint
+(#706, #843), a file rather than an
 inline script because the CSP's `script-src 'self'` refuses one, and it is
 served `no-cache` like the documents that load it. CI audits `/` against byte and
 timing budgets on every PR, described in [CICD.md](CICD.md#pr-preview-environments).

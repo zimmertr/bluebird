@@ -61,7 +61,8 @@ test('draws each chart line in a colour of its own, at 3:1 in light, under no fi
   holds(light, LIGHT_PANEL)
   expect(await filtered()).toBe(0)
 
-  await page.getByRole('button', { name: 'Switch to dark theme' }).first().click()
+  await page.getByRole('button', { name: 'Theme Light' }).first().click()
+  await page.getByRole('option', { name: 'Dark' }).click()
   await expect.poll(strokes).not.toEqual(light)
   const dark = await strokes()
   expect(dark).toHaveLength(light.length)
