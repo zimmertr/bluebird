@@ -25,7 +25,7 @@ permissions: {}
 jobs:
   preview:
     name: PR Preview
-    uses: zimmertr/yggdrasil/.github/workflows/pr-preview.yml@39892128bd8202b461f8c4f2ffd240b535919ba0 # v2.0.1
+    uses: zimmertr/yggdrasil/.github/workflows/pr-preview.yml@bb574d28fc80f75825e3fe41e57a57a6c9ac8769 # v2.1.0
     permissions:
       contents: read
       packages: write # the preview image
