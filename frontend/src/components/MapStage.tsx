@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState, type ComponentProps, type RefObject } from 'react'
+import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
 import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
@@ -30,6 +30,7 @@ import {
   phoneCornerLiftPx,
   transportFits,
   transportStandPx,
+  DESK_CARD_REACH_PX,
 } from '../utils/results/resultsSheet'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { Place } from '../utils/geocode'
@@ -105,8 +106,10 @@ export interface MapStageProps {
   modelId: string | null
   /** Whether the results are shown, which is when the markers wear the ranking's colours. */
   showResults: boolean
-  /** Whether the controls panel is open. */
+  /** Whether the controls are open: a desk's card, a phone's sheet. */
   sidebarOpen: boolean
+  /** A desk's controls card around the search field, which the map's rows stand at their head (record 0305). */
+  controlsCard?: (search: ReactNode) => ReactNode
   /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
   layoutMotion?: LayoutMotion
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
@@ -169,6 +172,7 @@ export default function MapStage({
   modelId,
   showResults,
   sidebarOpen,
+  controlsCard,
   layoutMotion = null,
   legendInitiallyOpen,
   onOpenControls,
@@ -290,15 +294,13 @@ export default function MapStage({
     />
   )
 
-  // While the panel moves the box is the window's width, and while a pane
-  // moves the window's height, centred on the column either way, so the map
-  // is resized where the move starts or ends rather than in every frame.
-  const mapBox =
-    layoutMotion === 'opening' || layoutMotion === 'closing'
-      ? LAYOUT_HOLD.mapPush
-      : layoutMotion === 'panes'
-        ? LAYOUT_HOLD.mapPanes
-        : LAYOUT_HOLD.rest
+  // A framing move leaves a desk's open card's width clear on the left.
+  const cameraPadLeftPx = isDesktop && sidebarOpen && controlsCard !== undefined ? DESK_CARD_REACH_PX : 0
+
+  // While a pane moves the box is the window's height, centred on the
+  // column, so the map is resized where the move starts or ends rather than
+  // in every frame.
+  const mapBox = layoutMotion === 'panes' ? LAYOUT_HOLD.mapPanes : LAYOUT_HOLD.rest
 
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
@@ -318,7 +320,7 @@ export default function MapStage({
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
         isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      } ${layoutMotion ? LAYOUT_HOLD.clip : ''} ${layoutMotion === 'opening' || layoutMotion === 'closing' ? LAYOUT_HOLD.layer : ''}`}
+      } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
       style={
         {
           // A phone's scale and (i) stand on the Analyze button's row
@@ -382,6 +384,7 @@ export default function MapStage({
           onRemoveResult={removeResult}
           onMoveAggregate={tableView.handleAggregateMove}
           cameraPadBottomPx={layout.cameraPadBottomPx}
+          cameraPadLeftPx={cameraPadLeftPx}
           restoredView={restoredView}
           onCameraMove={urlSync.reportView}
           onBasemapFailed={onBasemapFailed}
@@ -402,6 +405,7 @@ export default function MapStage({
         onTerrainSlot={setTerrainSlot}
         desk={isDesktop}
         sidebarOpen={sidebarOpen}
+        card={isDesktop ? controlsCard : undefined}
         onOpenControls={onOpenControls}
         onCloseControls={onCloseControls}
         controlsSummary={controlsSummary}

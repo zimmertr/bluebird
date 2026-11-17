@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 
 /**
- * Whether the controls panel is open: docked on a desktop, the Controls sheet
- * on a phone (record 0141).
+ * Whether the controls are open: the card over a desktop's map (record 0305),
+ * the Controls sheet on a phone (record 0141).
  *
  * It starts open on a desktop and closed on a phone (#696), a shared link
  * included. A phone that opened on the panel covered the map, and with it the

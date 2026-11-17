@@ -1,9 +1,10 @@
-import { createRef } from 'react'
+import { createRef, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import MapRows from './MapRows'
 import type { SearchBoxHandle } from './SearchBox'
 import { render } from '../testSupport/render'
+import { DESK_CARD, MAP_ROWS } from '../styles'
 
 // The search has a suite of its own; what this one needs from it is the
 // report that the field has the keyboard, which steps the chip row aside.
@@ -159,6 +160,32 @@ describe('MapRows at a desk', () => {
     expect(chip.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(chip)
     expect(onOpenControls).toHaveBeenCalledOnce()
+  })
+
+  // A desk's controls card stands in the rows around the search field
+  // (record 0305): open, the chip row is beside it and stays while the field
+  // has the keyboard, since the field's list hangs over the card; shut, the
+  // rows are the pill over the chips, which step aside as they always did.
+  it('stands a desk\'s card around the search field, with the chips beside it while it is open', () => {
+    const card = (search: ReactNode) => <aside data-testid="card">{search}</aside>
+    const { container, rerender } = render(rows({ desk: true, sidebarOpen: true, card }))
+    const stack = container.firstElementChild as HTMLElement
+    expect(screen.getByTestId('card').contains(screen.getByRole('button', { name: 'Search' }))).toBe(true)
+    expect(stack.firstElementChild).toBe(screen.getByTestId('card'))
+    expect(stack.className).toContain(DESK_CARD.stackOpen)
+    const pill = screen.getByRole('button', { name: 'Search' }).parentElement as HTMLElement
+    expect(pill.className).toBe(DESK_CARD.pill)
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(screen.getByRole('button', { name: 'Legend' })).toBeTruthy()
+
+    rerender(rows({ desk: true, sidebarOpen: false, card }))
+    expect(stack.className).not.toContain(DESK_CARD.stackOpen)
+    expect(pill.className).toBe(MAP_ROWS.pillWide)
+    expect(screen.queryByRole('button', { name: 'Legend' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+    expect(pill.className).toBe(MAP_ROWS.pill)
+    // The same field through an open and a close, so what was typed stays.
+    expect(screen.getByRole('button', { name: 'Search' }).parentElement).toBe(pill)
   })
 
   it('keeps Legend and Layers while the panel is open', () => {

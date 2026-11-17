@@ -83,18 +83,23 @@ export function anyPointInView(points: { x: number; y: number }[], width: number
 
 /**
  * A framing call's inset, with the results sheet's share of the bottom edge
- * added to it (#249).
+ * added to it (#249), and a desk's open controls card's share of the left
+ * one (record 0305).
  *
  * Every `fitBounds` in `MapView` takes the object form, which MapLibre bakes
  * into the computed centre and zoom and then drops — so the padding never
  * becomes camera state that a later fit would count twice.
  *
  * The sheet stands on the container's bottom edge and the camera frames into
- * the whole container, so the lift is added to that one edge and to no other.
+ * the whole container, so the lift is added to that one edge. The card stands
+ * on the left edge from the map's top, as tall as its open section makes it,
+ * so its whole width is left clear: a list fitted to the map then has no row
+ * under the card whichever section is open.
  */
 export function framePadding(
   inset: number,
   bottomPx: number,
+  leftPx = 0,
 ): { top: number; right: number; bottom: number; left: number } {
-  return { top: inset, right: inset, bottom: inset + bottomPx, left: inset }
+  return { top: inset, right: inset, bottom: inset + bottomPx, left: inset + leftPx }
 }

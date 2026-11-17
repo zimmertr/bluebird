@@ -46,6 +46,7 @@ import {
   CARD_BODY_END,
   CARD_FOLD,
   CARD_RESIZE,
+  CARD_SECTION,
   CARD_TITLE_ROW,
   NOTICE,
   NOTICE_DISMISS,
@@ -70,7 +71,7 @@ import {
   METRIC_LABEL_PITCH,
   MOTION,
   PANEL_MS,
-  DESK_PANEL,
+  DESK_CARD,
   RESULTS_PANE,
   LAYOUT_HOLD,
   PANEL_BODY,
@@ -149,7 +150,7 @@ import { CHEVRON_PX, EXTERNAL_LINK_PX, GRIP_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX } from './utils/results/resultsSheet'
+import { CHIP_MENU_GAP_PX, DESK_CARD_REACH_PX, DESK_CARD_W_PX, MAP_EDGE_INSET_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
@@ -213,6 +214,7 @@ import bottomSheetSource from './components/BottomSheet.tsx?raw'
 import phoneFootSource from './components/PhoneFoot.tsx?raw'
 import mapStageSource from './components/MapStage.tsx?raw'
 import appDrawerSource from './components/AppDrawer.tsx?raw'
+import panelSectionSource from './components/PanelSection.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
@@ -3286,15 +3288,14 @@ describe('a blocked Analyze and the message list', () => {
     expect(MESSAGE_LIST.sheet).toBe('space-y-2 py-2')
   })
 
-  // The desk card takes the width of the slot the button and its badge share
-  // (#803, record 0233), which is the docked panel less the footer's gutters,
-  // so the 82-character over-cap sentence wraps inside it rather than running
-  // the card past the panel's right edge over the map.
-  it("stands the desk card at the Analyze slot's width, 328px at the docked panel", () => {
+  // The message list takes the width of the slot the button and its badge
+  // share (#803, record 0233), which is the controls card less its two edges
+  // and the footer's gutters, so the 82-character over-cap sentence wraps
+  // inside it rather than running the list past the card's right edge.
+  it("stands the message list at the Analyze slot's width, 327px in the controls card", () => {
     expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: slotRef,/)
-    const panelPx = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) * 4
     const gutterPx = Number(panelFooterSource.match(/`px-(\d+) py-4 border-t \$\{PANEL_EDGE\}/)![1]) * 4
-    expect(panelPx - 2 * gutterPx).toBe(328)
+    expect(DESK_CARD_W_PX - 2 - 2 * gutterPx).toBe(327)
   })
 })
 
@@ -4791,8 +4792,8 @@ describe('the panel frame', () => {
       page: ratio(edge, dark('page')),
       wasBefore: ratio(dark(token(SURFACE_DIVIDER, 'border')), dark('panel')),
     }).toEqual(MEASURED)
-    expect(DESK_PANEL.card).toContain(`border-r ${PANEL_EDGE}`)
-    expect(appDrawerSource).toContain('DESK_PANEL.card')
+    expect(words(DESK_CARD.card)).toEqual(expect.arrayContaining(['border', PANEL_EDGE]))
+    expect(appDrawerSource).toContain('DESK_CARD.card')
     expect(appDrawerSource).not.toMatch(/SURFACE_DIVIDER/)
     expect(Math.min(MEASURED.panel, MEASURED.page)).toBeGreaterThanOrEqual(3)
     expect(MEASURED.wasBefore).toBeLessThan(3)
@@ -4875,7 +4876,6 @@ describe('the panel frame', () => {
       expect(recipe).toContain('motion-reduce:transition-none')
     }
     expect(CONTROLS_SHEET.card).toContain(MOTION.slide)
-    expect(DESK_PANEL.card).toContain(MOTION.push)
     expect(appDrawerSource).not.toMatch(/(^|\s)transition-transform duration/)
     expect(analysisOverlaySource).toContain('MOTION.progress')
     expect(resultsPanelsSource).toContain('MOTION.pane')
@@ -4890,45 +4890,67 @@ describe('the panel frame', () => {
     const easing = (recipe: string) => recipe.match(/(?:^|\s)(ease-[a-z-]+)(?=\s|$)/)?.[1]
     expect(PANEL_MS).toBe(300)
     expect(duration(MOTION.menu)).toBe(150)
-    for (const recipe of [MOTION.slide, MOTION.push, MOTION.pane]) {
+    for (const recipe of [MOTION.slide, MOTION.pane]) {
       expect(duration(recipe)).toBe(PANEL_MS)
       expect(easing(recipe)).toBe('ease-in-out')
     }
     // Each names the one property it moves, so a grip's drag on a sheet's or
     // a pane's height never chases the finger.
     expect(MOTION.slide).toMatch(/(^|\s)transition-transform(\s|$)/)
-    expect(MOTION.push).toMatch(/(^|\s)transition-\[margin-left\](\s|$)/)
     expect(MOTION.pane).toMatch(/(^|\s)transition-\[grid-template-rows\](\s|$)/)
     expect(MOTION.menu).toMatch(/(^|\s)transition-\[opacity,translate\](\s|$)/)
   })
 
-  // The desk panel pushes the map's edge (record 0202): it stays in the row
-  // shut, and its margin takes back exactly its own width.
-  it('takes the desk panel out of the row by its own width', () => {
-    const width = DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)?.[1]
-    expect(width).toBe('90')
-    expect(DESK_PANEL.shut).toBe(`-ml-${width}`)
-    expect(DESK_PANEL.card).not.toMatch(/(^|\s)(absolute|fixed)(\s|$)/)
-    expect(DESK_PANEL.card).toMatch(/(^|\s)relative(\s|$)/)
-    expect(DESK_PANEL.card).toContain(LAYER.base)
+  // The controls at a desk are a card over the map (record 0305), where
+  // they were a column that pushed it. 361px: the 360px panel and the left
+  // edge a docked panel never drew, so the content is the same 359px and
+  // every control keeps its measured width.
+  it('stands the desk controls as a card over the map, at the panel\'s content width', () => {
+    const width = Number(DESK_CARD.card.match(/(?:^|\s)w-\[(\d+)px\](?=\s|$)/)?.[1])
+    expect(width).toBe(DESK_CARD_W_PX)
+    expect(width - 2).toBe(359)
+    expect(DESK_CARD_REACH_PX).toBe(MAP_EDGE_INSET_PX + width)
+    const card = words(DESK_CARD.card)
+    // The panel's fill, so every ratio measured on the panel holds, with a
+    // floating box's edge, corners and shadow.
+    expect(card).toEqual(
+      expect.arrayContaining(['relative', 'pointer-events-auto', 'bg-panel', 'border', RADIUS.surface, ELEVATION.raised]),
+    )
+    // Never taller than the map less one inset over and under it.
+    expect(card).toContain(`max-h-[calc(100cqh-${(2 * MAP_EDGE_INSET_PX) / 16}rem)]`)
+    // No clip: the search field's list hangs past a short card's foot.
+    expect(card.some((w) => w.startsWith('overflow'))).toBe(false)
+    // Open, the chip row stands beside the card rather than under it.
+    expect(DESK_CARD.stackOpen).toBe('lg:flex-row lg:items-start')
+    expect(DESK_CARD.search).toContain(`border-b ${PANEL_EDGE}`)
   })
 
-  // While a desk's layout moves, the map and the results hold one size
-  // (record 0202). The map's box is the window's width or height, centred on
-  // its column, so MapLibre, which keeps the centre on a resize, draws what it
-  // would at every size in between. The chart closing keeps its open width,
-  // the window less the panel.
-  it('holds the map centred on its column, and the chart at the width it had', () => {
-    expect(words(LAYOUT_HOLD.mapPush)).toEqual(expect.arrayContaining(['absolute', 'inset-y-0', 'w-screen', 'left-[calc(50%-50vw)]']))
+  // A section's heading in the card is a 32px button, and the margins take
+  // back what that adds over a 20px heading, so a collapsed row stands where
+  // a heading would and an open one keeps the 10px under it.
+  it('draws a card section\'s heading as a 32px row in a heading\'s place', () => {
+    const rowPx = (Number(CARD_SECTION.head.match(/(?:^|\s)h-(\d+)(?=\s|$)/)![1]) / 4) * 16
+    const headingPx = 20
+    const spare = (rowPx - headingPx) / 2
+    expect(rowPx).toBe(32)
+    expect(CARD_SECTION.shut).toBe(`-my-${spare / 4}`)
+    expect(CARD_SECTION.open).toBe(`-mt-${spare / 4} mb-1`)
+    // 10px under an open section's heading, as `mb-2.5` gave it.
+    expect(4 + spare).toBe(10)
+    expect(CARD_SECTION.head).toContain(FOCUS_RING)
+    expect(CARD_SECTION.summary).toContain(TEXT.caption)
+    expect(words(CARD_SECTION.summary)).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'truncate']))
+    expect(panelSectionSource).toContain('aria-expanded={fold.open}')
+  })
+
+  // While a desk's results panes move, the map holds one size (record
+  // 0202). Its box is the window's height, centred on its column, so
+  // MapLibre, which keeps the centre on a resize, draws what it would at
+  // every size in between.
+  it('holds the map centred on its column while the panes move', () => {
     expect(words(LAYOUT_HOLD.mapPanes)).toEqual(expect.arrayContaining(['absolute', 'inset-x-0', 'h-dvh', 'top-[calc(50%-50dvh)]']))
     expect(LAYOUT_HOLD.rest).toBe('absolute inset-0')
-    expect(LAYOUT_HOLD.table).toBe('w-screen')
-    expect(LAYOUT_HOLD.chartOpening).toBe('w-screen')
-    const panelRem = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) / 4
-    expect(LAYOUT_HOLD.chartClosing).toBe(`w-[calc(100vw-${panelRem}rem)]`)
     expect(LAYOUT_HOLD.clip).toBe('overflow-clip')
-    // What moves stands on a layer of its own while it moves (record 0216).
-    expect(LAYOUT_HOLD.layer).toBe('will-change-transform')
   })
 
   // A results pane opens to its body's height and shuts to none, and the

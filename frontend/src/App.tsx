@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
@@ -62,6 +63,7 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { useTheme } from './hooks/useTheme'
 import { useDrawer } from './hooks/useDrawer'
+import { useCardSections } from './hooks/useCardSections'
 import { useOpenOnFailure } from './hooks/useOpenOnFailure'
 import { useSafeAreaBottom } from './hooks/useSafeAreaBottom'
 import { controlsSheetPx } from './utils/results/resultsSheet'
@@ -173,9 +175,10 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
   const isDesktop = useIsDesktop()
   const { choice: themeChoice, setChoice: setThemeChoice } = useTheme()
-  // The controls panel is docked on desktop and the Controls sheet on phones
-  // (record 0141). It starts open on a desktop and closed on a phone
-  // (`useDrawer`, #696); a close button collapses it to widen the map.
+  // The controls are a card over a desk's map (record 0305) and the Controls
+  // sheet on phones (record 0141). They start open on a desktop and closed on
+  // a phone (`useDrawer`, #696); the card's close button leaves the search
+  // field and the chip that opens it again.
   const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(isDesktop)
   // A phone's Controls sheet under a drag on its grip (record 0146): the height
   // the drag left it at, or null for its own share of the map.
@@ -653,9 +656,9 @@ export default function App() {
     analyze: handleAnalyze,
   })
 
-  // A failure at a desk reopens a panel the reader closed while the run was
-  // up (#803): the list that says what went wrong is the panel's, and a shut
-  // panel is inert, its badge and its live region with it.
+  // A failure at a desk reopens a card the reader closed while the run was
+  // up (#803): the list that says what went wrong is the card's, and a shut
+  // card hides its badge and its live region with it.
   useOpenOnFailure(failureSeq, openDrawer, isDesktop)
   // A check or the basemap failing does the same (#834): its line opens the
   // list, and the list is the panel's.
@@ -670,8 +673,8 @@ export default function App() {
   // where it is, and the message list opens over the map's Analyze, where the
   // phone's badge is (`useOpenOnFailure` in `PhoneFoot`, #803).
   //
-  // Desktop is unaffected: the panel is docked there and closes only when the
-  // reader closes it.
+  // Desktop is unaffected: the card closes only when the reader closes it,
+  // and a committed report collapses its sections instead (`useCardSections`).
   useEffect(() => {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
     // Kept: listing `isDesktop` would close the drawer when a window crossed
@@ -734,11 +737,10 @@ export default function App() {
     removeResult: removals.removeResult,
   })
   const { layout, tableView } = resultsView
-  // Which edge of a desk's layout is moving, so the map and the results
-  // hold one size while it moves (record 0202).
+  // Whether a desk's results panes are moving, so the map holds one size
+  // while they do (record 0202).
   const { motion: layoutMotion, onTransitionEnd: onLayoutMoved } = useLayoutMotion({
     isDesktop,
-    open: sidebarOpen,
     mode: layout.resultsMode,
     collapsed: layout.resultsCollapsed,
   })
@@ -757,6 +759,48 @@ export default function App() {
     setWelcomed()
     startTour()
   }, [startTour, tourWaits])
+
+  // Which section of a desk's card is open: one at a time, every one
+  // collapsed by a committed report, and the tutorial's own for its step.
+  const cardSections = useCardSections({ analysisSeq, held: tour.panelSection })
+
+  // The controls: on a phone the Controls sheet, drawn here over the whole
+  // column; at a desk a card in the map's own rows (#825; record 0305), which
+  // `MapStage` hands the search field it stands around.
+  const drawer = (search?: ReactNode) => (
+    <AppDrawer
+      open={sidebarOpen}
+      isDesktop={isDesktop}
+      sheetHeld={controlsHeld}
+      sheetRestPx={controlsSheetPx(layout.mapPx)}
+      onSheetHeld={setControlsHeld}
+      onClose={closeDrawer}
+      tourRuns={tour.index !== null}
+      themeChoice={themeChoice}
+      onThemeChoice={setThemeChoice}
+      drawMode={drawMode}
+      destinationInputs={destinationInputs}
+      forecastSelection={forecastSelection}
+      rankingKnobs={rankingKnobs}
+      chartMetrics={chartMetrics}
+      caps={caps}
+      mapRef={mapRef}
+      onPointAtSearch={setSearchPointed}
+      onPointAtMapPois={setPoisPointed}
+      onPresetListFailed={setPresetListFailed}
+      messages={shownMessages}
+      onAnalyze={handleAnalyze}
+      autoAnalyze={autoAnalyze}
+      capabilitiesSettled={capsApplied}
+      onAutoAnalyze={runAutoAnalyze}
+      actionWord={word}
+      onTutorial={tour.start}
+      tutorialWaits={tourWaits}
+      search={search}
+      section={cardSections.section}
+      onSection={cardSections.toggle}
+    />
+  )
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
@@ -782,36 +826,7 @@ export default function App() {
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
 
-      <AppDrawer
-        open={sidebarOpen}
-        isDesktop={isDesktop}
-        moving={layoutMotion === 'opening' || layoutMotion === 'closing'}
-        sheetHeld={controlsHeld}
-        sheetRestPx={controlsSheetPx(layout.mapPx)}
-        onSheetHeld={setControlsHeld}
-        onClose={closeDrawer}
-        tourRuns={tour.index !== null}
-        themeChoice={themeChoice}
-        onThemeChoice={setThemeChoice}
-        drawMode={drawMode}
-        destinationInputs={destinationInputs}
-        forecastSelection={forecastSelection}
-        rankingKnobs={rankingKnobs}
-        chartMetrics={chartMetrics}
-        caps={caps}
-        mapRef={mapRef}
-        onPointAtSearch={setSearchPointed}
-        onPointAtMapPois={setPoisPointed}
-        onPresetListFailed={setPresetListFailed}
-        messages={shownMessages}
-        onAnalyze={handleAnalyze}
-        autoAnalyze={autoAnalyze}
-        capabilitiesSettled={capsApplied}
-        onAutoAnalyze={runAutoAnalyze}
-        actionWord={word}
-        onTutorial={tour.start}
-        tutorialWaits={tourWaits}
-      />
+      {!isDesktop && drawer()}
 
       {/* Map + results column. On a phone the results leave the flow and stand
           on the map as a sheet, so the column is what positions them; on
@@ -845,6 +860,7 @@ export default function App() {
           modelId={analyzed?.forecastModel ?? forecastModel}
           showResults={showResults}
           sidebarOpen={sidebarOpen}
+          controlsCard={isDesktop ? drawer : undefined}
           layoutMotion={layoutMotion}
           legendInitiallyOpen={storedView.legendOpen ?? true}
           onOpenControls={openDrawer}
@@ -883,7 +899,6 @@ export default function App() {
           closure={closure}
           pendingHeights={waitingHeights}
           modelId={analyzed?.forecastModel ?? forecastModel}
-          layoutMotion={layoutMotion}
         />
       </main>
       </div>

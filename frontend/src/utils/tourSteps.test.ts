@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { anchorSelector, stepLayout, TOUR_ATTR, TOUR_STEPS, TUTORIAL_PATH } from './tourSteps'
+import { anchorSelector, stepLayout, stepSection, TOUR_ATTR, TOUR_STEPS, TUTORIAL_PATH } from './tourSteps'
 // `?raw` reads each component as text, so the suite proves every anchor is a
 // real control without rendering one: the app's own idiom (`styles.test.ts`).
 import appSource from '../App.tsx?raw'
@@ -208,13 +208,25 @@ describe('the tutorial steps', () => {
     expect(anchorSelector('search')).toBe('[data-tour="search"]')
   })
 
-  it('leaves the drawer alone on desktop and opens it for a panel step on a phone', () => {
+  // A desk's controls are a card the reader may have shut (record 0305), so
+  // a step whose target stands in it opens it, and every other step leaves
+  // it alone. A phone's sheet covers the map, so it opens and shuts by side.
+  it('opens a desk\'s card for the steps it holds, and a phone\'s sheet for a panel step', () => {
     const panel = TOUR_STEPS.find((s) => s.place === 'panel')!
-    const map = TOUR_STEPS.find((s) => s.place === 'map')!
-    expect(stepLayout(panel, true)).toEqual({ drawerOpen: null })
+    const map = TOUR_STEPS.find((s) => s.anchor === 'layers')!
+    expect(stepLayout(panel, true)).toEqual({ drawerOpen: true })
     expect(stepLayout(map, true)).toEqual({ drawerOpen: null })
+    for (const anchor of ['analyze', 'messages']) {
+      expect(stepLayout(TOUR_STEPS.find((s) => s.anchor === anchor)!, true)).toEqual({ drawerOpen: true })
+    }
     expect(stepLayout(panel, false)).toEqual({ drawerOpen: true })
     expect(stepLayout(map, false)).toEqual({ drawerOpen: false })
+  })
+
+  // The card shows a section open for the step that lights it.
+  it('names the section of the card a step lights, and none for the others', () => {
+    expect(TOUR_STEPS.map(stepSection).filter((s) => s !== null)).toEqual(['destinations', 'forecast', 'metrics'])
+    expect(stepSection(TOUR_STEPS.find((s) => s.anchor === 'analyze')!)).toBeNull()
   })
 
   it('has a path the backend serves the app at, so a link can open the tour', () => {

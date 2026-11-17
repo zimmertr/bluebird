@@ -221,6 +221,10 @@ interface Props {
   // results are docked beside the map and nothing is covered. It is the sheet's
   // RESTING lift, so a drag never re-frames the camera under the reader's hand.
   cameraPadBottomPx: number
+  // How far a desk's open controls card reaches in from the map's left edge,
+  // which a framing move leaves empty too (record 0305); 0 while the card is
+  // shut and on a phone.
+  cameraPadLeftPx: number
   // The camera a `?view=` link opened on, or null. Read once, when the map is
   // built: it wins over the opening fit to the ring, the list and the pins,
   // because it is where the person who shared the link was looking.
@@ -311,6 +315,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onRemoveResult,
       onMoveAggregate,
       cameraPadBottomPx,
+      cameraPadLeftPx,
       restoredView,
       onCameraMove,
       onBasemapFailed,
@@ -387,6 +392,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onRemoveResult,
       onMoveAggregate,
       cameraPadBottomPx,
+      cameraPadLeftPx,
       onCameraMove,
       maxPolygonPoints,
       onTerrainChange,
@@ -445,7 +451,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // Pull back one zoom level from the tight fit so the whole area
         // clears the viewport with margin — a snug fit can clip vertices
         // behind the controls drawer or browser chrome on small screens.
-        const pad = framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx)
+        const pad = framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx, controller.inputs.cameraPadLeftPx)
         const camera = map.cameraForBounds(bounds, { padding: pad })
         if (camera?.zoom !== undefined) {
           map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
@@ -467,7 +473,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
       refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
       map.fitBounds(bounds, {
-        padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
+        padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx, cameraPadLeftPx),
         duration: CAMERA_MS.fit,
       })
     }
@@ -512,7 +518,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           new maplibregl.LngLatBounds(pts[0], pts[0]),
         )
         map.fitBounds(bounds, {
-          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
+          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx, cameraPadLeftPx),
           duration: CAMERA_MS.reveal,
           maxZoom: map.getZoom(),
         })
@@ -546,7 +552,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           return
         }
         map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), {
-          padding: framePadding(PLACE_PADDING_PX, padBottomPx),
+          padding: framePadding(PLACE_PADDING_PX, padBottomPx, cameraPadLeftPx),
           duration: CAMERA_MS.fit,
         })
       },
@@ -681,7 +687,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
         if (bounds) {
           map.fitBounds(bounds, {
-            padding: framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx),
+            padding: framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx, controller.inputs.cameraPadLeftPx),
             duration: CAMERA_MS.fit,
           })
         }
@@ -744,7 +750,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         if (pendingSearchRef.current) {
           map.fitBounds(boundsAround(pendingSearchRef.current, SEARCH_VIEW_MILES), {
-            padding: framePadding(PLACE_PADDING_PX, controller.inputs.cameraPadBottomPx),
+            padding: framePadding(PLACE_PADDING_PX, controller.inputs.cameraPadBottomPx, controller.inputs.cameraPadLeftPx),
             duration: CAMERA_MS.fit,
           })
           pendingSearchRef.current = null

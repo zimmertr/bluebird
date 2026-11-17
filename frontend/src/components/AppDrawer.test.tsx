@@ -1,20 +1,34 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
-import { type ComponentProps, createRef } from 'react'
+import { type ComponentProps, type ReactNode, createRef } from 'react'
 import AppDrawer from './AppDrawer'
 import type { MapViewHandle } from './MapView'
 import { render } from '../testSupport/render'
-import { capabilities, chartMetricsOf, panelMessages } from '../testSupport/fixtures'
+import { capabilities, chartMetricsOf, panelMessages, place } from '../testSupport/fixtures'
 import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import type { PanelMessages } from '../hooks/usePanelMessages'
-import { DESK_PANEL, LAYOUT_HOLD } from '../styles'
+import { DESK_CARD, MAP_ROWS, PANEL_HEADER } from '../styles'
 
 vi.mock('./ControlPanel', () => ({
-  default: (props: { pointSample: boolean; messages: PanelMessages; phone?: boolean }) => (
-    <div data-testid="panel" data-phone={String(props.phone)} data-messages={String(props.messages.count)}>
+  default: (props: {
+    pointSample: boolean
+    messages: PanelMessages
+    phone?: boolean
+    pickedCount?: number
+    card?: { open: boolean; search: ReactNode; section: string | null; onSection: (id: string) => void }
+  }) => (
+    <div
+      data-testid="panel"
+      data-phone={String(props.phone)}
+      data-messages={String(props.messages.count)}
+      data-card={props.card ? `${props.card.open ? 'open' : 'shut'}:${props.card.section}` : 'none'}
+      data-picked={String(props.pickedCount)}
+    >
       {props.pointSample ? 'point' : 'window'}
+      {props.card?.search}
+      {props.card && <button onClick={() => props.card?.onSection('metrics')}>open metrics</button>}
     </div>
   ),
 }))
@@ -36,6 +50,7 @@ const INPUTS = {
   setCustomCsv: NOOP,
   includeUnnamedPeaks: false,
   setIncludeUnnamedPeaks: NOOP,
+  places: [],
 }
 const SELECTION = {
   selection: DEFAULT_SELECTION,
@@ -122,45 +137,60 @@ describe('AppDrawer', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  // A desk docks the panel beside the map and draws nothing behind it.
-  it('docks at a desk with no backdrop and no sheet', () => {
+  // A desk's controls are a card (record 0305) with nothing drawn behind it.
+  it('stands as a card at a desk with no backdrop and no sheet', () => {
     const { container } = render(drawer(true))
     expect(container.querySelector('aside')?.previousElementSibling).toBeNull()
+    expect(container.querySelector('aside')?.className).toBe(DESK_CARD.card)
     expect(screen.queryByRole('dialog', { name: 'Controls' })).toBeNull()
     expect(screen.getByTestId('panel').dataset.phone).toBe('false')
   })
 
-  // Shut, it stays in the row and its margin takes its width back, so the
-  // map's edge moves with the panel's both ways (record 0202).
-  it('pushes off the left edge when closed and stays mounted', () => {
+  // Shut, the card is the search pill's row, and the panel stays mounted so
+  // its state and a link's run on open outlive a close.
+  it('is the search row alone when closed and stays mounted', () => {
     const { container, rerender } = render(drawer(true))
-    const shut = DESK_PANEL.shut
-    expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
-    expect(container.querySelector('aside')?.className.split(' ')).not.toContain(shut)
     rerender(drawer(false))
-    expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
-    expect(container.querySelector('aside')?.className.split(' ')).toContain(shut)
+    expect(container.querySelector('aside')?.className).toBe(MAP_ROWS.row)
     expect(screen.getByTestId('panel')).toBeTruthy()
   })
 
-  // On a layer of its own while it moves, so a frame of the move paints none
-  // of it (record 0216), and only then.
-  it('stands on a layer of its own while it moves', () => {
-    const { container, rerender } = render(drawer(true))
-    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
-    rerender(drawer(false, NOOP, { moving: true }))
-    expect(container.querySelector('aside')?.className).toContain(LAYOUT_HOLD.layer)
+  // Hidden is out of the Tab order: closed, the drawer once kept some 45
+  // stops a keyboard walked through blind (#576).
+  it('hides its header buttons while closed', () => {
+    const { rerender } = render(drawer(true))
+    const actions = () => screen.getByRole('button', { name: 'Close controls', hidden: true }).parentElement
+    expect(actions()?.className).toBe(PANEL_HEADER.actions)
     rerender(drawer(false))
-    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
+    expect(actions()?.className).toBe('hidden')
   })
 
-  // Off screen is not out of the Tab order: closed, the drawer kept some 45
-  // stops a keyboard walked through blind (#576).
-  it('leaves the Tab order while closed', () => {
-    const { container, rerender } = render(drawer(true))
-    expect(container.querySelector('aside')?.hasAttribute('inert')).toBe(false)
-    rerender(drawer(false))
-    expect(container.querySelector('aside')?.hasAttribute('inert')).toBe(true)
+  // The card hands the panel the search field it holds, whether it is open,
+  // the section that is, and the press that opens another (record 0305).
+  it('hands a desk\'s panel its card: the search field, the open section and the press', () => {
+    const onSection = vi.fn()
+    const { rerender } = render(
+      drawer(true, NOOP, { onSection, section: 'forecast', search: <input aria-label="Search" /> }),
+    )
+    expect(screen.getByTestId('panel').dataset.card).toBe('open:forecast')
+    expect(screen.getByRole('textbox', { name: 'Search' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'open metrics' }))
+    expect(onSection).toHaveBeenCalledExactlyOnceWith('metrics')
+    rerender(drawer(false, NOOP, { onSection, section: null }))
+    expect(screen.getByTestId('panel').dataset.card).toBe('shut:null')
+  })
+
+  // A phone's sheet shows every section whole, so its panel gets no card.
+  it('hands a phone\'s panel no card', () => {
+    render(drawer(true, NOOP, { isDesktop: false, onSection: NOOP }))
+    expect(screen.getByTestId('panel').dataset.card).toBe('none')
+  })
+
+  // The places picked on the map or by name, which the Destinations
+  // section's summary counts.
+  it('counts the picked places for the panel', () => {
+    render(drawer(true, NOOP, { destinationInputs: { ...INPUTS, places: [place(), place()] } }))
+    expect(screen.getByTestId('panel').dataset.picked).toBe('2')
   })
 
   // The map's Controls button unmounts as the drawer opens, so the drawer's

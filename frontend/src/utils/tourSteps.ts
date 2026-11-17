@@ -18,6 +18,8 @@
  * maintainer wants every tour to explain them, so the card always runs.
  */
 
+import { PANEL_SECTIONS, type PanelSectionId } from './controlsSummary'
+
 /** The attribute a component marks its control with. */
 export const TOUR_ATTR = 'data-tour'
 
@@ -202,14 +204,28 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
 ]
 
+// What a desk's controls card holds (record 0305): its three sections and
+// its footer, where Analyze and its badge stand at a desk.
+const DESK_CARD_ANCHORS: ReadonlySet<string> = new Set([...PANEL_SECTIONS, 'analyze', 'messages'])
+
 /**
- * What a step needs of the drawer. On desktop the panel is docked, so nothing
- * moves: `null`. On a phone the panel is a drawer that covers the map, so a
- * panel step needs it open and a map step needs it closed.
+ * What a step needs of the controls. At a desk they are a card over the map
+ * that the reader may have shut, so a step whose target stands in it needs it
+ * open, and every other step leaves it as it is: `null`. On a phone they are
+ * a sheet that covers the map, so a panel step needs it open and a map step
+ * needs it closed.
  */
 export function stepLayout(step: TourStep, isDesktop: boolean): { drawerOpen: boolean | null } {
-  if (isDesktop) return { drawerOpen: null }
+  if (isDesktop) return { drawerOpen: DESK_CARD_ANCHORS.has(step.anchor) ? true : null }
   return { drawerOpen: step.place === 'panel' }
+}
+
+/**
+ * The section of a desk's controls card a step lights, which the card shows
+ * open for the step (record 0305), or null for a step that lights none.
+ */
+export function stepSection(step: TourStep): PanelSectionId | null {
+  return PANEL_SECTIONS.find((id) => id === step.anchor) ?? null
 }
 
 /** The selector that finds a step's target. */

@@ -20,6 +20,8 @@ import { drawControls } from '../utils/drawControls'
 import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
 import { grouped } from '../utils/numbers'
+import PanelSection, { type SectionFold } from './PanelSection'
+import { destinationsSummary } from '../utils/controlsSummary'
 
 // Above this drawn area, an informational note warns that dense regions can
 // exceed the destination limit and searches slow down. Advisory only: the hard
@@ -119,8 +121,13 @@ interface Props {
   // Whether the preset list last picked arrived (#838): false on a pick that
   // lands, true on one that does not, which the Analyze button's list says.
   onPresetListFailed: (failed: boolean) => void
+  // How many places the reader picked on the map or by name, which the
+  // section's summary line counts with the pasted rows (record 0305).
+  pickedCount?: number
   // A phone, where the Coordinate list field opens the one menu's sheet (record 0252).
   phone?: boolean
+  // A desk's card opens and collapses the section under its heading (record 0305).
+  fold?: SectionFold
 }
 
 /**
@@ -149,7 +156,9 @@ export default function DestinationsSection({
   parsedCount,
   onCsvPasted,
   onPresetListFailed,
+  pickedCount = 0,
   phone = false,
+  fold,
 }: Props) {
   // True between a paste into the CSV box and the change event it produces —
   // how onChange tells a pasted list (frame it on the map) from typing (leave
@@ -252,10 +261,17 @@ export default function DestinationsSection({
   const typesLive = ringUsable(drawPointCount, areaTooLarge)
 
   return (
-    <section data-tour="destinations">
-      <h2 className={`${TEXT.section} mb-2.5`}>
-        Destinations
-      </h2>
+    <PanelSection
+      data-tour="destinations"
+      title="Destinations"
+      fold={fold}
+      summary={destinationsSummary({
+        ringPoints: drawPointCount,
+        kinds: DESTINATION_TYPES.filter((t) => destinationTypes.includes(t.value)).map((t) => t.label),
+        listName: heldList?.name ?? null,
+        pointDestinations: (heldList ? 0 : parsedCount) + pickedCount,
+      })}
+    >
 
       {/* Map search: the two methods whose control is the map itself, the
           floating search box and the clickable labels, grouped as one
@@ -502,6 +518,6 @@ export default function DestinationsSection({
           </label>
         )}
       </div>
-    </section>
+    </PanelSection>
   )
 }

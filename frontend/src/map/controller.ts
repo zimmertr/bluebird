@@ -40,6 +40,8 @@ export interface MapInputs {
   // A result card's aggregate head carried to another (TJ 2026-10-30).
   onMoveAggregate: (from: string, to: string) => void
   cameraPadBottomPx: number
+  // A desk's open controls card's reach from the map's left edge (record 0305).
+  cameraPadLeftPx: number
   // Where the settled camera goes, and whether the reader moved it
   // (`map/camera.ts`). The share link's writer, which never renders.
   onCameraMove: (view: CameraView, readerMove: boolean) => void

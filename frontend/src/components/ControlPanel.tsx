@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import DestinationsSection from './DestinationsSection'
 import ForecastSection from './ForecastSection'
 import MetricsTable from './MetricsTable'
 import PanelFooter from './PanelFooter'
+import type { SectionFold } from './PanelSection'
+import type { PanelSectionId } from '../utils/controlsSummary'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
-import { CONTROLS_SHEET, PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
+import { CONTROLS_SHEET, DESK_CARD, PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { MetricFamily } from '../metrics'
@@ -26,6 +28,22 @@ import type { ChartMetric, ChartMetrics } from '../utils/chart/chartData'
 
 // Each field that one section alone draws is described on that section's own
 // props, beside the code that reads it.
+
+/**
+ * A desk's card around the panel (#825; record 0305): the search field it
+ * holds between its header and its sections, whether it is open, and which
+ * of the three sections is. Shut, the card is the search field alone, and
+ * everything else is hidden rather than unmounted, so the panel's state and
+ * a link's run on open outlive a close.
+ */
+export interface PanelCard {
+  open: boolean
+  search: ReactNode
+  /** The section that is open, or null while every one is collapsed. */
+  section: PanelSectionId | null
+  /** Opens a section, collapsing the one that was open, or collapses it if it is the open one. */
+  onSection: (id: PanelSectionId) => void
+}
 interface Props {
   drawing: boolean
   onStartDrawing: () => void
@@ -114,6 +132,12 @@ interface Props {
   // or takes away (record 0290; `useChartMetrics`).
   charted: ChartMetrics
   onChart: (keys: readonly ChartMetric[], on: boolean) => void
+  // A desk's card (record 0305). Absent on a phone, and where the panel is
+  // drawn whole with no card around it.
+  card?: PanelCard
+  // How many places the reader picked on the map or by name, for the
+  // Destinations section's summary line.
+  pickedCount?: number
 }
 
 export default function ControlPanel({
@@ -168,6 +192,8 @@ export default function ControlPanel({
   phone = false,
   charted,
   onChart,
+  card,
+  pickedCount,
 }: Props) {
   // A line pasted twice is one destination, and the count says so (#579).
   // Parsed once per change for the count; the gate reads App's parse.
@@ -214,14 +240,20 @@ export default function ControlPanel({
     />
   )
 
+  // A shut card draws the search field and nothing else.
+  const shut = card !== undefined && !card.open
+  const fold = (id: PanelSectionId): SectionFold | undefined =>
+    card && { open: card.section === id, onToggle: () => card.onSection(id) }
+
   return (
     // The panel a menu opened in it stays inside (`usePopover`, record 0201):
     // the model list lines up with its field's right edge rather than
-    // spilling over the map.
-    <div data-menu-bound="" className="flex flex-col h-full">
+    // spilling over the map. `min-h-0` so a card shorter than its sections
+    // scrolls its body rather than running past the map's foot.
+    <div data-menu-bound="" className="flex flex-col h-full min-h-0">
       {/* Header, at a desk: a phone's sheet carries its own (`AppDrawer`). */}
       {!phone && (
-        <div className={`border-b ${PANEL_EDGE} flex`}>
+        <div className={shut ? 'hidden' : `border-b ${PANEL_EDGE} flex flex-shrink-0`}>
           <img
             src={logoUrl}
             alt=""
@@ -236,6 +268,8 @@ export default function ControlPanel({
         </div>
       )}
 
+      {card && <div className={shut ? undefined : DESK_CARD.search}>{card.search}</div>}
+
       <div
         // One rule between steps, drawn by the stack rather than by each
         // section, so a section added later cannot forget its line or draw a
@@ -244,7 +278,7 @@ export default function ControlPanel({
         // the border) and `pt` the gap below it, so the line lands centred in
         // the gutter between two steps rather than tucked under the one above.
         ref={bodyRef}
-        className={`${PANEL_BODY} ${PANEL_RULE} ${phone ? CONTROLS_SHEET.body : ''}`}
+        className={shut ? 'hidden' : `${PANEL_BODY} ${PANEL_RULE} ${phone ? CONTROLS_SHEET.body : ''}`}
       >
         {/* Destinations — one list, defined via any of four methods
             that union into a single ranked report */}
@@ -270,7 +304,9 @@ export default function ControlPanel({
           parsedCount={customCount}
           onCsvPasted={onCsvPasted}
           onPresetListFailed={onPresetListFailed}
+          pickedCount={pickedCount}
           phone={phone}
+          fold={fold('destinations')}
         />
 
         {/* which model answers, and over which hours. One calendar,
@@ -290,6 +326,7 @@ export default function ControlPanel({
           archiveDays={archiveDays}
           aqiForecastDays={aqiForecastDays}
           phone={phone}
+          fold={fold('forecast')}
         />
 
         <MetricsTable
@@ -309,6 +346,7 @@ export default function ControlPanel({
           phone={phone}
           charted={charted}
           onChart={onChart}
+          fold={fold('metrics')}
         />
 
         {/* A phone's footer is the document links, the last thing in the
@@ -317,7 +355,7 @@ export default function ControlPanel({
         {phone && footer}
       </div>
 
-      {!phone && footer}
+      {!phone && <div className={shut ? 'hidden' : 'flex-shrink-0'}>{footer}</div>}
     </div>
   )
 }

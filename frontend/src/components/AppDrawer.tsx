@@ -1,4 +1,4 @@
-import { useRef, type RefObject } from 'react'
+import { useRef, type ReactNode, type RefObject } from 'react'
 import BottomSheet from './BottomSheet'
 import type { SheetHeight } from '../utils/sheetDrag'
 import ControlPanel from './ControlPanel'
@@ -15,16 +15,21 @@ import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ActionWord } from '../utils/analyzeGate'
-import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER } from '../styles'
+import { DESK_CARD, HEADER_BUTTON, MAP_ROWS, PANEL_HEADER } from '../styles'
+import type { PanelSectionId } from '../utils/controlsSummary'
 import type { ThemeChoice } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
-  /** Whether the panel is open: docked on a desktop, the Controls sheet on a phone. */
+  /** Whether the panel is open: the card over a desk's map, the Controls sheet on a phone. */
   open: boolean
-  /** A desk, where the panel docks beside the map; a phone raises it as a sheet. */
+  /** A desk, where the panel is a card over the map's top left; a phone raises it as a sheet. */
   isDesktop: boolean
-  /** A desk's panel is opening or closing (`useLayoutMotion`), on a layer of its own meanwhile. */
-  moving?: boolean
+  /** A desk's search field, which the card holds and a shut card is (`MapRows`). */
+  search?: ReactNode
+  /** The section a desk's card shows open, or null while every one is collapsed (`useCardSections`). */
+  section?: PanelSectionId | null
+  /** Opens a section of a desk's card, or collapses the open one. */
+  onSection?: (id: PanelSectionId) => void
   /** Where a drag left the Controls sheet on a phone, or null for its own share (`sheetRestPx`). */
   sheetHeld: SheetHeight | null
   /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
@@ -53,6 +58,7 @@ interface AppDrawerProps {
     | 'setCustomCsv'
     | 'includeUnnamedPeaks'
     | 'setIncludeUnnamedPeaks'
+    | 'places'
   >
   /** The window, the model and its comparisons (`useForecastSelection`). */
   forecastSelection: Pick<
@@ -110,7 +116,8 @@ interface AppDrawerProps {
 
 /**
  * The controls panel around `ControlPanel` (#409 cut it out of `App.tsx`):
- * docked beside the map at a desk, and on a phone the Controls sheet (#696;
+ * a card over the map's top left at a desk (#825; record 0305), which
+ * `MapRows` stands in the map's own stack, and on a phone the Controls sheet (#696;
  * record 0141), which the summary chip raises from the map's foot as a modal
  * sheet over the dimmed map, the way Layers and Legend rise (record 0207).
  * Closing on a committed report is App's, because the report is App's, and
@@ -120,7 +127,9 @@ interface AppDrawerProps {
 export default function AppDrawer({
   open,
   isDesktop,
-  moving = false,
+  search,
+  section = null,
+  onSection,
   sheetHeld,
   sheetRestPx,
   onSheetHeld,
@@ -156,6 +165,7 @@ export default function AppDrawer({
     setCustomCsv,
     includeUnnamedPeaks,
     setIncludeUnnamedPeaks,
+    places,
   } = destinationInputs
   const {
     selection,
@@ -178,15 +188,15 @@ export default function AppDrawer({
     setLimit,
     clearFilters,
   } = rankingKnobs
-  // Opened from the map's summary chip, which unmounts as a desk's panel
-  // opens, the keyboard lands on the panel's own way back out (#576). A
+  // Opened from the map's summary chip, which unmounts as a desk's card
+  // opens, the keyboard lands on the card's own way back out (#576). A
   // phone's sheet takes the keyboard itself, as a menu sheet does.
   const closeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(closeRef, open)
-  // A failure that lands while a desk's panel is shut reopens it (App's), and
-  // its list opens once the panel stands still, against a button on the
-  // screen (#803). A phone's panel footer has no list, so nothing waits there.
-  const panelMessages = useHeldFailure(messages, isDesktop && (!open || moving))
+  // A failure that lands while a desk's card is shut reopens it (App's), and
+  // its list opens once the card stands, against a button on the screen
+  // (#803). A phone's panel footer has no list, so nothing waits there.
+  const panelMessages = useHeldFailure(messages, isDesktop && !open)
   const panel = (
     <ControlPanel
       phone={!isDesktop}
@@ -240,6 +250,8 @@ export default function AppDrawer({
       tutorialWaits={tutorialWaits}
       charted={chartMetrics.metrics}
       onChart={chartMetrics.chart}
+      pickedCount={places.length}
+      card={isDesktop && onSection ? { open, search, section, onSection } : undefined}
     />
   )
 
@@ -267,37 +279,28 @@ export default function AppDrawer({
     )
   }
   return (
-    <>
-      {/* The desk's panel, a column beside the map that stays in the row
-          while it is shut (record 0202): its margin takes its width back, so
-          the map's edge travels with the panel's both ways. A phone draws the
-          Controls sheet above instead.
-
-          Inert while closed: off screen is not out of the Tab order, and the
-          closed drawer kept some 45 stops a keyboard walked through blind
-          before reaching the map (#576). On a layer of its own while it
-          moves, so a frame of the move paints none of it (record 0216). */}
-      <aside
-        inert={!open}
-        className={`${DESK_PANEL.card} ${open ? '' : DESK_PANEL.shut} ${moving ? LAYOUT_HOLD.layer : ''}`}
-      >
-        {/* The header's buttons: the theme menu, then the close button,
-            which collapses the panel. */}
-        <div className={PANEL_HEADER.actions}>
-          <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} />
-          <button
-            ref={closeRef}
-            onClick={onClose}
-            aria-label="Close controls"
-            // Flex centres the drawn cross in the circle; why the cross is
-            // drawn rather than typed is `IconClose`'s own comment.
-            className={HEADER_BUTTON}
-          >
-            <IconClose />
-          </button>
-        </div>
-        {panel}
-      </aside>
-    </>
+    // The desk's card (record 0305), in the map's stack. Shut, it is the
+    // search pill's row and nothing else: the panel inside hides its header,
+    // its sections and its footer, which stay mounted so their state, and a
+    // link's run on open, outlive a close. Hidden parts take no Tab stop
+    // (#576) and are read by no screen reader.
+    <aside className={open ? DESK_CARD.card : MAP_ROWS.row}>
+      {/* The header's buttons: the theme menu, then the close button, which
+          shuts the card. */}
+      <div className={open ? PANEL_HEADER.actions : 'hidden'}>
+        <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} />
+        <button
+          ref={closeRef}
+          onClick={onClose}
+          aria-label="Close controls"
+          // Flex centres the drawn cross in the square; why the cross is
+          // drawn rather than typed is `IconClose`'s own comment.
+          className={HEADER_BUTTON}
+        >
+          <IconClose />
+        </button>
+      </div>
+      {panel}
+    </aside>
   )
 }

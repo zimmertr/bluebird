@@ -1,4 +1,6 @@
 import type { SelectionKind } from './calendar/calendarSelection'
+import { NOUN, SEP, familyOf } from '../metrics'
+import type { SortBy } from '../types'
 
 /**
  * The When control's two arms, by the word each one shows.
@@ -33,4 +35,53 @@ export function controlsSummary(
 ): string {
   const label = models.find((m) => m.id === modelId)?.label ?? modelId
   return `${WHEN_ARM_LABEL[kind]} · ${label}`
+}
+
+/**
+ * The three sections of the controls, by the anchor each one's `<section>`
+ * carries. At a desk the card shows one of them open at a time and the others
+ * as a one-line summary (#825; record 0305).
+ */
+export type PanelSectionId = 'destinations' | 'forecast' | 'metrics'
+export const PANEL_SECTIONS: readonly PanelSectionId[] = ['destinations', 'forecast', 'metrics']
+
+const counted = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
+
+/**
+ * The Destinations section's line while it is collapsed (the maintainer's
+ * approved words, 2026-11-16): `None yet` until the reader has named
+ * anything, then what they named, each part joined by the middle dot. A
+ * ring reads as its point count and the kinds it looks for (`6 points ·
+ * Peaks`), a picked list as its own name, and every other point destination,
+ * pasted or picked on the map, in one count (`12 destinations`).
+ */
+export function destinationsSummary({
+  ringPoints,
+  kinds,
+  listName,
+  pointDestinations,
+}: {
+  /** The ring's points, drawn or being drawn. */
+  ringPoints: number
+  /** The kinds ticked for the ring, by the word each box shows, in the row's order. */
+  kinds: readonly string[]
+  /** The list the coordinates box holds whole, or null. */
+  listName: string | null
+  /** The point destinations no list accounts for: pasted rows and places picked on the map. */
+  pointDestinations: number
+}): string {
+  const parts: string[] = []
+  if (ringPoints > 0) parts.push(counted(ringPoints, 'point'), ...(kinds.length > 0 ? [kinds.join(', ')] : []))
+  if (listName !== null) parts.push(listName)
+  if (pointDestinations > 0) parts.push(counted(pointDestinations, 'destination'))
+  return parts.length === 0 ? 'None yet' : parts.join(` ${SEP} `)
+}
+
+/**
+ * The Metrics section's line while it is collapsed, `AQI · Lowest · 200`:
+ * the metric that ranks, the direction by the word its half of the segment
+ * shows, and how many rows are shown. Three words the section already shows.
+ */
+export function metricsSummary(sortBy: SortBy, direction: string, limit: number): string {
+  return [NOUN[familyOf(sortBy)], direction, limit].join(` ${SEP} `)
 }

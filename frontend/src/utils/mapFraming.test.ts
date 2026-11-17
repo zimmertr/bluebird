@@ -83,6 +83,14 @@ describe('framePadding', () => {
   it('adds the sheet lift to the bottom edge alone', () => {
     expect(framePadding(INSET, 220)).toEqual({ top: 60, right: 60, bottom: 280, left: 60 })
   })
+
+  // A desk's open controls card stands on the map's left edge (record 0305),
+  // so its reach is added to that edge alone and a fitted list has no row
+  // under it.
+  it('adds the controls card\'s reach to the left edge alone', () => {
+    expect(framePadding(INSET, 0, 373)).toEqual({ top: 60, right: 60, bottom: 60, left: 433 })
+    expect(framePadding(INSET, 220, 373)).toEqual({ top: 60, right: 60, bottom: 280, left: 433 })
+  })
 })
 
 describe('restoredFramePoints', () => {

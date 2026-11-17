@@ -3029,32 +3029,69 @@ export const MOTION = {
   menu: MENU_MOTION,
   /** A phone sheet rising and falling. */
   slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
-  /** The desk panel moving the map's edge as it leaves and returns (`DESK_PANEL`). */
-  push: 'transition-[margin-left] duration-300 ease-in-out motion-reduce:transition-none',
   /** A results pane opening or closing on a Table, Chart or Both press (`RESULTS_PANE`). */
   pane: 'transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none',
   /** A progress bar's fill growing to its next width. */
   progress: 'transition-all duration-300 ease-out motion-reduce:transition-none',
 } as const
 
-/** The duration `MOTION.slide`, `MOTION.push` and `MOTION.pane` share, in milliseconds. */
+/** The duration `MOTION.slide` and `MOTION.pane` share, in milliseconds. */
 export const PANEL_MS = 300
 
 /**
- * The controls panel at a desk (#714; record 0202): a column in the page's
- * row beside the map, 360px wide, that stays in the row while it is shut.
- * Shut, its left margin takes its own width back, so it slides off the left
- * edge and the map's column widens in the same frames; open, the margin
- * returns and the column narrows as the panel comes in. One property moves,
- * and the map's edge is the panel's edge in every frame, so nothing is
- * painted over anything.
+ * The controls at a desk (#825; record 0305): a card over the map's top
+ * left, with the map running on under it and the results docked across the
+ * whole window. It was a column beside the map (record 0202), 360px with one
+ * edge on its right; the card is 361px, that panel and the left edge a
+ * docked one never drew, so its content is the same 359px and every control
+ * keeps the width it was measured at (327px inside the body's padding).
  *
- * `relative` because the header's buttons stand absolutely in its top right
- * (`PANEL_HEADER.actions`). `LAYER.base` is a docked panel's layer.
+ * The card stands in the map's own stack (`MAP_ROWS.stack`) and holds the
+ * search field, so the stack is the card and the chip row beside it
+ * (`stackOpen`); under the card the chips would have no room for the legend
+ * they open, because once the results dock under the map a card with every
+ * section collapsed takes most of the map's height. Shut, the card is the search pill alone
+ * (`MAP_ROWS.row`) and the chips stand under it, as they did.
+ *
+ * Never taller than the map less one inset over and under it: the map's
+ * wrapper is a size container (`MAP_EDGE.publish`), and past that the card's
+ * body scrolls. The panel's own fill, so every ratio measured on the panel
+ * holds, with the edge, corners and shadow of a box floating on the map
+ * (`SURFACE_FLOATING`). `relative` because the header's buttons stand
+ * absolutely in its top right (`PANEL_HEADER.actions`). No clip, because the
+ * search field's list hangs past a short card's foot.
  */
-export const DESK_PANEL = {
-  card: `relative ${LAYER.base} flex w-90 flex-shrink-0 flex-col overflow-hidden bg-panel border-r ${PANEL_EDGE} ${MOTION.push}`,
-  shut: '-ml-90',
+export const DESK_CARD = {
+  stackOpen: 'lg:flex-row lg:items-start',
+  card:
+    `relative pointer-events-auto flex w-[361px] flex-shrink-0 flex-col max-h-[calc(100cqh-1.5rem)] ` +
+    `bg-panel border ${PANEL_EDGE} ${RADIUS.surface} ${ELEVATION.raised}`,
+  /** The search field's row inside the card, between the header and the sections. */
+  search: `flex-shrink-0 border-b ${PANEL_EDGE} px-3 py-2.5`,
+  /** The pill across its row, raised so its list paints over the sections. */
+  pill: 'absolute inset-0 z-10',
+} as const
+
+/**
+ * A section's heading in a desk's card (record 0305): a button across the
+ * card that opens its section and collapses it again. Collapsed, the
+ * section's summary stands beside its name in the caption's ink, cut where
+ * the row ends, and the fold points right; open, the fold points down and
+ * the summary is gone, because the controls under it say the same thing.
+ * The control's 32px, a pointer's height at a desk, the one width this is
+ * drawn at.
+ */
+export const CARD_SECTION = {
+  head: `flex h-8 w-full items-center gap-2 text-left ${RADIUS.control} ${FOCUS_RING}`,
+  /**
+   * Takes back the 6px the 32px row adds over and under a 20px heading, so a
+   * collapsed row stands where a heading would and the rules stay centred
+   * between rows. Open, the 10px under a section's heading is the 4px left.
+   */
+  shut: '-my-1.5',
+  open: '-mt-1.5 mb-1',
+  summary: `${CAPTION} min-w-0 flex-1 truncate`,
+  fold: 'ml-auto flex-shrink-0 text-ink-soft',
 } as const
 
 /**
@@ -3103,40 +3140,18 @@ export const CHART_LEGEND = {
  * `useLayoutMotion`), so a frame of the move shifts boxes rather than
  * resizing a map canvas or laying out a table of a thousand rows.
  *
- * The map's box is the window's width while the panel moves and the window's
- * height while a pane moves, centred on the map's column, which clips it
- * (`clip`). MapLibre keeps the centre on a resize, so the map draws the way
- * it would at every width in between and is resized only where the box
- * changes: at the start of a close and the end of an open, the closed width
- * being the window's. `rest` is the box the rest of the time.
- *
- * The panes' bodies hold a width while the panel moves. The table's box takes
- * the window's, the widest it will be, so a close lays it out once at the
- * start and an open once at the end, with the spare width in its filler
- * column. The chart keeps the width it had (`chartClosing` is the window less
- * the panel), because drawing it is the costliest thing on the page, and is
- * drawn once at the end.
- *
- * While the panel moves, what moves with it stands on a layer of its own
- * (`layer`): the panel, the map's column, the results and each pane's body
- * (record 0216). A frame of the move then shifts layers the GPU already holds
- * rather than painting the panel, the table and the chart again where they
- * now stand, which was 185 ms of painting across a 300 ms close of a 200-row
- * report, and 35 ms on layers (2026-10-22). Only while it moves, because a
- * layer is a containing block for anything fixed inside it, and the table's
- * column-drag ghost is. Not while the panes move: the table stands still on
- * the screen then, the chart is cheap to paint where it now stands, and
- * lifting both onto layers at the press cost more than the frames saved.
+ * The map's box is the window's height while a pane moves, centred on the
+ * map's column, which clips it (`clip`). MapLibre keeps the centre on a
+ * resize, so the map draws the way it would at every height in between and
+ * is resized only where the box changes. `rest` is the box the rest of the
+ * time. The controls move no edge: they are a card over the map (record
+ * 0305), where they were a panel that pushed it and held the map, the table
+ * and the chart to one width meanwhile (record 0216).
  */
 export const LAYOUT_HOLD = {
   rest: 'absolute inset-0',
-  mapPush: 'absolute inset-y-0 left-[calc(50%-50vw)] w-screen',
   mapPanes: 'absolute inset-x-0 top-[calc(50%-50dvh)] h-dvh',
   clip: 'overflow-clip',
-  layer: 'will-change-transform',
-  table: 'w-screen',
-  chartClosing: 'w-[calc(100vw-22.5rem)]',
-  chartOpening: 'w-screen',
 } as const
 
 /**

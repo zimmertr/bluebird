@@ -424,6 +424,15 @@ export const CHIP_MENU_GAP_PX = 4
 /** The map's edge inset (`MAP_EDGE.publish`'s 0.75rem), which the legend card stands in from the left. */
 export const MAP_EDGE_INSET_PX = 12
 
+/**
+ * How far a desk's open controls card reaches in from the map's left edge
+ * (record 0305): the inset it stands at and its 361px (`DESK_CARD.card`;
+ * `styles.test.ts` holds the two to one number). What a framing move leaves
+ * clear on that edge while the card is open (`framePadding`).
+ */
+export const DESK_CARD_W_PX = 361
+export const DESK_CARD_REACH_PX = MAP_EDGE_INSET_PX + DESK_CARD_W_PX
+
 /** A desk's legend card's width (`CHIP_CARD_W.key`, `w-56`). */
 export const LEGEND_CARD_W_PX = 224
 

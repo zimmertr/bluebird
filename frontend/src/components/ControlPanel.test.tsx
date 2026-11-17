@@ -9,7 +9,7 @@ import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { forecastModel, refusalPanel } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
-import { CONTROLS_SHEET, MESSAGE_BADGE, PANEL_BODY, PANEL_RULE } from '../styles'
+import { CONTROLS_SHEET, DESK_CARD, MESSAGE_BADGE, PANEL_BODY, PANEL_RULE } from '../styles'
 
 // The panel's contract with its reader (record 0208): the Analyze button is
 // held up for each reason the gate in `utils/analyzeGate.ts` names, and
@@ -410,5 +410,84 @@ describe('the body on a phone', () => {
     expect(body?.lastElementChild?.contains(screen.getByRole('link', { name: 'Terms' }))).toBe(true)
     expect(screen.queryByRole('button', { name: /^(Analyze|\d+ messages?)$/ })).toBeNull()
     unmount()
+  })
+})
+
+// At a desk the panel stands in a card over the map (#825; record 0305): the
+// search field under the header, then the three sections, one open at a time
+// and the others a line saying what they are set to.
+describe('in a desk\'s card', () => {
+  const search = <input aria-label="Search" />
+  const head = (id: string) => document.querySelector<HTMLButtonElement>(`section[data-tour="${id}"] h2 button`)!
+  const bodyOf = (id: string) => document.getElementById(head(id).getAttribute('aria-controls')!)!
+
+  it('shows one section open and the others as their summary line', () => {
+    render(
+      <Panel
+        card={{ open: true, search, section: 'destinations', onSection: () => {} }}
+        drawPointCount={6}
+        pickedCount={2}
+      />,
+    )
+    expect(head('destinations').getAttribute('aria-expanded')).toBe('true')
+    expect(head('destinations').textContent).toBe('Destinations')
+    expect(bodyOf('destinations').className).toBe('')
+    expect(head('forecast').getAttribute('aria-expanded')).toBe('false')
+    expect(head('forecast').textContent).toBe('Forecast Current · NOAA GFS')
+    expect(head('metrics').textContent).toBe(`Metrics Precipitation · Lowest · ${DEFAULT_LIMIT}`)
+    // Collapsed, a section's controls stay mounted, so a field keeps its text.
+    expect(bodyOf('forecast').className).toBe('hidden')
+    expect(within(bodyOf('forecast')).getByText('Model')).toBeTruthy()
+  })
+
+  it('says what the Destinations section holds while it is collapsed', () => {
+    render(
+      <Panel card={{ open: true, search, section: null, onSection: () => {} }} drawPointCount={6} pickedCount={2} />,
+    )
+    expect(head('destinations').textContent).toBe('Destinations 6 points · Peaks · 2 destinations')
+  })
+
+  it('opens the section whose heading is pressed', async () => {
+    const onSection = vi.fn()
+    const { user } = render(<Panel card={{ open: true, search, section: 'destinations', onSection }} />)
+    await user.click(head('metrics'))
+    expect(onSection).toHaveBeenCalledExactlyOnceWith('metrics')
+  })
+
+  it('holds the search field between its header and its sections', () => {
+    render(<Panel card={{ open: true, search, section: null, onSection: () => {} }} />)
+    const field = screen.getByRole('textbox', { name: 'Search' }).parentElement!
+    expect(field.className).toBe(DESK_CARD.search)
+    expect(field.previousElementSibling?.contains(screen.getByRole('heading', { name: 'Bluebird Forecast' }))).toBe(true)
+    expect(field.nextElementSibling?.contains(head('destinations'))).toBe(true)
+  })
+
+  // Shut, the card is the search field alone: everything else is hidden, and
+  // stays mounted, so a link's run on open is still decided.
+  it('is the search field alone while shut, with the rest hidden and mounted', () => {
+    const onAutoAnalyze = vi.fn()
+    render(
+      <Panel
+        card={{ open: false, search, section: 'destinations', onSection: () => {} }}
+        hasPins
+        autoAnalyze
+        capabilitiesSettled
+        onAutoAnalyze={onAutoAnalyze}
+      />,
+    )
+    const field = screen.getByRole('textbox', { name: 'Search' }).parentElement!
+    expect(field.className).toBe('')
+    for (const sibling of [...field.parentElement!.children].filter((el) => el !== field)) {
+      expect(sibling.className).toBe('hidden')
+    }
+    expect(onAutoAnalyze).toHaveBeenCalledExactlyOnceWith('run')
+  })
+
+  // With no card (a phone's sheet), a section is its heading and its
+  // controls, as it always was.
+  it('draws plain headings where there is no card', () => {
+    render(<Panel phone />)
+    expect(head('destinations')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Forecast' })).toBeTruthy()
   })
 })
