@@ -32,8 +32,8 @@ export interface AnalyzeInputs {
   /** The selection's arm, and the UTC instants it resolved to at the click. */
   kind: SelectionKind
   window: { start: string; end: string }
-  /** The complete ring, or null when there is none (fewer than three points). */
-  polygon: GeoPolygon | null
+  /** Every finished area, in order; empty when none is drawn (record 0306). */
+  areas: readonly GeoPolygon[]
   destinationTypes: DiscoveryType[]
   includeUnnamedPeaks: boolean
   csvRows: CustomDestination[]
@@ -61,13 +61,13 @@ export interface AnalyzeInputs {
 type AnalyzeBranch = 'refresh' | 'discovery' | 'custom' | 'nothing'
 
 /**
- * The discovery scope removals are kept under: the ring and the authored list.
+ * The discovery scope removals are kept under: the areas and the authored list.
  * Exported because a link that carries removals seeds `useRemovals` with the
- * scope of its own ring and list, so its first Analyze keeps them.
+ * scope of its own areas and list, so its first Analyze keeps them.
  */
-export function removalScopeFor(polygon: GeoPolygon | null, destinationScope: string): string {
+export function removalScopeFor(areas: readonly GeoPolygon[], destinationScope: string): string {
   return JSON.stringify({
-    ring: polygon?.coordinates[0] ?? null,
+    ring: areas.length > 0 ? areas.map((area) => area.coordinates[0]) : null,
     // The ring is this comparison's alone: it resolves only at the click, and
     // it never names a pending destination, which is what the shared scope
     // serves.
@@ -79,7 +79,7 @@ export interface AnalyzePlan {
   branch: AnalyzeBranch
   /** The discovery scope removals are kept under. */
   removalScope: string
-  /** Whether this click ranks anything: false only with no ring and no custom list. */
+  /** Whether this click ranks anything: false only with no area and no custom list. */
   willRank: boolean
   /** The run to start, or null when there is nothing to rank. */
   run: { request: AnalyzeRequest; kind: SelectionKind; options: AnalyzeOptions } | null
@@ -102,7 +102,7 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
   const {
     kind,
     window,
-    polygon,
+    areas,
     destinationTypes,
     csvRows,
     places,
@@ -144,21 +144,21 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
   // A re-analysis extends the held field rather than rebuilding it, so the
   // rows a user struck out stay struck out. Losing them to anything short of
   // a genuine discovery change would be an unexplained edit of their work.
-  const removalScope = removalScopeFor(polygon, inputs.destinationScope)
+  const removalScope = removalScopeFor(areas, inputs.destinationScope)
 
   // A SHRUNK searched list is refresh-compatible: the departed rows are
   // already gone from the report the refresh echoes. Any base change or NEW
   // searched place (which must compete against the full candidate field)
   // falls through to a fresh discovery.
-  const base = discoveryBase(polygon, csvRows, destinationTypes, includeUnnamedPeaks)
+  const base = discoveryBase(areas, csvRows, destinationTypes, includeUnnamedPeaks)
   const searchedKeys = places.map((p) => geoKey(p.lat, p.lon))
   const record = { base, searchedKeys }
   // The polygon guard stays here rather than inside the predicate: a run with
   // no ring is not a polygon discovery at all, whatever the recorded inputs
   // say.
-  const isRefresh =
-    polygon !== null && isDiscoveryRefresh(inputs.previous, base, searchedKeys, inputs.hasResults)
-  const willRank = polygon !== null || custom.length > 0
+  const hasAreas = areas.length > 0
+  const isRefresh = hasAreas && isDiscoveryRefresh(inputs.previous, base, searchedKeys, inputs.hasResults)
+  const willRank = hasAreas || custom.length > 0
 
   if (isRefresh) {
     // Weather-only over the known destinations. They come back as type
@@ -189,22 +189,22 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
         // echoes, not the custom-shaped request it rides on: derived from the
         // request, the snapshot would say "no ring searched" and the panel's
         // unchanged polygon would falsely cue as new.
-        options: { ...options, discovery: discoveryKeys(polygon, destinationTypes, includeUnnamedPeaks) },
+        options: { ...options, discovery: discoveryKeys(areas, destinationTypes, includeUnnamedPeaks) },
       },
       record: { when: 'before', value: record },
     }
   }
-  if (polygon !== null) {
+  if (hasAreas) {
     // Discovery, with the custom list riding along so the backend ranks the
-    // polygon ∪ CSV union as one report. Recorded once the run returns, so
-    // the next compatible Analyze refreshes.
+    // areas ∪ CSV union as one report. The areas ride the options, one call
+    // each (record 0306). Recorded once the run returns, so the next
+    // compatible Analyze refreshes.
     return {
       branch: 'discovery',
       removalScope,
       willRank,
       run: {
         request: {
-          polygon,
           destination_types: destinationTypes,
           include_unnamed_peaks: includeUnnamedPeaks,
           ...shared,
@@ -212,7 +212,7 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
           ...bounds,
         },
         kind,
-        options,
+        options: { ...options, areas },
       },
       record: { when: 'after', value: record },
     }

@@ -374,8 +374,8 @@ export const TAP = {
  *   the light basemap both register, but a menu can hang over the dark
  *   results sheet, where 0.1 alpha on a near-black surface is nothing at all.
  *
- * The glows are not on this scale: `ACCENT_RING` and the tutorial's spotlight
- * point at something rather than lift it. Nor is the marker popup's header
+ * The glows are not on this scale: the tutorial's spotlight points at
+ * something rather than lifting it. Nor is the marker popup's header
  * band, whose faint shadow is the card's own (`popupChrome.ts`, record 0123).
  */
 export const ELEVATION = {
@@ -1845,9 +1845,8 @@ export const MAP_ROWS = {
 /**
  * The search field as a pill (#696): the floating surface at the row's 32px,
  * fully rounded, its icon and its clear button inside the same 14px of
- * padding the mockup drew. The ring the panel's hover lights rides a wrapper
- * of the same radius (`ACCENT_RING`). `styles.test.ts` holds the fill, edge
- * and blur to `SURFACE_FLOATING`'s.
+ * padding the mockup drew. `styles.test.ts` holds the fill, edge and blur to
+ * `SURFACE_FLOATING`'s.
  */
 export const MAP_PILL =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
@@ -2494,39 +2493,6 @@ export const STATUS = {
   /** Neither good nor bad, just a fact about the data you are about to get. */
   info: 'text-info',
 } as const
-
-/**
- * A transient outline drawn around a control to point at it from somewhere
- * else: hovering the panel's Map group rings the map's search box,
- * which is a control the panel names but does not contain.
- *
- * A ring rather than a border or a fill, for the same reason `DAY.today` is
- * one: it layers onto a control that already has both without displacing it or
- * restating its own treatment.
- *
- * It stays in the accent rather than reaching for amber, which was the other
- * candidate. Every hue in this app carries a meaning and amber's is "something
- * is off" — the window warnings, the over-limit refusal, the failed wildfire
- * check. A yellow ring would say the search box had a problem rather than that
- * it is the thing being pointed at, and sky already means "the app acts here"
- * (see LINK_ACTION). What it buys instead is weight: four pixels and a glow,
- * because this has to register in peripheral vision two thirds of a screen
- * away while the eye is still in the sidebar, and a hairline ring at that
- * distance reads as an edge rather than as an answer.
- *
- * The glow is the whole shadow for whatever wears this, so a call site must
- * apply it to an element that is not already carrying `SURFACE_FLOATING`'s
- * `ELEVATION.raised`: two shadow utilities on one element resolve by stylesheet order,
- * not by intent.
- *
- * Carries no radius, and that is load-bearing rather than an omission. A ring
- * is a box-shadow, so it fades out under `transition-shadow` while a corner
- * radius does not: bundling the radius in here meant that on un-hover the
- * corners squared off instantly and the still-visible ring spent the fade as a
- * rectangle standing off a rounded field. The element wearing this owns its
- * radius permanently, and only the ring toggles.
- */
-export const ACCENT_RING = 'ring-4 ring-accent-ink shadow-[0_0_18px_var(--ui-accent-glow)]'
 
 /**
  * The box a status line sits in when it is a block rather than a sentence: the
@@ -3360,6 +3326,56 @@ export const COORD_BOX = {
 } as const
 
 /**
+ * The Destinations section's field (record 0306): every list, area and place
+ * the reader added, each a `CHIP.rest` with its ×, and under them the search
+ * by name, in one box with the field's look, so what the analysis covers and
+ * the way to add more read as one control.
+ *
+ * - `frame`: the field's fill, edge and radius, and its focus edge on
+ *   `focus-within` as `COORD_BOX` takes it, since the input inside has no
+ *   edge of its own. A column: the chips wrap above, the search keeps its own
+ *   line under them, so its results list spans the field's whole width.
+ * - `chips`: the wrapping row; 6px between chips, the gap the frame's inset is.
+ * - `search`: the search's line inside the field, the magnifier and the input,
+ *   at the field's tap height and the input's own inset.
+ * - `glyph`: a chip's kind, before its label, in the chip's ink.
+ */
+export const DESTINATION_FIELD = {
+  frame: `${FIELD_LOOK} flex flex-col gap-1.5 p-1.5 focus-within:border-mark`,
+  chips: 'flex flex-wrap gap-1.5',
+  search: `flex items-center gap-2 px-1.5 ${TAP.height}`,
+  glyph: 'mr-1.5 inline-block flex-shrink-0 align-[-1px]',
+} as const
+
+/**
+ * The Destinations section's two add buttons (record 0306), `Search by list`,
+ * which opens the lists' menu (`MENU_TRIGGER.tile`), and `Search by area`,
+ * which starts an area: two halves of one row, wearing one look, so the pair
+ * reads as two ways to do one thing.
+ *
+ * With nothing added each carries a line under its name saying what it does
+ * (TJ's words, 2026-11-17), and once anything is added the lines go and each
+ * is its name alone, the tile at its control height. The face is
+ * `BUTTON_SECONDARY`'s fill, inset and type with a trigger's states rather
+ * than a button's hover fill, because one of the two is a menu trigger and a
+ * pair that lit two different ways would not read as a pair; the other never
+ * wears `aria-expanded`, so its open state never shows.
+ *
+ * - `title`: the name, with its glyph, in the face's ink, which the hover and
+ *   the open state move.
+ * - `line`: the lifted caption, the one measured on the raised fill (6.97:1
+ *   dark), and the label-on-fill ink while the menu is out, since the accent
+ *   fill under it would sink the caption's.
+ */
+const DESTINATION_ADD_FACE = `${TEXT.control} ${TAP.action} px-3 py-1.5 ${RADIUS.control} bg-raised group`
+export const DESTINATION_ADD = {
+  row: 'grid grid-cols-2 gap-2',
+  tile: `${DESTINATION_ADD_FACE} flex flex-col items-start gap-0.5 text-left ${TRIGGER_STATE}`,
+  title: 'flex items-center gap-1.5 font-semibold',
+  line: `${CAPTION_LIFTED} group-aria-expanded:text-on-fill`,
+} as const
+
+/**
  * A numeric field with the browser's spinner arrows suppressed.
  *
  * The arrows cost roughly 16px of every field's inner width and buy a pair of
@@ -3437,6 +3453,12 @@ export const MENU_TRIGGER = {
   chip: CHIP_FACE,
   field: TRIGGER_FIELD,
   /**
+   * `Search by list` in the Destinations section (record 0306): the add
+   * buttons' tile (`DESTINATION_ADD`), so it and `Search by area` beside it
+   * are one pair. It wears no chevron; its name says it opens something.
+   */
+  tile: DESTINATION_ADD.tile,
+  /**
    * A field's left segment inside `CHART_PICKER`'s group (#499): the field's
    * type and arrow room with no edge or radius of its own, because the group
    * wears them, and the one trigger's states (`TRIGGER_STATE`, record 0252).
@@ -3480,6 +3502,7 @@ export const MENU_TRIGGER = {
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
+  tile: '',
   bar: '-mr-0.5',
   field: ICON_ADORNMENT,
   segment: ICON_ADORNMENT,

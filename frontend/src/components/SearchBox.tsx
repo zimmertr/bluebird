@@ -1,9 +1,9 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { Place, SEARCH_LIMIT, parseCoordinates, searchPlaces } from '../utils/geocode'
 import {
-  ACCENT_RING,
   CAPTION_LIFTED,
   CONTROL_SIZE,
+  DESTINATION_FIELD,
   ICON_ACTION,
   ICON_CLOSE_BUTTON,
   MAP_PILL,
@@ -46,10 +46,9 @@ const DROPDOWN = `${SURFACE_CHIP_CARD.menu} absolute left-0 top-full mt-1 w-full
 
 interface Props {
   onSelect: (place: Place) => void
-  // The panel is pointing at this box: the reader is hovering the panel's
-  // Map group, whose search-by-name control lives out here on the map rather
-  // than in the panel. Purely a cue — nothing about the box's behavior changes.
-  pointed?: boolean
+  // The search's line inside the Destinations section's field at a desk
+  // (record 0306), where the field draws the edge, rather than the map's pill.
+  inField?: boolean
   // Whether the field has the keyboard or its list or its notice is open,
   // each time that changes. The map's row widens the pill over the locate
   // button and steps the chip row aside for as long as it is true.
@@ -65,7 +64,7 @@ export interface SearchBoxHandle {
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
-const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false, onExpandedChange }, ref) {
+const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, inField = false, onExpandedChange }, ref) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -191,20 +190,15 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
     }
   }
 
-  // The ring rides the wrapper, not the field: the pill wears a raised
-  // shadow, and the ring's glow is a shadow too. The
-  // wrapper's box is exactly the field's (the dropdown below it is absolute),
-  // so the outline lands where it looks like it should — and it holds the same
-  // radius at all times, because only the ring may fade (see ACCENT_RING).
+  // The wrapper's box is exactly the field's (the dropdown below it is
+  // absolute), so the results hang from the field's foot at its width.
   return (
-    <div
-      ref={rootRef}
-      className={`relative h-full w-full ${RADIUS.pill} transition-shadow ${pointed ? ACCENT_RING : ''}`}
-    >
+    <div ref={rootRef} className={`relative w-full ${inField ? '' : `h-full ${RADIUS.pill}`}`}>
       {/* The pill takes the height, not the input inside it: the row is 40px
           (`MAP_ROWS`), and sizing the input instead grew the box by its own
-          padding and overshot. */}
-      <div className={MAP_PILL}>
+          padding and overshot. In the Destinations field the field is the
+          edge, and the line takes the field's tap height. */}
+      <div className={inField ? DESTINATION_FIELD.search : MAP_PILL}>
         <IconSearch className={`flex-shrink-0 ${ICON_ACTION}`} />
         <input
           ref={inputRef}
@@ -231,7 +225,9 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // spelling out that it takes a name or a coordinate pair: a search
           // box taking a name is the least surprising thing on the page, and a
           // hover tooltip is invisible on touch anyway.
-          placeholder="Search for a destination"
+          // In the Destinations field it names the way in beside Search by
+          // list and Search by area (record 0306); the pill keeps its own.
+          placeholder={inField ? 'Search by name' : 'Search for a destination'}
           aria-label="Search for a place"
           autoComplete="off"
           spellCheck={false}

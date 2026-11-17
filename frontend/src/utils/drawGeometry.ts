@@ -11,7 +11,7 @@
  */
 import type { Geometry, Position } from 'geojson'
 import type { GeoPolygon } from '../types'
-import type { Ring } from './polylabel'
+import { poleOfInaccessibility, type Ring } from './polylabel'
 
 /**
  * The most positions a ring may carry, the closing repeat of its first point
@@ -22,6 +22,13 @@ import type { Ring } from './polylabel'
  * share link stop there rather than build one it would refuse.
  */
 export const MAX_POLYGON_POINTS = 1_000
+
+// The most areas a reader may draw at once (record 0306). Each area is one
+// POST /api/destinations, sent one after another, so the cap bounds how many
+// discovery calls one Analyze, one count or one hand-edited link can start.
+// Ten is far past what a comparison needs: the reader asked for "one of each
+// at most, usually" (TJ, 2026-11-17).
+export const MAX_AREAS = 10
 
 /**
  * Whether one more point fits in a ring of `pts`, under a cap that counts the
@@ -51,6 +58,29 @@ export function bboxAreaKm2(pts: [number, number][]): number | null {
   const avgLat = (Math.max(...lats) + Math.min(...lats)) / 2
   const lonKm = (Math.max(...lons) - Math.min(...lons)) * 111 * Math.cos((avgLat * Math.PI) / 180)
   return latKm * lonKm
+}
+
+/**
+ * The finished areas as the `areas` source's features (record 0306): each
+ * area's shape, and a point inside it carrying its number, which its chip
+ * reads too (`Area 1`). Numbered by place in the list, from 1. The area being
+ * edited is left out by its index, because the editable ring stands in for it
+ * and one outline under the reader's hand is what they can act on.
+ */
+export function areasData(areas: readonly GeoPolygon[], hidden: number | null): object {
+  const features: object[] = []
+  areas.forEach((area, i) => {
+    const ring = area.coordinates[0] ?? []
+    if (i === hidden || ring.length < 4) return
+    const n = i + 1
+    features.push({ type: 'Feature', properties: { kind: 'area', n }, geometry: { type: 'Polygon', coordinates: [ring] } })
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'label', n: String(n) },
+      geometry: { type: 'Point', coordinates: poleOfInaccessibility([ring.map((p): [number, number] => [p[0], p[1]])]) },
+    })
+  })
+  return { type: 'FeatureCollection', features }
 }
 
 /** The drawn ring as the `draw` source's features: the shape and its handles. */
