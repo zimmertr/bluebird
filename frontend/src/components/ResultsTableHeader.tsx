@@ -19,8 +19,8 @@ import { ACCENT, CHOICE_INPUT, COLUMN_GRIP, DRAG, FOCUS_RING_INSET, SCROLL_SHADO
 // what they measure is utils/columnMeasure.ts; this file draws.
 
 // A header in two lines when its label names a unit: the name over the unit
-// in its parentheses (record 0304). The unit's line opens with the space the
-// label had, which a block's first line drops on screen, so the text is the
+// in its parentheses (record 0304). The space the label had stands between
+// the two, where the line break swallows it on screen, so the text is the
 // label itself and a screen reader, voice control and every query by name
 // still hear `Elevation (ft)` as one phrase.
 function HeaderLabel({ col }: { col: ColDef }) {
@@ -28,8 +28,8 @@ function HeaderLabel({ col }: { col: ColDef }) {
   if (unit === null) return <>{col.label}</>
   return (
     <>
-      {name}
-      <span className={TABLE.headUnit}>{` (${unit})`}</span>
+      {name}{' '}
+      <span className={TABLE.headUnit}>({unit})</span>
     </>
   )
 }

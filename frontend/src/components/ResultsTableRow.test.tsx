@@ -88,7 +88,7 @@ describe('a ranked row', () => {
     const { user, container } = inTable(<ResultsTableRow {...props({ onFocusResult, onRemove, chartBox: box })} />)
     const row = container.querySelector('tr')!
     expect(row.className).toContain(TABLE.rowOpens)
-    await user.click(screen.getByText('12,281'))
+    await user.click(screen.getByText('12281'))
     expect(onFocusResult).toHaveBeenCalledTimes(1)
     expect(onFocusResult).toHaveBeenCalledWith(ROW)
     await user.click(screen.getByRole('checkbox', { name: 'Chart Mount Adams' }))
@@ -276,7 +276,7 @@ describe('a row still waiting on its elevation', () => {
       </FireClock>,
     )
     expect(screen.queryByText(fireLoadingFrame(0))).toBeNull()
-    expect(screen.getByText('12,281')).toBeTruthy()
+    expect(screen.getByText('12281')).toBeTruthy()
   })
 })
 
@@ -371,7 +371,7 @@ describe('a pending row', () => {
     inTable(<PendingRow {...pendingProps()} />)
     const cells = within(screen.getByRole('row')).getAllByRole('cell').map((c) => c.textContent)
     expect(cells[0]).toBe('—')
-    expect(cells).toContain((6000).toLocaleString())
+    expect(cells).toContain('6000')
     expect(cells.filter((t) => t === '—').length).toBe(3)
   })
 

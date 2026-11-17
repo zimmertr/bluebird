@@ -683,16 +683,8 @@ export function mountMapPopups(
       if (!el || !at) return { width, body: range, clear: (w, b) => ({ width: w, body: b }) }
       const marker = map.project(at)
       const anchor: PopupSide = popup.options?.anchor === 'bottom' ? 'bottom' : 'top'
-      // What the card stands over already is not the drag's to clear, its
-      // breath included: `clearSize` reaches with the fit's margin, so a
-      // surface inside that margin as the drag starts would stop the first
-      // move short, and a card opened 1.5px beside the map's rows shrank on a
-      // drag that asked it to grow (#825, when Inter narrowed the card).
-      const stands = figureOf(
-        marker,
-        { width: el.offsetWidth + 2 * FIT_MARGIN_PX, height: el.offsetHeight + FIT_MARGIN_PX },
-        anchor,
-      )
+      // What the card stands over already is not the drag's to clear.
+      const stands = figureOf(marker, { width: el.offsetWidth, height: el.offsetHeight }, anchor)
       const ahead = obstacles(avoid).filter(
         (o) => !(o.left < stands.right && o.right > stands.left && o.top < stands.bottom && o.bottom > stands.top),
       )
@@ -702,8 +694,18 @@ export function mountMapPopups(
         body: range,
         clear(w, b) {
           const start = { width: el.offsetWidth, height: el.offsetHeight }
-          const size = clearSize(marker, anchor, start, { width: w, height: chrome + b }, least, ahead)
-          return { width: size.width, body: size.height - chrome }
+          const asked = { width: w, height: chrome + b }
+          const size = clearSize(marker, anchor, start, asked, least, ahead)
+          // Never under the size the card stands at, where the reader asked
+          // for that much: a surface inside the fit's breath as the drag
+          // starts, which the card does not stand over, stopped the first
+          // move short of where the card already was, and a card opened
+          // 1.5px beside the map's rows shrank on a drag that asked it to
+          // grow (#825, once Inter narrowed the card). It holds the card
+          // where it stands rather than letting it grow into the surface.
+          const width = Math.max(size.width, Math.min(asked.width, start.width))
+          const height = Math.max(size.height, Math.min(asked.height, start.height))
+          return { width, body: height - chrome }
         },
       }
     },

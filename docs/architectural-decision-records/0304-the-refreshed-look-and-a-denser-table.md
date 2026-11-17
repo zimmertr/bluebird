@@ -47,7 +47,7 @@ The composite widths measured in the browser suite's Chromium on 2026-10-29 (the
 
 The Lighthouse budget's total is 700,000 bytes against 604,280 measured before this change, so the 48,256-byte Latin file fits under it.
 
-The browser suite also found a drag bug the narrower card exposed. A card opened 1.5px beside the map's rows, and the drag's clearance check reaches 8px out, while the check for what the card already stands over did not; so the first drag pulled the card 8px clear of the rows and shrank it, even when it was dragged to grow. The check for what a card already stands over now takes the same 8px, as its own comment already promised: a drag never shrinks a card on its first move.
+The browser suite also found a drag bug the narrower card exposed. A card opened 1.5px beside the map's rows, and the drag's clearance check reaches 8px out, while the check for what the card already stands over did not; so the first drag pulled the card 8px clear of the rows and shrank it, even when it was dragged to grow. A drag now never takes a card under the size it already stands at, where the reader asked for at least that much, so the card holds its place beside the surface: it neither shrinks to clear it by 8px nor grows into it.
 
 ## Alternatives rejected
 

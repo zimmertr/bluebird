@@ -61,7 +61,7 @@ export interface SearchBoxHandle {
 }
 
 // Floating place search for the map, the pill in the map's first row (#696):
-// as wide and as tall as the slot it stands in, fully rounded. Fires on Enter rather than as-you-type —
+// as wide and as tall as the slot it stands in, fully round. Fires on Enter rather than as-you-type —
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
