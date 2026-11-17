@@ -40,7 +40,7 @@ export default function PanelSection({ 'data-tour': anchor, title, fold, summary
   }
   return (
     <section data-tour={anchor}>
-      <h2 className={fold.open ? CARD_SECTION.open : CARD_SECTION.shut}>
+      <h2>
         <button
           type="button"
           aria-expanded={fold.open}
@@ -56,7 +56,7 @@ export default function PanelSection({ 'data-tour': anchor, title, fold, summary
           <IconFold open={fold.open} className={CARD_SECTION.fold} />
         </button>
       </h2>
-      <div id={bodyId} className={fold.open ? undefined : 'hidden'}>
+      <div id={bodyId} className={fold.open ? CARD_SECTION.body : 'hidden'}>
         {children}
       </div>
     </section>

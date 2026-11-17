@@ -33,7 +33,6 @@ describe('PanelSection', () => {
     expect(head.getAttribute('aria-expanded')).toBe('false')
     expect(head.className).toBe(CARD_SECTION.head)
     expect(head.parentElement?.tagName).toBe('H2')
-    expect(head.parentElement?.className).toBe(CARD_SECTION.shut)
     // The controls stay mounted, hidden, under the id the button names.
     const body = document.getElementById(head.getAttribute('aria-controls')!)!
     expect(body.className).toBe('hidden')
@@ -55,9 +54,8 @@ describe('PanelSection', () => {
     )
     const head = screen.getByRole('button', { name: 'Metrics' })
     expect(head.getAttribute('aria-expanded')).toBe('true')
-    expect(head.parentElement?.className).toBe(CARD_SECTION.open)
     expect(screen.queryByText('AQI · Lowest · 200')).toBeNull()
-    expect(document.getElementById(head.getAttribute('aria-controls')!)?.className).toBe('')
+    expect(document.getElementById(head.getAttribute('aria-controls')!)?.className).toBe(CARD_SECTION.body)
     expect(screen.getByRole('textbox', { name: 'Rows' })).toBeTruthy()
   })
 })

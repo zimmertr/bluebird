@@ -9,7 +9,7 @@ import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { forecastModel, refusalPanel } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
-import { CONTROLS_SHEET, DESK_CARD, MESSAGE_BADGE, PANEL_BODY, PANEL_RULE } from '../styles'
+import { CARD_SECTION, CONTROLS_SHEET, DESK_CARD, MESSAGE_BADGE, PANEL_BODY, PANEL_RULE } from '../styles'
 
 // The panel's contract with its reader (record 0208): the Analyze button is
 // held up for each reason the gate in `utils/analyzeGate.ts` names, and
@@ -431,7 +431,11 @@ describe('in a desk\'s card', () => {
     )
     expect(head('destinations').getAttribute('aria-expanded')).toBe('true')
     expect(head('destinations').textContent).toBe('Destinations')
-    expect(bodyOf('destinations').className).toBe('')
+    expect(bodyOf('destinations').className).toBe(CARD_SECTION.body)
+    // The card's own body and rule: a collapsed section is one 40px row.
+    expect(bodyOf('destinations').closest('section')?.parentElement?.className).toBe(
+      `${DESK_CARD.body} ${CARD_SECTION.rule}`,
+    )
     expect(head('forecast').getAttribute('aria-expanded')).toBe('false')
     expect(head('forecast').textContent).toBe('Forecast Current · NOAA GFS')
     expect(head('metrics').textContent).toBe(`Metrics Precipitation · Lowest · ${DEFAULT_LIMIT}`)

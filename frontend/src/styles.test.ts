@@ -4925,22 +4925,27 @@ describe('the panel frame', () => {
     expect(DESK_CARD.search).toContain(`border-b ${PANEL_EDGE}`)
   })
 
-  // A section's heading in the card is a 32px button, and the margins take
-  // back what that adds over a 20px heading, so a collapsed row stands where
-  // a heading would and an open one keeps the 10px under it.
-  it('draws a card section\'s heading as a 32px row in a heading\'s place', () => {
+  // A section's heading in the card is a 40px row with one rule between
+  // sections and no other space, so three collapsed sections are 122px,
+  // where the panel's stack spends 16px over and under each rule.
+  it('draws a card section\'s heading as a 40px row, with a rule and no gap between sections', () => {
     const rowPx = (Number(CARD_SECTION.head.match(/(?:^|\s)h-(\d+)(?=\s|$)/)![1]) / 4) * 16
-    const headingPx = 20
-    const spare = (rowPx - headingPx) / 2
-    expect(rowPx).toBe(32)
-    expect(CARD_SECTION.shut).toBe(`-my-${spare / 4}`)
-    expect(CARD_SECTION.open).toBe(`-mt-${spare / 4} mb-1`)
-    // 10px under an open section's heading, as `mb-2.5` gave it.
-    expect(4 + spare).toBe(10)
-    expect(CARD_SECTION.head).toContain(FOCUS_RING)
+    expect(rowPx).toBe(40)
+    expect(3 * rowPx + 2).toBe(122)
+    // The 20px name is centred, so the controls start 10px under it, as
+    // they do under a phone's heading.
+    expect((rowPx - 20) / 2).toBe(10)
+    expect(CARD_SECTION.rule).toBe('[&>*+*]:border-t [&>*+*]:border-rule')
+    expect(token(CARD_SECTION.rule, '[&>*+*]:border')).toBe(token(SURFACE_DIVIDER, 'border'))
+    expect(CARD_SECTION.body).toBe('pb-4')
+    // The ring inside the row, where the scrolling body cannot clip it.
+    expect(CARD_SECTION.head).toContain(FOCUS_RING_INSET)
     expect(CARD_SECTION.summary).toContain(TEXT.caption)
     expect(words(CARD_SECTION.summary)).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'truncate']))
     expect(panelSectionSource).toContain('aria-expanded={fold.open}')
+    // The card's body is the panel's with no padding of its own.
+    expect(DESK_CARD.body).toBe(PANEL_BODY.replace(' py-4 ', ' py-0 '))
+    expect(controlPanelSource).toContain('`${DESK_CARD.body} ${CARD_SECTION.rule}`')
   })
 
   // While a desk's results panes move, the map holds one size (record

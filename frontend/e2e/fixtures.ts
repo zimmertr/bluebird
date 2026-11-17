@@ -334,7 +334,16 @@ async function placeVertices(page: Page, vertices: readonly [number, number][]) 
   await page.getByRole('button', { name: 'Done' }).click()
 }
 
+// A desk's controls card shows one section open at a time, and a committed
+// report collapses them all (record 0305), so a spec opens the section whose
+// control it presses. Nothing to open on a phone, whose sheet shows them whole.
+export async function openSection(page: Page, name: 'Destinations' | 'Forecast' | 'Metrics') {
+  const head = page.locator('aside h2').getByRole('button', { name: new RegExp(`^${name}`) })
+  if ((await head.count()) > 0 && (await head.getAttribute('aria-expanded')) === 'false') await head.click()
+}
+
 export async function drawRing(page: Page) {
+  await openSection(page, 'Destinations')
   await page.getByRole('button', { name: 'Draw polygon' }).click()
   await placeVertices(page, [
     [520, 260],
@@ -346,6 +355,7 @@ export async function drawRing(page: Page) {
 // Replaces the ring on the map with a new one through Edit polygon and Clear,
 // the way a reader moves the search area after a report.
 export async function redrawRing(page: Page, vertices: readonly [number, number][]) {
+  await openSection(page, 'Destinations')
   await page.getByRole('button', { name: 'Edit polygon' }).click()
   await page.getByRole('button', { name: 'Clear', exact: true }).click()
   await placeVertices(page, vertices)

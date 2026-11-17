@@ -8,7 +8,16 @@ import type { SectionFold } from './PanelSection'
 import type { PanelSectionId } from '../utils/controlsSummary'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
-import { CONTROLS_SHEET, DESK_CARD, PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
+import {
+  CARD_SECTION,
+  CONTROLS_SHEET,
+  DESK_CARD,
+  PANEL_BODY,
+  PANEL_EDGE,
+  PANEL_HEADER,
+  PANEL_RULE,
+  TEXT,
+} from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { MetricFamily } from '../metrics'
@@ -278,7 +287,13 @@ export default function ControlPanel({
         // the border) and `pt` the gap below it, so the line lands centred in
         // the gutter between two steps rather than tucked under the one above.
         ref={bodyRef}
-        className={shut ? 'hidden' : `${PANEL_BODY} ${PANEL_RULE} ${phone ? CONTROLS_SHEET.body : ''}`}
+        className={
+          shut
+            ? 'hidden'
+            : card
+              ? `${DESK_CARD.body} ${CARD_SECTION.rule}`
+              : `${PANEL_BODY} ${PANEL_RULE} ${phone ? CONTROLS_SHEET.body : ''}`
+        }
       >
         {/* Destinations — one list, defined via any of four methods
             that union into a single ranked report */}

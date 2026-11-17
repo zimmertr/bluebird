@@ -2955,9 +2955,10 @@ export const SCROLL_SHADOW = {
  * width in `styles.test.ts`. The bleed tells the scroll shadows to reach across
  * the `px-4` to both edges.
  */
-export const PANEL_BODY =
-  `flex-1 overflow-y-auto px-4 py-4 [scrollbar-gutter:stable] [--scroll-shadow-bleed:1rem] ` +
+const panelBody = (pad: string) =>
+  `flex-1 overflow-y-auto px-4 ${pad} [scrollbar-gutter:stable] [--scroll-shadow-bleed:1rem] ` +
   `${SCROLL_BARS} ${SCROLL_SHADOW.both}`
+export const PANEL_BODY = panelBody('py-4')
 
 /**
  * The panel's header: the logo and the title block beside it (#687).
@@ -3068,28 +3069,37 @@ export const DESK_CARD = {
     `bg-panel border ${PANEL_EDGE} ${RADIUS.surface} ${ELEVATION.raised}`,
   /** The search field's row inside the card, between the header and the sections. */
   search: `flex-shrink-0 border-b ${PANEL_EDGE} px-3 py-2.5`,
+  /**
+   * The card's scrolling body: the panel's, with no padding over or under
+   * it, because each section's 40px heading row carries its own
+   * (`CARD_SECTION`).
+   */
+  body: panelBody('py-0'),
   /** The pill across its row, raised so its list paints over the sections. */
   pill: 'absolute inset-0 z-10',
 } as const
 
 /**
- * A section's heading in a desk's card (record 0305): a button across the
- * card that opens its section and collapses it again. Collapsed, the
- * section's summary stands beside its name in the caption's ink, cut where
- * the row ends, and the fold points right; open, the fold points down and
- * the summary is gone, because the controls under it say the same thing.
- * The control's 32px, a pointer's height at a desk, the one width this is
- * drawn at.
+ * A section in a desk's card (record 0305). Its heading is a 40px button
+ * across the card that opens the section and collapses it again, with one
+ * rule between sections and no other space (`rule`), so three collapsed
+ * sections are 122px and the whole card 335, which is what lets it stand
+ * over a map the docked results have left about 380px of (1389x868, both
+ * measured 2026-11-16). The panel's own stack (`PANEL_RULE`) spends 16px over
+ * and under each rule, which made the same card 383px.
+ *
+ * Collapsed, the section's summary stands beside its name in the caption's
+ * ink, cut where the row ends, and the fold points right; open, the fold
+ * points down and the summary is gone, because the controls under it say the
+ * same thing. The 20px name is centred in the row, so the controls start
+ * 10px under it, as they do under a phone's heading, and `body` closes an
+ * open section with the 16px the panel's stack gives it. The ring is drawn
+ * inside the row, where the scrolling body cannot clip it.
  */
 export const CARD_SECTION = {
-  head: `flex h-8 w-full items-center gap-2 text-left ${RADIUS.control} ${FOCUS_RING}`,
-  /**
-   * Takes back the 6px the 32px row adds over and under a 20px heading, so a
-   * collapsed row stands where a heading would and the rules stay centred
-   * between rows. Open, the 10px under a section's heading is the 4px left.
-   */
-  shut: '-my-1.5',
-  open: '-mt-1.5 mb-1',
+  rule: '[&>*+*]:border-t [&>*+*]:border-rule',
+  head: `flex h-10 w-full items-center gap-2 text-left ${FOCUS_RING_INSET}`,
+  body: 'pb-4',
   summary: `${CAPTION} min-w-0 flex-1 truncate`,
   fold: 'ml-auto flex-shrink-0 text-ink-soft',
 } as const

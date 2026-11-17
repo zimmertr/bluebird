@@ -766,7 +766,9 @@ export default function App() {
 
   // The controls: on a phone the Controls sheet, drawn here over the whole
   // column; at a desk a card in the map's own rows (#825; record 0305), which
-  // `MapStage` hands the search field it stands around.
+  // `MapStage` hands the search field it stands around. A function built in
+  // this render, which is sound here and nowhere else on `MapStage`: the
+  // rows call it and it never reaches the memoized `MapView`.
   const drawer = (search?: ReactNode) => (
     <AppDrawer
       open={sidebarOpen}
@@ -860,7 +862,7 @@ export default function App() {
           modelId={analyzed?.forecastModel ?? forecastModel}
           showResults={showResults}
           sidebarOpen={sidebarOpen}
-          controlsCard={isDesktop ? drawer : undefined}
+          controlsCard={drawer}
           layoutMotion={layoutMotion}
           legendInitiallyOpen={storedView.legendOpen ?? true}
           onOpenControls={openDrawer}
