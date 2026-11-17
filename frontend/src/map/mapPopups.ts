@@ -689,6 +689,8 @@ export function mountMapPopups(
         (o) => !(o.left < stands.right && o.right > stands.left && o.top < stands.bottom && o.bottom > stands.top),
       )
       const least = { width: width.min, height: chrome + range.min }
+      // The card as the drag starts, which stands over none of `ahead`.
+      const opened = { width: el.offsetWidth, height: el.offsetHeight }
       return {
         width,
         body: range,
@@ -696,16 +698,18 @@ export function mountMapPopups(
           const start = { width: el.offsetWidth, height: el.offsetHeight }
           const asked = { width: w, height: chrome + b }
           const size = clearSize(marker, anchor, start, asked, least, ahead)
-          // Never under the size the card stands at, where the reader asked
-          // for that much: a surface inside the fit's breath as the drag
-          // starts, which the card does not stand over, stopped the first
-          // move short of where the card already was, and a card opened
-          // 1.5px beside the map's rows shrank on a drag that asked it to
-          // grow (#825, once Inter narrowed the card). It holds the card
-          // where it stands rather than letting it grow into the surface.
-          const width = Math.max(size.width, Math.min(asked.width, start.width))
-          const height = Math.max(size.height, Math.min(asked.height, start.height))
-          return { width, body: height - chrome }
+          // Never under the size the card had as the drag started, where the
+          // reader asked for that much: a surface inside the fit's breath,
+          // which the card does not stand over, stopped the first move short
+          // of where the card already was, and a card opened 1.5px beside the
+          // map's rows shrank on a drag that asked it to grow (#825, once
+          // Inter narrowed the card). The hold is the whole card, both sides
+          // at once, never one of them: inside its opening size it stands
+          // over nothing ahead, where restoring one side after the clear gave
+          // up that side for the other ran the card into a corner.
+          const held = { width: Math.min(asked.width, opened.width), height: Math.min(asked.height, opened.height) }
+          const out = size.width < held.width || size.height < held.height ? held : size
+          return { width: out.width, body: out.height - chrome }
         },
       }
     },
