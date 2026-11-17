@@ -95,11 +95,12 @@ The app has two themes since #706, and since #843 it opens in the device's own s
 | `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the `edge` and `panel` tokens (slate-500 on slate-800 in dark); the root's `color-scheme` turns every bar it does not reach to the theme too (#697, record 0128) |
 | `SCROLL_SHADOW` | A slate-950 shade at 70% (in light, the ink at 12%) over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label a finger's 32px (#687, record 0130, record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
-| `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet, `push` for the desk panel and `pane` for a results pane on a press or the collapse chevron, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. The tutorial wears no transition: at a desk its light and card glide in script (`glide` in `tour/place.ts`), and on a phone it cuts from card to card and stands every transition in the app down while it runs (`data-touring="cut"`, record [0214](architectural-decision-records/0214-phone-tour-cuts-desk-tour-glides.md)) |
-| `DESK_PANEL` | The controls panel at a desk: a 360px column in the row beside the map, which stays in the row while shut and gives its width back through its left margin (`shut`), so the map's edge moves with the panel's (#714) |
+| `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet and `pane` for a results pane on a press or the collapse chevron, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. The tutorial wears no transition: at a desk its light and card glide in script (`glide` in `tour/place.ts`), and on a phone it cuts from card to card and stands every transition in the app down while it runs (`data-touring="cut"`, record [0214](architectural-decision-records/0214-phone-tour-cuts-desk-tour-glides.md)) |
+| `DESK_CARD` | The controls at a desk (#825): a card over the map's top left, in the map's own stack of rows, 361px so its content is the docked panel's 359px, the panel's fill with a floating box's edge, corners and shadow, and never taller than the map less an inset over and under it. `stackOpen` stands the chip row beside an open card, `search` is the search field's row in it, `pill` the field across that row, and `body` the panel's scrolling body with no padding of its own |
+| `CARD_SECTION` | A section in that card: `head`, its heading as a 40px button that opens it and collapses it, `rule`, the one rule between sections with no gap, so three collapsed sections are 122px, `summary`, a collapsed section's line beside its name, `fold`, the chevron at the row's end, and `body`, the 16px that closes an open section |
 | `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a body mounted at the press at the height it will stand at and kept, inert, while the pane is shut (#786), held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table) (#714) |
 | `CHART_LEGEND` | The chart-only legend: one chip per charted line, two rows of chips at most, then it scrolls. At a desk it is a results pane of its own between the chart's and the table's, held to the foot, so Chart to Both shuts it as the table opens; on a phone it stands in the chart's box. Its tallest strip fits inside the table's floor, which a desk's Chart keeps free under the chart (#795). Since #850 it stands inside the room a press hands the chart, measured |
-| `LAYOUT_HOLD` | What keeps one size while a desk's layout moves (#714): the map's box at the window's width or height, centred on its column, which clips it (`clip`); the table's box at the window's width and the chart at the width it had while the panel moves. `rest` is the map's box the rest of the time. `layer` puts what moves with the panel on a layer of its own while it moves: the panel, the map's column, the results and each pane's body (#786) |
+| `LAYOUT_HOLD` | What keeps one size while a desk's results panes move (#714): the map's box at the window's height, centred on its column, which clips it (`clip`). `rest` is the map's box the rest of the time. The controls move no edge since #825, so the holds for the panel's slide are gone |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
 | `SWATCH_STAR` | The box of a legend swatch that is an icon: the fire activity section's three age icons, the hours `12`, `24` and `48` drawn on them, on one line like the smoke chips (#799). 16px, `SWATCH_CHIP`'s box, and no type, because the digits are paths in `IconFireAge`: the band's fill on the layer's ink at 5.66, 7.73 and 13.27:1, the icon's edge its rim on the dark card (4.73, 6.46 and 11.09:1) and its ink body on the light card (16.64:1). Its colours come from `utils/fireActivity.ts` |
@@ -956,7 +957,7 @@ Record: [0142](architectural-decision-records/0142-sticky-name-column.md) Record
 
 Two speeds, each the same both ways (#714). A menu or a card fades and slides
 in 150ms (`MOTION.menu`). A panel, a sheet or a results pane moves in 300ms
-(`MOTION.slide`, `MOTION.push`, `MOTION.pane`), because it moves an edge the
+(`MOTION.slide`, `MOTION.pane`), because it moves an edge the
 whole screen is laid out against. Each recipe names the one property it
 moves, so nothing a grip drags is ever animated, and each stops under a
 reduced-motion setting. `PANEL_MS` is the slower speed in numbers, and
@@ -964,11 +965,12 @@ reduced-motion setting. `PANEL_MS` is the slower speed in numbers, and
 press started is the message badge's, once per arrival, in `MESSAGE_BADGE`
 rather than here.
 
-The desk panel pushes the map's edge rather than sliding over the map
-(`DESK_PANEL`). It stays in the row while it is shut and its left margin takes
-its 360px back, so the map's column narrows and widens in the frames the panel
-moves in, its left edge on the panel's right edge in every one. Nothing is
-painted over anything. A results pane at a desk opens and closes on a Table,
+A desk's controls are a card over the map (`DESK_CARD`), so opening or closing
+them moves no edge and resizes nothing: the map keeps the window's width.
+Until #825 they were a column that pushed the map's edge over the same 300ms.
+Record: [0305](architectural-decision-records/0305-the-controls-stand-as-a-card-over-a-desks-map.md)
+
+A results pane at a desk opens and closes on a Table,
 Chart or Both press and on the collapse chevron (`RESULTS_PANE`): one grid
 row, `1fr` open and `0fr` shut, around a body that keeps its own height. An
 opening pane mounts its body at the press at the height it will stand at, so
@@ -977,13 +979,8 @@ The chart comes down from the results bar and the table up from the column's
 foot. A shut pane keeps its body, inert and drawing nothing new, so the next
 press opens a frame around a body already drawn.
 
-While the layout moves, the map's box and the panes' bodies hold one size
-(`LAYOUT_HOLD`), so a frame moves boxes instead of resizing the map or laying
-out the table again. At 946 destinations in the pinned browser image, a close
-went from one 77ms frame and a slide over the map to 8 frames: one of 51ms
-where the map and the table take the new width, then frames of 34ms. An open
-went from one 77ms frame to 11 frames of about 30ms and one of 46ms where they
-take theirs (medians, 2026-10-20).
+While the panes move, the map's box holds one size (`LAYOUT_HOLD`), so a
+frame moves boxes instead of resizing the map.
 
 At 167 destinations a pane press that mounts a body commits in 84 to 142ms,
 and each move then runs 11 to 17 frames, the longest of them 20 to 45ms, with
@@ -993,12 +990,9 @@ some presses then show only one or two frames of motion (medians,
 2026-10-21).
 Record: [0202](architectural-decision-records/0202-panel-and-panes-move-at-one-speed.md)
 
-While the panel moves, the panel, the map's column, the results and each
-pane's body stand on layers of their own (`LAYOUT_HOLD.layer`), so a frame
-shifts layers rather than painting them again: at 200 rows a close painted for
-195ms in all and now paints for 34. Since #786 a pane press opens a body
-already drawn rather than mounting one, so Table to Both starts moving 54ms
-after the press rather than 120 (2026-10-22).
+Since #786 a pane press opens a body already drawn rather than mounting one,
+so Table to Both starts moving 54ms after the press rather than 120
+(2026-10-22).
 Record: [0216](architectural-decision-records/0216-desk-moves-paint-less.md)
 
 The chart stands at one size in every mode at a desk. Its legend is a pane

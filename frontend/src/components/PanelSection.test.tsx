@@ -10,7 +10,7 @@ import { CARD_SECTION, TEXT } from '../styles'
 describe('PanelSection', () => {
   it('is a heading over its controls where it is handed no fold', () => {
     render(
-      <PanelSection data-tour="forecast" title="Forecast" summary="Current · NOAA GFS">
+      <PanelSection data-tour="forecast" heading="Forecast" summary="Current · NOAA GFS">
         <input aria-label="Model" />
       </PanelSection>,
     )
@@ -25,7 +25,7 @@ describe('PanelSection', () => {
   it('collapses to its summary line under a heading that opens it', async () => {
     const onToggle = vi.fn()
     const { user } = render(
-      <PanelSection data-tour="forecast" title="Forecast" summary="Current · NOAA GFS" fold={{ open: false, onToggle }}>
+      <PanelSection data-tour="forecast" heading="Forecast" summary="Current · NOAA GFS" fold={{ open: false, onToggle }}>
         <input aria-label="Model" />
       </PanelSection>,
     )
@@ -45,7 +45,7 @@ describe('PanelSection', () => {
     render(
       <PanelSection
         data-tour="metrics"
-        title="Metrics"
+        heading="Metrics"
         summary="AQI · Lowest · 200"
         fold={{ open: true, onToggle: () => {} }}
       >

@@ -175,15 +175,17 @@ describe('MapRows at a desk', () => {
     expect(stack.className).toContain(DESK_CARD.stackOpen)
     const pill = screen.getByRole('button', { name: 'Search' }).parentElement as HTMLElement
     expect(pill.className).toBe(DESK_CARD.pill)
+    const chips = screen.getByRole('button', { name: 'Legend' }).parentElement!
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
-    expect(screen.getByRole('button', { name: 'Legend' })).toBeTruthy()
+    expect(chips.className).toBe(MAP_ROWS.chips)
 
     rerender(rows({ desk: true, sidebarOpen: false, card }))
     expect(stack.className).not.toContain(DESK_CARD.stackOpen)
     expect(pill.className).toBe(MAP_ROWS.pillWide)
-    expect(screen.queryByRole('button', { name: 'Legend' })).toBeNull()
+    expect(chips.className).toBe('hidden')
     fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
     expect(pill.className).toBe(MAP_ROWS.pill)
+    expect(chips.className).toBe(MAP_ROWS.chips)
     // The same field through an open and a close, so what was typed stays.
     expect(screen.getByRole('button', { name: 'Search' }).parentElement).toBe(pill)
   })

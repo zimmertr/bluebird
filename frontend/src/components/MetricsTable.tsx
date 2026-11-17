@@ -317,7 +317,7 @@ export default function MetricsTable({
   return (
     <PanelSection
       data-tour="metrics"
-      title="Metrics"
+      heading="Metrics"
       fold={fold}
       summary={metricsSummary(sortBy, DIRECTIONS.find((d) => d.desc === sortDesc)!.label, limit)}
     >

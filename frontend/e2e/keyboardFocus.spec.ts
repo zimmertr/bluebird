@@ -63,11 +63,14 @@ test('the drawer leaves the Tab order when it closes, and each way through hands
   const close = page.getByRole('button', { name: 'Close controls' })
   await close.focus()
   await page.keyboard.press('Enter')
-  await expect(page.locator('aside')).toHaveAttribute('inert', '')
+  // Shut, the card hides everything but the search field, so none of it is
+  // a Tab stop (record 0305).
+  await expect(close).toBeHidden()
+  await expect(page.locator('aside').getByRole('button', { name: /^Analyze/ })).toBeHidden()
   const open = page.getByRole('button', { name: 'Open controls' })
   await expect(open).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(page.locator('aside')).not.toHaveAttribute('inert')
+  await expect(close).toBeVisible()
   await expect(close).toBeFocused()
 })
 

@@ -70,7 +70,7 @@ export default function ForecastSection({
   return (
     <PanelSection
       data-tour="forecast"
-      title="Forecast"
+      heading="Forecast"
       fold={fold}
       summary={controlsSummary(selection.kind, forecastModels, forecastModel)}
     >

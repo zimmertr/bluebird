@@ -263,7 +263,7 @@ export default function DestinationsSection({
   return (
     <PanelSection
       data-tour="destinations"
-      title="Destinations"
+      heading="Destinations"
       fold={fold}
       summary={destinationsSummary({
         ringPoints: drawPointCount,

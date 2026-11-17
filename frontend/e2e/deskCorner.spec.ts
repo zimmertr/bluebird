@@ -55,8 +55,8 @@ for (const [width, height, panel] of [
     await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
     if (panel === 'shut') {
       await page.getByRole('button', { name: 'Close controls' }).click()
-      // The panel takes 300ms to leave (record 0202), so the corner is read
-      // once the map has the whole row.
+      // The controls are a card over the map (record 0305), which has the
+      // whole row with them open or shut.
       await expect
         .poll(() => page.locator('.maplibregl-map').evaluate((el) => el.getBoundingClientRect().left))
         .toBe(0)
