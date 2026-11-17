@@ -1660,9 +1660,10 @@ holds that destination's forecast, so those squares paint the moment the layer
 is on and the fetch skips them. It is the same field sampled at another point
 inside the square: a lattice sample is the free air at the ground's height under
 the square's centre, and a destination's forecast is the free air at its own
-height, which is the ground's there too. Only a destination with a known
-elevation and an hourly forecast paints its square, and where several share a
-square, the one nearest its centre does. Over six peak lists the destinations
+height, which is the ground's there too. A destination with no elevation of its
+own, such as a pasted list's peak before its elevation arrives, was read at the
+terrain height under it, the lattice's own rule, so it paints its square as
+well; where several share a square, the one nearest its centre does. Over six peak lists the destinations
 painted 15 to 30% of the squares; the rest fill in as the allowance frees, which
 after a 200-destination analysis is still about three minutes.
 

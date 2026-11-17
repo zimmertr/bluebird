@@ -482,13 +482,21 @@ describe('seedCells', () => {
     expect(seedCells(spec, [row], [1000, 2000]).positions.size).toBe(0)
   })
 
-  it('seeds nothing from a row with no hourly series or no elevation', () => {
+  it('seeds nothing from a row with no hourly series or no height it was read at', () => {
     // No series: the playhead and the arrows would have nothing to read. No
-    // elevation: the row was read at 10 m and 2 m, where a lattice sample is
-    // read at the ground's height.
+    // height at all: the row was read at 10 m and 2 m, where a lattice sample
+    // is read at the ground's height.
     const bare = held({ latitude: 46.05, longitude: -121.95, series: null })
     const flat = held({ latitude: 46.05, longitude: -121.75, elevation_ft: null })
     expect(seedCells(spec, [bare, flat], [1000, 2000]).cells).toEqual([])
+  })
+
+  // A pasted list's first analysis: the elevations arrive after the
+  // forecasts, so every row was read at the terrain height, which is the
+  // lattice's own rule (#673).
+  it('seeds from a row read at the terrain height', () => {
+    const pasted = held({ latitude: 46.05, longitude: -121.95, elevation_ft: null, terrain_ft: 5900 })
+    expect([...seedCells(spec, [pasted], [1000, 2000]).positions]).toEqual([0])
   })
 
   it('takes the destination nearest the centre when two share a cell', () => {

@@ -517,11 +517,13 @@ export function pairCells(
  * centre (`terrainElevation`), and a destination's forecast is the free air at
  * the destination's own height, which is the ground's there too: the same rule
  * at a point within one pitch of the centre, which is the distance the picture
- * already claims nothing finer than. So only a row with a known elevation
- * seeds a cell, since one without was read at the coordinate's 10 m wind and
- * 2 m temperature; only a row with an hourly series does, since the playhead
- * and the arrows read the series; and where several stand in one cell, the
- * one nearest its centre does.
+ * already claims nothing finer than. A row with no elevation of its own was
+ * read at the terrain height Open-Meteo resolved for it (`terrain_ft`, #673),
+ * which is a lattice sample's own rule, and on a pasted list's first analysis
+ * that is every row, because the elevations arrive after the forecasts. So a
+ * row seeds a cell when it carries either height and an hourly series (the
+ * playhead and the arrows read the series), and where several stand in one
+ * cell, the one nearest its centre does.
  *
  * Returns the seeded cells and the POSITIONS they fill, so the fetch can leave
  * those positions out.
@@ -537,7 +539,7 @@ export function seedCells(
   // fine for a comparison inside one cell, where cos(lat) barely moves.
   const best = new Map<number, [number, DestinationResult]>()
   for (const row of field) {
-    if (!row.series || row.elevation_ft == null) continue
+    if (!row.series || (row.elevation_ft ?? row.terrain_ft) == null) continue
     const c = Math.floor((row.longitude - spec.west) / spec.lonStep)
     const r = Math.floor((row.latitude - spec.south) / spec.latStep)
     if (c < 0 || c >= spec.cols || r < 0 || r >= spec.rows) continue

@@ -20,7 +20,7 @@ So after a typical analysis, no cut to the lattice gets the first paint under a 
 ## Decision
 
 - **A square a destination stands in paints from that destination's forecast** (`seedCells` in `forecastGridLattice.ts`), the moment the layer is on, and the fetch leaves those squares out, the air quality fetch included.
-- **Only a row with a known elevation and an hourly series seeds a square.** A lattice sample is the free air at the ground's height under the square's centre (`terrainElevation`), and a destination's forecast is the free air at its own height, which is the ground's there too, at a point within one pitch of the centre. A row with no elevation was read at the 10 m wind and the 2 m temperature, and one with no series cannot answer the playhead or the arrows. Where several share a square, the one nearest its centre seeds it.
+- **A row seeds a square when it carries a height it was read at and an hourly series.** A lattice sample is the free air at the ground's height under the square's centre (`terrainElevation`), and a destination's forecast is the free air at its own height, which is the ground's there too, at a point within one pitch of the centre. A row with no elevation of its own was read at the terrain height Open-Meteo resolved for it (`terrain_ft`, #673), the lattice's own rule, and on a pasted list's first analysis that is every row, because the elevations arrive after the forecasts. A row with no series cannot answer the playhead or the arrows. Where several share a square, the one nearest its centre seeds it.
 - **The fetch is otherwise unchanged:** the same pacer, the same chunks, the same lattice and pitch, and still keyed on the analysis and never on the ranking (record 0016).
 - **The hourly budget is left alone.** Pricing the grid against the 5,000 an hour before it fetches is a separate question.
 
@@ -37,7 +37,7 @@ A virtual-time replay of `WeightedBudget.startFor` with the real constants (550 
 | `wa-top-200` | 200 | 597 | 136 | 62 s | 0 s | 185 s | 183 s |
 | `ca-sierra-peaks-section` | 247 | 540 | 164 | 3 s | 0 s | 125 s | 120 s |
 
-The Sierra list's first paint was already 3 s, because its own analysis overran the minute and waited, so its oldest bookings had left the window by the time it landed. No real Open-Meteo quota was spent.
+The first version of this change seeded only rows with an elevation of their own, and the maintainer's test on the preview (2026-11-16, the Bulger list, ranked by temperature) still showed `Waiting` with nothing painted: a pasted list's rows carry `terrain_ft` until their elevations arrive, so none seeded. The Sierra list's first paint was already 3 s, because its own analysis overran the minute and waited, so its oldest bookings had left the window by the time it landed. No real Open-Meteo quota was spent.
 
 ## Alternatives rejected
 
