@@ -19,7 +19,7 @@ export const LIGHT_QUERY = '(prefers-color-scheme: light)'
 const deviceLight = () => matchMedia(LIGHT_QUERY).matches
 
 /**
- * The theme the app paints in (#706, #843; records 0158 and 0302): the one
+ * The theme the app paints in (#706, #843; records 0158 and 0303): the one
  * this browser chose in the theme menu, or the device's own while it chose
  * none or chose `System`, and the setter the menu calls.
  *

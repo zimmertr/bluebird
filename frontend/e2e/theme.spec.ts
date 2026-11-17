@@ -2,7 +2,7 @@ import { test, expect } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // The app follows the device's light or dark setting until the reader picks
-// one in the theme menu (#843, record 0302). Only a browser can say that
+// one in the theme menu (#843, record 0303). Only a browser can say that
 // `theme.js` paints the device's theme before the first frame, and that the
 // open page follows the device as it changes, with no reload.
 

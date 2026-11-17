@@ -63,7 +63,7 @@ describe('gridRaster', () => {
 
   it('is one pixel per sample, the lattice\'s own shape', () => {
     // Deliberately tiny: the smoothing is the raster layer's, so this only has
-    // to carry the values. A 600-sample lattice is a ~25x24 image.
+    // to carry the values. A 300-sample lattice is a ~17x17 image.
     const spec = buildGrid(CASCADES, 25)!
     const raster = gridRaster(spec, allCells(spec), 'temp_avg_f', null)!
     expect(raster.width).toBe(spec.cols)

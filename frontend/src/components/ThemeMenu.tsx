@@ -14,7 +14,7 @@ const CHOICES = [
 ] as const satisfies readonly { value: ThemeChoice; label: string; icon: ReactNode }[]
 
 /**
- * The theme menu (#843; record 0302): the round button in the panel's header
+ * The theme menu (#843; record 0303): the round button in the panel's header
  * at a desk, beside the close button, and in the Controls sheet's title row
  * on a phone, beside Done. It wears the glyph of the current choice, a sun
  * and a moon split by a diagonal for System, a sun for Light and a moon for

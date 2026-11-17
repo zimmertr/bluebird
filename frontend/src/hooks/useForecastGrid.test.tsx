@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type ForecastGridInputs, useForecastGrid } from './useForecastGrid'
-import { analyzedSnapshot, resultRow, weatherResult } from '../testSupport/fixtures'
+import { analyzedSnapshot, resultRow, series, weatherResult } from '../testSupport/fixtures'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { fetchAqi, fetchCloud, fetchWeather, type WeatherResult } from '../utils/openMeteo'
 
@@ -155,6 +155,25 @@ describe('useForecastGrid', () => {
     await act(async () => calls[1].fail(new Error('Open-Meteo quota reached. Try again later.')))
     expect(result.current.status).toBe('failed')
     expect(result.current.cells).toHaveLength(painted)
+  })
+
+  // #833: the cell a destination stands in paints from the report's own
+  // forecast before anything is fetched, and the fetch leaves it out.
+  it("paints a destination's cell at once and fetches only the rest", async () => {
+    mount()
+    const lattice = calls[0].points
+    calls.length = 0
+    const held = resultRow({ elevation_ft: 6000, temp_min_f: 30, series: series({ temp_f: [30] }) })
+    const { result } = mount(inputs({ field: [held] }))
+    expect(result.current.status).toBe('ready')
+    expect(result.current.complete).toBe(false)
+    expect(result.current.cells).toHaveLength(1)
+    expect(result.current.cells[0].row).toBe(held)
+    expect(calls[0].points).toBe(lattice - 1)
+    expect(vi.mocked(fetchAqi).mock.lastCall![0]).toHaveLength(lattice - 1)
+    await act(async () => calls[0].answer(answers(calls[0])))
+    expect(result.current.complete).toBe(true)
+    expect(result.current.cells).toHaveLength(lattice)
   })
 
   it('reports a failure when nothing was painted', async () => {

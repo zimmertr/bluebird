@@ -1039,7 +1039,7 @@ export const STYLES = [
     ],
   },
   {
-    // The theme is the header menu's (#706, #843; records 0158 and 0302):
+    // The theme is the header menu's (#706, #843; records 0158 and 0303):
     // the reader's choice, or the device's setting while they choose System,
     // and either way one attribute on the root that every colour reads.
     // Tailwind's dark variant is a prefers-color-scheme query, so a class

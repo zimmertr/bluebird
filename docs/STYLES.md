@@ -254,7 +254,7 @@ A button's shape says where it stands. A circle floats on the map with nothing b
 The app follows the device's light or dark setting until a reader picks Light
 or Dark from the theme menu, and picking System hands it back (#843). The two
 are one set of names with two sets of values, so no role is spelled twice.
-Record: [0302](architectural-decision-records/0302-the-theme-follows-the-device-until-the-reader-picks.md)
+Record: [0303](architectural-decision-records/0303-the-theme-follows-the-device-until-the-reader-picks.md)
 
 **How it is built.** `frontend/src/index.css` registers each token in an
 `@theme inline` block as `--color-<token>: var(--ui-<token>)`, which gives it a

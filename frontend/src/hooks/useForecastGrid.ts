@@ -10,7 +10,15 @@ import {
 } from '../utils/openMeteo'
 import { canonicalTimes } from '../utils/clientAnalyze'
 import { normalizeWindow, type WindowLimits } from '../utils/forecastWindow'
-import { GridCell, GridSpec, buildGrid, gridView, pairCells, reachKmFor } from '../utils/forecastGrid/forecastGrid'
+import {
+  GridCell,
+  GridSpec,
+  buildGrid,
+  gridView,
+  pairCells,
+  reachKmFor,
+  seedCells,
+} from '../utils/forecastGrid/forecastGrid'
 import { usePacedFetch } from './usePacedFetch'
 import { isAbort } from '../utils/abort'
 
@@ -229,22 +237,29 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // for every sample and paints an empty field with nothing saying so.
     const { startMs, endMs } = normalizeWindow(win.startMs, win.endMs)
 
+    // The cells a destination already stands in, from the report's own
+    // forecasts, which cost nothing and paint at once (#833). Only the rest
+    // of the lattice is fetched.
+    const seeds = seedCells(spec, field, times)
+    const toFetch = spec.points.map((_, i) => i).filter((i) => !seeds.positions.has(i))
+
     const ac = new AbortController()
     let cancelled = false
     // Cleared rather than kept while the fetch runs. The effect re-runs when
     // the analysis changes, and a field from the previous one describes a
     // different bbox over a different window — holding it would paint the old
-    // answer under the new markers for as long as the fetch takes.
+    // answer under the new markers for as long as the fetch takes. The seeds
+    // are this analysis's own, so they paint now.
     clearPace()
     setState({
-      status: 'loading',
+      status: seeds.cells.length > 0 ? 'ready' : 'loading',
       spec,
-      cells: [],
+      cells: seeds.cells,
       pitchKm: spec.pitchKm,
       complete: false,
     })
 
-    // What has come back so far, by lattice index. Weather arrives in chunks
+    // What has come back so far, by lattice position. Weather arrives in chunks
     // and air quality arrives whole and late, so both write here and repaint
     // from whatever is in hand rather than each owning half the picture.
     const wx: (WeatherResult | undefined)[] = new Array(spec.points.length)
@@ -266,7 +281,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
         cloudHave.push(clouds[i] ?? null)
       }
       if (grid.length === 0) grid = canonicalTimes(wxHave)
-      const cells = pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid, cloudHave)
+      const cells = [...seeds.cells, ...pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid, cloudHave)]
       setState({
         status: 'ready',
         spec: spec as GridSpec,
@@ -287,11 +302,16 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // one pass covers all four metrics and switching to AQI recolours the held
     // field with no request. Keying the fetch on `sortBy` is the architecture
     // this line exists to forbid.
-    const air = fetchAqi(spec.points, startMs, endMs, { signal: ac.signal, aqiForecastDays })
+    const air = fetchAqi(
+      toFetch.map((i) => spec.points[i]),
+      startMs,
+      endMs,
+      { signal: ac.signal, aqiForecastDays },
+    )
       .then(({ results: list }) => {
         if (cancelled) return
-        list.forEach((a, i) => {
-          aqi[i] = a
+        list.forEach((a, j) => {
+          aqi[toFetch[j]] = a
         })
         // Only worth a repaint once there is something painted to fold into.
         if (wx.some((w) => w !== undefined)) repaint()
@@ -303,11 +323,8 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
 
     void (async () => {
       try {
-        for (let start = 0; start < spec.points.length; start += PAINT_CHUNK) {
-          const indices: number[] = []
-          for (let i = start; i < Math.min(start + PAINT_CHUNK, spec.points.length); i++) {
-            indices.push(i)
-          }
+        for (let start = 0; start < toFetch.length; start += PAINT_CHUNK) {
+          const indices = toFetch.slice(start, start + PAINT_CHUNK)
           const chunk = indices.map((i) => spec.points[i])
           const got = await fetchWeather(chunk, startMs, endMs, {
             model,

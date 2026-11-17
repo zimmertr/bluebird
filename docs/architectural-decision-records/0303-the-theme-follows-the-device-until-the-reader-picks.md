@@ -1,4 +1,4 @@
-# 0302. The theme follows the device until the reader picks one, from a menu of System, Light and Dark
+# 0303. The theme follows the device until the reader picks one, from a menu of System, Light and Dark
 
 - Status: Accepted. Supersedes [0158](0158-light-theme-behind-semantic-tokens.md) in part: its dark default and its two-way switch
 - Date: 2026-11-16
