@@ -174,12 +174,29 @@ export function IconMenu({ className }: IconProps): ReactNode {
   )
 }
 
+// The sun's and the moon's marks on the 24-unit grid, drawn once: their own
+// glyphs wear them, and so does System's, smaller (#843).
+const SUN_MARKS = (
+  <>
+    <circle cx="12" cy="12" r="4" />
+    <line x1="12" y1="2" x2="12" y2="4" />
+    <line x1="12" y1="20" x2="12" y2="22" />
+    <line x1="2" y1="12" x2="4" y2="12" />
+    <line x1="20" y1="12" x2="22" y2="12" />
+    <line x1="4.93" y1="4.93" x2="6.34" y2="6.34" />
+    <line x1="17.66" y1="17.66" x2="19.07" y2="19.07" />
+    <line x1="4.93" y1="19.07" x2="6.34" y2="17.66" />
+    <line x1="17.66" y1="6.34" x2="19.07" y2="4.93" />
+  </>
+)
+const MOON_MARK = <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+
 /**
  * The theme menu's three glyphs (#706, #843), each the choice it names, on
  * the menu's trigger and beside its row: a sun for Light, a moon for Dark,
- * and the two split by a diagonal for System. Drawn on the Layers glyph's grid
- * and stroke, round-capped like the close cross they stand beside in the
- * panel header.
+ * and the two of them split by a diagonal for System. Drawn on the Layers
+ * glyph's grid and stroke, round-capped like the close cross they stand
+ * beside in the panel header.
  */
 export function IconSun({ className }: IconProps): ReactNode {
   return (
@@ -192,15 +209,7 @@ export function IconSun({ className }: IconProps): ReactNode {
       className={join(ICON.control, className)}
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="4" />
-      <line x1="12" y1="2" x2="12" y2="4" />
-      <line x1="12" y1="20" x2="12" y2="22" />
-      <line x1="2" y1="12" x2="4" y2="12" />
-      <line x1="20" y1="12" x2="22" y2="12" />
-      <line x1="4.93" y1="4.93" x2="6.34" y2="6.34" />
-      <line x1="17.66" y1="17.66" x2="19.07" y2="19.07" />
-      <line x1="4.93" y1="19.07" x2="6.34" y2="17.66" />
-      <line x1="17.66" y1="6.34" x2="19.07" y2="4.93" />
+      {SUN_MARKS}
     </svg>
   )
 }
@@ -218,18 +227,28 @@ export function IconMoon({ className }: IconProps): ReactNode {
       className={join(ICON.control, className)}
       aria-hidden="true"
     >
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      {MOON_MARK}
     </svg>
   )
 }
 
+// System's two halves: the sun's and the moon's own marks at 42%, each
+// centred in its corner of the diagonal, with as much room to the divider as
+// to the glyph's edge (the maintainer, 2026-11-16: "exactly the same icons
+// ... just smaller", "centered in each corner, not hugging the divider").
+// Their stroke is held at 1.5 units rather than scaled with them, or it would
+// thin to 0.84 and vanish at 16px; the divider wears the same 1.5.
+const SPLIT_SCALE = 0.42
+const SPLIT_STROKE = 1.5
+const splitCorner = (at: number) =>
+  `translate(${at} ${at}) scale(${SPLIT_SCALE}) translate(-12 -12)`
+
 /**
- * System, in the theme menu (#843): the Light sun and the Dark moon, small,
- * top left and bottom right of a diagonal, so it reads as both themes with
- * the device deciding. One ink like every other glyph, the divider a step
- * lighter so the two halves stand apart at 16px. The maintainer picked it in
- * a lab over a monitor, a half-filled circle, a filled moon and a two-tone
- * disc (2026-11-16).
+ * System, in the theme menu (#843): the Light sun top left and the Dark moon
+ * bottom right of a diagonal, so it reads as both themes with the device
+ * deciding. One ink like every other glyph. The maintainer picked it in a
+ * lab over a monitor, a half-filled circle, a filled moon and a two-tone disc
+ * (2026-11-16).
  */
 export function IconSunMoon({ className }: IconProps): ReactNode {
   return (
@@ -237,22 +256,19 @@ export function IconSunMoon({ className }: IconProps): ReactNode {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth={SPLIT_STROKE}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={join(ICON.control, className)}
       aria-hidden="true"
     >
-      <circle cx="7.8" cy="7.8" r="2.5" />
-      <line x1="11.7" y1="7.8" x2="12.8" y2="7.8" />
-      <line x1="7.8" y1="11.7" x2="7.8" y2="12.8" />
-      <line x1="3.9" y1="7.8" x2="2.8" y2="7.8" />
-      <line x1="7.8" y1="3.9" x2="7.8" y2="2.8" />
-      <line x1="5.04" y1="5.04" x2="4.26" y2="4.26" />
-      <line x1="10.56" y1="5.04" x2="11.34" y2="4.26" />
-      <line x1="5.04" y1="10.56" x2="4.26" y2="11.34" />
-      <path d="M19.58 16.13A3.78 3.78 0 1 1 15.47 12.02 2.94 2.94 0 0 0 19.58 16.13z" />
-      <line x1="20.5" y1="3.5" x2="3.5" y2="20.5" strokeWidth="1.5" />
+      <g transform={splitCorner(7)} strokeWidth={SPLIT_STROKE / SPLIT_SCALE}>
+        {SUN_MARKS}
+      </g>
+      <g transform={splitCorner(17)} strokeWidth={SPLIT_STROKE / SPLIT_SCALE}>
+        {MOON_MARK}
+      </g>
+      <line x1="20.5" y1="3.5" x2="3.5" y2="20.5" />
     </svg>
   )
 }

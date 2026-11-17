@@ -43,6 +43,18 @@ describe('ThemeMenu (#843)', () => {
     expect(button.querySelectorAll('svg')).toHaveLength(1)
   })
 
+  // System is the Light and Dark glyphs themselves, smaller (the maintainer,
+  // 2026-11-16): each corner holds exactly the marks its own icon draws.
+  it('draws System from the sun and the moon themselves', () => {
+    const marks = (el: Element) => el.innerHTML
+    const sun = render(<IconSun />).container.querySelector('svg')!
+    const moon = render(<IconMoon />).container.querySelector('svg')!
+    const corners = render(<IconSunMoon />).container.querySelectorAll('svg > g')
+    expect(corners).toHaveLength(2)
+    expect(marks(corners[0])).toBe(marks(sun))
+    expect(marks(corners[1])).toBe(marks(moon))
+  })
+
   // The header's round button in the one trigger's shape, with no chevron
   // and no tooltip a phone could not show.
   it('is the header trigger, with no chevron and no title', () => {
