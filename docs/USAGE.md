@@ -433,8 +433,10 @@ your analysis covered, and painted on the colors the marker legend already shows
 weather, or is the whole valley like that?
 
 It is the one layer whose switch costs something, which is why it is a switch. Turning
-it on fetches a forecast for every square, after your results have landed and never
-in front of them; leave it on and each later analysis grids itself the same way. Once
+it on paints every square one of your destinations stands in at once, from the
+forecast your results already carry, and fetches a forecast for every other square,
+after your results have landed and never in front of them; leave it on and each later
+analysis grids itself the same way. Once
 the points are in hand everything else is free: changing the ranking recolors the
 field without asking for anything new, and so does the timeline. It fills in as it
 arrives rather than appearing all at once. A square stays empty only where the
@@ -446,9 +448,10 @@ the server keeps snow depth only at the places it knows, and a square is not
 one. The switch stays on, and the field comes back with any
 other ranking.
 
-After a very large analysis it can take a while to start, because it shares a
-per-minute allowance with the analysis you just ran and has to wait its turn. The
-legend says so while that is happening, and counts down. If it cannot be fetched
+After a large analysis the squares between your destinations can take a minute or
+more to start filling in, because they share a per-minute allowance with the analysis
+you just ran and have to wait their turn. The legend says so while that is happening,
+and counts down. If it cannot be fetched
 at all, the legend says that too rather than leaving the layer switched on with
 nothing under it.
 

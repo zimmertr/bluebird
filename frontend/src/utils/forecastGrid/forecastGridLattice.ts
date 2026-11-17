@@ -76,10 +76,12 @@ export interface GridCell {
  * How many samples one grid may cost.
  *
  * Open-Meteo bills weighted calls per location, so this is the whole spend
- * ceiling: 600 samples over a 16-day window is ~1,030 weighted calls of weather
- * (600 x 16/14 x 1.5) and ~600 of air quality, whose request stops at its own
- * horizon, each against the visitor's own budget for that service, which the
- * client pacer spreads rather than refuses.
+ * ceiling: 600 samples over a 16-day window is ~1,100 weighted calls of weather
+ * (600 x 16/14 x 1.6) and ~690 of cloud (600 x 16/14 x 1.0) on the forecast
+ * host, and ~600 of air quality, whose request stops at its own horizon, each
+ * against the visitor's own budget for that host, which the client pacer
+ * spreads rather than refuses. The squares a destination stands in cost none
+ * of it (`seedCells`).
  * Below the cap the pitch is the model's; above it the pitch coarsens, and the
  * legend says so.
  */
@@ -495,6 +497,68 @@ export function pairCells(
     })
   }
   return cells
+}
+
+/**
+ * The cells the analysis already has a forecast for, painted from the
+ * destinations standing in them rather than fetched (#833).
+ *
+ * The lattice costs 2.6 weighted calls a sample on the forecast host (weather
+ * at 16 variables, cloud at 9), so a full one is 1,560, nearly three minutes
+ * of the visitor's 550 a minute, and the analysis that just ran has usually
+ * spent the minute already: replayed against the pacer, the first chunk waited
+ * 60 s after any analysis over about 62 destinations. Every cell that holds a
+ * destination needs no request at all, because the report holds that
+ * destination's forecast, so those cells paint the moment the layer is on and
+ * the fetch skips them.
+ *
+ * A destination is the same field sampled at a different point inside the
+ * cell. A lattice sample is the free air at the ground's height under its
+ * centre (`terrainElevation`), and a destination's forecast is the free air at
+ * the destination's own height, which is the ground's there too: the same rule
+ * at a point within one pitch of the centre, which is the distance the picture
+ * already claims nothing finer than. So only a row with a known elevation
+ * seeds a cell, since one without was read at the coordinate's 10 m wind and
+ * 2 m temperature; only a row with an hourly series does, since the playhead
+ * and the arrows read the series; and where several stand in one cell, the
+ * one nearest its centre does.
+ *
+ * Returns the seeded cells and the POSITIONS they fill, so the fetch can leave
+ * those positions out.
+ */
+export function seedCells(
+  spec: GridSpec,
+  field: readonly DestinationResult[],
+  times: readonly number[],
+): { cells: GridCell[]; positions: Set<number> } {
+  const positionOf = new Map<number, number>()
+  spec.indices.forEach((index, pos) => positionOf.set(index, pos))
+  // Position -> [squared distance to the centre in degrees, row]. Degrees are
+  // fine for a comparison inside one cell, where cos(lat) barely moves.
+  const best = new Map<number, [number, DestinationResult]>()
+  for (const row of field) {
+    if (!row.series || row.elevation_ft == null) continue
+    const c = Math.floor((row.longitude - spec.west) / spec.lonStep)
+    const r = Math.floor((row.latitude - spec.south) / spec.latStep)
+    if (c < 0 || c >= spec.cols || r < 0 || r >= spec.rows) continue
+    const pos = positionOf.get(r * spec.cols + c)
+    if (pos === undefined) continue
+    const centre = spec.points[pos]
+    const dLat = row.latitude - centre.latitude
+    const dLon = row.longitude - centre.longitude
+    const d = dLat * dLat + dLon * dLon
+    const held = best.get(pos)
+    if (held === undefined || d < held[0]) best.set(pos, [d, row])
+  }
+  const cells: GridCell[] = []
+  for (const [pos, [, row]] of best) {
+    cells.push({
+      index: spec.indices[pos],
+      box: spec.cells[pos],
+      row: row.series_times ? onGrid(row, row.series_times, times) : row,
+    })
+  }
+  return { cells, positions: new Set(best.keys()) }
 }
 
 // A sample point in the shape `assemble` zips against. The name is never

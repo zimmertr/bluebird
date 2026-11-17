@@ -324,9 +324,12 @@ funneling can exceed it. And the map's forecast-grid overlay adjusts each
 sample — wind and temperature alike — to the terrain height Open-Meteo resolves
 for that coordinate (its ~90 m elevation model, reported on every response)
 rather than to any destination's claimed height. So high ground paints its real
-numbers, but a summit marker can still read windier and warmer than the cell
-containing it, because the cell's height is the ground at the sample point, not
-the peak. Measured 2026-09-16 over Dome Peak: the nearest lattice point resolves
+numbers. The square a destination stands in is the exception: it paints that
+destination's own forecast, which the report already holds, so a marker and its
+own square agree. A summit marker can still read windier and warmer than the
+squares around it, because their height is the ground at their own sample
+points, not the peak. Measured 2026-09-16 over Dome Peak, before a destination's
+square took its forecast: the nearest lattice point resolves
 to a terrain height of 2,624 m and its window minimum reads 38.7 °F, where the
 marker at 8,921 ft (2,719 m) reads 38.5 °F. The gap is small here and is not
 always: the same cell's plain `temperature_2m` minimum is 23.9 °F, which is
@@ -383,7 +386,8 @@ model that.
 
 The map's forecast-grid overlay reads the same free air, at the terrain height
 Open-Meteo resolves for each lattice point rather than at any destination's own
-height. The grid caveat under the wind above therefore covers both metrics: the
+height, except in a square a destination stands in, which paints that
+destination's forecast. The grid caveat under the wind above therefore covers both metrics: the
 field and the marker standing on it are answering the same question at two
 different elevations.
 
@@ -1644,13 +1648,31 @@ this whole area" looks like. The same goes for AQI, which comes from CAMS at a
 much coarser grid than any of the weather models, so an AQI field is usually
 smooth and featureless, and that is the data rather than a rendering artifact.
 
-**The field can disagree with a marker standing on it.** One 3 km grid cell
+**The squares your destinations stand in paint first, from forecasts already
+in hand.** Every other square is a request: a sample costs 2.6 of Open-Meteo's
+weighted calls (16 weather variables and the 9 the cloud deck reads), so a full
+grid of 600 is 1,560, nearly three minutes of the per-minute allowance the
+browser holds itself to, and the analysis that just ran has usually spent the
+current minute. Replayed against that allowance (2026-11-16), the first square
+used to wait about 60 seconds after any analysis over about 60 destinations.
+A square a destination stands in needs no request, because the report already
+holds that destination's forecast, so those squares paint the moment the layer
+is on and the fetch skips them. It is the same field sampled at another point
+inside the square: a lattice sample is the free air at the ground's height under
+the square's centre, and a destination's forecast is the free air at its own
+height, which is the ground's there too. Only a destination with a known
+elevation and an hourly forecast paints its square, and where several share a
+square, the one nearest its centre does. Over six peak lists the destinations
+painted 15 to 30% of the squares; the rest fill in as the allowance frees, which
+after a 200-destination analysis is still about three minutes.
+
+**The field can disagree with a marker standing beside it.** One 3 km grid cell
 holds a summit and the valley floor below it, and the model answers for the
-cell, not for either. The destination's own row is a forecast for its own
-coordinates; the field under it is a forecast for a nearby grid point, blended
-with its neighbours. Where the two differ, what you are seeing is the resolution
-limit of the model itself, which is the most useful thing a field can show you
-about a forecast.
+cell, not for either. A destination's own square paints its own forecast, so
+the two agree there; the squares around it are forecasts for nearby grid points,
+blended with their neighbours. Where a destination's square stands out from the
+squares around it, what you are seeing is the resolution limit of the model
+itself, which is the most useful thing a field can show you about a forecast.
 
 **It covers where the analysis looked, not the whole map.** The lattice spans
 the destinations an analysis found, plus a margin, and it fades out at that
