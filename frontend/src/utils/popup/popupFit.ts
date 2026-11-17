@@ -341,8 +341,8 @@ export function clearSize(
           : -1
     const byHeight = lower + PLACE_SLOP_PX >= least.height
     const byWidth = narrower + 2 * PLACE_SLOP_PX >= least.width
-    const lowered = Math.min(height, Math.max(least.height, Math.floor(lower)))
-    const narrowed = Math.min(width, Math.max(least.width, Math.floor(narrower)))
+    const lowered = clamp(Math.floor(lower), least.height, height)
+    const narrowed = clamp(Math.floor(narrower), least.width, width)
     if (wide && byWidth) width = narrowed
     if (tall && byHeight) height = lowered
     if (wide || tall) continue
