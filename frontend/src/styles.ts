@@ -3426,9 +3426,11 @@ export const MENU_TRIGGER = {
    * (`HEADER_FACE`) beside the close button, wearing the chosen theme's
    * glyph, and the one trigger's states, so it lights while its menu is out
    * as every trigger does. It wears no chevron: the close button beside it
-   * has none, and the pair would stand uneven.
+   * has none, and the pair would stand uneven. `relative`, so the words it
+   * hides for a screen reader stand inside it rather than in whatever box
+   * holds it, where they could stretch a scroll box.
    */
-  header: `${HEADER_FACE} ${TRIGGER_STATE}`,
+  header: `${HEADER_FACE} relative ${TRIGGER_STATE}`,
 } as const
 
 /**

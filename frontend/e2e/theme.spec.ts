@@ -18,7 +18,7 @@ async function themeAtFirstBody(page: Page) {
       ;(window as { firstTheme?: string }).firstTheme = document.documentElement.dataset.theme ?? 'dark'
       seen.disconnect()
     })
-    seen.observe(document.documentElement, { childList: true })
+    seen.observe(document, { childList: true, subtree: true })
   })
 }
 
