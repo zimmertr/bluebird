@@ -220,6 +220,7 @@ test.describe('a long Removed count at 1024', () => {
       const bar = row.closest('[data-tour="results"]')!.firstElementChild!
       return {
         group: box(group),
+        end: box(group.parentElement!),
         modes: box(row.firstElementChild!),
         row: box(row),
         bar: box(bar),
@@ -231,8 +232,10 @@ test.describe('a long Removed count at 1024', () => {
     expect(Math.abs(parts.group.top - parts.modes.top)).toBeLessThanOrEqual(1)
     expect(parts.group.height).toBeCloseTo(parts.modes.height, 0)
     await expect(button.getByText('Removed (100)')).toBeVisible()
-    // At the right end of the line.
-    near(parts.group.right, parts.row.right)
+    // At the right end of the line, with the bar's collapse button after
+    // it, which stands on this line once the bar is one line (896px).
+    near(parts.end.right, parts.row.right)
+    expect(parts.end.right - parts.group.right).toBeLessThanOrEqual(32)
     // The map ends where the bar starts, and the panels start where it ends.
     near(parts.map.bottom, parts.bar.top)
     near(parts.under.top, parts.bar.bottom)
