@@ -132,11 +132,18 @@ async function drag(page: Page, card: Locator, dx: number, dy: number) {
 }
 
 // That a drag widened the card by `by`, or stopped it 8px short of a surface
-// over the map beside it, as the drag's bounds do (`clearSize`).
+// over the map beside it, as the drag's bounds do (`clearSize`). A card that
+// opened inside those 8px holds its width instead, never shrinking to clear
+// the surface (record 0304): the opening fit keeps a card off a surface, not
+// 8px from it, and the ring's first card opens 1.5px beside the map's rows.
 function widened(before: Awaited<ReturnType<typeof measure>>, after: Awaited<ReturnType<typeof measure>>, by: number) {
-  const note = JSON.stringify({ before: before.card, after: after.card, beside: after.beside })
+  const note = JSON.stringify({ before: before.card, after: after.card, opened: before.beside, beside: after.beside })
   if (after.card.width > before.card.width + by) return
   expect(after.beside, note).not.toBeNull()
+  if (before.beside !== null && before.beside < 8) {
+    expect(Math.abs(after.card.width - before.card.width), note).toBeLessThanOrEqual(1)
+    return
+  }
   expect(Math.abs(after.beside! - 8), note).toBeLessThanOrEqual(2)
 }
 

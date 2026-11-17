@@ -293,11 +293,11 @@ describe('what a render redraws', () => {
     const { rerender } = render(table(waiting))
     // The waiting row's elevation cell alone ticks.
     expect(screen.getAllByText(fireLoadingFrame(0))).toHaveLength(1)
-    expect(screen.queryByText('14,411')).toBeNull()
+    expect(screen.queryByText('14411')).toBeNull()
     expect(screen.getByText('12281')).toBeTruthy()
     rerender(table(NO_KEYS))
     expect(vi.getTimerCount()).toBe(0)
-    expect(screen.getByText('14,411')).toBeTruthy()
+    expect(screen.getByText('14411')).toBeTruthy()
   })
 
   // One clock for both flag columns: it runs while EITHER check waits, and
@@ -336,7 +336,7 @@ describe('a place with no recorded elevation', () => {
     const mark = cell.querySelector('sup')
     expect(mark?.textContent).toBe('†')
     expect(mark?.className).toBe(TABLE.mark)
-    expect(cellUnder(placed, 'Elevation').textContent).toBe('14,411')
+    expect(cellUnder(placed, 'Elevation').textContent).toBe('14411')
     expect(cellUnder(placed, 'Elevation').querySelector('sup')).toBeNull()
     const note = screen.getByText(TERRAIN_HEIGHT_NOTE)
     for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(note.classList).toContain(cls)
