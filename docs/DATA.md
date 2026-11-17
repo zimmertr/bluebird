@@ -1651,9 +1651,9 @@ smooth and featureless, and that is the data rather than a rendering artifact.
 **The squares your destinations stand in paint first, from forecasts already
 in hand.** Every other square is a request: a sample costs 2.6 of Open-Meteo's
 weighted calls (16 weather variables and the 9 the cloud deck reads), so a full
-grid of 600 is 1,560, nearly three minutes of the per-minute allowance the
-browser holds itself to, and the analysis that just ran has usually spent the
-current minute. Replayed against that allowance (2026-11-16), the first square
+grid of 600, the most a grid asked for until 2026-11-16, was 1,560, nearly three
+minutes of the per-minute allowance the browser holds itself to, and the analysis
+that just ran has usually spent the current minute. Replayed against that allowance (2026-11-16), the first square
 used to wait about 60 seconds after any analysis over about 60 destinations.
 A square a destination stands in needs no request, because the report already
 holds that destination's forecast, so those squares paint the moment the layer
@@ -1664,8 +1664,10 @@ height, which is the ground's there too. A destination with no elevation of its
 own, such as a pasted list's peak before its elevation arrives, was read at the
 terrain height under it, the lattice's own rule, so it paints its square as
 well; where several share a square, the one nearest its centre does. Over six peak lists the destinations
-painted 15 to 30% of the squares; the rest fill in as the allowance frees, which
-after a 200-destination analysis is still about three minutes.
+painted 15 to 30% of the squares; the rest fill in as the allowance frees. A grid
+now asks for 300 squares at most rather than 600, so after the 100-peak Bulger
+list the squares between the peaks take one wait of about a minute where they
+took two or three, drawn 4.9 km apart rather than 3.5 km.
 
 **The field can disagree with a marker standing beside it.** One 3 km grid cell
 holds a summit and the valley floor below it, and the model answers for the

@@ -76,16 +76,23 @@ export interface GridCell {
  * How many samples one grid may cost.
  *
  * Open-Meteo bills weighted calls per location, so this is the whole spend
- * ceiling: 600 samples over a 16-day window is ~1,100 weighted calls of weather
- * (600 x 16/14 x 1.6) and ~690 of cloud (600 x 16/14 x 1.0) on the forecast
- * host, and ~600 of air quality, whose request stops at its own horizon, each
+ * ceiling: 300 samples over a 16-day window is ~550 weighted calls of weather
+ * (300 x 16/14 x 1.6) and ~340 of cloud (300 x 16/14 x 1.0) on the forecast
+ * host, and ~300 of air quality, whose request stops at its own horizon, each
  * against the visitor's own budget for that host, which the client pacer
  * spreads rather than refuses. The squares a destination stands in cost none
  * of it (`seedCells`).
+ *
+ * It was 600 until #833. At 2.6 calls a sample on the forecast host, a full
+ * 600 was nearly three minutes of the browser's 550 a minute, so after the
+ * Bulger list's 100-destination analysis the squares between the peaks took
+ * two or three one-minute waits. At 300 they take one, at 4.9 km rather than
+ * 3.5 km (the maintainer, 2026-11-16, choosing 300 over 400 and 600). A field
+ * small enough to fit either cap is drawn at the same pitch as before.
  * Below the cap the pitch is the model's; above it the pitch coarsens, and the
  * legend says so.
  */
-export const MAX_GRID_CELLS = 600
+export const MAX_GRID_CELLS = 300
 
 /**
  * The coverage slider's span, in multiples of the MODEL's grid pitch.

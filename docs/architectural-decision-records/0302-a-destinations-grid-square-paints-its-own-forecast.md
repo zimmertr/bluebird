@@ -1,8 +1,8 @@
-# 0302. A destination's grid square paints its own forecast, and the fetch skips it
+# 0302. A destination's grid square paints its own forecast, the fetch skips it, and a grid asks for 300 squares
 
 - Status: Accepted. Amends [0016](0016-overlays-not-knobs.md) (what the grid's toggle fetches)
 - Date: 2026-11-16
-- Decider: the maintainer (TJ), 2026-11-16: "Yes, I like that", to painting the squares the destinations stand in from the forecasts the report holds, fetching only the rest, and leaving the hourly budget out of this change
+- Decider: the maintainer (TJ), 2026-11-16: "Yes, I like that", to painting the squares the destinations stand in from the forecasts the report holds, fetching only the rest, and leaving the hourly budget out of this change; then "300 squares", over 400 and 600, after testing the preview
 - Issues and PRs: #833
 - Cited in code as: #833
 - Guide: [`frontend/src/utils/forecastGrid/CLAUDE.md`](../../frontend/src/utils/forecastGrid/CLAUDE.md), the `forecastGridLattice.ts` bullet; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), the `useForecastGrid.ts` bullet; [`docs/DATA.md`](../DATA.md), The forecast grid
@@ -21,7 +21,8 @@ So after a typical analysis, no cut to the lattice gets the first paint under a 
 
 - **A square a destination stands in paints from that destination's forecast** (`seedCells` in `forecastGridLattice.ts`), the moment the layer is on, and the fetch leaves those squares out, the air quality fetch included.
 - **A row seeds a square when it carries a height it was read at and an hourly series.** A lattice sample is the free air at the ground's height under the square's centre (`terrainElevation`), and a destination's forecast is the free air at its own height, which is the ground's there too, at a point within one pitch of the centre. A row with no elevation of its own was read at the terrain height Open-Meteo resolved for it (`terrain_ft`, #673), the lattice's own rule, and on a pasted list's first analysis that is every row, because the elevations arrive after the forecasts. A row with no series cannot answer the playhead or the arrows. Where several share a square, the one nearest its centre seeds it.
-- **The fetch is otherwise unchanged:** the same pacer, the same chunks, the same lattice and pitch, and still keyed on the analysis and never on the ranking (record 0016).
+- **`MAX_GRID_CELLS` is 300, not 600.** Seeding alone left the squares between the peaks two or three one-minute waits behind on the Bulger list. At 300 they take one.
+- **The fetch is otherwise unchanged:** the same pacer, the same chunks, and still keyed on the analysis and never on the ranking (record 0016).
 - **The hourly budget is left alone.** Pricing the grid against the 5,000 an hour before it fetches is a separate question.
 
 ## Evidence
@@ -39,9 +40,21 @@ A virtual-time replay of `WeightedBudget.startFor` with the real constants (550 
 
 The first version of this change seeded only rows with an elevation of their own, and the maintainer's test on the preview (2026-11-16, the Bulger list, ranked by temperature) still showed `Waiting` with nothing painted: a pasted list's rows carry `terrain_ft` until their elevations arrive, so none seeded. The Sierra list's first paint was already 3 s, because its own analysis overran the minute and waited, so its oldest bookings had left the window by the time it landed. No real Open-Meteo quota was spent.
 
+Seeding painted the peaks' squares at once on the preview, but the maintainer still watched `Waiting · 60s` cycle three times on the Bulger list before the grid finished. The same replay over that list, with seeding, at four caps:
+
+| Cap | Squares | Pitch | Seeded | The rest, after the analysis lands |
+|---|---|---|---|---|
+| 600 | 546 | 3.5 km | 76 | 127 s |
+| 400 | 361 | 4.3 km | 67 | 63 s |
+| 300 | 265 | 4.9 km | 64 | 63 s |
+| 200 | 186 | 6.0 km | 58 | 60 s |
+
+At least one wait stays after any analysis over about 62 destinations, because that analysis has spent most of the minute.
+
 ## Alternatives rejected
 
-- A lower `MAX_GRID_CELLS`: halving it to 300 brings the whole grid in about a minute sooner after a 200-destination analysis, but the first paint still waits about 60 s, and the picture is coarser.
+- A lower cap on its own, without seeding: the first paint still waits about 60 s after a 200-destination analysis.
+- 400: the same single wait on the Bulger list at 4.3 km. The maintainer took 300, which spends less of the hourly allowance.
 - A smaller first chunk: 50 samples paint at once after a 100-destination analysis, but not after a 200-destination one, which leaves nothing in the minute.
 - A coarse lattice first, then the fill: every pass is a request, so the first paint waits just the same, and the whole grid costs more.
 - Fewer variables in the grid's request: the pressure levels are what put the grid's wind and temperature at the ground's height, and dropping the cloud request would leave a cloud-deck ranking with no field.
@@ -49,4 +62,4 @@ The first version of this change seeded only rows with an elevation of their own
 
 ## Consequences
 
-The grid paints at once wherever a destination stands, and the squares between fill in as the allowance frees, so the picture starts patchy. After a 200-destination analysis the whole grid still takes about three minutes, and the legend still says `Waiting` with its countdown while the pacer sleeps over a partial field. A marker and its own square now agree by construction, so the model's resolution limit shows between a destination's square and the squares around it rather than under the marker.
+The grid paints at once wherever a destination stands, and the squares between fill in as the allowance frees, so the picture starts patchy. A field big enough to reach the cap is drawn about 1.4 times coarser than before (600 to 300 squares over the same ground); a small one, such as the Snoqualmie Peak Pin's 68 squares, is drawn at the model's own pitch as before. After a large analysis the squares between still wait about a minute, and the legend still says `Waiting` with its countdown while the pacer sleeps over a partial field. A marker and its own square now agree by construction, so the model's resolution limit shows between a destination's square and the squares around it rather than under the marker.

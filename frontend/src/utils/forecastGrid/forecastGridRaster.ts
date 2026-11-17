@@ -46,7 +46,7 @@ export interface GridRaster {
 /**
  * The field as one pixel per sample.
  *
- * Deliberately tiny — a 600-sample lattice is a ~25×24 image — because the
+ * Deliberately tiny — a 300-sample lattice is a ~17×17 image — because the
  * smoothing is the raster layer's job. `raster-resampling: linear` magnifies it
  * on the GPU, which is both free and the same bilinear the field is entitled
  * to between adjacent model grid cells. Interpolating here instead would mean
@@ -150,7 +150,7 @@ const EDGE_ALPHA = 40
 //
 // Harmless under `nearest`, which never blends and so never reads the colour of
 // a pixel it is not drawing. Run for both rather than branched, because the
-// cost is a pass over ~600 pixels and a branch here would be one more thing
+// cost is a pass over ~300 pixels and a branch here would be one more thing
 // that could disagree between the two styles.
 function bleedColor(rgba: Uint8ClampedArray, cols: number, rows: number): void {
   for (let pass = 0; pass < 3; pass++) {
