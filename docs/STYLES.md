@@ -303,7 +303,8 @@ letter stands on the smoke key's own chip colour, which does not change.
 `HEADER_BUTTON` shape with the one trigger's states) beside the close button at
 a desk and beside Done in a phone's Controls sheet title row; no other sheet
 shows it. It is `MenuSelect` in the `header` shape: it wears the current
-choice's glyph, a monitor for System, a sun for Light and a moon for Dark, is
+choice's glyph, a sun and a moon split by a diagonal for System, a sun for
+Light and a moon for Dark, is
 named `Theme` and the choice, and opens the one menu with System, Light and
 Dark, each row leading with its glyph (`MENU.glyphRow`), as a card at a desk and
 a sheet headed Theme on a phone. `useTheme` writes `data-theme` on the root, and

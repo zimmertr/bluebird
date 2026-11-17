@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import ThemeMenu from './ThemeMenu'
-import { IconMonitor, IconMoon, IconSun } from './icons'
+import { IconMoon, IconSun, IconSunMoon } from './icons'
 import { render } from '../testSupport/render'
 import { mediaList } from '../testSupport/mediaList'
 import { useTheme } from '../hooks/useTheme'
@@ -31,7 +31,7 @@ describe('ThemeMenu (#843)', () => {
   // and the choice. Each glyph is compared with its icon drawn on its own, so
   // a redrawn one still passes and a swapped pair does not.
   it.each([
-    ['system', 'Theme System', IconMonitor],
+    ['system', 'Theme System', IconSunMoon],
     ['light', 'Theme Light', IconSun],
     ['dark', 'Theme Dark', IconMoon],
   ] as const)('wears the %s glyph and says so in its name', (choice, name, Icon) => {

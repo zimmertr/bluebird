@@ -176,9 +176,10 @@ export function IconMenu({ className }: IconProps): ReactNode {
 
 /**
  * The theme menu's three glyphs (#706, #843), each the choice it names, on
- * the menu's trigger and beside its row: a sun for Light, a moon for Dark and
- * a monitor for System. Drawn on the Layers glyph's grid and stroke,
- * round-capped like the close cross they stand beside in the panel header.
+ * the menu's trigger and beside its row: a sun for Light, a moon for Dark,
+ * and the two split by a diagonal for System. Drawn on the Layers glyph's grid
+ * and stroke, round-capped like the close cross they stand beside in the
+ * panel header.
  */
 export function IconSun({ className }: IconProps): ReactNode {
   return (
@@ -223,11 +224,14 @@ export function IconMoon({ className }: IconProps): ReactNode {
 }
 
 /**
- * System, in the theme menu (#843): a screen on its stand, the device whose
- * own setting the choice follows. The maintainer picked it over a half-filled
- * circle and a split sun and moon (2026-11-16).
+ * System, in the theme menu (#843): the Light sun and the Dark moon, small,
+ * top left and bottom right of a diagonal, so it reads as both themes with
+ * the device deciding. One ink like every other glyph, the divider a step
+ * lighter so the two halves stand apart at 16px. The maintainer picked it in
+ * a lab over a monitor, a half-filled circle, a filled moon and a two-tone
+ * disc (2026-11-16).
  */
-export function IconMonitor({ className }: IconProps): ReactNode {
+export function IconSunMoon({ className }: IconProps): ReactNode {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -239,9 +243,16 @@ export function IconMonitor({ className }: IconProps): ReactNode {
       className={join(ICON.control, className)}
       aria-hidden="true"
     >
-      <rect x="3" y="4" width="18" height="12" rx="2" />
-      <line x1="8" y1="20" x2="16" y2="20" />
-      <line x1="12" y1="16" x2="12" y2="20" />
+      <circle cx="7.8" cy="7.8" r="2.5" />
+      <line x1="11.7" y1="7.8" x2="12.8" y2="7.8" />
+      <line x1="7.8" y1="11.7" x2="7.8" y2="12.8" />
+      <line x1="3.9" y1="7.8" x2="2.8" y2="7.8" />
+      <line x1="7.8" y1="3.9" x2="7.8" y2="2.8" />
+      <line x1="5.04" y1="5.04" x2="4.26" y2="4.26" />
+      <line x1="10.56" y1="5.04" x2="11.34" y2="4.26" />
+      <line x1="5.04" y1="10.56" x2="4.26" y2="11.34" />
+      <path d="M19.58 16.13A3.78 3.78 0 1 1 15.47 12.02 2.94 2.94 0 0 0 19.58 16.13z" />
+      <line x1="20.5" y1="3.5" x2="3.5" y2="20.5" strokeWidth="1.5" />
     </svg>
   )
 }
