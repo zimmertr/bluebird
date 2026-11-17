@@ -453,6 +453,22 @@ export const TRANSPORT_W_PX = 368
 export const LEGEND_BESIDE_TRANSPORT_PX = 2 * (2 * MAP_EDGE_INSET_PX + LEGEND_CARD_W_PX) + TRANSPORT_W_PX
 
 /**
+ * The same line while a desk's controls card is open (record 0305): the chip
+ * row stands beside the card, one inset past its right edge, so the legend
+ * card's right edge is the controls card's width and that inset further in,
+ * and the line is twice that wider. 1610px.
+ */
+export const LEGEND_BESIDE_CARD_TRANSPORT_PX =
+  LEGEND_BESIDE_TRANSPORT_PX + 2 * (DESK_CARD_W_PX + MAP_EDGE_INSET_PX)
+
+/**
+ * How far up the chip row stands beside a desk's open controls card: the
+ * search pill's 32px row and the 12px under it, which the card holds
+ * (`MAP_ROWS`). The chips are then the map's first row.
+ */
+export const CARD_CHIPS_RISE_PX = 44
+
+/**
  * The tallest a desk's legend card may be (#714): the map below the rows and
  * the gap under its chip, less the floor `legendBottomPx` keeps. A CSS length,
  * because the card hangs from its chip inside the rows and cannot see the
@@ -468,12 +484,19 @@ export const LEGEND_BESIDE_TRANSPORT_PX = 2 * (2 * MAP_EDGE_INSET_PX + LEGEND_CA
  * line up it is negative and clamps to nothing. A step in CSS because the
  * card cannot see the map's width any more than its height, and a container
  * query would want the line spelled as a literal class Tailwind can scan.
+ *
+ * Beside a desk's open controls card (`besideCard`, record 0305) the chip row
+ * is the map's first row, not its second, so the card under it starts one row
+ * and one gap higher, and it stands the card's reach further right, so the
+ * line it clears the player under moves out by twice that.
  */
-export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
-  const base = MAP_ROWS_PX + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, false)
+export function legendMaxCss(liftPx: number, timelineShown: boolean, besideCard = false): string {
+  const rowsPx = besideCard ? MAP_ROWS_PX - CARD_CHIPS_RISE_PX : MAP_ROWS_PX
+  const base = rowsPx + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, false)
   if (!timelineShown) return `calc(100cqh - ${base}px)`
   const extra = legendBottomPx(liftPx, true) - legendBottomPx(liftPx, false)
-  return `calc(100cqh - ${base}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`
+  const line = besideCard ? LEGEND_BESIDE_CARD_TRANSPORT_PX : LEGEND_BESIDE_TRANSPORT_PX
+  return `calc(100cqh - ${base}px - clamp(0px, (${line}px - 100cqw) * 1000, ${extra}px))`
 }
 
 /**

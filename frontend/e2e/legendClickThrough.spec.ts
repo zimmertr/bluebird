@@ -112,11 +112,12 @@ test('the desk legend card scrolls when its sections outgrow the map', async ({ 
 })
 
 // With the player on, the card stops above its band only where the centred
-// bar reaches under it: a map narrower than 864px (record 0261). The panel is
-// open at both widths, so the map is the window less the panel.
+// bar reaches under it (record 0261). The controls card is open at both
+// widths (record 0305), so the legend stands beside it, in the map's first
+// row, and the bar reaches under it on a map narrower than 1610px.
 for (const [width, side] of [
-  [1440, 'wide'],
-  [1024, 'narrow'],
+  [1680, 'wide'],
+  [1280, 'narrow'],
 ] as const) {
   test(`the desk legend card clears the player only where the bar reaches under it, ${side} map`, async ({ page }) => {
     await page.setViewportSize({ width, height: 720 })
@@ -133,11 +134,11 @@ for (const [width, side] of [
       return { maxHeight: parseFloat(getComputedStyle(box).maxHeight), mapW: map.clientWidth, mapH: map.clientHeight }
     })
     test.info().annotations.push({ type: `legend cap ${width} px`, description: JSON.stringify(at) })
-    // The rows (88) and the gap under the chip (4), then the plain gap (32)
-    // or the player's band (112).
-    if (side === 'wide') expect(at.mapW).toBeGreaterThanOrEqual(864)
-    else expect(at.mapW).toBeLessThan(864)
+    // The chip row beside the card (44) and the gap under the chip (4), then
+    // the plain gap (32) or the player's band (112).
+    if (side === 'wide') expect(at.mapW).toBeGreaterThanOrEqual(1610)
+    else expect(at.mapW).toBeLessThan(1610)
     const floor = side === 'wide' ? 32 : 112
-    expect(Math.abs(at.maxHeight - (at.mapH - 88 - 4 - floor))).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(at.maxHeight - (at.mapH - 44 - 4 - floor))).toBeLessThanOrEqual(0.5)
   })
 }

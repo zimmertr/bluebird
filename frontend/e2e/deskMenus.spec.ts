@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, isoDay } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, isoDay, openSection } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every menu at a desk is the one menu (#714, record 0201): a card 4px under
@@ -103,6 +103,7 @@ test('the Layers chip and the results bar open their menus under themselves, lit
 
 test('the model list takes its row and lines up with the field\'s right edge', async ({ page }) => {
   await analyzed(page)
+  await openSection(page, 'Forecast')
   const field = page.getByRole('button', { name: /^Forecast model:/ })
   const rest = await edgeOf(field)
   await field.click()
@@ -122,6 +123,7 @@ test('the model list takes its row and lines up with the field\'s right edge', a
 
 test('the calendar stands 4px under its field at the field\'s width', async ({ page }) => {
   await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+  await openSection(page, 'Forecast')
   const field = page.getByRole('button', { name: /^When\b/ })
   await field.click()
   await expect(page.getByRole('grid', { name: 'Forecast day' })).toBeVisible()
@@ -276,6 +278,10 @@ test('every trigger lights the one way while open and rests as it was after', as
   const lit = new Set<string>()
   const lifted = new Set<string>()
   for (const [name, trigger, close] of triggers) {
+    // A panel field stands in its section of the card, which a report
+    // collapsed (record 0305).
+    if (name === 'model picker' || name === 'calendar') await openSection(page, 'Forecast')
+    if (name === 'aggregate') await openSection(page, 'Metrics')
     // The legend's card stands open on a desk until it is shut.
     if ((await trigger.getAttribute('aria-expanded')) === 'true') await trigger.click()
     await away()

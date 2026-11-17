@@ -284,6 +284,10 @@ export default function MapStage({
       sheet={!isDesktop}
     />
   )
+  // A desk's controls card is open: a framing move leaves its width clear on
+  // the left, and the legend's chip stands beside it (record 0305).
+  const cardOpen = isDesktop && sidebarOpen && controlsCard !== undefined
+  const cameraPadLeftPx = cardOpen ? DESK_CARD_REACH_PX : 0
   const legendChip = (
     <MapLegend
       sections={legend}
@@ -291,11 +295,10 @@ export default function MapStage({
       sheetLiftPx={layout.sheetLiftPx}
       timelineShown={timelineShown}
       initiallyOpen={legendInitiallyOpen}
+      besideCard={cardOpen}
     />
   )
 
-  // A framing move leaves a desk's open card's width clear on the left.
-  const cameraPadLeftPx = isDesktop && sidebarOpen && controlsCard !== undefined ? DESK_CARD_REACH_PX : 0
 
   // While a pane moves the box is the window's height, centred on the
   // column, so the map is resized where the move starts or ends rather than

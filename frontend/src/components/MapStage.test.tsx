@@ -9,6 +9,7 @@ import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { DRAGGED_MAP_PX, FAB_INSET_PX, phoneCornerLiftPx, transportStandPx } from '../utils/results/resultsSheet'
 import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
+import { DESK_CARD_REACH_PX } from '../utils/results/resultsSheet'
 import type { Place } from '../utils/geocode'
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
@@ -22,8 +23,13 @@ vi.mock('./MapView', () => ({
 }))
 vi.mock('./MapLegend', async (original) => ({
   ...(await original<typeof import('./MapLegend')>()),
-  default: (props: { sections: readonly unknown[]; sheet: boolean }) => (
-    <div data-testid="legend" data-sections={String(props.sections.length)} data-sheet={String(props.sheet)} />
+  default: (props: { sections: readonly unknown[]; sheet: boolean; besideCard?: boolean }) => (
+    <div
+      data-testid="legend"
+      data-sections={String(props.sections.length)}
+      data-sheet={String(props.sheet)}
+      data-beside-card={String(props.besideCard)}
+    />
   ),
 }))
 vi.mock('./LayersPopover', () => ({
@@ -68,10 +74,12 @@ vi.mock('./MapRows', () => ({
     layers: ReactNode
     legend: ReactNode
     covered: boolean
+    card?: (search: ReactNode) => ReactNode
   }) => (
     <div
       data-testid="rows"
       data-desk={String(props.desk)}
+      data-card={String(props.card !== undefined)}
       data-summary={props.controlsSummary}
       data-covered={String(props.covered)}
     >
@@ -270,6 +278,30 @@ describe('MapStage', () => {
     expect(column().className).not.toContain(LAYOUT_HOLD.clip)
     rerender(<MapStage {...props({ layoutMotion: 'panes' })} />)
     expect(column().className).toContain(LAYOUT_HOLD.clip)
+  })
+
+  // A desk's controls card stands in the rows (record 0305). While it is
+  // open a framing move leaves its reach clear on the map's left and the
+  // legend's chip stands beside it; shut, or on a phone, neither.
+  it('hands a desk\'s rows the controls card, and the map and the legend where it stands', () => {
+    const controlsCard = () => null
+    const cases = [
+      { isDesktop: true, sidebarOpen: true, card: 'true', pad: DESK_CARD_REACH_PX, beside: 'true' },
+      { isDesktop: true, sidebarOpen: false, card: 'true', pad: 0, beside: 'false' },
+      { isDesktop: false, sidebarOpen: true, card: 'false', pad: 0, beside: 'false' },
+    ]
+    for (const { isDesktop, sidebarOpen, card, pad, beside } of cases) {
+      seen.mapView.length = 0
+      const { unmount } = render(<MapStage {...props({ isDesktop, sidebarOpen, controlsCard })} />)
+      expect(screen.getByTestId('rows').dataset.card).toBe(card)
+      expect(seen.mapView[0].cameraPadLeftPx).toBe(pad)
+      expect(screen.getByTestId('legend').dataset.besideCard).toBe(beside)
+      unmount()
+    }
+    // With no card handed to it, an open panel pads nothing.
+    seen.mapView.length = 0
+    render(<MapStage {...props({ isDesktop: true, sidebarOpen: true })} />)
+    expect(seen.mapView[0].cameraPadLeftPx).toBe(0)
   })
 
   it('hands the rows the Legend and Layers chips at both widths', () => {

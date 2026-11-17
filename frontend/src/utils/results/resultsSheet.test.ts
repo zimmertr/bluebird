@@ -33,7 +33,10 @@ import {
   transportStandPx,
   legendBottomPx,
   legendMaxCss,
+  CARD_CHIPS_RISE_PX,
   CHIP_MENU_GAP_PX,
+  DESK_CARD_W_PX,
+  LEGEND_BESIDE_CARD_TRANSPORT_PX,
   LEGEND_BESIDE_TRANSPORT_PX,
   LEGEND_CARD_W_PX,
   MAP_EDGE_INSET_PX,
@@ -134,6 +137,22 @@ describe('the map chrome anchors', () => {
     expect(reserve(1648)).toBe(LEGEND_GAP_PX)
     expect(reserve(LEGEND_BESIDE_TRANSPORT_PX - 1)).toBe(TRANSPORT_BAND_PX)
     expect(reserve(737)).toBe(TRANSPORT_BAND_PX)
+  })
+
+  // Beside a desk's open controls card (record 0305) the chip row is the
+  // map's first row, so the card under it starts 44px higher, and it stands
+  // the controls card's reach further right, so the line moves out by twice
+  // that: 1610px.
+  it('starts a row higher and clears the player on a wider map beside the controls card', () => {
+    expect(CARD_CHIPS_RISE_PX).toBe(44)
+    expect(LEGEND_BESIDE_CARD_TRANSPORT_PX).toBe(1610)
+    expect(LEGEND_BESIDE_CARD_TRANSPORT_PX - LEGEND_BESIDE_TRANSPORT_PX).toBe(2 * (DESK_CARD_W_PX + MAP_EDGE_INSET_PX))
+    const base = MAP_ROWS_PX - CARD_CHIPS_RISE_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX
+    const extra = TRANSPORT_BAND_PX - LEGEND_GAP_PX
+    expect(legendMaxCss(0, false, true)).toBe(`calc(100cqh - ${base}px)`)
+    expect(legendMaxCss(0, true, true)).toBe(
+      `calc(100cqh - ${base}px - clamp(0px, (${LEGEND_BESIDE_CARD_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`,
+    )
   })
 
   // The line is where the bar's left edge stands one inset clear of the

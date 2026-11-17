@@ -108,9 +108,12 @@ export default function MapRows({
 
   return (
     // A popup keeps clear of the rows (`resultsLayer.ts` finds every
-    // `data-map-overlay`), which stand over the top of every map.
+    // `data-map-overlay`), which stand over the top of every map. Around a
+    // desk's card the stack is no one box: open, the card and the chip row
+    // stand side by side over an empty corner a popup may use, so each is
+    // its own surface (`AppDrawer` marks the card).
     <div
-      data-map-overlay=""
+      data-map-overlay={card ? undefined : ''}
       className={`${MAP_ROWS.stack} ${cardOpen ? DESK_CARD.stackOpen : ''} ${LAYER.mapControls}`}
       inert={covered}
     >
@@ -118,7 +121,7 @@ export default function MapRows({
       {/* Hidden rather than unmounted while the pill is wide, so an open
           menu's chip and the panel's focus hand-off keep their state. Beside
           an open card the field's list hangs over the card, not the chips. */}
-      <div className={searching && !cardOpen ? 'hidden' : MAP_ROWS.chips}>
+      <div data-map-overlay={card ? '' : undefined} className={searching && !cardOpen ? 'hidden' : MAP_ROWS.chips}>
         {summaryShown && (
           // A chip like Layers and Legend beside it, so it answers the
           // pointer and lights while its sheet is up as they do (record

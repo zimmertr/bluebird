@@ -1,4 +1,4 @@
-import { test, expect, message, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
+import { test, expect, message, DESTINATION_NAMES, resultRows, isoDay, openSection } from './fixtures'
 import type { Page } from '@playwright/test'
 
 test('a share link restores the ring, the types, the window and the model', async ({ page, request }) => {
@@ -17,6 +17,7 @@ test('a share link restores the ring, the types, the window and the model', asyn
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Edit polygon' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'Peaks', exact: true })).toBeChecked()
+  await openSection(page, 'Forecast')
   await expect(page.getByRole('button', { name: `Forecast model: ${model.label}`, exact: true })).toBeVisible()
   await expect.poll(() => new URL(page.url()).searchParams.get('d1')).toBe(d1)
   await expect.poll(() => new URL(page.url()).searchParams.get('d2')).toBe(d2)
@@ -91,6 +92,7 @@ test('a model the deployment does not offer falls back to the default, in the pa
       '&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55',
   )
 
+  await openSection(page, 'Forecast')
   await expect(page.getByRole('button', { name: `Forecast model: ${fallback.label} +1`, exact: true })).toBeVisible()
   await expect.poll(() => new URL(page.url()).searchParams.get('model')).toBe(fallback.id)
   await expect.poll(() => new URL(page.url()).searchParams.get('compare')).toBe(compared.id)

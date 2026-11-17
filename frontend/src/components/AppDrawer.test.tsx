@@ -142,6 +142,8 @@ describe('AppDrawer', () => {
     const { container } = render(drawer(true))
     expect(container.querySelector('aside')?.previousElementSibling).toBeNull()
     expect(container.querySelector('aside')?.className).toBe(DESK_CARD.card)
+    // A popup keeps clear of the card as it does of the map's rows.
+    expect(container.querySelector('aside')?.hasAttribute('data-map-overlay')).toBe(true)
     expect(screen.queryByRole('dialog', { name: 'Controls' })).toBeNull()
     expect(screen.getByTestId('panel').dataset.phone).toBe('false')
   })

@@ -284,7 +284,9 @@ export default function AppDrawer({
     // its sections and its footer, which stay mounted so their state, and a
     // link's run on open, outlive a close. Hidden parts take no Tab stop
     // (#576) and are read by no screen reader.
-    <aside className={open ? DESK_CARD.card : MAP_ROWS.row}>
+    // A popup keeps clear of it as it does of the map's rows, which it is
+    // one of (`data-map-overlay`).
+    <aside data-map-overlay="" className={open ? DESK_CARD.card : MAP_ROWS.row}>
       {/* The header's buttons: the theme menu, then the close button, which
           shuts the card. */}
       <div className={open ? PANEL_HEADER.actions : 'hidden'}>

@@ -178,6 +178,11 @@ describe('MapRows at a desk', () => {
     const chips = screen.getByRole('button', { name: 'Legend' }).parentElement!
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     expect(chips.className).toBe(MAP_ROWS.chips)
+    // The card and the chip row are each a surface a popup keeps clear of,
+    // and the stack around them is none: the corner under the chips is the
+    // map's (`AppDrawer` marks the card).
+    expect(stack.hasAttribute('data-map-overlay')).toBe(false)
+    expect(chips.hasAttribute('data-map-overlay')).toBe(true)
 
     rerender(rows({ desk: true, sidebarOpen: false, card }))
     expect(stack.className).not.toContain(DESK_CARD.stackOpen)
@@ -188,6 +193,13 @@ describe('MapRows at a desk', () => {
     expect(chips.className).toBe(MAP_ROWS.chips)
     // The same field through an open and a close, so what was typed stays.
     expect(screen.getByRole('button', { name: 'Search' }).parentElement).toBe(pill)
+  })
+
+  // With no card the rows are one surface, as on a phone.
+  it('marks the stack as the one surface a popup keeps clear of where it holds no card', () => {
+    const { container } = render(rows())
+    expect((container.firstElementChild as HTMLElement).hasAttribute('data-map-overlay')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Legend' }).parentElement!.hasAttribute('data-map-overlay')).toBe(false)
   })
 
   it('keeps Legend and Layers while the panel is open', () => {
