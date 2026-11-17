@@ -13,6 +13,7 @@ import {
   reachKmFor,
   gridImageCoordinates,
   pairCells,
+  seedCells,
 } from './forecastGridLattice'
 import { NO_VALUE, fillColor } from '../resultFeatures'
 import type { AqiResult, CloudResult, WeatherResult } from '../openMeteo'
@@ -25,6 +26,9 @@ import {
   gridRow,
   gridSpec,
   mesh,
+  resultRow,
+  series,
+  squareLattice,
   weatherResult,
 } from '../../testSupport/fixtures'
 
@@ -449,5 +453,74 @@ describe('gridImageCoordinates', () => {
     // of the Sicilian one, regardless of which cells were kept between them.
     expect(topLeft[0]).toBeLessThan(-121.76)
     expect(bottomRight[0]).toBeGreaterThan(14.99)
+  })
+})
+
+// #833: a cell a destination stands in is painted from the report's own
+// forecast, and the fetch leaves it out.
+describe('seedCells', () => {
+  // Three of a 2 x 2 lattice's cells kept, 0.2 degrees each, from 46.0 N
+  // 122.0 W; virtual index 3 (the north-east cell) is outside the reach.
+  const spec = squareLattice({ cols: 2, rows: 2, west: -122, south: 46, step: 0.2, indices: [0, 1, 2] })
+  const held = (over: Parameters<typeof resultRow>[0] = {}) =>
+    resultRow({ elevation_ft: 6000, series: series({ temp_f: [30, 31] }), ...over })
+
+  it("paints the cell a destination stands in with that destination's forecast", () => {
+    // Row 1, column 0: virtual index 2, the third kept position.
+    const row = held({ latitude: 46.25, longitude: -121.95 })
+    const { cells, positions } = seedCells(spec, [row], [1000, 2000])
+    expect([...positions]).toEqual([2])
+    expect(cells).toHaveLength(1)
+    expect(cells[0].index).toBe(2)
+    expect(cells[0].box).toEqual(spec.cells[2])
+    expect(cells[0].row).toBe(row)
+  })
+
+  it('seeds nothing in a cell the reach left out', () => {
+    // Row 1, column 1 is virtual index 3, which is not kept.
+    const row = held({ latitude: 46.25, longitude: -121.75 })
+    expect(seedCells(spec, [row], [1000, 2000]).positions.size).toBe(0)
+  })
+
+  it('seeds nothing from a row with no hourly series or no height it was read at', () => {
+    // No series: the playhead and the arrows would have nothing to read. No
+    // height at all: the row was read at 10 m and 2 m, where a lattice sample
+    // is read at the ground's height.
+    const bare = held({ latitude: 46.05, longitude: -121.95, series: null })
+    const flat = held({ latitude: 46.05, longitude: -121.75, elevation_ft: null })
+    expect(seedCells(spec, [bare, flat], [1000, 2000]).cells).toEqual([])
+  })
+
+  // A pasted list's first analysis: the elevations arrive after the
+  // forecasts, so every row was read at the terrain height, which is the
+  // lattice's own rule (#673).
+  it('seeds from a row read at the terrain height', () => {
+    const pasted = held({ latitude: 46.05, longitude: -121.95, elevation_ft: null, terrain_ft: 5900 })
+    expect([...seedCells(spec, [pasted], [1000, 2000]).positions]).toEqual([0])
+  })
+
+  it('takes the destination nearest the centre when two share a cell', () => {
+    const corner = held({ name: 'Corner', latitude: 46.01, longitude: -121.99 })
+    const centre = held({ name: 'Centre', latitude: 46.09, longitude: -121.91 })
+    const { cells } = seedCells(spec, [corner, centre], [1000, 2000])
+    expect(cells).toHaveLength(1)
+    expect(cells[0].row.name).toBe('Centre')
+  })
+
+  it('ignores a destination outside the lattice', () => {
+    const far = held({ latitude: 47, longitude: -120 })
+    expect(seedCells(spec, [far], [1000, 2000]).cells).toEqual([])
+  })
+
+  it("re-indexes a row that carries its own hours onto the report's", () => {
+    const pin = held({
+      latitude: 46.05,
+      longitude: -121.95,
+      series: series({ temp_f: [30, 31] }),
+      series_times: [1000, 2000],
+    })
+    const [cell] = seedCells(spec, [pin], [500, 1000, 2000]).cells
+    expect(cell.row.series!.temp_f).toEqual([null, 30, 31])
+    expect(cell.row.series_times).toBeUndefined()
   })
 })
