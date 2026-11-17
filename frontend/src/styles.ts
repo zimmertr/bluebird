@@ -4080,12 +4080,15 @@ export const TRANSPORT_PLAY = 'flex h-7 w-7 touch:h-8 touch:w-8 flex-shrink-0 it
 export const TABLE = {
   cell: 'px-2 py-1.5',
   /**
-   * A header cell stands on the row's bottom edge (#825; record 0304): a
+   * A header cell stands at the row's top edge (#825; record 0304): a
    * metric's header is two lines, its name over its unit (`headUnit`), and a
-   * one-line header beside it (Name, Type) reads on the same baseline as the
-   * name above the unit rather than floating at the middle.
+   * one-line header beside it (Name, Type, AQI) shares the first line with
+   * every other name. Bottom aligned, which this first shipped as, a one-line
+   * name stood level with the units instead (TJ, 2026-11-16). 4px over and
+   * under and the two lines set at 1.2 keep the two-line row near 36px, where
+   * the one-line header's 8px and 16px lines made it 49.
    */
-  head: `${TEXT.subheading} px-2 py-2 text-left align-bottom`,
+  head: `${TEXT.subheading} px-2 py-1 text-left align-top leading-[1.2]`,
   /**
    * A number column's header and cells stand at the cell's end (record 0222):
    * the elevation and every metric, so a column's digits line up down the
@@ -4093,7 +4096,7 @@ export const TABLE = {
    * own rather than `head` plus `text-right`, because two alignments on one
    * element resolve by stylesheet order rather than by which was written last.
    */
-  headNumber: `${TEXT.subheading} px-2 py-2 text-right align-bottom`,
+  headNumber: `${TEXT.subheading} px-2 py-1 text-right align-top leading-[1.2]`,
   /**
    * A column's unit, on its own line under the metric's name (#825; record
    * 0304). In one line, `Freezing level · Min (ft)` was the widest thing in its

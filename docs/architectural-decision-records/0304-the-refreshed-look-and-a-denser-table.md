@@ -1,11 +1,11 @@
 # 0304. The app wears one bundled face, sentence-case headings and softer corners, and the results table shows more columns at a time
 
-- Status: Accepted. Amends [0142](0142-sticky-name-column.md) (a phone's Name column is capped at 34% of the sheet, not 45%, and a long name wraps to a second line) and [0257](0257-one-table-look-and-button-shape-by-place.md) (the results table prints heights without a thousands separator and precipitation without trailing zeros; the popup, the chart's card and the CSV keep their prints)
+- Status: Accepted. Amends [0142](0142-sticky-name-column.md) (a phone's Name column is capped at 34% of the sheet, not 45%, and a long name wraps to a second line)
 - Date: 2026-11-16
-- Decider: the maintainer (TJ), who picked the Refreshed look in #825's second lab on 2026-11-16 and asked for a table that shows more columns at a time, "especially on mobile", because Bluebird Forecast is a spreadsheet app; and who chose, the same day, a looks-only PR with today's controls and words, ahead of the two layout PRs, with the table levers two-line headers, a narrower Name on a phone, tighter rows and compact numbers
+- Decider: the maintainer (TJ), who picked the Refreshed look in #825's second lab on 2026-11-16 and asked for a table that shows more columns at a time, "especially on mobile", because Bluebird Forecast is a spreadsheet app; and who chose, the same day, a looks-only PR with today's controls and words, ahead of the two layout PRs, with the table levers two-line headers, a narrower Name on a phone, tighter rows and compact numbers; and who, on seeing the build that day, put the grouped numbers back and chose top-aligned, tighter headers
 - Issues and PRs: #825
 - Cited in code as: #825; record 0304
-- Guide: [`CLAUDE.md`](../../CLAUDE.md), Rules for every change, "Style through the design system, never ad hoc"; [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), `ResultsTableRow.tsx` and `ResultsTableHeader.tsx`; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `tableColumns.ts` and `numbers.ts`; [`docs/STYLES.md`](../STYLES.md), Roles and Shapes and tables
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Rules for every change, "Style through the design system, never ad hoc"; [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), `ResultsTableRow.tsx` and `ResultsTableHeader.tsx`; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `tableColumns.ts`; [`docs/STYLES.md`](../STYLES.md), Roles and Shapes and tables
 
 ## Context
 
@@ -20,10 +20,10 @@ Today's table spent its width on its headers. A metric's whole label stood on on
 - **Sentence-case headings.** `TEXT.section`, `TEXT.overline` and `BADGE_ACCENT` lose `uppercase` and their letter-spacing. Only the transform goes: the words in the source never changed. The section heading moves from slate-300 bold to the strong ink at semibold, so the ink carries the rank the capitals did: white on the dark panel at 14.62:1.
 - **Softer corners.** `RADIUS.control` is 6px (`rounded-md`), where it was 4px, and `RADIUS.surface` is 12px (`rounded-xl`), where it was 8px. Every sheet's top corners and the map's credit corner follow the surface, and the popup's close button follows the control.
 - **A denser table.**
-  - A metric's header is two lines, its name over its unit at the micro step (`TABLE.headUnit`), bottom aligned. The unit comes from the column's declared `unit`, never parsed back out of its label, and the full label stays the header's accessible name.
+  - A metric's header is two lines, its name over its unit at the micro step (`TABLE.headUnit`), top aligned, so a one-line name (Name, Type, AQI) shares the first line with every other name, and tight: 4px over and under with both lines at 1.2, about 36px where the first build's was 49. The unit comes from the column's declared `unit`, never parsed back out of its label, and the full label stays the header's accessible name.
   - On a phone the Name column is capped at 34% of the sheet (`TABLE.nameCap`): 122px at 360 and 133 at 390, where it was 162 and 175. A long name wraps to a second line rather than truncating (`TABLE.nameText`). A desk keeps one line.
   - The cells keep their padding, so a row is today's height unless its name wraps. The lab's taller row was declined, because a spreadsheet wants rows on screen.
-  - The table prints heights without a thousands separator (`14406`, not `14,406`) and precipitation and snowfall without trailing zeros (`0.4`, not `0.40`), through a new `cell` print on `ColDef` that only the table reads. The popup, the chart's card and the CSV keep `format` and `csv`, where a figure stands alone and the separator reads better.
+  - The table's numbers print as they did: heights grouped in thousands and precipitation at its fixed decimals, the one print the popup, the chart's card and the table share (record [0257](0257-one-table-look-and-button-shape-by-place.md)).
 - **No control, string or width changes.** This PR restyles today's controls and words. The phone controls stay 32px (record [0223](0223-finger-controls-draw-32.md)): the maintainer was unsure about the lab's 34px, so the record holds.
 
 ## Evidence
@@ -51,6 +51,8 @@ The browser suite also found a drag bug the narrower card exposed. A card opened
 
 ## Alternatives rejected
 
+- Compact numbers in the table, heights without the separator (`14411`) and precipitation without trailing zeros (`0.4`): built first, as one of the maintainer's levers, and taken out the same day. Every metric column is as wide as its header, not its values: `Elevation` and its arrow's slot take 62px against 43px for `14,411` and 40 for `14411` (Inter at 12px, measured 2026-11-16), and the same holds for every metric, so the compact print bought no width, cost the comma's legibility in five digits, and left a precipitation column's decimal points out of line.
+- Bottom-aligned headers, which the first build shipped: a one-line name stood level with the units rather than with the other names. Middle aligned, it would float between the two lines.
 - The system face with tabular figures: it measures differently on every platform, so the measured widths would be true on one machine only, and it keeps the look the maintainer called dated.
 - Ranked cells as pills: the tinted cell reads as a heat map down a column, which a pill breaks up.
 - The lab's 34px phone controls and its Metrics grid behind Add a limit: the first is record 0223's call and stays, and the second is a control change for the layout PRs, not a look.

@@ -83,30 +83,6 @@ describe('COLUMNS', () => {
     expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['type', 'elevation_ft', ...CLOUD_KEYS, ...FREEZE_KEYS, ...SNOW_DEPTH_KEYS])
   })
 
-  // The table's compact numbers (record 0304): heights print as plain digits
-  // and precipitation drops its trailing zeros on screen, while the file
-  // writes exactly what it wrote before.
-  it('prints heights without a separator and trims precipitation in the table only', () => {
-    const col = (key: string) => COLUMNS.find((c) => c.key === key)!
-    expect(ELEVATION_COL.cell!(9415)).toBe('9415')
-    expect(col('freeze_min_ft').cell!(12850)).toBe('12850')
-    expect(col('cloud_deck_min_ft').cell!(8940)).toBe('8940')
-    expect(col('precip_total_in').cell!(0)).toBe('0.0')
-    expect(col('precip_total_in').cell!(0.05)).toBe('0.05')
-    expect(col('snowfall_avg_in_hr').cell!(0.12)).toBe('0.12')
-    // The popup and the file read `format` and `csv`, untouched.
-    expect(ELEVATION_COL.format!(9415)).toBe((9415).toLocaleString())
-    expect(col('precip_total_in').format!(0)).toBe('0.000')
-    // Exactly these columns print narrower in the table.
-    expect(COLUMNS.filter((c) => c.cell).map((c) => c.key)).toEqual([
-      'elevation_ft',
-      ...CLOUD_KEYS,
-      ...FREEZE_KEYS,
-      ...PRECIP_KEYS,
-      ...SNOWFALL_KEYS,
-    ])
-  })
-
   // The header's two lines (record 0304): a metric's name over the unit it
   // declares, the Elevation and Wildfire columns' over theirs, and one line
   // for a column with no unit.

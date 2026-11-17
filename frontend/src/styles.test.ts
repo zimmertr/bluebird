@@ -2408,8 +2408,15 @@ describe('the refreshed look', () => {
 
   // A metric's header is two lines, its name over its unit at the micro step,
   // so a column is as wide as its widest word rather than its whole label.
-  it('sets a header in two lines, bottom aligned, its unit at the micro step', () => {
-    for (const head of [STYLES.TABLE.head, STYLES.TABLE.headNumber]) expect(head.split(' ')).toContain('align-bottom')
+  // Top aligned, so a one-line name (Name, Type, AQI) shares the first line
+  // with every other name rather than standing level with the units, and
+  // tight: 4px over and under and both lines at 1.2 (TJ, 2026-11-16).
+  it('sets a header in two lines, top aligned and tight, its unit at the micro step', () => {
+    for (const head of [STYLES.TABLE.head, STYLES.TABLE.headNumber]) {
+      expect(head.split(' ')).toEqual(expect.arrayContaining(['align-top', 'py-1', 'leading-[1.2]']))
+    }
+    // The two lines and the padding: 12px and 11px at 1.2, and 4px twice.
+    expect(Math.round(12 * 1.2 + 11 * 1.2 + 2 * 4)).toBe(36)
     expect(STYLES.TABLE.headUnit.split(' ')).toEqual(['block', ...TEXT.micro.split(' '), 'font-normal'])
   })
 

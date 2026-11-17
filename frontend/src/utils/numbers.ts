@@ -56,28 +56,3 @@ export function roundTo(x: number, digits: number): number {
 export function grouped(n: number): string {
   return n.toLocaleString()
 }
-
-/**
- * A number as plain digits, with no thousands separator: the results table's
- * elevation, freezing level and cloud deck cells, and the popup that reads the
- * same formatters (#825; record 0304). `9,415` grouped is a sixth glyph in a
- * column whose every value has four or five digits, so the separator widened
- * every such column by one, and in tabular figures four digits read as a
- * height at a glance without it. A count in a sentence keeps `grouped`.
- */
-export function ungrouped(n: number): string {
-  return String(n)
-}
-
-/**
- * A fixed-point string with its trailing zeros dropped, down to one decimal:
- * `0.000` is `0.0`, `0.050` is `0.05`, `0.123` stays (#825; record 0304). The
- * table's precipitation and snowfall print three decimals for the value that
- * needs them, and a column of `0.000` spent four digits saying nothing. The
- * downloaded file keeps the fixed digits, because a spreadsheet reads them.
- */
-export function trimZeros(fixed: string): string {
-  if (!fixed.includes('.')) return fixed
-  const trimmed = fixed.replace(/0+$/, '')
-  return trimmed.endsWith('.') ? `${trimmed}0` : trimmed
-}

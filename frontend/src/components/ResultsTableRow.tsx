@@ -42,6 +42,7 @@ import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
 import { NO_VALUE_MARK } from '../utils/unavailableCell'
+import { grouped } from '../utils/numbers'
 
 // One body row of the results table, ranked or pending. Apart from the table
 // and memoized because a report can hold a thousand rows and most changes to
@@ -409,7 +410,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
           ctx.widths,
           key,
           <>
-            {cellText(ELEVATION_COL, row.terrain_ft)}
+            {grouped(Number(row.terrain_ft))}
             <FootnoteMark glyph={TERRAIN_HEIGHT_MARK} target="terrain" />
           </>,
         )}
