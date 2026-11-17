@@ -266,6 +266,25 @@ const SNOWFALL_RATE = HOURLY_UNIT.snowfall
 // level's height (`cloudDeckMark`), on screen, in the popup that reads these
 // formatters, and in the downloaded file, which groups no thousands.
 const cloudDeckCell = (v: unknown): string => cloudDeckMark(v) ?? grouped(Number(v))
+const cloudDeckCsv = (v: unknown): string => cloudDeckMark(v, false) ?? String(v)
+
+// What a row *is*, which stopped being obvious the moment one polygon
+// could return peaks and lakes together. It leads with the identity
+// columns rather than sitting among the metrics, because it describes the
+// destination rather than its weather, and it is the same word the popups
+// and the OSM query use. Title-cased for display; the CSV keeps the raw
+// value, which is what an API caller and a re-import both expect. Named,
+// like `ELEVATION_COL`, because the clicked feature's popup spells its kind
+// through this format too (#712).
+export const TYPE_COL: ColDef = {
+  key: 'type',
+  label: 'Type',
+  format: (v) => (typeof v === 'string' && v ? v[0].toUpperCase() + v.slice(1) : NO_VALUE_MARK),
+  csv: (v) => (typeof v === 'string' ? v : ''),
+}
+
+const wholeInches = (v: unknown) => grouped(Math.round(Number(v)))
+
 export const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
   TYPE_COL,
