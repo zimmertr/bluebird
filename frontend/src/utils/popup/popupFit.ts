@@ -130,6 +130,17 @@ function intoRegion(figure: Rect, region: Rect, margin: number): Point {
 }
 
 /**
+ * Each obstacle grown by the fit's breath, which is what a card is scored
+ * against as it opens: a card 1.5px beside the map's rows stood whole by
+ * area alone, and the drag's own bounds, which keep the breath, then took it
+ * as standing in the way (#825; record 0304). Scored this way, the card
+ * steps the few pixels that give it the breath, the shortest move winning.
+ */
+function breathing(obstacles: readonly Rect[], margin: number): Rect[] {
+  return obstacles.map((o) => ({ left: o.left - margin, top: o.top - margin, right: o.right + margin, bottom: o.bottom + margin }))
+}
+
+/**
  * The move that shows the most of a figure. The plain fit into the region is
  * one candidate; for each obstacle, stepping clear of it on each of its four
  * sides and then fitting again is four more. The candidate with the most of
@@ -153,10 +164,11 @@ export function fitPan(figure: Rect, region: Rect, obstacles: readonly Rect[], m
       candidates.push({ x: base.x + step.x + back.x, y: base.y + step.y + back.y })
     }
   }
+  const kept = breathing(obstacles, margin)
   let best = candidates[0]
   let bestArea = -1
   for (const c of candidates) {
-    const area = visibleArea(shifted(figure, c.x, c.y), region, obstacles)
+    const area = visibleArea(shifted(figure, c.x, c.y), region, kept)
     const shorter = Math.abs(c.x) + Math.abs(c.y) < Math.abs(best.x) + Math.abs(best.y)
     if (better(area, bestArea, shorter)) {
       best = c
@@ -175,10 +187,11 @@ export function fitPan(figure: Rect, region: Rect, obstacles: readonly Rect[], m
 export function placePopup(marker: Point, size: Size, region: Rect, obstacles: readonly Rect[] = []): Placement {
   let best: Placement | null = null
   let bestArea = -1
+  const kept = breathing(obstacles, FIT_MARGIN_PX)
   for (const anchor of ['top', 'bottom'] as const) {
     const figure = figureOf(marker, size, anchor)
     const pan = fitPan(figure, region, obstacles)
-    const area = visibleArea(shifted(figure, pan.x, pan.y), region, obstacles)
+    const area = visibleArea(shifted(figure, pan.x, pan.y), region, kept)
     const shorter =
       best !== null && Math.abs(pan.x) + Math.abs(pan.y) < Math.abs(best.dx) + Math.abs(best.dy)
     if (better(area, bestArea, shorter)) {

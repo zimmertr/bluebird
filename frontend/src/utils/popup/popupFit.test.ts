@@ -84,6 +84,19 @@ describe('placePopup', () => {
     expect(placePopup({ x: 206, y: 320 }, CARD, PHONE, [PHONE_COLUMN])).toEqual({ anchor: 'top', dx: 0, dy: -58 })
   })
 
+  // A card that stands clear of a surface by less than the fit's breath
+  // steps the rest of the way (#825; record 0304): a 200-wide card centred at
+  // 400, its left edge 1.5px off a column ending at 298.5, moves 6.5px right.
+  it('steps a card out to the breath beside a surface', () => {
+    const wide: Rect = { left: 0, top: 0, right: 1280, bottom: 800 }
+    const column: Rect = { left: 0, top: 0, right: 298.5, bottom: 800 }
+    expect(placePopup({ x: 400, y: 300 }, { width: 200, height: 200 }, wide, [column])).toEqual({
+      anchor: 'top',
+      dx: 6.5,
+      dy: 0,
+    })
+  })
+
   it('steps the card sideways past the column on a desktop', () => {
     expect(placePopup({ x: 300, y: 200 }, CARD, SHORT_DESKTOP, [DESKTOP_COLUMN])).toEqual({
       anchor: 'top',
