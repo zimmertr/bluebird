@@ -115,8 +115,13 @@ export const TEXT = {
    * and a heading outranked by its own sub-block is no heading. It keeps the
    * 14px size, the weight and the tracking that already set it above the
    * subheading; only the step moved (the maintainer's option B, 2026-10-13).
+   *
+   * Sentence case since the refreshed look (#825; record 0304): tracked
+   * capitals read dated beside Inter, so the heading holds its rank on size,
+   * weight and the strongest ink instead. The words in the source never
+   * changed; only the transform that capitalised them went.
    */
-  section: 'text-sm font-bold uppercase tracking-wider text-ink-mid',
+  section: 'text-sm font-semibold text-ink-strong',
   /** The single call to action, deliberately a step up from the panel body. */
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
@@ -134,8 +139,12 @@ export const TEXT = {
   caption: CAPTION,
   /** Prose that explains a control without being one. */
   helper: `${CAPTION} italic`,
-  /** Tiny all-caps labels: the model list's group heads and columns, the player's axis. */
-  overline: `${MICRO} font-semibold uppercase tracking-wider`,
+  /**
+   * Tiny labels: the model list's group heads and columns, the player's axis.
+   * In sentence case since the refreshed look (#825; record 0304), for the
+   * section heading's reason; the weight alone sets it above the micro step.
+   */
+  overline: `${MICRO} font-semibold`,
   /** Attribution, timestamps, overflow counts — present but never first. */
   micro: MICRO,
 } as const
@@ -154,6 +163,17 @@ export const TEXT = {
  * hoisted value.
  */
 export const CONTROL_SIZE = 'text-xs'
+
+/**
+ * Digits that line up down a column: the results table's numbers, the
+ * player's hour and the analysis overlay's count (#825; record 0304). They
+ * were set in the system monospace so a column of figures aligned; tabular
+ * figures do the same in Inter, every digit one width, without dropping the
+ * table into a typewriter face beside the names in the sans. The coordinate
+ * box stays monospace, because what it holds is pasted text a reader edits
+ * character by character, not figures read down a column.
+ */
+export const FIGURES = 'tabular-nums'
 
 /**
  * The reading tier: the two dialogs and the analysis overlay card.
@@ -248,10 +268,19 @@ export const LINK_INERT = 'aria-disabled:opacity-40 aria-disabled:cursor-not-all
  * back into the bundle.
  */
 export const RADIUS = {
-  /** Form controls, small buttons, inline chips and swatches. */
-  control: 'rounded',
-  /** Anything floating above the page: cards, dropdowns, tooltips, CTAs. */
-  surface: 'rounded-lg',
+  /**
+   * Form controls, small buttons, inline chips and swatches. 6px since the
+   * refreshed look (#825; record 0304), where it was 4px: on a 28 to 32px
+   * control the softer corner is what took the panel out of the dated look,
+   * and it stays well short of a pill, which is a different role.
+   */
+  control: 'rounded-md',
+  /**
+   * Anything floating above the page: cards, dropdowns, tooltips, CTAs. 12px
+   * since the refreshed look (#825; record 0304), twice the control's, so a
+   * card still reads as the larger object around the controls inside it.
+   */
+  surface: 'rounded-xl',
   /** Pills, dots, spinners, progress bars. */
   pill: 'rounded-full',
 } as const
@@ -409,7 +438,7 @@ export const SURFACE_CARD =
  * fall on, and the edge is already the strongest boundary on the screen.
  */
 export const SURFACE_SHEET =
-  `bg-panel border-t border-frame rounded-t-lg overflow-hidden ${ELEVATION.none}`
+  `bg-panel border-t border-frame rounded-t-xl overflow-hidden ${ELEVATION.none}`
 
 /**
  * How a menu comes and goes (#714; record 0201): it fades in and slides 4px
@@ -798,10 +827,11 @@ export const DRAW_ROW = {
  * than by class order, so the winner would not be decidable from this line.
  * `styles.test.ts` caught exactly that when this was written the short way.
  * The size is `MICRO_SIZE` itself rather than a number of its own, so it
- * follows the ramp's smallest step (#687).
+ * follows the ramp's smallest step (#687). Sentence case since record 0304,
+ * like every heading: the fill already sets it apart.
  */
 export const BADGE_ACCENT =
-  `${MICRO_SIZE} font-semibold uppercase tracking-wider ` +
+  `${MICRO_SIZE} font-semibold ` +
   `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
 
 /**
@@ -1628,10 +1658,11 @@ export const CHART_CARD = {
   colLine: 'h-full w-px bg-edge transition-colors group-hover/edge:bg-accent-ink',
   dropAt: 'shadow-[inset_2px_0_0_var(--ui-accent-ink)]',
   corner: 'absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize text-ink-soft touch-none',
-  // A value is never narrower than six mono digits, the widest a cell prints
+  // A value is never narrower than six digits, the widest a cell prints
   // (`≥30000` on the cloud deck), so a column with no head over it (one
-  // metric) keeps its width as the hour moves too.
-  value: 'min-w-[6ch] text-right font-mono',
+  // metric) keeps its width as the hour moves too. Tabular figures make every
+  // digit one width, so `ch` is still a digit's (`FIGURES`).
+  value: 'min-w-[6ch] text-right tabular-nums',
 } as const
 
 /**
@@ -1923,9 +1954,9 @@ export const MAP_CORNER = {
   // be selected (TJ, 2026-11-03).
   credit:
     'map-corner pointer-events-auto flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 leading-5 ' +
-    'bg-floating/95 border-t border-l border-edge rounded-tl-lg backdrop-blur-sm',
+    'bg-floating/95 border-t border-l border-edge rounded-tl-xl backdrop-blur-sm',
   slot: 'contents',
-  scale: 'flex w-27.5 justify-end',
+  scale: 'flex w-30 justify-end',
 } as const
 
 /**
@@ -2808,7 +2839,7 @@ export const BOTTOM_SHEET = {
   dim: 'absolute inset-0 bg-scrim/40',
   card:
     `fixed inset-x-0 bottom-0 ${LAYER.popover} flex flex-col ` +
-    `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
+    `bg-panel border-t border-frame rounded-t-xl ${ELEVATION.overlay} focus:outline-none`,
   /**
    * The most a menu sheet OPENS at, one inset under the chip row, so a long
    * list leaves the top of the map in view. Not the most it rises: once a
@@ -2878,7 +2909,7 @@ export const SHEET_ASIDE = {
   card: 'invisible',
   // 8px out either side and padded back, so the row's words stay put and its
   // card does not end at the eye. The rule under it goes with the rest.
-  keep: `visible -mx-2 px-2 border-transparent bg-panel rounded-lg outline outline-1 outline-frame ${ELEVATION.overlay}`,
+  keep: `visible -mx-2 px-2 border-transparent bg-panel ${RADIUS.surface} outline outline-1 outline-frame ${ELEVATION.overlay}`,
 } as const
 
 /**
@@ -3127,7 +3158,7 @@ export const CONTROLS_SHEET = {
   scrim: `fixed inset-0 ${LAYER.scrim}`,
   card:
     `absolute inset-x-0 bottom-0 ${LAYER.drawer} flex flex-col overflow-hidden ` +
-    `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} ${MOTION.slide} focus:outline-none`,
+    `bg-panel border-t border-frame rounded-t-xl ${ELEVATION.overlay} ${MOTION.slide} focus:outline-none`,
   shut: 'translate-y-full',
   /** The panel under the sheet's top, which takes the rest and scrolls inside. */
   panel: 'min-h-0 flex-1',
@@ -3535,7 +3566,7 @@ export const MENU = {
   list: `min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1.5 ${SCROLL_BARS}`,
   sheetList: 'px-1 py-1.5',
   row: MENU_ROW,
-  cardRow: '-mx-1.5 rounded px-1.5 py-0.5',
+  cardRow: `-mx-1.5 ${RADIUS.control} px-1.5 py-0.5`,
   option: `${TEXT.control} ${TAP.row} ${MENU_ROW} cursor-pointer`,
   active: 'bg-raised',
   hover: 'hover:bg-raised',
@@ -3632,9 +3663,9 @@ export const MENU_BROWSE = {
   fold: 'flex-shrink-0 text-ink-faint',
   count: `${TEXT.caption} flex-shrink-0 tabular-nums`,
   nest: 'pl-2',
-  row: `${TAP.row} rounded ${MENU.hover}`,
+  row: `${TAP.row} ${RADIUS.control} ${MENU.hover}`,
   pick: `${TEXT.control} ${FOCUS_RING_INSET} flex min-w-0 flex-1 cursor-pointer items-center gap-2 self-stretch py-0.5 pr-1.5 text-left`,
-  mark: `${FOCUS_RING_INSET} flex flex-shrink-0 cursor-pointer items-center justify-center self-stretch rounded px-1 touch:min-w-8 transition-colors`,
+  mark: `${FOCUS_RING_INSET} flex flex-shrink-0 cursor-pointer items-center justify-center self-stretch ${RADIUS.control} px-1 touch:min-w-8 transition-colors`,
   markOff: ICON_ACTION,
   markOn: ACCENT.text,
   description: `${MENU.description} whitespace-normal pb-1 pl-[22px] pr-1.5`,
@@ -4048,7 +4079,16 @@ export const TRANSPORT_PLAY = 'flex h-7 w-7 touch:h-8 touch:w-8 flex-shrink-0 it
  */
 export const TABLE = {
   cell: 'px-2 py-1.5',
-  head: `${TEXT.subheading} px-2 py-2 text-left`,
+  /**
+   * A header cell stands at the row's top edge (#825; record 0304): a
+   * metric's header is two lines, its name over its unit (`headUnit`), and a
+   * one-line header beside it (Name, Type, AQI) shares the first line with
+   * every other name. Bottom aligned, which this first shipped as, a one-line
+   * name stood level with the units instead (TJ, 2026-11-16). 4px over and
+   * under and the two lines set at 1.2 keep the two-line row near 36px, where
+   * the one-line header's 8px and 16px lines made it 49.
+   */
+  head: `${TEXT.subheading} px-2 py-1 text-left align-top leading-[1.2]`,
   /**
    * A number column's header and cells stand at the cell's end (record 0222):
    * the elevation and every metric, so a column's digits line up down the
@@ -4056,7 +4096,16 @@ export const TABLE = {
    * own rather than `head` plus `text-right`, because two alignments on one
    * element resolve by stylesheet order rather than by which was written last.
    */
-  headNumber: `${TEXT.subheading} px-2 py-2 text-right`,
+  headNumber: `${TEXT.subheading} px-2 py-1 text-right align-top leading-[1.2]`,
+  /**
+   * A column's unit, on its own line under the metric's name (#825; record
+   * 0304). In one line, `Freezing level · Min (ft)` was the widest thing in its
+   * column by twice its five digits, so every metric column was as wide as its
+   * header and a phone showed two of them; on two lines the column is as wide
+   * as its name's longest line. The micro step in the field-label weight, so
+   * the unit reads as the name's qualifier rather than a second heading.
+   */
+  headUnit: `block ${TEXT.micro} font-normal`,
   number: 'text-right',
   /**
    * One data row: the rule above it and what it does under the pointer.
@@ -4102,8 +4151,11 @@ export const TABLE = {
   stickyNameHead: 'sticky left-0 z-[1] bg-raised',
   /**
    * The most a phone's Name column takes before a reader sizes it (#696;
-   * record 0142): its widest name and the cell's padding, but never more than
-   * 45% of the results sheet, 162px at 360 wide and 175 at 390, so a column
+   * record 0142, narrowed by record 0304): its widest name and the cell's
+   * padding, but never more than 34% of the results sheet, 122px at 360 wide
+   * and 133 at 390, where it was 45% (162 and 175). The 40px it gives back
+   * is a metric column more on a 360px phone, and a long name wraps to a
+   * second line rather than truncating (`nameText`). So a column
    * that stands still leaves the columns scrolling past it most of the
    * screen. It stood at its widest name, 210px on the sample report, which
    * left a 360px phone 150px for every number. On the name's line inside the
@@ -4113,7 +4165,15 @@ export const TABLE = {
    * fits the column, whose width is then theirs, and off at a desk, whose
    * table has the room.
    */
-  nameCap: 'max-lg:max-w-[calc(45cqi-1rem)]',
+  nameCap: 'max-lg:max-w-[calc(34cqi-1rem)]',
+  /**
+   * The name itself inside that cap (#825; record 0304): one line at a desk,
+   * where the column has the room, and up to two lines on a phone, broken at
+   * a space, so `Bears Breast Mountain` reads whole in a 122px column instead
+   * of as `Bears Brea…`. A name that needs a third line ends in an ellipsis
+   * on the second, and the popup a row tap opens shows it whole.
+   */
+  nameText: 'min-w-0 text-left truncate max-lg:whitespace-normal max-lg:line-clamp-2',
   /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover
@@ -4166,7 +4226,7 @@ export const TABLE = {
    * whole name on the link's hover (TJ, 2026-09-30: "clip and ellipses").
    *
    * 256px is the cap: it holds every Region 6 title but the three "Area,
-   * Road, and Trail" ones in full at the table's 12px mono, and clips the
+   * Road, and Trail" ones in full at the table's 12px figures, and clips the
    * forest-order ones after roughly two clauses, which is where the ground
    * has been named and the rest is the order's paperwork. `inline-block`
    * because `max-w` clamps an inline-block's contribution to auto table

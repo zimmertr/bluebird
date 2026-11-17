@@ -64,6 +64,7 @@ fileContentTests:
   - name: the license file names every direct dependency
     path: /app/static/third-party-licenses.txt
     expectedContents:
+      - '(?im)^@fontsource-variable/inter \S+$'
       - '(?im)^@mapbox/vector-tile \S+$'
       - '(?im)^lz-string \S+$'
       - '(?im)^maplibre-contour \S+$'

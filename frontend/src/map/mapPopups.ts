@@ -689,13 +689,27 @@ export function mountMapPopups(
         (o) => !(o.left < stands.right && o.right > stands.left && o.top < stands.bottom && o.bottom > stands.top),
       )
       const least = { width: width.min, height: chrome + range.min }
+      // The card as the drag starts, which stands over none of `ahead`.
+      const opened = { width: el.offsetWidth, height: el.offsetHeight }
       return {
         width,
         body: range,
         clear(w, b) {
           const start = { width: el.offsetWidth, height: el.offsetHeight }
-          const size = clearSize(marker, anchor, start, { width: w, height: chrome + b }, least, ahead)
-          return { width: size.width, body: size.height - chrome }
+          const asked = { width: w, height: chrome + b }
+          const size = clearSize(marker, anchor, start, asked, least, ahead)
+          // Never under the size the card had as the drag started, where the
+          // reader asked for that much: a surface inside the fit's breath,
+          // which the card does not stand over, stopped the first move short
+          // of where the card already was, and a card opened 1.5px beside the
+          // map's rows shrank on a drag that asked it to grow (#825, once
+          // Inter narrowed the card). The hold is the whole card, both sides
+          // at once, never one of them: inside its opening size it stands
+          // over nothing ahead, where restoring one side after the clear gave
+          // up that side for the other ran the card into a corner.
+          const held = { width: Math.min(asked.width, opened.width), height: Math.min(asked.height, opened.height) }
+          const out = size.width < held.width || size.height < held.height ? held : size
+          return { width: out.width, body: out.height - chrome }
         },
       }
     },

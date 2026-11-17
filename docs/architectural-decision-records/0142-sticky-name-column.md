@@ -1,6 +1,6 @@
 # 0142. The results table's Name column stands still while the table scrolls sideways
 
-- Status: Accepted
+- Status: Accepted; the phone's width cap amended by [0304](0304-the-refreshed-look-and-a-denser-table.md) (34% of the sheet, and a long name wraps)
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696, 2026-10-14; the width cap on a Pixel the same evening
 - Issues and PRs: #696, #708, #336

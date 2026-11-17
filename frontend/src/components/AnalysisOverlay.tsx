@@ -2,7 +2,7 @@ import type { PaceReason } from '../utils/pacing'
 import { useEffect, useState } from 'react'
 import { logoUrl } from '../logo'
 import type { Progress } from '../hooks/useAnalyze'
-import { ACCENT, BUTTON_SECONDARY, LAYER, MOTION, PROSE, RADIUS, SR_ONLY, SURFACE_CARD, TEXT } from '../styles'
+import { ACCENT, BUTTON_SECONDARY, FIGURES, LAYER, MOTION, PROSE, RADIUS, SR_ONLY, SURFACE_CARD, TEXT } from '../styles'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { composeOverlay, type OverlayView } from '../utils/analyzeOverlay'
 
@@ -132,7 +132,7 @@ function OverlayCard({
             <div className={`h-2 w-full ${RADIUS.pill} bg-raised overflow-hidden`}>
               <div className={`h-full w-1/3 ${RADIUS.pill} ${ACCENT.mark} animate-indeterminate`} />
             </div>
-            <p className={`mt-1.5 ${TEXT.caption} font-mono`}>
+            <p className={`mt-1.5 ${TEXT.caption} ${FIGURES}`}>
               Elapsed {elapsed}s
             </p>
           </div>

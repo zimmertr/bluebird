@@ -229,11 +229,15 @@ test.describe('on a phone', () => {
       await expect(popups.getByText('Area closure: Probe Area Closure', { exact: true })).toBeVisible({ timeout: 1_500 })
     }).toPass({ timeout: 20_000 })
 
-    // Four pixels off the 2.5px line: the first tap closes the open card, as
-    // a tap on any ground does (TJ, 2026-11-04), and the next opens a new one
-    // at the tap, the trail's section first in the map's rank and the
+    // A tap on any ground closes the open card (TJ, 2026-11-04), so the
+    // first tap lands clear of it, above the card where the rows leave room
+    // and under it where they do not: the card stands 8px clear of the
+    // Analyze button since record 0304, which on this map is above its point
+    // and over the line. The next tap, four pixels off the 2.5px line, opens
+    // a new card there, the trail's section first in the map's rank and the
     // ground's under it.
-    await page.touchscreen.tap(middle.x, middle.y + 4)
+    const open = (await popups.first().boundingBox())!
+    await page.touchscreen.tap(middle.x, open.y - 60 > 120 ? open.y - 60 : open.y + open.height + 60)
     await expect(popups).toHaveCount(0)
     // Past the map's double tap, which zooms rather than clicks.
     await page.waitForTimeout(600)

@@ -133,11 +133,12 @@ describe('a ranked row', () => {
     // After the rank: name, elevation, precipitation, wildfire, type.
     const cells = [...container.querySelectorAll('td')].slice(1, 6)
     expect(cells.map((td) => td.classList.contains(TABLE.number))).toEqual([false, true, true, true, false])
-    expect(cells.map((td) => td.classList.contains('font-mono'))).toEqual([false, true, true, true, false])
+    expect(cells.map((td) => td.classList.contains('tabular-nums'))).toEqual([false, true, true, true, false])
   })
 
-  // A phone's stuck Name column stops at 45% of the sheet until the reader
-  // sizes it (record 0142), and the name truncates inside that.
+  // A phone's stuck Name column stops at 34% of the sheet until the reader
+  // sizes it (records 0142 and 0304), and the name wraps to two lines inside
+  // that.
   it('caps its unsized name on a phone, and leaves a sized one alone', () => {
     const { rerender } = inTable(<ResultsTableRow {...props()} />)
     const line = () => screen.getByRole('button', { name: 'Center map on Mount Adams' }).parentElement!

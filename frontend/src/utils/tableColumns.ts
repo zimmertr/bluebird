@@ -225,6 +225,26 @@ export function isNumberColumn(col: ColDef): boolean {
   return col.key === ELEVATION_COL.key || col.key === WILDFIRE_KEY || col.unit !== undefined
 }
 
+/**
+ * A header's two lines (#825; record 0304): the column's name over its unit,
+ * so `Freezing level · Min (ft)` is `Freezing level · Min` over `ft` and the
+ * column is as wide as its name rather than name and unit together. A metric
+ * declares its unit (`unit`), and its label is composed from it by
+ * `metricLabel`, so the name is that label less the ` (unit)` it was given.
+ * The Elevation and Wildfire columns declare none, because the popup groups
+ * values by `unit` and neither belongs in a group, so their unit is named here
+ * beside their keys. Every other column (Name, Type, Model, Closure) has one
+ * line.
+ */
+const IDENTITY_UNITS: Readonly<Record<string, string>> = { elevation_ft: 'ft', [WILDFIRE_KEY]: 'mi' }
+export function headerLines(col: ColDef): { name: string; unit: string | null } {
+  const unit = col.unit || IDENTITY_UNITS[col.key as string]
+  const tail = unit ? ` (${unit})` : ''
+  return unit && col.label.endsWith(tail)
+    ? { name: col.label.slice(0, -tail.length), unit }
+    : { name: col.label, unit: null }
+}
+
 /** Whether a row's Elevation cell shows the terrain height its numbers were read at. */
 export function readAtTerrainHeight(row: DestinationResult): boolean {
   return row.elevation_ft == null && row.terrain_ft != null

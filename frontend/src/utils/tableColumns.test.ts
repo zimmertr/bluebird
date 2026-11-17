@@ -22,6 +22,7 @@ import {
   TERRAIN_HEIGHT_NOTE,
   readAtTerrainHeight,
   isNumberColumn,
+  headerLines,
   ELEVATION_COL,
   MODEL_COL,
   TYPE_COL,
@@ -80,6 +81,19 @@ describe('COLUMNS', () => {
   // cell changed shape.
   it('overrides the display formatter for exactly the columns that need it', () => {
     expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['type', 'elevation_ft', ...CLOUD_KEYS, ...FREEZE_KEYS, ...SNOW_DEPTH_KEYS])
+  })
+
+  // The header's two lines (record 0304): a metric's name over the unit it
+  // declares, the Elevation and Wildfire columns' over theirs, and one line
+  // for a column with no unit.
+  it('splits a header into its name and its unit', () => {
+    const col = (key: string) => COLUMNS.find((c) => c.key === key)!
+    expect(headerLines(col('freeze_min_ft'))).toEqual({ name: `${NOUN.freeze} ${SEP} Min`, unit: 'ft' })
+    expect(headerLines(col('precip_avg_in_hr'))).toEqual({ name: `${NOUN.precip} ${SEP} Avg`, unit: 'in/hr' })
+    expect(headerLines(ELEVATION_COL)).toEqual({ name: 'Elevation', unit: 'ft' })
+    expect(headerLines(WILDFIRE_COL)).toEqual({ name: 'Wildfire', unit: 'mi' })
+    expect(headerLines(TYPE_COL)).toEqual({ name: 'Type', unit: null })
+    expect(headerLines(COLUMNS[0])).toEqual({ name: 'Name', unit: null })
   })
 
   // A blank cell is how a spreadsheet spells "no value", which is the truth

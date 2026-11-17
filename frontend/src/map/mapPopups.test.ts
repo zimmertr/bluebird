@@ -708,6 +708,26 @@ describe('mountMapPopups openCard between the floor and the ceiling', () => {
     expect(popups.cardBounds(below).body).toEqual({ min: 250, max: 250 })
   })
 
+  // A surface inside the fit's breath as a drag starts never takes the card
+  // under the size it stands at (#825): a card opened 3px beside a column of
+  // the map's chrome, 280 wide over a point at 640 with a 400px body, holds
+  // that size on a drag that asks it to grow, rather than shrinking to clear
+  // the column by 8px or growing into it.
+  it('holds a card at its size against a surface inside the breath', () => {
+    const { popups } = mount(1280, 1000, { x: 640, y: 900 })
+    standCard(40, 400)
+    const above = new Popup({ anchor: 'bottom' })
+    const beside = { left: 0, top: 0, right: 497, bottom: 600 }
+    expect(popups.cardBounds(above, [beside]).clear(320, 500)).toEqual({ width: 280, body: 400 })
+    // Asked smaller, it takes the size asked.
+    expect(popups.cardBounds(above, [beside]).clear(260, 300)).toEqual({ width: 260, body: 300 })
+    // A surface out past the breath is ahead of the card, and a drag up into
+    // it stops 8px short of its foot: 900 less 308 is 592, less the 40 of
+    // header.
+    const over = { left: 500, top: 0, right: 800, bottom: 300 }
+    expect(popups.cardBounds(above, [over]).clear(280, 600)).toEqual({ width: 280, body: 552 })
+  })
+
   // A body that holds less than the floor has nothing to scroll into under
   // it, so a drag stops at its own height.
   it('stops a short body at its own height', () => {
