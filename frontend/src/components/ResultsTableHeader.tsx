@@ -19,20 +19,17 @@ import { ACCENT, CHOICE_INPUT, COLUMN_GRIP, DRAG, FOCUS_RING_INSET, SCROLL_SHADO
 // what they measure is utils/columnMeasure.ts; this file draws.
 
 // A header in two lines when its label names a unit: the name over the unit
-// (record 0304). The two lines are drawn for the eye and hidden from the
-// accessibility tree, and the label rides whole beside them, so a screen
-// reader, voice control and every query by name still hear `Elevation (ft)`
-// as one phrase rather than a name and a stray unit.
+// in its parentheses (record 0304). The unit's line opens with the space the
+// label had, which a block's first line drops on screen, so the text is the
+// label itself and a screen reader, voice control and every query by name
+// still hear `Elevation (ft)` as one phrase.
 function HeaderLabel({ col }: { col: ColDef }) {
   const { name, unit } = headerLines(col)
   if (unit === null) return <>{col.label}</>
   return (
     <>
-      <span aria-hidden="true">
-        {name}
-        <span className={TABLE.headUnit}>{unit}</span>
-      </span>
-      <span className={SR_ONLY}>{col.label}</span>
+      {name}
+      <span className={TABLE.headUnit}>{` (${unit})`}</span>
     </>
   )
 }
