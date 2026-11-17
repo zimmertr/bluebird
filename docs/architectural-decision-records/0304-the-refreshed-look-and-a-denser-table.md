@@ -41,11 +41,13 @@ Widths at 12px in Inter, measured in Chrome on macOS on 2026-11-16, against the 
 | `Remove` | 44.95 | 45.52 | 46px inside the card button's `w-16` |
 | `Draw polygon` | 77.4 | 78.77 | a third of the polygon row |
 
-Every word still fits the room the tests give it, so no control width moved. Chromium on Linux, which the browser suite runs, rounds each glyph's advance to a whole pixel, so it measures a pixel or two wider (`Remove` 47, `Freezing level` 80); the tests hold the Mac numbers, as they did before.
+Every word still fits the room the tests give it, so no control width moved. The one width that did is the map's scale bar: the browser suite tries every label at its narrowest bar, and `1000 km` at 11px ran 2.6px past a 55px bar, so `SCALE_MAX_WIDTH_PX` goes from 110 to 120 and the narrowest bar is 60. Chromium on Linux, which the browser suite runs, rounds each glyph's advance to a whole pixel, so it measures a pixel or two wider (`Remove` 47, `Freezing level` 80); the tests hold the Mac numbers, as they did before.
 
 The composite widths measured in the browser suite's Chromium on 2026-10-29 (the fire key's line, the grid's wait line, the Layers menu, the slider values) were not re-measured in Inter. Each sits well inside its box: the legend card leaves 204px for a line measured at 169.4.
 
 The Lighthouse budget's total is 700,000 bytes against 604,280 measured before this change, so the 48,256-byte Latin file fits under it.
+
+The browser suite also found a drag bug the narrower card exposed. A card opened 1.5px beside the map's rows, and the drag's clearance check reaches 8px out, while the check for what the card already stands over did not; so the first drag pulled the card 8px clear of the rows and shrank it, even when it was dragged to grow. The check for what a card already stands over now takes the same 8px, as its own comment already promised: a drag never shrinks a card on its first move.
 
 ## Alternatives rejected
 

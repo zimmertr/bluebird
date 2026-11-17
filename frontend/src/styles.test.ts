@@ -4084,7 +4084,7 @@ describe('the attribution beside the scale', () => {
   it('caps the corner where the room the scale bar takes ends', () => {
     const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-right \{[^}]*max-width[^}]*\}/)?.[0] ?? ''
     const cap = Number(rule.match(/max-width: calc\(100% - (\d+)px\)/)?.[1])
-    expect(SCALE_MAX_WIDTH_PX).toBe(110)
+    expect(SCALE_MAX_WIDTH_PX).toBe(120)
     expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
   })
 

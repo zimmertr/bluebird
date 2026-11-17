@@ -13,9 +13,10 @@ import { test, expect } from './fixtures'
 //
 // This is what sized the bar for the app's 11px floor (record 0222): at 11px
 // `1000 km` on a 50px bar, half the library's default, ran 1.2px past the end
-// here, so the bar draws up to 110px and never under 55.
+// here, so the bar drew up to 110px and never under 55. In Inter (record 0304)
+// it ran 2.6px past 55, so the bar draws up to 120px and never under 60.
 
-const SCALE_MAX_WIDTH_PX = 110 // map/controls.ts; styles.test.ts pins it there
+const SCALE_MAX_WIDTH_PX = 120 // map/controls.ts; styles.test.ts pins it there
 const LEAST_RATIO: Record<number, number> = { 1: 1 / 2, 2: 2 / 3, 3: 3 / 5, 5: 1 / 2 }
 // A 512px world at zoom 0 spans about 78 km a pixel at the equator, so
 // `5000 km` is never drawn under 64px; the other labels can reach their least.

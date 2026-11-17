@@ -1956,7 +1956,7 @@ export const MAP_CORNER = {
     'map-corner pointer-events-auto flex items-center gap-2.5 py-0.5 pl-2.5 pr-2 leading-5 ' +
     'bg-floating/95 border-t border-l border-edge rounded-tl-xl backdrop-blur-sm',
   slot: 'contents',
-  scale: 'flex w-27.5 justify-end',
+  scale: 'flex w-30 justify-end',
 } as const
 
 /**

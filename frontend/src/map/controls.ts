@@ -198,12 +198,14 @@ export function placeControl(
  * the scale's edge rather than covering it (#687). `styles.test.ts` holds the
  * stylesheet's arithmetic to this number.
  *
- * 110px, 10 over the library's default, so the label fits the app's 11px
+ * 120px, 20 over the library's default, so the label fits the app's 11px
  * floor (record 0222): the bar draws as narrow as half this width, and at 11px
- * `1000 km` needs about 52px of the 50px a 100px bar left it
- * (`e2e/scaleBar.spec.ts`).
+ * `1000 km` needed about 52px of the 50px a 100px bar left it
+ * (`e2e/scaleBar.spec.ts`). It was 110 until the app's face became Inter
+ * (record 0304), whose `1000 km` ran 2.6px past a 55px bar in the browser
+ * suite's Chromium; at 60 it clears.
  */
-export const SCALE_MAX_WIDTH_PX = 110
+export const SCALE_MAX_WIDTH_PX = 120
 
 /**
  * The class `map.css` hides a phone's compass under, set on the compass button

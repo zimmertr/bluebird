@@ -641,8 +641,8 @@ glyph inside a box whose size something else decides, the legend strip's
 numerals in their scrim band and the smoke key's letters in their chips, which
 grew to 16px squares to take them. Neither is prose, and each is measured
 against its box. The map's scale bar is at the floor: its label sits in a
-bar whose width the distance decides, so the bar draws up to 110px rather
-than the library's 100, and `1000 km` at 11px fits its narrowest bar (record
+bar whose width the distance decides, so the bar draws up to 120px rather
+than the library's 100 (110 until Inter, record 0304), and `1000 km` at 11px fits its narrowest bar (record
 [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)).
 
 Re-measured at 11px, 2026-10-13 against the built image: the calendar's weekday
@@ -879,8 +879,8 @@ better on a forest, and the two stand 14.46:1 apart (record
 [0243](architectural-decision-records/0243-map-reads-on-a-dark-ground.md)). In a desk's credit line
 it stands on the line instead, so there it takes no scrim and draws its ends
 in one line of its ink (record 0174). Its label is 11px, the floor, on a bar that draws up
-to 110px so `1000 km` stays inside its narrowest bar (`e2e/scaleBar.spec.ts`,
-record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)).
+to 120px so `1000 km` stays inside its narrowest bar (`e2e/scaleBar.spec.ts`,
+record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md); 110 until Inter, record [0304](architectural-decision-records/0304-the-refreshed-look-and-a-denser-table.md)).
 Record: [0162](architectural-decision-records/0162-scale-bar-on-the-theme-ground.md)
 
 The Analyze button counts the panel's messages in a badge at its corner

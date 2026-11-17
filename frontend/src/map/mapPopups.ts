@@ -683,8 +683,16 @@ export function mountMapPopups(
       if (!el || !at) return { width, body: range, clear: (w, b) => ({ width: w, body: b }) }
       const marker = map.project(at)
       const anchor: PopupSide = popup.options?.anchor === 'bottom' ? 'bottom' : 'top'
-      // What the card stands over already is not the drag's to clear.
-      const stands = figureOf(marker, { width: el.offsetWidth, height: el.offsetHeight }, anchor)
+      // What the card stands over already is not the drag's to clear, its
+      // breath included: `clearSize` reaches with the fit's margin, so a
+      // surface inside that margin as the drag starts would stop the first
+      // move short, and a card opened 1.5px beside the map's rows shrank on a
+      // drag that asked it to grow (#825, when Inter narrowed the card).
+      const stands = figureOf(
+        marker,
+        { width: el.offsetWidth + 2 * FIT_MARGIN_PX, height: el.offsetHeight + FIT_MARGIN_PX },
+        anchor,
+      )
       const ahead = obstacles(avoid).filter(
         (o) => !(o.left < stands.right && o.right > stands.left && o.top < stands.bottom && o.bottom > stands.top),
       )
