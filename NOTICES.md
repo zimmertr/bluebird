@@ -181,6 +181,7 @@ Frontend (npm), bundled into the served JavaScript:
 | lz-string | MIT |
 | @mapbox/vector-tile | BSD-3-Clause |
 | pbf | BSD-3-Clause |
+| @fontsource-variable/inter | OFL-1.1 |
 
 The stylesheet is generated at build time by [tailwindcss](https://www.npmjs.com/package/tailwindcss) (MIT), whose preflight rules ship in it.
 

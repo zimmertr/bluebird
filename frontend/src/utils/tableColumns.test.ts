@@ -22,6 +22,7 @@ import {
   TERRAIN_HEIGHT_NOTE,
   readAtTerrainHeight,
   isNumberColumn,
+  headerLines,
   ELEVATION_COL,
   MODEL_COL,
   TYPE_COL,
@@ -80,6 +81,43 @@ describe('COLUMNS', () => {
   // cell changed shape.
   it('overrides the display formatter for exactly the columns that need it', () => {
     expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual(['type', 'elevation_ft', ...CLOUD_KEYS, ...FREEZE_KEYS, ...SNOW_DEPTH_KEYS])
+  })
+
+  // The table's compact numbers (record 0304): heights print as plain digits
+  // and precipitation drops its trailing zeros on screen, while the file
+  // writes exactly what it wrote before.
+  it('prints heights without a separator and trims precipitation in the table only', () => {
+    const col = (key: string) => COLUMNS.find((c) => c.key === key)!
+    expect(ELEVATION_COL.cell!(9415)).toBe('9415')
+    expect(col('freeze_min_ft').cell!(12850)).toBe('12850')
+    expect(col('cloud_deck_min_ft').cell!(8940)).toBe('8940')
+    expect(col('precip_total_in').cell!(0)).toBe('0.0')
+    expect(col('precip_total_in').cell!(0.05)).toBe('0.05')
+    expect(col('snowfall_avg_in_hr').cell!(0.12)).toBe('0.12')
+    // The popup and the file read `format` and `csv`, untouched.
+    expect(ELEVATION_COL.format!(9415)).toBe((9415).toLocaleString())
+    expect(col('precip_total_in').format!(0)).toBe('0.000')
+    // Exactly these columns print narrower in the table.
+    expect(COLUMNS.filter((c) => c.cell).map((c) => c.key)).toEqual([
+      'elevation_ft',
+      ...CLOUD_KEYS,
+      ...FREEZE_KEYS,
+      ...PRECIP_KEYS,
+      ...SNOWFALL_KEYS,
+    ])
+  })
+
+  // The header's two lines (record 0304): a metric's name over the unit it
+  // declares, the Elevation and Wildfire columns' over theirs, and one line
+  // for a column with no unit.
+  it('splits a header into its name and its unit', () => {
+    const col = (key: string) => COLUMNS.find((c) => c.key === key)!
+    expect(headerLines(col('freeze_min_ft'))).toEqual({ name: `${NOUN.freeze} ${SEP} Min`, unit: 'ft' })
+    expect(headerLines(col('precip_avg_in_hr'))).toEqual({ name: `${NOUN.precip} ${SEP} Avg`, unit: 'in/hr' })
+    expect(headerLines(ELEVATION_COL)).toEqual({ name: 'Elevation', unit: 'ft' })
+    expect(headerLines(WILDFIRE_COL)).toEqual({ name: 'Wildfire', unit: 'mi' })
+    expect(headerLines(TYPE_COL)).toEqual({ name: 'Type', unit: null })
+    expect(headerLines(COLUMNS[0])).toEqual({ name: 'Name', unit: null })
   })
 
   // A blank cell is how a spreadsheet spells "no value", which is the truth

@@ -414,13 +414,19 @@ describe('the compact tier', () => {
   })
 
   // The same relationship one step down: an overline is the micro step wearing
-  // emphasis, so the legend's metric name and a search result's kind cannot
-  // drift apart from the credits sharing their size.
-  it('separates an overline from micro text by emphasis alone', () => {
-    const emphasis = ['font-semibold', 'uppercase', 'tracking-wider']
-    expect(TEXT.overline.split(' ').filter((c) => !emphasis.includes(c))).toEqual(
-      TEXT.micro.split(' '),
-    )
+  // weight, so the legend's metric name and a search result's kind cannot
+  // drift apart from the credits sharing their size. It wore capitals and
+  // letter-spacing too until record 0304 put every heading in sentence case.
+  it('separates an overline from micro text by weight alone', () => {
+    expect(TEXT.overline.split(' ').filter((c) => c !== 'font-semibold')).toEqual(TEXT.micro.split(' '))
+  })
+
+  // No role shouts (record 0304): sentence case and the app's own tracking on
+  // every heading, overline and badge.
+  it('sets no role in capitals', () => {
+    for (const role of [TEXT.section, TEXT.overline, TEXT.subheading, BADGE_ACCENT]) {
+      expect(role).not.toMatch(/(^|\s)(uppercase|tracking-\w+)(\s|$)/)
+    }
   })
 
   it('keeps clarifying prose italic, and a caption the same minus the italic', () => {
@@ -450,17 +456,17 @@ describe('the compact tier', () => {
 
   // A section heading was slate-400, the caption's step (5.56:1 on the
   // slate-800 panel), over a slate-200 subheading, so DESTINATIONS read dimmer
-  // than the Polygon under it (#687). slate-300 is 9.83:1 and sits between the
-  // two steps it orders: brighter than any caption, and still a step under the
-  // subheading's brightness so the size, weight and case carry the rank, not
-  // a glare.
-  it('brightens the section heading past the caption and keeps its size', () => {
-    const MEASURED = { section: 9.83, wasBefore: 5.56 }
-    const step = (c: string) => Number(darkStep(token(c, 'text')).match(/slate-(\d+)/)![1])
-    expect(darkStep(token(TEXT.section, 'text'))).toBe('slate-300')
+  // than the Polygon under it (#687), and slate-300 (9.83:1) fixed that while
+  // its capitals carried the rank. Since record 0304 it is sentence case at
+  // the subheading's weight class, so the ink has to carry the rank the
+  // capitals did: the strong ink, white on the dark panel at 14.62:1, a step
+  // above the subheading it heads and every caption under it.
+  it('brightens the section heading past the subheading and keeps its size', () => {
+    const MEASURED = { section: 14.62, wasBefore: 5.56 }
+    expect(darkStep(token(TEXT.section, 'text'))).toBe('white')
     expect(TEXT.section).toContain('text-sm')
-    expect(step(TEXT.section)).toBeLessThan(step(TEXT.caption))
-    expect(step(TEXT.section)).toBeGreaterThan(step(TEXT.subheading))
+    expect(TEXT.section).not.toMatch(/(^|\s)uppercase(\s|$)/)
+    expect(token(TEXT.subheading, 'text')).toBe('ink')
     const panel = dark('panel')
     expect(ratio(dark(token(TEXT.section, 'text')), panel)).toBe(MEASURED.section)
     expect(ratio(dark(token(TEXT.caption, 'text')), panel)).toBe(MEASURED.wasBefore)
@@ -1088,7 +1094,8 @@ describe('shared recipes', () => {
   })
 
   it('floors an axis half at the width Radar takes', () => {
-    // `Radar` at text-xs: 33.02px in Chrome on macOS, 2026-09-14, plus the
+    // `Radar` at text-xs: 33.02px in Chrome on macOS, 2026-09-14, and 33.01px
+    // in Inter (record 0304), 2026-11-16, plus the
     // half's two insets and the pixel the divider takes.
     const RADAR_PX = 34
     const floors = [...TRANSPORT_AXIS_W.matchAll(/min-w-\[(\d+)px\]/g)].map((m) => Number(m[1]))
@@ -1311,7 +1318,8 @@ describe('shared recipes', () => {
   // one control whose job is telling eight similar things apart truncates.
   // Measured in Chrome on macOS at the panel's text-xs, 2026-09-14.
   it('leaves the model picker room for its longest label', () => {
-    // `UK Met Office`: 79.69px. `Meteo-France ARPEGE` is 130.03px and fits no
+    // `UK Met Office`: 79.69px, and 79.85px in Inter (record 0304), 2026-11-16.
+    // `Meteo-France ARPEGE` is 130.03px (130.71px in Inter) and fits no
     // trigger the panel can offer — it truncated at the old 144px too, and
     // shortening it is the maintainer's call, not this file's.
     const UK_MET_OFFICE_PX = 80
@@ -1324,7 +1332,8 @@ describe('shared recipes', () => {
   // leave 84px.
   it('keeps the chart metric select off the panel column', () => {
     // `Precipitation (in/hr)`, the widest option (record 0222), measured
-    // 109.03px; held with 8px to spare, about the margin it had at 144px.
+    // 109.03px (108.90px in Inter (record 0304), 2026-11-16); held with 8px to
+    // spare, about the margin it had at 144px.
     const WIDEST_OPTION_PX = 109.03
     const chartPx = stepPx(CHART_METRIC_W, 'w')
     expect(chartPx - 8 - selectArrowPx() - 2 - WIDEST_OPTION_PX).toBeGreaterThanOrEqual(8)
@@ -1353,7 +1362,8 @@ describe('shared recipes', () => {
   // reserves for its arrow. Measured in the running app (2026-08-22 and
   // 2026-09-14); re-measure before moving either width, the gap, or the nouns.
   it('leaves the metric label room for its longest noun', () => {
-    // `Freezing level` at text-xs: 78.03px in Chrome on macOS, 2026-09-14.
+    // `Freezing level` at text-xs: 78.03px in Chrome on macOS, 2026-09-14,
+    // and 78.30px in Inter (record 0304), 2026-11-16.
     const FREEZING_LEVEL_PX = 79
     const rem = Number(SELECT_W_AGGREGATE.match(/\[(\d+(?:\.\d+)?)rem\]/)![1])
     const dropdownPx = rem * 16
@@ -1381,9 +1391,10 @@ describe('shared recipes', () => {
     const PHONE_CONTENT_PX = 328
     expect(labelAt(PHONE_CONTENT_PX, 0, toggleTouchPx)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     // The dropdown's floor: `Total`, its widest word, 27.54px at text-xs in
-    // production (Chrome on macOS, 2026-11-12), beside the field's 8px left
+    // production (Chrome on macOS, 2026-11-12) and 27.63px in Inter (record 0304), 2026-11-16,
+    // beside the field's 8px left
     // padding, its arrow's reserve and its 2px of border, so it never cuts off.
-    const TOTAL_PX = 27.54
+    const TOTAL_PX = 27.63
     expect(dropdownPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(TOTAL_PX)
   })
 
@@ -1417,7 +1428,8 @@ describe('shared recipes', () => {
   // inset, or the words.
   it('leaves every segment half room for its longest word', () => {
     // At text-xs: `Highest` 43.69px, `Current` 42.89px, `All day` 37.80px,
-    // `Lowest` 39.88px, `Dates` 32.75px, `Hourly` 37.13px.
+    // `Lowest` 39.88px, `Dates` 32.75px, `Hourly` 37.13px. In Inter (record 0304), 2026-11-16:
+    // 43.54, 42.90, 38.13, 40.63, 32.54 and 37.63px.
     const HIGHEST_PX = 44
     const insetPx = stepPx(SEGMENT_ITEM, 'px')
     const halfPx = (controlWPx() - 2 - 1) / 2
@@ -1926,11 +1938,12 @@ describe('tap targets', () => {
   // One width for both words, so a press on Add that turns the button into
   // Remove moves nothing (TJ, 2026-11-04: no flapping between sizes). The
   // width is Remove's, the wider word, at the button's text-xs in the app's
-  // face, measured in Chrome on macOS 2026-11-04: 44.95px (Add 22.48px).
+  // face, measured in Chrome on macOS 2026-11-04: 44.95px (Add 22.48px),
+  // and again in Inter (record 0304) on 2026-11-16: 45.52px (Add 22.98px).
   // The button spends 8px a side and its 1px edge; the rest is the word's.
   it("holds the card button's one width to the wider word", () => {
-    const REMOVE_PX = 44.95
-    const ADD_PX = 22.48
+    const REMOVE_PX = 45.52
+    const ADD_PX = 22.98
     const width = stepPx(CARD_ACTION, 'w')
     const room = width - 2 * stepPx(CARD_ACTION, 'px') - 2
     expect(width).toBe(64)
@@ -2380,6 +2393,34 @@ describe('status and notices', () => {
 // every column to its right (#339).
 // That the table wears these roles, and never toggles display on hover, is the
 // style-rank-cell check.
+// The refreshed look (#825; record 0304): one bundled face, figures that
+// line up without a monospace face, softer corners, and a table built to show
+// more columns at a time.
+describe('the refreshed look', () => {
+  it('lines figures up by their digits rather than by a monospace face', () => {
+    expect(STYLES.FIGURES).toBe('tabular-nums')
+    expect(STYLES.CHART_CARD.value.split(' ')).toContain(STYLES.FIGURES)
+  })
+
+  it('rounds a control at 6px and a surface at twice that', () => {
+    expect([RADIUS.control, RADIUS.surface, RADIUS.pill]).toEqual(['rounded-md', 'rounded-xl', 'rounded-full'])
+  })
+
+  // A metric's header is two lines, its name over its unit at the micro step,
+  // so a column is as wide as its widest word rather than its whole label.
+  it('sets a header in two lines, bottom aligned, its unit at the micro step', () => {
+    for (const head of [STYLES.TABLE.head, STYLES.TABLE.headNumber]) expect(head.split(' ')).toContain('align-bottom')
+    expect(STYLES.TABLE.headUnit.split(' ')).toEqual(['block', ...TEXT.micro.split(' '), 'font-normal'])
+  })
+
+  // On a phone a long name takes a second line before it truncates, which is
+  // what lets the Name column stand narrower; at a desk it stays one line.
+  it('wraps a phone\'s name to two lines and keeps a desk\'s to one', () => {
+    const name = STYLES.TABLE.nameText.split(' ')
+    expect(name).toEqual(expect.arrayContaining(['truncate', 'max-lg:whitespace-normal', 'max-lg:line-clamp-2']))
+  })
+})
+
 describe('the results table rank cell', () => {
   it('pins both faces of the rank cell to one grid cell', () => {
     expect(STYLES.TABLE.rankFace.split(' ')).toEqual(['col-start-1', 'row-start-1'])
@@ -2387,10 +2428,11 @@ describe('the results table rank cell', () => {
   })
 
   // A phone's Name column stands still and must leave the numbers room
-  // (#696; record 0142): 45% of the sheet at most, the cell's padding inside
-  // that, and only on a phone.
-  it('caps a phone\'s Name column at 45% of the sheet, padding included', () => {
-    expect(STYLES.TABLE.nameCap).toBe('max-lg:max-w-[calc(45cqi-1rem)]')
+  // (#696; records 0142 and 0304): 34% of the sheet at most, the cell's
+  // padding inside that, and only on a phone. It was 45% until the name
+  // wrapped to two lines rather than truncating on one.
+  it('caps a phone\'s Name column at 34% of the sheet, padding included', () => {
+    expect(STYLES.TABLE.nameCap).toBe('max-lg:max-w-[calc(34cqi-1rem)]')
     // The cell's own padding, which the 1rem is: px-2 either side.
     expect(STYLES.TABLE.cell.split(' ')).toContain('px-2')
   })
@@ -3293,7 +3335,7 @@ describe('the Controls sheet', () => {
   it('wears the bottom sheet surface on the panel layer, and slides', () => {
     expect(darkStep(token(CONTROLS_SHEET.card, 'bg'))).toBe('slate-800')
     expect(darkStep(token(CONTROLS_SHEET.card, 'border'))).toBe('slate-600')
-    for (const part of ['border-t', 'rounded-t-lg', ELEVATION.overlay, LAYER.drawer, 'focus:outline-none']) {
+    for (const part of ['border-t', 'rounded-t-xl', ELEVATION.overlay, LAYER.drawer, 'focus:outline-none']) {
       expect(words(CONTROLS_SHEET.card)).toContain(part)
     }
     for (const part of words(MOTION.slide)) expect(words(CONTROLS_SHEET.card)).toContain(part)
@@ -4961,7 +5003,8 @@ describe('the calendar field', () => {
 describe('the polygon row', () => {
   // Three equal buttons on the fields' edges (#687): the two button roles with
   // the inset cut to 4px and nothing else changed, because 12px a side would
-  // wrap `Draw polygon` (77.4px on a Mac) in a third of a 295px field.
+  // wrap `Draw polygon` (77.4px on a Mac, 78.77px in Inter since record 0304,
+  // 2026-11-16) in a third of a 295px field.
   it('is the two button roles at a 4px inset, three to a row', () => {
     expect(DRAW_ROW.secondary).toBe(BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '))
     expect(DRAW_ROW.accent).toBe(BUTTON_ACCENT.replace(' px-3 ', ' px-1 '))
@@ -4969,7 +5012,7 @@ describe('the polygon row', () => {
     expect(DRAW_ROW.accent).not.toBe(BUTTON_ACCENT)
     expect(DRAW_ROW.row).toContain('grid-cols-3')
     const third = (field: number) => (field - 2 * stepPx(DRAW_ROW.row, 'gap')) / 3
-    const need = (inset: number) => 77.4 + 2 * inset
+    const need = (inset: number) => 78.77 + 2 * inset
     expect(need(stepPx(DRAW_ROW.secondary, 'px'))).toBeLessThan(third(295))
     expect(need(stepPx(BUTTON_SECONDARY, 'px'))).toBeGreaterThan(third(317))
     for (const name of ['DRAW_ROW.row', 'DRAW_ROW.secondary', 'DRAW_ROW.accent', 'DISABLED']) {
@@ -5105,7 +5148,7 @@ describe('the chart card', () => {
     // The name column is always 160px, a long name ending in an ellipsis, so
     // the card keeps one width as the hour moves.
     expect(cls(CHART_CARD.name)).toEqual(['min-w-0', 'w-40', 'truncate'])
-    expect(cls(CHART_CARD.value)).toEqual(['min-w-[6ch]', 'text-right', 'font-mono'])
+    expect(cls(CHART_CARD.value)).toEqual(['min-w-[6ch]', 'text-right', 'tabular-nums'])
     expect(cls(CHART_CARD.head)).toEqual(expect.arrayContaining(['bg-band', 'border-rule', 'text-ink-strong', 'font-semibold']))
     expect(cls(CHART_CARD.rule)).toEqual(expect.arrayContaining(['col-span-full', 'bg-frame']))
     expect(cls(CHART_CARD.foot)).toEqual(expect.arrayContaining(['border-t', 'border-rule', 'text-ink-soft']))

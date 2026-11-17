@@ -37,12 +37,11 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/results/resultsCells'
-import { CHOICE_INPUT, ICON_ACTION, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, FIGURES, ICON_ACTION, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
 import { NO_VALUE_MARK } from '../utils/unavailableCell'
-import { grouped } from '../utils/numbers'
 
 // One body row of the results table, ranked or pending. Apart from the table
 // and memoized because a report can hold a thousand rows and most changes to
@@ -209,7 +208,7 @@ function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps)
             // Where the keyboard lands when a restore brings the row back (`ResultsSheet`).
             data-row-name=""
             aria-label={`Center map on ${name}`}
-            className={`${LINK_QUIET} min-w-0 truncate text-left`}
+            className={`${LINK_QUIET} ${TABLE.nameText}`}
           >
             {label}
           </button>
@@ -304,7 +303,7 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
       </>
     )
   }
-  return <td className={`${TABLE.cell} ${TABLE.number} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
+  return <td className={`${TABLE.cell} ${TABLE.number} whitespace-nowrap ${FIGURES}`}>{sized(ctx.widths, colKey, body)}</td>
 }
 
 // The Closure column (#550), the wildfire cell's twin: the same clock, the
@@ -353,7 +352,7 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
   if (warning && ctx.widths[colKey] === undefined) {
     body = <span className={TABLE.clip}>{body}</span>
   }
-  return <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
+  return <td className={`${TABLE.cell} whitespace-nowrap ${FIGURES}`}>{sized(ctx.widths, colKey, body)}</td>
 }
 
 // One body cell of a ranked row: every column after the rank, the name, Model
@@ -371,7 +370,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   // rather than print a number the answer replaces.
   if (ctx.heightPending && frame !== null && heightDependentKey(key)) {
     return (
-      <td className={`${TABLE.cell}${align} whitespace-nowrap font-mono`}>
+      <td className={`${TABLE.cell}${align} whitespace-nowrap ${FIGURES}`}>
         {sized(ctx.widths, key, <span className={TEXT.caption}>{frame}</span>)}
       </td>
     )
@@ -405,12 +404,12 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   // cell's; the note it points at is the table's.
   if (key === 'elevation_ft' && readAtTerrainHeight(row)) {
     return (
-      <td className={`${TABLE.cell}${align} whitespace-nowrap font-mono`}>
+      <td className={`${TABLE.cell}${align} whitespace-nowrap ${FIGURES}`}>
         {sized(
           ctx.widths,
           key,
           <>
-            {grouped(Number(row.terrain_ft))}
+            {cellText(ELEVATION_COL, row.terrain_ft)}
             <FootnoteMark glyph={TERRAIN_HEIGHT_MARK} target="terrain" />
           </>,
         )}
@@ -423,7 +422,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   const missing = unavailableCell(key, raw)
   if (missing !== null) {
     return (
-      <td className={`${TABLE.cell}${align} whitespace-nowrap font-mono`}>
+      <td className={`${TABLE.cell}${align} whitespace-nowrap ${FIGURES}`}>
         {sized(
           ctx.widths,
           key,
@@ -446,9 +445,9 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   const display = cellText(col, raw)
   // Color comes from the table's own base, or inline for a ranked column: an
   // inline color beats the inherited one either way.
-  // Words in the sans, numbers in the mono: the name and the type are words
-  // (record 0222), the type in the table's own sans and weight.
-  const face = key === 'name' ? 'font-sans font-medium' : key === 'type' ? '' : 'font-mono'
+  // Words as words, numbers in tabular figures (record 0304): the name and
+  // the type are words (record 0222), the type in the table's own weight.
+  const face = key === 'name' ? 'font-medium' : key === 'type' ? '' : FIGURES
   const cellClass = `${TABLE.cell}${align} whitespace-nowrap ${face}`.trimEnd()
   if (key === 'name') {
     return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
@@ -638,13 +637,13 @@ function PendingTableRow({
         const align = isNumberColumn(col) ? ` ${TABLE.number}` : ''
         if (key === 'elevation_ft') {
           return (
-            <td key={key} className={`${TABLE.cell}${align} whitespace-nowrap font-mono`}>
+            <td key={key} className={`${TABLE.cell}${align} whitespace-nowrap ${FIGURES}`}>
               {sized(widths, 'elevation_ft', cellText(ELEVATION_COL, d.elevation_ft))}
             </td>
           )
         }
         return (
-          <td key={key} className={`${TABLE.cell}${align} whitespace-nowrap font-mono ${TEXT.caption}`}>
+          <td key={key} className={`${TABLE.cell}${align} whitespace-nowrap ${FIGURES} ${TEXT.caption}`}>
             {sized(widths, key, NO_VALUE_MARK)}
           </td>
         )

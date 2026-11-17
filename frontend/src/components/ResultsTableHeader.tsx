@@ -2,7 +2,7 @@ import { memo, useId } from 'react'
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { DestinationResult } from '../types'
-import { RANK_KEY, isNumberColumn, type SortDir, type SortKey, type ColDef } from '../utils/tableColumns'
+import { RANK_KEY, headerLines, isNumberColumn, type SortDir, type SortKey, type ColDef } from '../utils/tableColumns'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
@@ -17,6 +17,25 @@ import { ACCENT, CHOICE_INPUT, COLUMN_GRIP, DRAG, FOCUS_RING_INSET, SCROLL_SHADO
 // cells' clock never reaches this far: FireClock in ResultsTableRow.tsx sends
 // each frame to those cells through a context. The two gestures are hooks (useColumnDrag, useColumnResize) and
 // what they measure is utils/columnMeasure.ts; this file draws.
+
+// A header in two lines when its label names a unit: the name over the unit
+// (record 0304). The two lines are drawn for the eye and hidden from the
+// accessibility tree, and the label rides whole beside them, so a screen
+// reader, voice control and every query by name still hear `Elevation (ft)`
+// as one phrase rather than a name and a stray unit.
+function HeaderLabel({ col }: { col: ColDef }) {
+  const { name, unit } = headerLines(col)
+  if (unit === null) return <>{col.label}</>
+  return (
+    <>
+      <span aria-hidden="true">
+        {name}
+        <span className={TABLE.headUnit}>{unit}</span>
+      </span>
+      <span className={SR_ONLY}>{col.label}</span>
+    </>
+  )
+}
 
 interface Props {
   // The columns in the order the table draws them.
@@ -202,7 +221,7 @@ function ResultsTableHeader({
           {orderedColumns.map((col) =>
             sortHeader(
               col.key,
-              sized(widths, col.key as string, col.label, 'inline'),
+              sized(widths, col.key as string, <HeaderLabel col={col} />, 'inline'),
               // The Name header stands with its column (record 0142); sticky
               // is positioned, so the resize grip still hangs off its edge.
               `${col.key === 'name' ? TABLE.stickyNameHead : 'relative'} ${onColumnMove ? 'touch-none' : ''} ${

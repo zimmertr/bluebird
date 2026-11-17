@@ -1,5 +1,6 @@
 import {
   ACCENT,
+  FIGURES,
   LAYER,
   RADIUS,
   SCRUBBER,
@@ -146,7 +147,7 @@ export default function TimelineTransport({
             and each mark's margin resolves against the track's width. The
             position is a style for the fill's reason: it is derived from the
             frame, not chosen. */}
-        <div className={`${TEXT.micro} grid font-mono`}>
+        <div className={`${TEXT.micro} grid ${FIGURES}`}>
           {scale.map((mark, i) => (
             <span
               key={`${mark.label}-${i}`}
@@ -180,7 +181,7 @@ export default function TimelineTransport({
         ) : (
           <div className={TEXT.overline}>{axisLabel(axis)}</div>
         )}
-        <div className={`${TEXT.control} whitespace-nowrap font-mono`}>{readout}</div>
+        <div className={`${TEXT.control} whitespace-nowrap ${FIGURES}`}>{readout}</div>
       </div>
     </div>
   )

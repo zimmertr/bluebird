@@ -11,13 +11,13 @@ The app has two themes since #706, and since #843 it opens in the device's own s
 | Role | Purpose |
 |---|---|
 | `TEXT.appTitle` | Panel identity in the header |
-| `TEXT.section` | Panel section headings: 14px bold uppercase in slate-300 (9.83:1 on the panel), brighter than any caption so a heading no longer reads dimmer than the slate-200 subheading under it (#687) |
+| `TEXT.section` | Panel section headings: 14px semibold in sentence case, in the strong ink (14.62:1 on the dark panel), so the ink carries the rank the capitals once did and the heading reads above the slate-200 subheading under it (#687; record [0304](architectural-decision-records/0304-the-refreshed-look-and-a-denser-table.md)) |
 | `TEXT.subheading` | Named sub-blocks and field labels |
 | `TEXT.cta` | Single call-to-action text, step up from body |
 | `TEXT.control` | Anything you read or type in a control, and every field label beside one: Model, When, Rank by, Hours, at one weight (record [0222](architectural-decision-records/0222-one-card-one-close-one-type-ramp.md)) |
 | `TEXT.caption` | Secondary text: descriptions, notes |
 | `TEXT.helper` | Italic prose explaining a control |
-| `TEXT.overline` | Tiny all-caps labels: the model list's group heads and columns, the player's axis |
+| `TEXT.overline` | Tiny labels in the micro step's semibold: the model list's group heads and columns, the player's axis. Sentence case since record [0304](architectural-decision-records/0304-the-refreshed-look-and-a-denser-table.md) |
 | `TEXT.micro` | Attribution, timestamps, overflow counts. 11px, the floor for text that is read, and never on a button or a link a reader presses (see The type floor below) |
 | `PROSE.title` | Dialog heading, at `TEXT.appTitle`'s 18px so a dialog and the panel name things at one size |
 | `PROSE.subtitle` | Line under dialog heading |
@@ -248,6 +248,8 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 ### Shapes and tables
 
 A button's shape says where it stands. A circle floats on the map with nothing behind it; every control inside the panel, a sheet, a card or a popup is a rounded rectangle, and an icon-only one is `SQUARE_BUTTON`, a raised square with a frame. The results table, the marker popup and the chart's card share one table look: the table's heads, a hairline between rows with the table's tint under the pointer, digits grouped in thousands, and the ranked family in `cellStyle`'s colours. Record: [0257](architectural-decision-records/0257-one-table-look-and-button-shape-by-place.md)
+
+The results table is a spreadsheet first, so it spends its width on numbers. A metric's header is two lines, its name over its unit (`TABLE.headUnit`), the numbers wear tabular figures (`FIGURES`) rather than a monospace face, and the table alone prints heights without the thousands separator and precipitation without trailing zeros, through each column's `cell`. The popup and the chart's card keep the grouped print, because a figure that stands alone reads better with it. Every corner is `RADIUS.control`'s 6px or `RADIUS.surface`'s 12px, and the app's one face is Inter, bundled with the app so every reader's widths are the ones `styles.test.ts` measured. Record: [0304](architectural-decision-records/0304-the-refreshed-look-and-a-denser-table.md)
 
 ## Two themes
 
@@ -940,8 +942,9 @@ Record: [0259](architectural-decision-records/0259-phone-results-sheet-drags-to-
 
 The results table's Name column sticks at the left edge on an opaque fill
 (`TABLE.stickyNameCell`, `TABLE.stickyNameHead`), with the row's hover tint
-laid over it as a gradient. On a phone it opens no wider than 45% of the
-sheet (`TABLE.nameCap`), and a longer name truncates. A name, a number that
+laid over it as a gradient. On a phone it opens no wider than 34% of the
+sheet (`TABLE.nameCap`), and a longer name wraps to a second line
+(`TABLE.nameText`; record [0304](architectural-decision-records/0304-the-refreshed-look-and-a-denser-table.md)). A name, a number that
 links to Windy and a footnote mark are links in their text's own colour
 (`LINK_QUIET`): no underline at rest at a desk, one on hover and keyboard
 focus, and a thin one at rest in the secondary ink on a touch screen, which

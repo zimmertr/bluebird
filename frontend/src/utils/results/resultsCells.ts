@@ -98,7 +98,8 @@ export function unavailableCell(key: string, raw: unknown): { text: string; caus
 }
 
 /**
- * The printed value: the column's own format, or the dash a missing hour gets.
+ * The printed value: the column's table print (`cell`, record 0304) or its
+ * format, or the dash a missing hour gets.
  * A null never reaches a formatter, `popupRows.ts`'s rule and for its reason:
  * snowfall's is precipitation's, which would print a null as zeros, a number
  * the forecast never gave (#678). A snow depth the source file could not hold
@@ -108,7 +109,8 @@ export function cellText(col: ColDef, raw: unknown): string {
   if (raw == null) return NO_VALUE_MARK
   const clipped = isSnowDepthKey(col.key as string) ? snowCellText(raw) : null
   if (clipped !== null) return clipped
-  return col.format ? col.format(raw) : String(raw)
+  const print = col.cell ?? col.format
+  return print ? print(raw) : String(raw)
 }
 
 /**

@@ -359,7 +359,7 @@ export function fireCellText(warning: FireWarning | undefined, uncovered: boolea
  * dots — the separator glyph the app already speaks (`Precipitation ·
  * Total`), so the loader reads as the product's own punctuation rather than
  * a terminal cursor. Frames rather than a spinner because the cell is a text
- * column in a font-mono table — a glyph animation stays in the type system
+ * column in a table of tabular figures — a glyph animation stays in the type system
  * and costs no layout. The component owns the clock (and mutes the type);
  * this owns the frames so the sequence is testable without a DOM.
  */

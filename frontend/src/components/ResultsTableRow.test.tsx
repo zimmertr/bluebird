@@ -13,7 +13,6 @@ import {
 import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
 import { pendingChartRow } from '../utils/results/resultsCells'
 import { CHOICE_INPUT, TABLE } from '../styles'
-import { formatPrecipTotal } from '../metrics'
 import { closureWarning, fakeResponse, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import outlines from '../utils/usStateOutlines.json'
 import { render } from '../testSupport/render'
@@ -133,11 +132,12 @@ describe('a ranked row', () => {
     // After the rank: name, elevation, precipitation, wildfire, type.
     const cells = [...container.querySelectorAll('td')].slice(1, 6)
     expect(cells.map((td) => td.classList.contains(TABLE.number))).toEqual([false, true, true, true, false])
-    expect(cells.map((td) => td.classList.contains('font-mono'))).toEqual([false, true, true, true, false])
+    expect(cells.map((td) => td.classList.contains('tabular-nums'))).toEqual([false, true, true, true, false])
   })
 
-  // A phone's stuck Name column stops at 45% of the sheet until the reader
-  // sizes it (record 0142), and the name truncates inside that.
+  // A phone's stuck Name column stops at 34% of the sheet until the reader
+  // sizes it (records 0142 and 0304), and the name wraps to two lines inside
+  // that.
   it('caps its unsized name on a phone, and leaves a sized one alone', () => {
     const { rerender } = inTable(<ResultsTableRow {...props()} />)
     const line = () => screen.getByRole('button', { name: 'Center map on Mount Adams' }).parentElement!
@@ -219,7 +219,8 @@ describe('a ranked row', () => {
   // The sentence rides as the description instead.
   it('names a metric cell link by its value and describes where it goes', () => {
     inTable(<ResultsTableRow {...props({ row: { ...ROW, precip_total_in: 0.42 } })} />)
-    const shown = formatPrecipTotal(0.42)
+    // The table's print, trailing zeros dropped (record 0304).
+    const shown = '0.42'
     const value = within(screen.getByRole('row')).getByText(shown)
     // Found by the name a reader hears, computed the way a browser does it.
     const link = screen.getByRole('link', {

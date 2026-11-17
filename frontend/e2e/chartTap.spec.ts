@@ -128,7 +128,7 @@ test.describe('on a 390 px phone', () => {
     })
     const card = page.locator('.recharts-tooltip-wrapper > div')
     await expect(card).toBeVisible()
-    await expect(card.locator('.font-mono').first()).toBeVisible()
+    await expect(card.locator('.tabular-nums').first()).toBeVisible()
     const box = (await card.boundingBox())!
     const plot = (await page.locator('[data-tour="chart"] [data-chart-stage]').first().boundingBox())!
     // It starts inside the chart: nothing of it stands under the results bar.

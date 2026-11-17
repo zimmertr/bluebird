@@ -1,6 +1,6 @@
 # 0257. The three tables share one look, and a button's shape says where it stands
 
-- Status: Accepted. Amends 0251 (a marker popup's grid row is no control and takes the table's row tint under the pointer).
+- Status: Accepted. Amends 0251 (a marker popup's grid row is no control and takes the table's row tint under the pointer). Amended by [0304](0304-the-refreshed-look-and-a-denser-table.md): the results table alone prints heights ungrouped and precipitation without trailing zeros.
 - Date: 2026-10-30
 - Decider: the maintainer (TJ), on reviewing PR #828 on 2026-10-30: the shared heads, rows, digits and ranked colour as proposed, the raised square for a close button over a ghost square and a framed circle, the shape rule by where a button stands over one by what it carries and squares everywhere, and the column moves shared with the table
 - Issues and PRs: #499, #828

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clamp, grouped, isFiniteNumber, roundTo } from './numbers'
+import { clamp, grouped, isFiniteNumber, roundTo, trimZeros, ungrouped } from './numbers'
 
 describe('clamp', () => {
   it('bounds a number to the range, and leaves one inside it alone', () => {
@@ -58,5 +58,28 @@ describe('grouped', () => {
     expect(grouped(1500)).toBe((1500).toLocaleString())
     expect(grouped(12281)).toBe((12281).toLocaleString())
     expect(grouped(42)).toBe('42')
+  })
+})
+
+// The table's compact numbers (record 0304): no separator in a narrow cell,
+// and no trailing zeros past the first decimal.
+describe('ungrouped', () => {
+  it('prints the digits with no thousands separator', () => {
+    expect(ungrouped(9415)).toBe('9415')
+    expect(ungrouped(12850)).toBe('12850')
+    expect(ungrouped(0)).toBe('0')
+  })
+})
+
+describe('trimZeros', () => {
+  it('drops trailing zeros down to one decimal', () => {
+    expect(trimZeros('0.000')).toBe('0.0')
+    expect(trimZeros('0.050')).toBe('0.05')
+    expect(trimZeros('1.200')).toBe('1.2')
+  })
+
+  it('leaves a value that needs every digit, and a whole number, alone', () => {
+    expect(trimZeros('0.123')).toBe('0.123')
+    expect(trimZeros('42')).toBe('42')
   })
 })
