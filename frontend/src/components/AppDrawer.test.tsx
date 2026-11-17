@@ -158,13 +158,17 @@ describe('AppDrawer', () => {
   })
 
   // Hidden is out of the Tab order: closed, the drawer once kept some 45
-  // stops a keyboard walked through blind (#576).
-  it('hides its header buttons while closed', () => {
+  // stops a keyboard walked through blind (#576). Inert as well, which is
+  // what tells the focus hand-off that the pressed Close button has lost the
+  // keyboard before the browser moves it.
+  it('hides its header buttons while closed, inert', () => {
     const { rerender } = render(drawer(true))
     const actions = () => screen.getByRole('button', { name: 'Close controls', hidden: true }).parentElement
     expect(actions()?.className).toBe(PANEL_HEADER.actions)
+    expect(actions()?.hasAttribute('inert')).toBe(false)
     rerender(drawer(false))
     expect(actions()?.className).toBe('hidden')
+    expect(actions()?.hasAttribute('inert')).toBe(true)
   })
 
   // The card hands the panel the search field it holds, whether it is open,

@@ -87,8 +87,9 @@ for (const [name, width, height] of [
     await expect(body.getByText('Fire activity: Hotspot', { exact: true })).toBeVisible()
     await expect(body.getByText('Detected', { exact: true })).toHaveCount(0)
     // A click on bare map clears it, as it clears every card: at the
-    // canvas's left edge, clear of the card over the star and of the chips.
-    await page.mouse.click(box.x + 30, box.y + box.height / 2)
+    // canvas's right edge, clear of the card over the star, of a desk's
+    // controls card at the left and of the buttons in the corner under it.
+    await page.mouse.click(box.x + box.width - 30, box.y + box.height / 2)
     await expect(card).toHaveCount(0)
   })
 }

@@ -37,8 +37,8 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
   await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Draw polygon' }).click()
-  // The panel slides away rather than vanishing, so the point is read once
-  // nothing but the map or the legend stands at it.
+  // Drawing shuts the controls, so the point is read once nothing but the
+  // map or the legend stands at it.
   await expect.poll(async () => (await probe(page)).hit).toBe('map')
   const measured = await probe(page)
   testInfo.annotations.push({ type: 'probe', description: JSON.stringify(measured) })

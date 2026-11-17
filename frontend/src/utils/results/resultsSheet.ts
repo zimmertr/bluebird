@@ -198,10 +198,13 @@ export const PLAYER_ROOM_PX = FAB_GAP_PX + TRANSPORT_HEIGHT_PX
  * One line, which is the bar wherever it is 896px wide or more. It is the
  * estimate for the frame before `useResultsLayout` has measured the bar, and
  * the measurement wins from then on, because a narrower bar is taller: beside
- * the docked panel at 1024 the title stands over the actions, 59px, and a
- * three-digit Removed count wraps the button group onto a line of its own,
+ * the docked panel at 1024 the title stood over the actions, 59px, and a
+ * three-digit Removed count wrapped the button group onto a line of its own,
  * 85px (#714, measured 2026-10-20). Counted at 36 there, the map came up 23 or
  * 49px short of the room the floor below keeps for it whenever the floor bound.
+ * A desk's bar is the window's width since #825 (record 0305), 1024px at the
+ * least, so it is the one line; the measurement stays for whatever makes a
+ * bar taller next.
  */
 export const RESULTS_BAR_PX = 36
 

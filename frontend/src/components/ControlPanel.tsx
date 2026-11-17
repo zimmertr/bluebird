@@ -249,7 +249,10 @@ export default function ControlPanel({
     />
   )
 
-  // A shut card draws the search field and nothing else.
+  // A shut card draws the search field and nothing else. Each hidden part
+  // is inert too, which is how the focus hand-off knows the pressed Close
+  // button can no longer hold the keyboard (`useFocusHandoff`): the browser
+  // moves the focus off a hidden element only at its next frame.
   const shut = card !== undefined && !card.open
   const fold = (id: PanelSectionId): SectionFold | undefined =>
     card && { open: card.section === id, onToggle: () => card.onSection(id) }
@@ -262,7 +265,7 @@ export default function ControlPanel({
     <div data-menu-bound="" className="flex flex-col h-full min-h-0">
       {/* Header, at a desk: a phone's sheet carries its own (`AppDrawer`). */}
       {!phone && (
-        <div className={shut ? 'hidden' : `border-b ${PANEL_EDGE} flex flex-shrink-0`}>
+        <div inert={shut} className={shut ? 'hidden' : `border-b ${PANEL_EDGE} flex flex-shrink-0`}>
           <img
             src={logoUrl}
             alt=""
@@ -287,6 +290,7 @@ export default function ControlPanel({
         // the border) and `pt` the gap below it, so the line lands centred in
         // the gutter between two steps rather than tucked under the one above.
         ref={bodyRef}
+        inert={shut}
         className={
           shut
             ? 'hidden'
@@ -370,7 +374,11 @@ export default function ControlPanel({
         {phone && footer}
       </div>
 
-      {!phone && <div className={shut ? 'hidden' : 'flex-shrink-0'}>{footer}</div>}
+      {!phone && (
+        <div inert={shut} className={shut ? 'hidden' : 'flex-shrink-0'}>
+          {footer}
+        </div>
+      )}
     </div>
   )
 }

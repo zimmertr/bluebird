@@ -289,7 +289,7 @@ export default function AppDrawer({
     <aside data-map-overlay="" className={open ? DESK_CARD.card : MAP_ROWS.row}>
       {/* The header's buttons: the theme menu, then the close button, which
           shuts the card. */}
-      <div className={open ? PANEL_HEADER.actions : 'hidden'}>
+      <div inert={!open} className={open ? PANEL_HEADER.actions : 'hidden'}>
         <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} />
         <button
           ref={closeRef}

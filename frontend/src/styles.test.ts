@@ -3711,7 +3711,7 @@ describe('the desk legend card', () => {
 
   it('scrolls inside a height the map reads off its own box', () => {
     expect(card).toContain('overflow-y-auto')
-    expect(mapLegendSource).toContain('style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown) }}')
+    expect(mapLegendSource).toContain('style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown, besideCard) }}')
     expect(MAP_EDGE.publish).toContain('[container-type:size]')
   })
 })
@@ -4564,14 +4564,17 @@ describe('the results bar buttons', () => {
     const fits = Number(BAR_LABEL.match(/@min-\[(\d+)px\]:inline/)![1])
     expect(BAR_LABEL.startsWith('hidden ')).toBe(true)
     expect(fits).toBe(Math.ceil(MEASURED.switch + MEASURED.group + MEASURED.gap + MEASURED.digits))
-    // The docked bar at 1024 wide has 640px and keeps them; the widest phone
-    // measured, 430, has 406.
-    expect(640).toBeGreaterThanOrEqual(fits)
+    // A desk's bar at 1024 wide has 1000px, the window's width less its
+    // padding, since the controls are a card over the map (#825; record
+    // 0305), and keeps them; the widest phone measured, 430, has 406.
+    const DESK_BAR = 1024 - 24
+    expect(DESK_BAR).toBeGreaterThanOrEqual(fits)
     expect(406).toBeLessThan(fits)
     // At a desk the menu buttons carry chevrons (record 0201), measured
-    // 2026-10-20: the docked bar at 1024 still holds a two-digit count.
+    // 2026-10-20: the bar holds the line with a three-digit Removed count,
+    // which wrapped the group in the 640px beside the docked panel.
     const DESK_GROUP = 437.8
-    expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits / 2).toBeLessThanOrEqual(640)
+    expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits).toBeLessThanOrEqual(DESK_BAR)
   })
 })
 

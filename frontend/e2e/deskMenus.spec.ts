@@ -158,6 +158,7 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
 
   // The keyboard: the arrows open and walk the list, Enter picks, and the
   // keyboard is back on the field.
+  await openSection(page, 'Metrics')
   const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
   const shown = aggregate.locator('span').nth(1)
   const before = (await shown.textContent())!
@@ -177,14 +178,15 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
   await expect(aggregate).toBeFocused()
 })
 
-// A three-digit Removed count is the one thing that wraps the bar's button
-// group at a desk, beside the docked panel at 1024. The group goes to a line
-// of its own as a whole, at the line's right end, and the results stand right
-// under the taller bar rather than under the one line the floor once counted.
+// A three-digit Removed count wrapped the bar's button group at a desk,
+// beside the docked panel at 1024, where the bar had 640px. The controls are
+// a card over the map since #825 (record 0305), so the bar is the window's
+// width and holds the count on its one line, the group at the line's right
+// end, with the results right under the bar.
 test.describe('a long Removed count at 1024', () => {
   test.use({ viewport: { width: 1024, height: 768 } })
 
-  test('wraps the button group whole onto its own line, at the right end', async ({ page }) => {
+  test('keeps the button group on the bar\'s one line, at the right end', async ({ page }) => {
     const ring = { cx: (-121.9 - 121.7 - 121.7) / 3, cy: (47.4 + 47.4 + 47.55) / 3 }
     const destinations = Array.from({ length: 105 }, (_, i) => ({
       name: `Peak ${5000 + i}`,
@@ -225,10 +227,11 @@ test.describe('a long Removed count at 1024', () => {
         map: document.querySelector('.maplibregl-canvas')!.getBoundingClientRect().toJSON() as DOMRect,
       }
     })
-    // Its own line, under the mode switch, and the whole group on it.
-    expect(parts.group.top).toBeGreaterThanOrEqual(parts.modes.bottom)
+    // On the mode switch's line, the whole group, with every word.
+    expect(Math.abs(parts.group.top - parts.modes.top)).toBeLessThanOrEqual(1)
     expect(parts.group.height).toBeCloseTo(parts.modes.height, 0)
-    // At the right end of the line, as it stands on one line.
+    await expect(button.getByText('Removed (100)')).toBeVisible()
+    // At the right end of the line.
     near(parts.group.right, parts.row.right)
     // The map ends where the bar starts, and the panels start where it ends.
     near(parts.map.bottom, parts.bar.top)

@@ -483,6 +483,7 @@ describe('in a desk\'s card', () => {
     expect(field.className).toBe('')
     for (const sibling of [...field.parentElement!.children].filter((el) => el !== field)) {
       expect(sibling.className).toBe('hidden')
+      expect(sibling.hasAttribute('inert')).toBe(true)
     }
     expect(onAutoAnalyze).toHaveBeenCalledExactlyOnceWith('run')
   })

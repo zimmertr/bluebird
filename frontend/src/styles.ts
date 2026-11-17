@@ -2404,23 +2404,25 @@ export const ACTION_ITEM =
  * switch and all four buttons on one line with their words (#687); under that,
  * every control is its glyph alone and keeps the word as its accessible name,
  * as the switch's halves already did on a phone. A container rule, because the
- * bar's width is the viewport less the docked panel.
+ * bar's width was the viewport less the docked panel, and is a sheet's on a
+ * phone.
  *
  * 584px of the bar's content, measured 2026-10-13 at text-xs: the labelled
  * switch is 176.7px, the labelled group with `Removed (1)` showing 377.8px,
  * and the groups stand at least 16px apart (`gap-x-4`) on the folded line,
  * 570.5px; then two more digits of a Removed count, 13.4px, so a reader with
- * a hundred removals still gets one line. The bar beside the docked panel at
- * 1024 wide has 640px and keeps its words; a phone has 336px at 360 wide and
+ * a hundred removals still gets one line. A phone has 336px at 360 wide and
  * 406px at 430, and shows the switch and the glyphs on one line, Removed or
  * not. It replaces the switch's `sm:` viewport rule, so the bar's words come
  * and go together.
  *
  * At a desk the three menu buttons carry chevrons, which a phone's never do
  * (record 0201), and the labelled group is 437.8px, measured 2026-10-20. A
- * desk's bar is never under the 640px it has beside the docked panel at 1024,
- * which holds the line with a two-digit Removed count (637.2px); a
- * three-digit count wraps the group onto a line of its own there.
+ * desk's bar is the window's width since #825, the controls being a card
+ * over the map (record 0305): 1000px of content at 1024 wide, where it had
+ * 640 beside the docked panel, so it keeps its words and holds the line
+ * with a three-digit Removed count (644px), which used to wrap the group
+ * onto a line of its own there.
  */
 export const BAR_LABEL = 'hidden @min-[584px]:inline'
 
@@ -3084,8 +3086,8 @@ export const DESK_CARD = {
  * across the card that opens the section and collapses it again, with one
  * rule between sections and no other space (`rule`), so three collapsed
  * sections are 122px and the whole card 335, which is what lets it stand
- * over a map the docked results have left about 380px of (1389x868, both
- * measured 2026-11-16). The panel's own stack (`PANEL_RULE`) spends 16px over
+ * over a map the docked results have left about 380px of (1389x868, the
+ * card measured 2026-11-17). The panel's own stack (`PANEL_RULE`) spends 16px over
  * and under each rule, which made the same card 383px.
  *
  * Collapsed, the section's summary stands beside its name in the caption's

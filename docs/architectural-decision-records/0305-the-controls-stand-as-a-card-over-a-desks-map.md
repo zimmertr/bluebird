@@ -33,9 +33,26 @@ The maintainer's verdict on the first lab kept two layouts in the running. This 
 
 ## Evidence
 
+The card's heights, measured in the PR's preview at 1400x857 in Chrome on macOS on 2026-11-17 (commit 21fe9ecd), where the map is 825px tall before a run:
+
+| The card | Height |
+|---|---|
+| Every section collapsed | 335px |
+| Forecast open | 407px |
+| Destinations open | 535px |
+| Metrics open | 723px |
+
+A section's heading is a 40px row with one rule between sections (`CARD_SECTION`), so three collapsed sections are 122px. The first build kept the panel's own spacing, 16px over and under each rule, and the same collapsed card was 383px. The docked results leave the map about 380px at 1389x868 (#825's measurement, 32.6% of the window), so 335px and its two insets, 359px, is what lets a collapsed card stand whole over that map.
+
 Under the card there is no room for what the chips open. The Layers menu and the legend's card hang from their chips. Once the results dock under the map, a card with every section collapsed takes most of the map's height, and with Destinations open before a run it takes most of the window's. Chips under the card would stand at the foot of the map with their menus opening off it. Beside the card they stand at the map's top, where they stood beside the docked panel, and their menus have the map's height.
 
 Placing them under the card only when there is room was declined: the row would jump between two places as a section opens, and a control that moves under the reader is what the panel's greyed-not-hidden rows exist to avoid (#687).
+
+Three things followed from the move and are in the same PR:
+
+- **A desk's results bar holds one line.** The bar is the window's width, 1000px of content at 1024 wide where it had 640 beside the docked panel, so a three-digit Removed count no longer wraps its button group (`BAR_LABEL`).
+- **A shut card's hidden parts are inert as well as hidden.** The browser moves the keyboard off a hidden element only at its next frame, so the focus hand-off (`useFocusHandoff`) saw the pressed Close button still holding it and left the keyboard on nothing. `inert` is what that hook already reads.
+- **A dragged popup stops at a surface a hair inside its breath.** With the legend beside the controls card, a row's popup opens exactly 8px from the legend, and the browser suite's card measured 7.5px from it: MapLibre rounds a popup's place to a whole pixel, and a projected point carries noise in its last digits. The drag's bounds read that as a surface the card could not clear, left it alone, and the card widened over the legend. `clearSize` now gives a pixel of tolerance (`PLACE_SLOP_PX`) and holds the card at its least width there.
 
 ## Alternatives rejected
 
