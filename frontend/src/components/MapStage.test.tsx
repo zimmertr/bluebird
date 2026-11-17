@@ -23,12 +23,11 @@ vi.mock('./MapView', () => ({
 }))
 vi.mock('./MapLegend', async (original) => ({
   ...(await original<typeof import('./MapLegend')>()),
-  default: (props: { sections: readonly unknown[]; sheet: boolean; besideCard?: boolean }) => (
+  default: (props: { sections: readonly unknown[]; sheet: boolean }) => (
     <div
       data-testid="legend"
       data-sections={String(props.sections.length)}
       data-sheet={String(props.sheet)}
-      data-beside-card={String(props.besideCard)}
     />
   ),
 }))
@@ -283,19 +282,18 @@ describe('MapStage', () => {
   // A desk's controls card stands in the rows (record 0305). While it is
   // open a framing move leaves its reach clear on the map's left and the
   // legend's chip stands beside it; shut, or on a phone, neither.
-  it('hands a desk\'s rows the controls card, and the map and the legend where it stands', () => {
+  it('hands a desk\'s rows the controls card, and the map where it stands', () => {
     const controlsCard = () => null
     const cases = [
-      { isDesktop: true, sidebarOpen: true, card: 'true', pad: DESK_CARD_REACH_PX, beside: 'true' },
-      { isDesktop: true, sidebarOpen: false, card: 'true', pad: 0, beside: 'false' },
-      { isDesktop: false, sidebarOpen: true, card: 'false', pad: 0, beside: 'false' },
+      { isDesktop: true, sidebarOpen: true, card: 'true', pad: DESK_CARD_REACH_PX },
+      { isDesktop: true, sidebarOpen: false, card: 'true', pad: 0 },
+      { isDesktop: false, sidebarOpen: true, card: 'false', pad: 0 },
     ]
-    for (const { isDesktop, sidebarOpen, card, pad, beside } of cases) {
+    for (const { isDesktop, sidebarOpen, card, pad } of cases) {
       seen.mapView.length = 0
       const { unmount } = render(<MapStage {...props({ isDesktop, sidebarOpen, controlsCard })} />)
       expect(screen.getByTestId('rows').dataset.card).toBe(card)
       expect(seen.mapView[0].cameraPadLeftPx).toBe(pad)
-      expect(screen.getByTestId('legend').dataset.besideCard).toBe(beside)
       unmount()
     }
     // With no card handed to it, an open panel pads nothing.

@@ -544,8 +544,6 @@ interface MapLegendProps {
   timelineShown: boolean
   /** Whether a desk's card opens unfolded: the reader's last answer (`viewPrefs.legendOpen`), or open. */
   initiallyOpen: boolean
-  /** A desk's controls card is open, so the chip stands beside it in the map's first row (record 0305). */
-  besideCard?: boolean
 }
 
 /**
@@ -566,7 +564,6 @@ export default function MapLegend({
   sheetLiftPx,
   timelineShown,
   initiallyOpen,
-  besideCard = false,
 }: MapLegendProps) {
   const [deskOpen, setDeskOpen] = useState(initiallyOpen)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -632,7 +629,7 @@ export default function MapLegend({
           // map is narrow enough for it to reach under the card, and a plain
           // gap otherwise (`legendMaxCss`). A key too tall for that scrolls
           // inside the card rather than running under the player.
-          style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown, besideCard) }}
+          style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown) }}
         >
           <LegendSections sections={sections} />
         </div>

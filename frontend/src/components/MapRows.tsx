@@ -1,10 +1,12 @@
-import { useId, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import SearchBox, { type SearchBoxHandle } from './SearchBox'
 import { IconMenu } from './icons'
 import { MenuButton } from './Menu'
+import { useCardChips } from '../hooks/useCardChips'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { DESK_CARD, LAYER, MAP_CHIP_SUMMARY_TEXT, MAP_ROWS, MAP_SLOT } from '../styles'
 import type { Place } from '../utils/geocode'
+import { legendRowVars } from '../utils/results/resultsSheet'
 
 interface MapRowsProps {
   /** The search field's handle, which `MapStage` holds. */
@@ -87,6 +89,10 @@ export default function MapRows({
   const [searching, setSearching] = useState(false)
   const summaryShown = !desk || !sidebarOpen
   const cardOpen = card !== undefined && sidebarOpen
+  // Around an open card the chip row stands under it while the legend has
+  // room there, and beside it while it has not (`useCardChips`).
+  const stackRef = useRef<HTMLDivElement>(null)
+  const chips = useCardChips(stackRef, cardOpen)
 
   // Stands in for the Controls sheet's Done, or the desk panel's Close, so it
   // takes the keyboard when that button goes inert under it (#576).
@@ -109,12 +115,16 @@ export default function MapRows({
   return (
     // A popup keeps clear of the rows (`resultsLayer.ts` finds every
     // `data-map-overlay`), which stand over the top of every map. Around a
-    // desk's card the stack is no one box: open, the card and the chip row
+    // desk's card the stack is no one box: the card and the chip row can
     // stand side by side over an empty corner a popup may use, so each is
-    // its own surface (`AppDrawer` marks the card).
+    // its own surface (`AppDrawer` marks the card). The stack publishes where
+    // its rows end for the legend's card, which hangs from a chip in it
+    // (`legendRowVars`).
     <div
+      ref={stackRef}
       data-map-overlay={card ? undefined : ''}
-      className={`${MAP_ROWS.stack} ${cardOpen ? DESK_CARD.stackOpen : ''} ${LAYER.mapControls}`}
+      className={`${MAP_ROWS.stack} ${chips?.side === 'beside' ? DESK_CARD.stackOpen : ''} ${LAYER.mapControls}`}
+      style={chips ? (legendRowVars(chips) as CSSProperties) : undefined}
       inert={covered}
     >
       {card ? card(search) : search}

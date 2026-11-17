@@ -3050,11 +3050,13 @@ export const PANEL_MS = 300
  * keeps the width it was measured at (327px inside the body's padding).
  *
  * The card stands in the map's own stack (`MAP_ROWS.stack`) and holds the
- * search field, so the stack is the card and the chip row beside it
- * (`stackOpen`); under the card the chips would have no room for the legend
- * they open, because once the results dock under the map a card with every
- * section collapsed takes most of the map's height. Shut, the card is the search pill alone
- * (`MAP_ROWS.row`) and the chips stand under it, as they did.
+ * search field, so the stack is the card with the chip row under it, in
+ * the card's own column, wherever the legend's card then has room on the
+ * map (`cardChips`), so the map to the card's right stays clear. Where it
+ * has not, a short map after a run or a tall section open, the stack turns
+ * to a row and the chips stand beside the card (`stackOpen`), since under
+ * it they would hang off the map's foot. Shut, the card is the search pill
+ * alone (`MAP_ROWS.row`) and the chips stand under it, as they did.
  *
  * Never taller than the map less one inset over and under it: the map's
  * wrapper is a size container (`MAP_EDGE.publish`), and past that the card's

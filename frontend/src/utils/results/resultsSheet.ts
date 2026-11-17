@@ -456,10 +456,10 @@ export const TRANSPORT_W_PX = 368
 export const LEGEND_BESIDE_TRANSPORT_PX = 2 * (2 * MAP_EDGE_INSET_PX + LEGEND_CARD_W_PX) + TRANSPORT_W_PX
 
 /**
- * The same line while a desk's controls card is open (record 0305): the chip
- * row stands beside the card, one inset past its right edge, so the legend
- * card's right edge is the controls card's width and that inset further in,
- * and the line is twice that wider. 1610px.
+ * The same line while the chip row stands beside a desk's open controls card
+ * (record 0305): one inset past the card's right edge, so the legend card's
+ * right edge is the controls card's width and that inset further in, and the
+ * line is twice that wider. 1610px.
  */
 export const LEGEND_BESIDE_CARD_TRANSPORT_PX =
   LEGEND_BESIDE_TRANSPORT_PX + 2 * (DESK_CARD_W_PX + MAP_EDGE_INSET_PX)
@@ -470,6 +470,81 @@ export const LEGEND_BESIDE_CARD_TRANSPORT_PX =
  * (`MAP_ROWS`). The chips are then the map's first row.
  */
 export const CARD_CHIPS_RISE_PX = 44
+
+/** The chip row's height (`MAP_ROWS.chips`, `h-8`) and the gap the rows keep between them (`MAP_ROWS.stack`, `gap-3`). */
+export const CHIP_ROW_PX = 32
+export const MAP_ROWS_GAP_PX = 12
+
+/**
+ * The least of the legend's card a reader gets under a desk's open controls
+ * card before the chip row moves beside it: the ranked metric's key and two
+ * layers' lines, 120px. Under that the card would scroll from its second
+ * line, or the chips would hang off the map's foot.
+ */
+export const LEGEND_UNDER_CARD_MIN_PX = 120
+
+/**
+ * Where the chip row stands around a desk's open controls card (record
+ * 0305): under it, in the card's own column, or beside it, as the map's
+ * first row. `cardPx` is the card's height as it stands, and `menuPx` the
+ * most a chip's menu may stand under the row there, down to one inset over
+ * the window's foot: the Layers menu is taller than the map left under the
+ * card and opens over the results, as it does on any short map, but never
+ * off the window, where its last rows could not be reached.
+ */
+export type CardChips = { side: 'under'; cardPx: number; menuPx: number } | { side: 'beside' }
+
+/**
+ * Where the map's rows end around a desk's controls card, from the map's top
+ * edge: the two rows of a shut card, the chip row alone beside an open one,
+ * and under an open one the inset, the card, the gap and the chip row.
+ */
+export function legendRowsPx(chips: Pick<CardChips, 'side'> | null, cardPx = 0): number {
+  if (chips === null) return MAP_ROWS_PX
+  if (chips.side === 'beside') return MAP_ROWS_PX - CARD_CHIPS_RISE_PX
+  return MAP_EDGE_INSET_PX + cardPx + MAP_ROWS_GAP_PX + CHIP_ROW_PX
+}
+
+/**
+ * Where the chip row stands around a desk's open controls card on a map
+ * `mapPx` tall (the maintainer, 2026-11-17): under the card wherever the
+ * legend's card then has `LEGEND_UNDER_CARD_MIN_PX` of the map under its
+ * chip, so the key shares the card's column and the map to the card's right
+ * stays clear; beside the card where it has not, a short map after a run or
+ * a tall section open, so the chips never hang off the map's foot. A card
+ * not measured yet (`cardPx` 0) reads as beside. `belowPx` is the window
+ * under the map's top edge, which bounds a chip's menu under the card.
+ */
+export function cardChips(mapPx: number, cardPx: number, belowPx = Number.POSITIVE_INFINITY): CardChips {
+  const rows = legendRowsPx({ side: 'under' }, cardPx)
+  const room = mapPx - rows - CHIP_MENU_GAP_PX - LEGEND_GAP_PX
+  if (cardPx <= 0 || room < LEGEND_UNDER_CARD_MIN_PX) return { side: 'beside' }
+  return { side: 'under', cardPx, menuPx: belowPx - rows - CHIP_MENU_GAP_PX - MAP_EDGE_INSET_PX }
+}
+
+/** The custom properties the two chip cards read off the rows, which `MapRows` sets around a desk's open card. */
+export const LEGEND_ROWS_VAR = '--legend-rows'
+export const LEGEND_LINE_VAR = '--legend-line'
+export const CHIP_MENU_MAX_VAR = '--chip-menu-max'
+
+/**
+ * The tallest a desk's Layers menu may be: as tall as its rows, but for
+ * under a desk's open controls card, where the rows publish the window left
+ * under the chip (`CardChips.menuPx`) and the menu scrolls past it.
+ */
+export const CHIP_MENU_MAX_CSS = `var(${CHIP_MENU_MAX_VAR}, none)`
+
+/** What the rows publish for the two chip cards around a desk's open controls card (`legendMaxCss`, `CHIP_MENU_MAX_CSS`). */
+export function legendRowVars(chips: CardChips): Record<string, string> {
+  if (chips.side === 'beside') {
+    return { [LEGEND_ROWS_VAR]: `${legendRowsPx(chips)}px`, [LEGEND_LINE_VAR]: `${LEGEND_BESIDE_CARD_TRANSPORT_PX}px` }
+  }
+  return {
+    [LEGEND_ROWS_VAR]: `${legendRowsPx(chips, chips.cardPx)}px`,
+    [LEGEND_LINE_VAR]: `${LEGEND_BESIDE_TRANSPORT_PX}px`,
+    ...(Number.isFinite(chips.menuPx) ? { [CHIP_MENU_MAX_VAR]: `${Math.max(0, Math.floor(chips.menuPx))}px` } : {}),
+  }
+}
 
 /**
  * The tallest a desk's legend card may be (#714): the map below the rows and
@@ -488,18 +563,19 @@ export const CARD_CHIPS_RISE_PX = 44
  * card cannot see the map's width any more than its height, and a container
  * query would want the line spelled as a literal class Tailwind can scan.
  *
- * Beside a desk's open controls card (`besideCard`, record 0305) the chip row
- * is the map's first row, not its second, so the card under it starts one row
- * and one gap higher, and it stands the card's reach further right, so the
- * line it clears the player under moves out by twice that.
+ * Where the rows end, and the line the card clears the player under, are
+ * two custom properties the rows publish (`legendRowVars`), because around a
+ * desk's open controls card (record 0305) both move with where the chip row
+ * stands, which only the rows know (`cardChips`). Unset, they are the two
+ * rows of a shut card and of a phone.
  */
-export function legendMaxCss(liftPx: number, timelineShown: boolean, besideCard = false): string {
-  const rowsPx = besideCard ? MAP_ROWS_PX - CARD_CHIPS_RISE_PX : MAP_ROWS_PX
-  const base = rowsPx + CHIP_MENU_GAP_PX + legendBottomPx(liftPx, false)
-  if (!timelineShown) return `calc(100cqh - ${base}px)`
+export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
+  const rows = `var(${LEGEND_ROWS_VAR}, ${MAP_ROWS_PX}px)`
+  const base = CHIP_MENU_GAP_PX + legendBottomPx(liftPx, false)
+  if (!timelineShown) return `calc(100cqh - ${rows} - ${base}px)`
   const extra = legendBottomPx(liftPx, true) - legendBottomPx(liftPx, false)
-  const line = besideCard ? LEGEND_BESIDE_CARD_TRANSPORT_PX : LEGEND_BESIDE_TRANSPORT_PX
-  return `calc(100cqh - ${base}px - clamp(0px, (${line}px - 100cqw) * 1000, ${extra}px))`
+  const line = `var(${LEGEND_LINE_VAR}, ${LEGEND_BESIDE_TRANSPORT_PX}px)`
+  return `calc(100cqh - ${rows} - ${base}px - clamp(0px, (${line} - 100cqw) * 1000, ${extra}px))`
 }
 
 /**

@@ -30,6 +30,7 @@ import type { MapViewHandle } from './MapView'
 import { CLOSURE_ROW_LABELS } from '../utils/closures'
 import { FIRE_ACTIVITY_ROW_LABEL } from '../utils/fireActivity'
 import { RADAR_ROW_LABEL } from '../utils/radar'
+import { CHIP_MENU_MAX_CSS } from '../utils/results/resultsSheet'
 import { SMOKE_ROW_LABEL } from '../utils/smoke'
 import { SNOW_ROW_LABEL } from '../utils/snowDepth'
 import { WILDFIRE_ROW_LABEL } from '../utils/wildfires'
@@ -565,7 +566,11 @@ export default function LayersPopover({
         <div
           ref={cardRef}
           data-state={closing ? 'closing' : 'open'}
-          className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}`}
+          className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU} ${CHIP_CARD_W.menu} overflow-y-auto overscroll-contain`}
+          // As tall as its rows, over the results on a short map, but for
+          // under a desk's open controls card, where it stops one inset over
+          // the window's foot and scrolls (`CHIP_MENU_MAX_CSS`; record 0305).
+          style={{ maxHeight: CHIP_MENU_MAX_CSS }}
           data-tour="layers-menu"
         >
           {rows}

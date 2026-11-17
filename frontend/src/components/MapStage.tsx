@@ -285,7 +285,7 @@ export default function MapStage({
     />
   )
   // A desk's controls card is open: a framing move leaves its width clear on
-  // the left, and the legend's chip stands beside it (record 0305).
+  // the left (record 0305).
   const cardOpen = isDesktop && sidebarOpen && controlsCard !== undefined
   const cameraPadLeftPx = cardOpen ? DESK_CARD_REACH_PX : 0
   const legendChip = (
@@ -295,7 +295,6 @@ export default function MapStage({
       sheetLiftPx={layout.sheetLiftPx}
       timelineShown={timelineShown}
       initiallyOpen={legendInitiallyOpen}
-      besideCard={cardOpen}
     />
   )
 

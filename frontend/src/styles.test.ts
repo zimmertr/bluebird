@@ -3711,7 +3711,7 @@ describe('the desk legend card', () => {
 
   it('scrolls inside a height the map reads off its own box', () => {
     expect(card).toContain('overflow-y-auto')
-    expect(mapLegendSource).toContain('style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown, besideCard) }}')
+    expect(mapLegendSource).toContain('style={{ maxHeight: legendMaxCss(sheetLiftPx, timelineShown) }}')
     expect(MAP_EDGE.publish).toContain('[container-type:size]')
   })
 })

@@ -65,14 +65,15 @@ test('the controls card opens and closes over a map that keeps the window', asyn
   const card = page.locator('aside')
 
   // Open: the card stands one inset in from the map's top left, 361px wide,
-  // with the search field in it and the chip row beside it.
+  // with the search field in it and the chip row under it, in its column,
+  // on a map this tall.
   await expect(card).toHaveJSProperty('offsetWidth', CARD_PX)
   const open = (await card.boundingBox())!
   expect({ x: open.x, y: open.y }).toEqual({ x: MAP_INSET_PX, y: MAP_INSET_PX })
   await expect(card.getByRole('combobox')).toBeVisible()
   const chips = (await page.getByRole('button', { name: 'Layers' }).boundingBox())!
-  expect(chips.x).toBeGreaterThan(open.x + open.width)
-  expect(chips.y).toBeLessThan(MAP_INSET_PX + 32)
+  expect(chips.x).toBeLessThan(open.x + open.width)
+  expect(chips.y).toBe(open.y + open.height + 12)
 
   // Shut: the search pill alone, and the chips under it with the way back.
   const closing = await framesAfter(page, 'button[aria-label="Close controls"]', 400)
@@ -128,6 +129,55 @@ test('the card opens one section at a time, and the others say what they are set
   const card = (await page.locator('aside').boundingBox())!
   const map = (await page.locator('main > div').first().boundingBox())!
   expect(card.y + card.height).toBeLessThanOrEqual(map.y + map.height - MAP_INSET_PX)
+})
+
+// The chip row stands under the open card while the legend's card has room
+// there, so the key shares the card's column and the map to its right stays
+// clear (the maintainer, 2026-11-17), and beside the card while it has not.
+test('the chips stand under the card where the legend has room, and beside it where it has not', async ({ page }) => {
+  await page.goto('/?wildfires=1')
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  const card = page.locator('aside')
+  const head = (name: string) => card.locator('h2').getByRole('button', { name: new RegExp(`^${name}`) })
+  const layers = page.getByRole('button', { name: 'Layers', exact: true })
+  const where = async () => {
+    const c = (await card.boundingBox())!
+    const l = (await layers.boundingBox())!
+    return l.x > c.x + c.width ? 'beside' : l.y >= c.y + c.height ? 'under' : 'over'
+  }
+
+  // Metrics is the tallest section: open, the card leaves the legend nothing
+  // under it on a 900px map, so the chips are the map's first row beside it.
+  await head('Metrics').click()
+  await expect.poll(where).toBe('beside')
+  expect((await layers.boundingBox())!.y).toBe(MAP_INSET_PX)
+
+  // Collapsed, the card is at its shortest and the chips stand under it.
+  await head('Metrics').click()
+  await expect.poll(where).toBe('under')
+  const shut = (await card.boundingBox())!
+  expect((await layers.boundingBox())!.y).toBe(shut.y + shut.height + 12)
+
+  // The legend's card hangs under its chip in the card's column, inside the map.
+  const key = page.getByText('Active wildfires').first()
+  await expect(key).toBeVisible()
+  const keyBox = (await key.boundingBox())!
+  const map = (await page.locator('main > div').first().boundingBox())!
+  expect(keyBox.x).toBeLessThan(shut.x + shut.width)
+  expect(keyBox.y).toBeGreaterThan(shut.y + shut.height)
+  expect(keyBox.y + keyBox.height).toBeLessThanOrEqual(map.y + map.height)
+
+  // The Layers menu is taller than what is left under the chips: it stops
+  // one inset over the window's foot and scrolls, so its last row is in reach.
+  await layers.click()
+  const menu = page.locator('[data-tour="layers-menu"]')
+  await expect(menu).toBeVisible()
+  const menuBox = (await menu.boundingBox())!
+  expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(page.viewportSize()!.height - MAP_INSET_PX + 0.5)
+  const sizes = await menu.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }))
+  expect(sizes.scroll).toBeGreaterThanOrEqual(sizes.client)
+  await menu.getByRole('checkbox', { name: 'Forecast player' }).scrollIntoViewIfNeeded()
+  await expect(menu.getByRole('checkbox', { name: 'Forecast player' })).toBeInViewport()
 })
 
 // A shut pane keeps its body, inert, so the next press opens a frame around a
