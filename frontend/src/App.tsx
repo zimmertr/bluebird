@@ -168,9 +168,7 @@ export default function App() {
   const {
     sortBy,
     sortDesc,
-    // A phone writes no lens: it ranks by the metric its link already names,
-    // and a desk opens such a link on that metric too.
-    lens: isDesktop ? lens : undefined,
+    lens,
     rowKeys,
     constraints,
     limit,
@@ -483,7 +481,9 @@ export default function App() {
     comparedModels,
     sortBy,
     sortDesc,
-    lens,
+    // A phone writes no lens: it ranks by the metric its link already names,
+    // and a desk opens such a link on that metric too.
+    lens: isDesktop ? lens : undefined,
     rowKeys,
     constraints,
     limit,

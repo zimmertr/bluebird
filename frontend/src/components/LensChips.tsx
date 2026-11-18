@@ -25,7 +25,7 @@ interface Props {
  */
 export default function LensChips({ lens, onLens }: Props) {
   return (
-    <div role="group" aria-label="Rank by" className={`${BAR_GROUP} max-w-full overflow-x-auto`}>
+    <div role="group" aria-label="Lenses" className={`${BAR_GROUP} max-w-full overflow-x-auto`}>
       {LENSES.map((name, i) => (
         <Fragment key={name}>
           {i > 0 && <div className={SEGMENT_DIVIDER} />}

@@ -23,6 +23,24 @@ describe('useRankingKnobs', () => {
     expect(result.current.rowKeys.wind).toBe('wind_max_mph')
   })
 
+  // A lens ranks until the reader picks a metric or a direction in the
+  // Metrics table, which is a ranking by that metric (record 0306).
+  it('opens on the lens it is handed, and lets go of it for a metric or a direction', () => {
+    const { result } = renderHook(() => useRankingKnobs(null, 1500, 'bluebird'))
+    expect(result.current.lens).toBe('bluebird')
+    act(() => result.current.setSortBy('wind_max_mph'))
+    expect(result.current.lens).toBeNull()
+    act(() => result.current.setLens('calm'))
+    act(() => result.current.setSortDesc(true))
+    expect(result.current.lens).toBeNull()
+    expect(result.current.sortDesc).toBe(true)
+  })
+
+  it('restores a link’s lens, a metric ranking included, over the one it is handed', () => {
+    expect(renderHook(() => useRankingKnobs({ lens: 'clean' }, 1500, 'bluebird')).result.current.lens).toBe('clean')
+    expect(renderHook(() => useRankingKnobs({ lens: null }, 1500, 'bluebird')).result.current.lens).toBeNull()
+  })
+
   it('lowers a restored limit to the ceiling that lands, and never raises one', () => {
     const { result, rerender } = renderHook(({ max }) => useRankingKnobs({ limit: 1200 }, max), {
       initialProps: { max: 1500 },

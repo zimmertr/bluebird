@@ -21,7 +21,7 @@ export function useRankingKnobs(
   initialLens: Lens | null = null,
 ) {
   const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? DEFAULT_SORT)
-  const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
+  const [sortDesc, setSortDescRaw] = useState(() => restored?.sortDesc ?? false)
   // The lens the field is ranked by, or null for a ranking by `sortBy`
   // (record 0306). A link's lens is restored as it was written, an old link
   // that named a `sort` reads as a metric ranking (`decodeLink`), and a
@@ -38,7 +38,15 @@ export function useRankingKnobs(
   const [rowKeys, setRowKeys] = useState<Record<MetricFamily, SortBy>>(
     () => restored?.rowKeys ?? { ...DEFAULT_FAMILY_KEY },
   )
+  // A metric or a direction picked in the Metrics table is a ranking by that
+  // metric, so it lets go of the lens (record 0306); the table is the only
+  // caller of either setter.
+  const setSortDesc = useCallback((desc: boolean) => {
+    setLens(null)
+    setSortDescRaw(desc)
+  }, [])
   const setSortBy = useCallback((key: SortBy) => {
+    setLens(null)
     setSortByRaw(key)
     setRowKeys((rows) => (rows[familyOf(key)] === key ? rows : { ...rows, [familyOf(key)]: key }))
   }, [])

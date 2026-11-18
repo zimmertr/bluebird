@@ -73,6 +73,6 @@ describe('SentenceBar', () => {
   it('stands what it is handed after the button', () => {
     render(<SentenceBar {...props({ trail: <button>Theme</button> })} />)
     const buttons = screen.getAllByRole('button').map((b) => b.textContent)
-    expect(buttons.at(-1)).toBe('Theme')
+    expect(buttons[buttons.length - 1]).toBe('Theme')
   })
 })

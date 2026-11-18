@@ -9,7 +9,7 @@ import { render } from '../testSupport/render'
 describe('LensChips', () => {
   it('draws a toggle per lens, in order, with the ranking one pressed', () => {
     render(<LensChips lens="calm" onLens={() => {}} />)
-    const group = screen.getByRole('group', { name: 'Rank by' })
+    const group = screen.getByRole('group', { name: 'Lenses' })
     const toggles = [...group.querySelectorAll('button')]
     expect(toggles.map((b) => b.textContent)).toEqual(LENSES.map((l) => LENS_LABEL[l]))
     expect(toggles.map((b) => b.getAttribute('aria-pressed'))).toEqual(LENSES.map((l) => String(l === 'calm')))
