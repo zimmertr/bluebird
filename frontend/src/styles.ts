@@ -3375,7 +3375,7 @@ export const DAY_STRIP = {
     `${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex ` +
     'w-[min(40rem,calc(100%-4rem))] flex-col gap-1.5 px-2 py-1.5',
   row: 'flex select-none',
-  day: `flex min-w-0 flex-1 flex-col items-center py-0.5 ${TEXT.control} ${FIGURES} cursor-pointer transition-colors ${FOCUS_RING}`,
+  day: `relative flex min-w-0 flex-1 flex-col items-center py-0.5 ${TEXT.control} ${FIGURES} cursor-pointer transition-colors ${FOCUS_RING}`,
   weekday: `${TEXT.micro} leading-none`,
 } as const
 

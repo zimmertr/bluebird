@@ -1,5 +1,5 @@
 import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { DAY, DAY_STRIP, RADIUS } from '../styles'
+import { DAY, DAY_STRIP, RADIUS, SR_ONLY } from '../styles'
 import {
   type BandLimits,
   type ForecastSelection,
@@ -117,7 +117,6 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
               key={d.date}
               type="button"
               data-day={d.date}
-              aria-label={dayName(d.date)}
               aria-pressed={mark !== null}
               tabIndex={d.date === stop ? 0 : -1}
               onPointerDown={(e) => {
@@ -140,6 +139,10 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
                 {d.weekday}
               </span>
               <span aria-hidden="true">{d.day}</span>
+              {/* The day's full name is the button's, read where the cell
+                  shows an initial and a number. Hidden text rather than a
+                  label, so the name never disagrees with the visible letters. */}
+              <span className={SR_ONLY}>{dayName(d.date)}</span>
             </button>
           )
         })}

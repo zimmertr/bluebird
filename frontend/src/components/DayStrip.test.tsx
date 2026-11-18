@@ -26,6 +26,12 @@ describe('DayStrip', () => {
     ])
   })
 
+  // The cell shows an initial and a number; a screen reader hears the day.
+  it('names each day in full', () => {
+    strip()
+    expect(day('2026-07-17').textContent).toContain(new Date(2026, 6, 17).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }))
+  })
+
   it('picks the day pressed, and a run of days dragged across', () => {
     const onSelection = strip()
     fireEvent.pointerDown(day('2026-07-17'), { button: 0 })
