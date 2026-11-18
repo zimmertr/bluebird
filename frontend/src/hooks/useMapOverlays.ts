@@ -45,6 +45,10 @@ export function useMapOverlays(
   // radar it is the browser that fetches them, and like the radar it draws
   // nothing the ranking ever reads.
   const [showSnow, setShowSnow] = useState(() => restored?.showSnow ?? false)
+  // The cloud sea (record 0309): the deck the held report carries, drawn on
+  // the terrain. On until the reader turns it off, unlike every row above,
+  // because it fetches nothing and draws only once a report is held.
+  const [showCloud, setShowCloud] = useState(() => restored?.showCloud ?? true)
   // The forecast grid (#246), with one difference worth naming: this toggle is
   // a spend boundary. Turning it on fetches a lattice of forecasts over the
   // analyzed field, and leaving it on is standing consent for the next
@@ -113,6 +117,8 @@ export function useMapOverlays(
     setShowSmoke,
     showSnow,
     setShowSnow,
+    showCloud,
+    setShowCloud,
     showGrid,
     setShowGrid,
     showContours,

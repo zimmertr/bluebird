@@ -107,7 +107,7 @@ export interface ResultsPanelsProps {
     | 'handleColumnMove'
   >
   /** The header sort and the table's empty reason (`usePresentedReport`). */
-  report: Pick<PresentedReport, 'detailSort' | 'sortDetail' | 'emptyReason'>
+  report: Pick<PresentedReport, 'detailSort' | 'sortDetail' | 'emptyReason' | 'scoreRange'>
   /** Named destinations no analysis has covered, drawn above the ranked rows. */
   pending: PendingDestination[]
   /** Removes a row, from the table or from a chart chip (`useRemovals`). */
@@ -233,7 +233,7 @@ export default function ResultsPanels({
     legend,
     handleColumnMove,
   } = tableView
-  const { detailSort, sortDetail, emptyReason } = report
+  const { detailSort, sortDetail, emptyReason, scoreRange } = report
   // The chart-only legend. In Both mode the table's checkbox column is the
   // series picker and this would be a second copy of it, so it exists exactly
   // where that column does not, and lists the rows that column would. Each
@@ -423,6 +423,7 @@ export default function ResultsPanels({
                     detailSortDir={detailSort.dir}
                     onDetailSort={sortDetail}
                     pointSample={pointSample}
+                    scoreRange={scoreRange}
                     columns={tableColumns}
                     columnWidths={tableColWidths}
                     onColumnWidthsChange={setTableColWidths}

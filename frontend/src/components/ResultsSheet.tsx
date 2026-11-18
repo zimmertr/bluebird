@@ -10,6 +10,7 @@ import RemovedPicker from './RemovedPicker'
 import ResultsBar from './ResultsBar'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
+import type { Lens } from '../utils/score/lenses'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { LAYER, LAYOUT_HOLD, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
@@ -42,12 +43,14 @@ interface ResultsSheetProps
   /** The displayed rows, the title's parts and the header sort (`usePresentedReport`). */
   report: Pick<
     PresentedReport,
-    'results' | 'windowTitle' | 'detailSort' | 'sortDetail' | 'pending' | 'rowCount' | 'emptyReason'
+    'results' | 'windowTitle' | 'detailSort' | 'sortDetail' | 'pending' | 'rowCount' | 'emptyReason' | 'lens' | 'scoreHeadline' | 'scoreRange'
   >
   /** The removed rows and the ways back (`useRemovals`). */
   removals: Pick<Removals, 'removed' | 'removeResult' | 'restoreRemoved' | 'restoreAllRemoved'>
   /** Bumped once per committed report, which is when the bar's title is announced. */
   analysisSeq: number
+  /** Picks the lens the field ranks by, or none (record 0306). */
+  onLens?: (lens: Lens | null) => void
 }
 
 /** What the sheet reads of `useResultsView`. */
@@ -121,6 +124,7 @@ export default function ResultsSheet({
   report,
   removals,
   analysisSeq,
+  onLens,
   sortBy,
   pointSample,
   forecastTimes,
@@ -135,7 +139,7 @@ export default function ResultsSheet({
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
   const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
-  const { results, windowTitle, pending, rowCount } = report
+  const { results, windowTitle, pending, rowCount, lens, scoreHeadline } = report
   const { selectedModelRows, hiddenModels, toggleHiddenModel, showAllModels, compareWait, compareNotes } = charts
   const {
     allColumns,
@@ -257,6 +261,9 @@ export default function ResultsSheet({
             onDownloadCsv={handleDownloadCsv}
             compareWait={compareWait}
             compareNotes={compareNotes}
+            lens={lens}
+            onLens={onLens}
+            scoreHeadline={scoreHeadline}
           />
           {/* A desk keeps the panels while collapsed, so the chevron shuts
               and opens their frames at the panel's speed (record 0202); a

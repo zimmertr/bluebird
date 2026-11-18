@@ -80,6 +80,27 @@ export const WILDFIRE_COL: ColDef = { key: WILDFIRE_KEY, label: 'Wildfire (mi)' 
 export const CLOSURE_KEY = 'closure'
 export const CLOSURE_COL: ColDef = { key: CLOSURE_KEY, label: 'Closure' }
 
+/**
+ * The score under the reader's lens (record 0306), a whole number from 0 to
+ * 100. Not in `COLUMNS`: it stands only while a lens ranks the field, right
+ * after the name, because it is the number the order is.
+ */
+export const SCORE_KEY = 'score'
+export const SCORE_COL: ColDef = {
+  key: SCORE_KEY,
+  label: 'Score',
+  format: (v) => String(Math.round(Number(v))),
+  csv: (v) => String(Math.round(Number(v))),
+}
+
+/** The columns with the score after the name while a lens ranks the field. */
+export function withScoreColumn(cols: readonly ColDef[], scored: boolean): ColDef[] {
+  if (!scored) return [...cols]
+  const at = cols.findIndex((c) => c.key === 'name')
+  const cut = at === -1 ? 0 : at + 1
+  return [...cols.slice(0, cut), SCORE_COL, ...cols.slice(cut)]
+}
+
 /** The two safety-flag columns, in the order they close the table. */
 export const FLAG_COLS: readonly ColDef[] = [WILDFIRE_COL, CLOSURE_COL]
 
@@ -222,7 +243,7 @@ export const TERRAIN_HEIGHT_NOTE = `${TERRAIN_HEIGHT_MARK} Elevation data is una
  * sign leads its distance, so the digits still end on one edge.
  */
 export function isNumberColumn(col: ColDef): boolean {
-  return col.key === ELEVATION_COL.key || col.key === WILDFIRE_KEY || col.unit !== undefined
+  return col.key === ELEVATION_COL.key || col.key === WILDFIRE_KEY || col.key === SCORE_KEY || col.unit !== undefined
 }
 
 /**

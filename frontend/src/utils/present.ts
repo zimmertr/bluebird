@@ -19,6 +19,7 @@ import { compareAdded } from './model/modelCompare'
 import { geoKey } from './points'
 import { isPointSample } from './forecastWindow'
 import type { SelectionKind } from './calendar/calendarSelection'
+import type { Lens } from './score/lenses'
 
 /**
  * The knobs that decide presentation rather than what gets fetched.
@@ -37,6 +38,12 @@ export interface PresentationKnobs {
    * derivation answerable from the held field.
    */
   constraints: Constraints
+  /**
+   * The lens the field is ranked by, best score first, or null (and absent)
+   * for a ranking by `sortBy` (record 0306). The rows must carry their score
+   * (`scoreRows`) for a lens to rank them; one with none sorts last.
+   */
+  lens?: Lens | null
 }
 
 /**
@@ -323,7 +330,7 @@ export function presentResults(
 
   const matching = filterConstraints(universe, knobs.constraints)
   const rows = kept(matching)
-  rows.sort(rankComparator(knobs.sortBy, knobs.sortDesc))
+  rows.sort(knobs.lens ? rankComparator('score', true) : rankComparator(knobs.sortBy, knobs.sortDesc))
   return {
     rows: rows.slice(0, knobs.limit),
     eligible: matching.length,

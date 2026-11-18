@@ -828,20 +828,19 @@ export interface CloudAggregates {
 export interface CloudSeries {
   times: number[]
   cloud_deck_ft: (number | null)[]
+  // Optional because the deck alone is enough to align (`alignCloud`); every
+  // `cloudSeries` answer carries it.
+  cloud_top_ft?: (number | null)[]
 }
 
-// Port of aggregation._cloud_deck_ft: one hour's deck in feet above sea level,
-// walked up every level from 1000 hPa with the destination's 2 m point
-// inserted at its elevation when it is known. The first saturated point ends
-// the walk (its own height when nothing below it answered, else a height
-// interpolated in humidity from the last dry point); a dry column that answered
-// reads CLOUD_DECK_CEILING_FT; a column that did not answer is null.
-export function cloudDeckFt(
+// Port of aggregation._cloud_column: the column both cloud walks climb, every
+// level from 1000 hPa up in metres, with the destination's 2 m point inserted
+// at its elevation when it is known.
+function cloudColumn(
   elevationFt: number | null | undefined,
   rh2m: number | null,
   levels: readonly (number | null)[],
-): number | null {
-  if (!levels.some((rh) => rh != null)) return null
+): Array<[number, number | null]> {
   const column: Array<[number, number | null]> = CLOUD_LEVELS.map(([, height], k) => [
     height,
     k < levels.length ? (levels[k] ?? null) : null,
@@ -851,8 +850,22 @@ export function cloudDeckFt(
     const found = column.findIndex(([h]) => h > elevM)
     column.splice(found === -1 ? column.length : found, 0, [elevM, rh2m])
   }
+  return column
+}
+
+// Port of aggregation._cloud_deck_ft: one hour's deck in feet above sea level.
+// The first saturated point ends the walk (its own height when nothing below it
+// answered, else a height interpolated in humidity from the last dry point); a
+// dry column that answered reads CLOUD_DECK_CEILING_FT; a column that did not
+// answer is null.
+export function cloudDeckFt(
+  elevationFt: number | null | undefined,
+  rh2m: number | null,
+  levels: readonly (number | null)[],
+): number | null {
+  if (!levels.some((rh) => rh != null)) return null
   let prev: [number, number] | null = null
-  for (const [height, rh] of column) {
+  for (const [height, rh] of cloudColumn(elevationFt, rh2m, levels)) {
     if (rh == null) continue
     if (rh >= CLOUD_SATURATION_RH) {
       if (prev === null) return height / FT_TO_M
@@ -863,6 +876,34 @@ export function cloudDeckFt(
     prev = [height, rh]
   }
   return CLOUD_DECK_CEILING_FT
+}
+
+// Port of aggregation._cloud_top_ft: the top of the layer the deck starts,
+// where the column first answers dry again above it, interpolated in humidity
+// from the last saturated point. Only the lowest layer counts. A dry column
+// reads the ceiling, the same as its deck; a layer whose column stops answering
+// reads its last saturated point; a column that did not answer is null.
+function cloudTopFt(
+  elevationFt: number | null | undefined,
+  rh2m: number | null,
+  levels: readonly (number | null)[],
+): number | null {
+  if (!levels.some((rh) => rh != null)) return null
+  let lastWet: [number, number] | null = null
+  for (const [height, rh] of cloudColumn(elevationFt, rh2m, levels)) {
+    if (rh == null) continue
+    if (rh >= CLOUD_SATURATION_RH) {
+      lastWet = [height, rh]
+      continue
+    }
+    if (lastWet !== null) {
+      const [hiH, hiRh] = lastWet
+      const topM = hiH + (height - hiH) * ((hiRh - CLOUD_SATURATION_RH) / (hiRh - rh))
+      return topM / FT_TO_M
+    }
+  }
+  if (lastWet === null) return CLOUD_DECK_CEILING_FT
+  return Math.min(lastWet[0] / FT_TO_M, CLOUD_DECK_CEILING_FT)
 }
 
 function cloudLevelArrays(hourly: NonNullable<HourlyPayload['hourly']>): (number | null)[][] {
@@ -877,6 +918,20 @@ function cloudDeckFtAt(
   levels: readonly (number | null)[][],
 ): number | null {
   return cloudDeckFt(
+    elevationFt,
+    at(hourly.relative_humidity_2m ?? [], i),
+    levels.map((arr) => at(arr, i)),
+  )
+}
+
+// Port of aggregation._cloud_top_ft_at.
+function cloudTopFtAt(
+  hourly: NonNullable<HourlyPayload['hourly']>,
+  i: number,
+  elevationFt: number | null | undefined,
+  levels: readonly (number | null)[][],
+): number | null {
+  return cloudTopFt(
     elevationFt,
     at(hourly.relative_humidity_2m ?? [], i),
     levels.map((arr) => at(arr, i)),
@@ -927,7 +982,8 @@ export function cloudMetrics(
   }
 }
 
-// Port of aggregation._cloud_series: every in-window hour, nulls kept.
+// Port of aggregation._cloud_series: the deck and its layer's top for every
+// in-window hour, nulls kept.
 export function cloudSeries(
   payload: HourlyPayload,
   startMs: number,
@@ -941,14 +997,16 @@ export function cloudSeries(
 
     const grid: number[] = []
     const dOut: (number | null)[] = []
+    const tOut: (number | null)[] = []
     for (let i = 0; i < times.length; i++) {
       const t = parseTs(times[i])
       if (t === null || t < startMs || t > endMs) continue
       grid.push(t)
       dOut.push(roundOrNull(cloudDeckFtAt(hourly, i, elevationFt, levels), 0))
+      tOut.push(roundOrNull(cloudTopFtAt(hourly, i, elevationFt, levels), 0))
     }
     if (grid.length === 0) return null
-    return { times: grid, cloud_deck_ft: dOut }
+    return { times: grid, cloud_deck_ft: dOut, cloud_top_ft: tOut }
   } catch {
     return null
   }

@@ -1,4 +1,4 @@
-import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, resultRows, DESTINATION_NAMES, forecastButton } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // On a phone the Controls sheet opens the way Legend and Layers do (TJ,
@@ -57,7 +57,7 @@ for (const [width, height] of [
     test('the Controls sheet opens over the dim, moves nothing under it, and leaves the cue to the badge', async ({ page }) => {
       await page.goto(RING)
       await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-      await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+      await forecastButton(page.getByRole('main')).click()
       await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
       const fab = page.locator('[data-tour="analyze"]')
       await expect(fab).toBeVisible()
@@ -113,7 +113,7 @@ for (const [width, height] of [
     test('the Layers sheet opens over the button, the scale and the (i), and moves none of them', async ({ page }) => {
       await page.goto(RING)
       await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-      await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+      await forecastButton(page.getByRole('main')).click()
       await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
       const fab = page.locator('[data-tour="analyze"]')
       await expect(fab).toBeVisible()

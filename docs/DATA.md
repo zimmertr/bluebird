@@ -796,6 +796,30 @@ new data:
   above it, and ECMWF hits under ceilings below 3,000 ft fell from 15 to 10 of
   20 (within one level spacing). A low deck is the question a summit asks.
 
+### Cloud top
+
+Each hour also carries the deck's **top**, for the map to draw a sea of cloud
+over the terrain. It rides the hourly series as `cloud_top_ft` and has no
+aggregate column. The walk that found the deck carries on up the same column:
+
+1. Saturated points are passed over, and so are levels that answered null.
+2. The first answered point under 95 % above the deck is where the layer ends.
+   Between it and the last saturated point below it, the height is
+   interpolated linearly in humidity, the way the base is.
+3. A column saturated up to 300 hPa reads the deck's ceiling, 30,066 ft. So
+   does a dry column, where the top and the base are both the ceiling.
+4. A layer whose only points above it answered null reads the height of its
+   last saturated point.
+
+Only the lowest layer is seen. A second deck above a dry gap is not this
+layer's top, so the walk stops at the gap. The top is null wherever the deck
+is: an archive hour, or a column with no level answered. Compare the top with
+the **Elevation (ft)** column: a summit above it stands clear of the layer.
+
+The caveats on the deck hold for the top as well, and one weighs more: the
+levels above 850 hPa stand 1,100 to 2,000 m apart, so the top of a layer that
+ends between two of them is interpolated rather than seen.
+
 ## Nominatim
 
 The map search box queries only when you press Enter, and that is a policy

@@ -165,6 +165,9 @@ export interface HourlySeries {
   // Feet above sea level (#670). Absent when the cloud request answered
   // nothing for the row; every analysis asks it (#683).
   cloud_deck_ft?: (number | null)[] | null
+  // The top of the deck's layer, feet above sea level, from the same walk
+  // (record 0305). Absent with the deck; the map's cloud sea reads it.
+  cloud_top_ft?: (number | null)[] | null
   // Wind bearing in degrees clockwise from north, the direction the wind blows
   // FROM. Client-populated only: the backend does not fetch it, because nothing
   // it computes uses it, so a report from the SSE fallback carries none and the
@@ -263,6 +266,20 @@ export interface DestinationResult {
   // Null once a lookup has placed the row. Client-populated; the API never
   // sends it.
   terrain_ft?: number | null
+  // The row's score on the reader's lens, 0 to 100, and its best stretch of
+  // hours (record 0306). Client-populated over the held field by
+  // `scoreRows`; the API never sends them, and a row ranked by a metric
+  // carries none.
+  score?: number | null
+  best_start_ms?: number | null
+  best_end_ms?: number | null
+  // Every hour's score on the lens, unrounded, on the row's grid: what a
+  // marker is coloured by during playback while a lens ranks the field.
+  score_hours?: (number | null)[] | null
+  // Which of those hours the score read (the lit ones), and its best stretch
+  // as indexes on the same grid: what the Score cell's hour strip draws.
+  score_lit?: boolean[] | null
+  score_best?: [number, number] | null
   // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
   series?: HourlySeries | null
   // Timestamps for `series` when the row came from its own analyze response

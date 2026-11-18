@@ -726,9 +726,45 @@ const TRIGGER_STATE =
  * bundle — the same trap the RADIUS comment warns about, and one this change
  * fell into before the built stylesheet was read.
  */
+/**
+ * Alpenglow (record 0307): the warm light on the summits at first light, worn
+ * by the one control that spends a forecast and by nothing else, so the eye
+ * knows which press costs upstream calls. Everything else that acts wears the
+ * sky accent. The label is a dark ink rather than white, because a warm fill
+ * light enough to stand out on a dark map cannot carry a white label at 4.5:1.
+ *
+ * Dark: label 7.37:1 on the fill, the fill 6.05:1 on the panel. Light: label
+ * 4.71:1, the fill 3.37:1 on the panel and 3.01:1 on a raised surface; the
+ * light hover lightens, gaining label contrast (5.33:1) and standing 2.98:1 on
+ * the panel, the one state under 3:1. `styles.test.ts` pins every number.
+ */
+// Not exported: the two Forecast buttons below are its only callers, and a
+// role nothing outside this file imports is one the styles suite fails.
+const ACT = {
+  fill: 'bg-act text-on-act',
+  fillHover: 'hover:bg-act-hover',
+} as const
+
 export const BUTTON_PRIMARY =
   `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
+
+/**
+ * The button that spends a forecast: `BUTTON_PRIMARY`'s shape in alpenglow
+ * (`ACT`, record 0307), so it is the one primary action that does not wear
+ * the sky accent.
+ */
+export const BUTTON_FORECAST =
+  `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
+  `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING}`
+
+/**
+ * The same button in the map's sentence bar (record 0308): as tall as the
+ * chips beside it and as wide as its words, which name what it will forecast.
+ */
+export const BUTTON_FORECAST_BAR =
+  `${TEXT.cta} ${TAP.action} whitespace-nowrap px-4 py-1.5 ${RADIUS.control} transition-colors ` +
+  `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING} ${ELEVATION.raised}`
 
 /**
  * The secondary action standing next to something else: Clear under the
@@ -1827,6 +1863,14 @@ export const MAP_ROWS = {
    */
   pill: 'absolute inset-y-0 left-0 right-22 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
+  /**
+   * A desk's sentence bar beside the pill, and the card one of its chips
+   * opened under the chip row, both at the pill's 320px and the 12px the rows
+   * stand apart (record 0308). No wider than the map less the pill, its gap
+   * and the map's two edge insets, so a narrow desk truncates the chips'
+   * words rather than running the bar off the map.
+   */
+  barSlot: 'ml-83 w-max max-w-[calc(100cqw_-_20.75rem_-_2_*_var(--map-edge-inset))]',
   /**
    * The second row: one line of chips, 6px apart, never wrapping. The rows
    * stand 12px apart, and 3D 12px left of locate (`MAP_SLOT`), because a
@@ -3041,6 +3085,34 @@ export const MOTION = {
 export const PANEL_MS = 300
 
 /**
+ * The map's sentence bar at a desk (record 0308): the chips that say what a
+ * Forecast will search and over which hours, and the card each opens, which
+ * hangs under the bar the way the legend's card hangs under its chip, on the
+ * legend card's face, and scrolls inside what is left of the map below it.
+ */
+export const SENTENCE_BAR = {
+  row: `flex h-8 min-w-0 items-center gap-1.5 ${YIELD_EMPTY}`,
+  group: 'flex min-w-0 items-center gap-1.5',
+  /** The product's name leading the bar, on a chip's face, which the panel's header carried. */
+  brand:
+    `pointer-events-auto flex h-8 flex-shrink-0 items-center gap-2 pl-1 pr-3 bg-floating/95 border border-edge ` +
+    `${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm`,
+  logo: 'h-6 w-6 flex-shrink-0 rounded-full object-cover',
+  /**
+   * The Forecast button's slot in the bar: the badge's anchor, on the chips'
+   * own face, so a blocked button's 40 percent greys against that face rather
+   * than letting the map's labels through it.
+   */
+  forecastSlot: `relative flex ${RADIUS.control} bg-floating`,
+  name: `${TEXT.section} whitespace-nowrap leading-none`,
+  card: `${SURFACE_CHIP_CARD.key} pointer-events-auto flex w-90 flex-col overflow-hidden max-h-[calc(100cqh-7.5rem)]`,
+  head: `flex flex-shrink-0 items-center justify-between border-b ${PANEL_EDGE} pl-4 pr-1.5 py-1.5`,
+  body: `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS}`,
+  /** The draw bar at a desk, hung where the cards hang and as wide as one. */
+  drawBar: `${SURFACE_FLOATING} pointer-events-auto flex w-90 items-center gap-2 px-3 py-1.5`,
+} as const
+
+/**
  * The controls panel at a desk (#714; record 0202): a column in the page's
  * row beside the map, 360px wide, that stays in the row while it is shut.
  * Shut, its left margin takes its own width back, so it slides off the left
@@ -3289,6 +3361,36 @@ export const DAY = {
   range: 'bg-range hover:bg-range-hover',
   selected: ACCENT.fill,
   today: 'ring-1 ring-inset ring-ink-soft',
+} as const
+
+/**
+ * A row's hour strip in its Score cell (record 0306): one bar per lit hour the
+ * score read, in the score's ramp, a wider gap where a night falls, and the
+ * best stretch drawn taller, so it marks itself by shape rather than by a
+ * second hue. A fixed width, so a long window's hours narrow rather than
+ * widening the column.
+ */
+export const HOUR_STRIP = {
+  strip: 'ml-2 inline-flex h-3.5 w-24 items-end gap-px align-middle',
+  hour: 'h-2 min-w-px flex-1',
+  best: 'h-3.5',
+  gap: 'ml-1',
+} as const
+
+/**
+ * The day strip at a desk's map foot (record 0310): the days ahead as one row
+ * of cells, the window's days lit as the calendar lights them (`DAY`), and the
+ * forecast player under the row once a report spans hours. Placed where the
+ * player stood alone, bottom centre over the credit line (`transportBottomPx`),
+ * and wider, because sixteen days want room a scrubber did not.
+ */
+export const DAY_STRIP = {
+  card:
+    `${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex ` +
+    'w-[min(40rem,calc(100%-4rem))] flex-col gap-1.5 px-2 py-1.5',
+  row: 'flex select-none',
+  day: `relative flex min-w-0 flex-1 flex-col items-center py-0.5 ${TEXT.control} ${FIGURES} cursor-pointer transition-colors ${FOCUS_RING}`,
+  weekday: `${TEXT.micro} leading-none`,
 } as const
 
 /**

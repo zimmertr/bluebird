@@ -1750,3 +1750,20 @@ describe('the camera, the removals and the table order in a link', () => {
     expect(decodeState('tsort=wildfire_mi')!.tableSort).toEqual({ key: 'wildfire_mi', desc: false })
   })
 })
+
+describe('a link and the lens (record 0306)', () => {
+  it('restores the lens a link names, and a metric ranking for lens=metric', () => {
+    expect(decodeState('?lens=calm')?.lens).toBe('calm')
+    expect(decodeState('?lens=metric&sort=wind_avg_mph')?.lens).toBeNull()
+  })
+
+  it('reads a link from before the score as the metric ranking it named', () => {
+    expect(decodeState('?sort=wind_avg_mph')?.lens).toBeNull()
+    expect(decodeState('?desc=1')?.lens).toBeNull()
+  })
+
+  it('leaves the lens to the caller for a link that names no ranking', () => {
+    expect(decodeState('?limit=50')?.lens).toBeUndefined()
+    expect(decodeState('?lens=sunny&limit=50')?.lens).toBeUndefined()
+  })
+})

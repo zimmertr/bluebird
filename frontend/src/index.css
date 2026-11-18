@@ -155,6 +155,11 @@ body {
   --color-range: var(--ui-range);
   --color-range-hover: var(--ui-range-hover);
   --color-on-fill: var(--ui-on-fill);
+  /* Alpenglow, the warm light on summits at first light: the one button
+     that spends a forecast, and its label (record 0307). */
+  --color-act: var(--ui-act);
+  --color-act-hover: var(--ui-act-hover);
+  --color-on-act: var(--ui-on-act);
   /* Status inks, and the notice boxes' tints and rules. */
   --color-ok: var(--ui-ok);
   --color-warn: var(--ui-warn);
@@ -207,6 +212,9 @@ body {
   --ui-range: var(--color-sky-950);
   --ui-range-hover: var(--color-sky-900);
   --ui-on-fill: var(--color-white);
+  --ui-act: #e8925a;
+  --ui-act-hover: #f2a673;
+  --ui-on-act: #24140a;
   --ui-ok: var(--color-green-400);
   --ui-warn: var(--color-amber-300);
   --ui-danger: var(--color-red-400);
@@ -274,6 +282,12 @@ body {
   --ui-range: #cfe5ff;
   --ui-range-hover: #bcdafc;
   --ui-on-fill: #ffffff;
+  /* Darker than the prototype's #d96f38 so the fill stands 3:1 on the panel
+     and the raised surface; its hover is that lighter step, which with a dark
+     label gains contrast, and is the one state under 3:1 on the panel. */
+  --ui-act: #cf6530;
+  --ui-act-hover: #d96f38;
+  --ui-on-act: #24140a;
   --ui-ok: #1d6b33;
   /* Amber-800 rather than the palette's #6b4600, a brown that no longer read
      as a warning beside dark's amber (the maintainer on PR #733): still

@@ -743,6 +743,25 @@ def _aqi_series(
         return None
 
 
+def _cloud_column(
+    elevation_ft: float | None,
+    rh2m: float | None,
+    levels: list[float | None],
+) -> list[tuple[float, float | None]]:
+    """The column both cloud walks climb: every standard level from 1000 hPa
+    up, heights in metres, with the destination's own 2 m point inserted at its
+    elevation when the elevation is known."""
+    column: list[tuple[float, float | None]] = [
+        (height, levels[k] if k < len(levels) else None)
+        for k, (_, height) in enumerate(_CLOUD_LEVELS)
+    ]
+    if elevation_ft is not None:
+        elev_m = elevation_ft * _FT_TO_M
+        at = next((k for k, (h, _) in enumerate(column) if h > elev_m), len(column))
+        column.insert(at, (elev_m, rh2m))
+    return column
+
+
 def _cloud_deck_ft(
     elevation_ft: float | None,
     rh2m: float | None,
@@ -750,13 +769,12 @@ def _cloud_deck_ft(
 ) -> float | None:
     """One hour's cloud deck, in feet above sea level, or None.
 
-    The column is every standard level from 1000 hPa up, with the destination's
-    own 2 m point inserted at its elevation when the elevation is known, walked
-    upward. The first saturated point ends the walk: when nothing below it
-    answered, the deck is that point's own height; otherwise the height is
-    interpolated linearly in relative humidity between the last dry point and
-    this one, to where the humidity crosses `CLOUD_SATURATION_RH`. A null point
-    is skipped, so the interpolation spans whatever gap it leaves.
+    The column is `_cloud_column`'s, walked upward. The first saturated point
+    ends the walk: when nothing below it answered, the deck is that point's own
+    height; otherwise the height is interpolated linearly in relative humidity
+    between the last dry point and this one, to where the humidity crosses
+    `CLOUD_SATURATION_RH`. A null point is skipped, so the interpolation spans
+    whatever gap it leaves.
 
     A column that answered and is dry all the way up reads
     `CLOUD_DECK_CEILING_FT`. A column that did not answer at all is None: the
@@ -766,16 +784,8 @@ def _cloud_deck_ft(
     """
     if not any(rh is not None for rh in levels):
         return None
-    column: list[tuple[float, float | None]] = [
-        (height, levels[k] if k < len(levels) else None)
-        for k, (_, height) in enumerate(_CLOUD_LEVELS)
-    ]
-    if elevation_ft is not None:
-        elev_m = elevation_ft * _FT_TO_M
-        at = next((k for k, (h, _) in enumerate(column) if h > elev_m), len(column))
-        column.insert(at, (elev_m, rh2m))
     prev: tuple[float, float] | None = None
-    for height, rh in column:
+    for height, rh in _cloud_column(elevation_ft, rh2m, levels):
         if rh is None:
             continue
         if rh >= CLOUD_SATURATION_RH:
@@ -786,6 +796,44 @@ def _cloud_deck_ft(
             return deck_m / _FT_TO_M
         prev = (height, rh)
     return CLOUD_DECK_CEILING_FT
+
+
+def _cloud_top_ft(
+    elevation_ft: float | None,
+    rh2m: float | None,
+    levels: list[float | None],
+) -> float | None:
+    """The top of the deck `_cloud_deck_ft` finds, in feet above sea level, or None.
+
+    The walk climbs the same column to the first saturated point, then keeps
+    climbing through saturated points until the first answered point below
+    `CLOUD_SATURATION_RH`, and interpolates linearly in relative humidity
+    between the last saturated point and that one, the way the deck's base is
+    interpolated. Null points are skipped. Only the lowest layer is read: a
+    second deck above this one's top does not count.
+
+    A dry column reads `CLOUD_DECK_CEILING_FT`, the same as its deck, so a deck
+    with no thickness is a dry column. A layer still saturated where the column
+    stops answering reads the height of its last saturated point, which is the
+    ceiling when that point is the 300 hPa level. A column that did not answer
+    at all is None.
+    """
+    if not any(rh is not None for rh in levels):
+        return None
+    last_wet: tuple[float, float] | None = None
+    for height, rh in _cloud_column(elevation_ft, rh2m, levels):
+        if rh is None:
+            continue
+        if rh >= CLOUD_SATURATION_RH:
+            last_wet = (height, rh)
+            continue
+        if last_wet is not None:
+            hi_h, hi_rh = last_wet
+            top_m = hi_h + (height - hi_h) * ((hi_rh - CLOUD_SATURATION_RH) / (hi_rh - rh))
+            return top_m / _FT_TO_M
+    if last_wet is None:
+        return CLOUD_DECK_CEILING_FT
+    return min(last_wet[0] / _FT_TO_M, CLOUD_DECK_CEILING_FT)
 
 
 def _cloud_level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
@@ -799,6 +847,19 @@ def _cloud_deck_ft_at(
     levels: list[list[Any]],
 ) -> float | None:
     return _cloud_deck_ft(
+        elevation_ft,
+        _at(hourly.get(_CLOUD_RH_2M) or [], i),
+        [_at(arr, i) for arr in levels],
+    )
+
+
+def _cloud_top_ft_at(
+    hourly: dict[str, Any],
+    i: int,
+    elevation_ft: float | None,
+    levels: list[list[Any]],
+) -> float | None:
+    return _cloud_top_ft(
         elevation_ft,
         _at(hourly.get(_CLOUD_RH_2M) or [], i),
         [_at(arr, i) for arr in levels],
@@ -857,7 +918,7 @@ def _cloud_series(
     end_dt: datetime,
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
-    """Per-hour cloud deck over the window, nulls kept."""
+    """Per-hour cloud deck and the top of its layer over the window, nulls kept."""
     try:
         hourly = data.get("hourly") or {}
         times = hourly.get("time") or []
@@ -868,15 +929,17 @@ def _cloud_series(
 
         grid: list[int] = []
         d_out: list[float | None] = []
+        t_out: list[float | None] = []
         for i, ts in enumerate(times):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
                 continue
             grid.append(_epoch_ms(parsed))
             d_out.append(_round_or_none(_cloud_deck_ft_at(hourly, i, elevation_ft, levels), 0))
+            t_out.append(_round_or_none(_cloud_top_ft_at(hourly, i, elevation_ft, levels), 0))
 
         if not grid:
             return None
-        return {"times": grid, "cloud_deck_ft": d_out}
+        return {"times": grid, "cloud_deck_ft": d_out, "cloud_top_ft": t_out}
     except Exception:  # noqa: BLE001 — best-effort series degrades to None
         return None

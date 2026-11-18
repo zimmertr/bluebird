@@ -1,6 +1,6 @@
-import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react'
-import { TUTORIAL_PATH } from '../utils/tourSteps'
-import { BLOCKED, BUTTON_PRIMARY, DISABLED, LINK, LINK_INERT, MESSAGE_BADGE, PANEL_EDGE, TEXT } from '../styles'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import DocLinks from './DocLinks'
+import { BLOCKED, BUTTON_FORECAST, BUTTON_FORECAST_BAR, DISABLED, MESSAGE_BADGE, PANEL_EDGE, SENTENCE_BAR, TEXT } from '../styles'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import { usePopover } from '../hooks/usePopover'
@@ -33,6 +33,13 @@ interface Props {
   // 0135) and wears the badge, so the footer is the document links alone,
   // the last thing in the Controls sheet's scrolling body.
   phone?: boolean
+  /**
+   * The map's sentence bar holds the button (record 0308): no rule, no
+   * padding and no links, and the button names what it will forecast. The
+   * list takes `widthRef`'s width, the bar's chips and button, where the
+   * button alone would wrap every line.
+   */
+  bar?: { label: string; widthRef?: RefObject<HTMLElement | null> }
 }
 
 /**
@@ -53,21 +60,8 @@ export default function PanelFooter({
   tutorialWaits = false,
   messages,
   phone = false,
+  bar,
 }: Props) {
-  // A plain click starts the tour over this page; a modified click or a
-  // middle click is the browser's, and opens the path like any link. While
-  // the tour waits the link answers no click at all, the new-tab ones
-  // included, since the page it would open starts the tour the same way.
-  function startTour(e: MouseEvent<HTMLAnchorElement>) {
-    if (tutorialWaits) {
-      e.preventDefault()
-      return
-    }
-    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-    e.preventDefault()
-    onTutorial()
-  }
-
   // A run disables this button under the keyboard that pressed it, and the
   // overlay's Cancel takes the focus meanwhile; when the run ends and Cancel
   // goes, the focus comes back here rather than to the body (#576).
@@ -98,7 +92,7 @@ export default function PanelFooter({
     onOpenChange: setListState,
     triggerRef: badgeRef,
     anchorRef: slotRef,
-    widthRef: slotRef,
+    widthRef: bar?.widthRef ?? slotRef,
     ownPressRef: analyzeRef,
     takeFocus: listState !== 'quiet',
   })
@@ -116,9 +110,9 @@ export default function PanelFooter({
     // is the map's button, which carries the anchor there (`PhoneFoot`). On a
     // phone the wrapper is a plain child of the sheet's body, whose stack
     // draws the rule above it the way it rules off each section.
-    <div className={phone ? undefined : `px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour={phone ? undefined : 'analyze'}>
+    <div className={phone || bar ? undefined : `px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour={phone ? undefined : 'analyze'}>
       {!phone && (
-        <div ref={slotRef} className={MESSAGE_BADGE.slot}>
+        <div ref={slotRef} className={bar ? SENTENCE_BAR.forecastSlot : MESSAGE_BADGE.slot}>
           {/* Disabled only while busy: a blocker greys the button and leaves
               it live, so a press anywhere on it opens the list that says
               why (the maintainer, 2026-10-21). */}
@@ -127,9 +121,9 @@ export default function PanelFooter({
             onClick={blocked ? toggle : onAnalyze}
             disabled={!analyzeEnabled && !blocked}
             aria-disabled={blocked || undefined}
-            className={`${BUTTON_PRIMARY} ${DISABLED} ${BLOCKED}`}
+            className={`${bar ? BUTTON_FORECAST_BAR : BUTTON_FORECAST} ${DISABLED} ${BLOCKED}`}
           >
-            {word}
+            {bar && word === 'Analyze' ? bar.label : word}
           </button>
           <MessageBadge
             ref={badgeRef}
@@ -151,33 +145,7 @@ export default function PanelFooter({
         />
       )}
 
-      {/* Two labels, two pages, and each label goes where it says. The
-          privacy copy used to open a dialog here, which meant it had no URL
-          and the Terms link next to it pointed at the privacy page anyway.
-          Both open in a new tab so reading either never costs you a drawn
-          polygon and its results. */}
-      <p className={`${TEXT.caption} text-center`}>
-        {/* A real link to the tour's path, so it can be copied or opened in
-            a new tab like the two beside it; a plain click starts the tour
-            over this page instead of reloading it, and the tour writes the
-            same path to the address bar (#536). */}
-        <a
-          href={TUTORIAL_PATH}
-          onClick={startTour}
-          aria-disabled={tutorialWaits || undefined}
-          className={`${LINK} ${LINK_INERT}`}
-        >
-          Tutorial
-        </a>
-        {' · '}
-        <a href="/privacy" target="_blank" rel="noreferrer" className={LINK}>
-          Privacy
-        </a>
-        {' · '}
-        <a href="/terms" target="_blank" rel="noreferrer" className={LINK}>
-          Terms
-        </a>
-      </p>
+      {!bar && <DocLinks onTutorial={onTutorial} tutorialWaits={tutorialWaits} className={`${TEXT.caption} text-center`} />}
     </div>
   )
 }

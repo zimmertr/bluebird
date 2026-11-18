@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { test, expect, expectRanked, DESTINATION_NAMES, FIRE_DETECTION } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, FIRE_DETECTION, forecastButton } from './fixtures'
 
 // A card on the map is sized by the handle in its bottom-right corner (TJ,
 // 2026-11-03, record 0270). The unit suites pin the bounds and the drag's
@@ -162,7 +162,7 @@ async function overlaid(card: Locator): Promise<number> {
 test('a drag on a card’s corner sizes it, and the next card opens at its own size', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expectRanked(page)
   await resultsOpened(page)
 
@@ -205,7 +205,7 @@ test('a drag on a card’s corner sizes it, and the next card opens at its own s
 test('a double click on a card’s corner puts it back at its opening size', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expectRanked(page)
   await resultsOpened(page)
 
@@ -241,7 +241,7 @@ test('a double click on a card’s corner puts it back at its opening size', asy
 test('a ranked card dragged far up and left stops at its opening width and a quarter of the map', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expectRanked(page)
   await resultsOpened(page)
 
@@ -267,7 +267,7 @@ test('a ranked card dragged far up and left stops at its opening width and a qua
 test('a card dragged far down and right stops at the map’s edge', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expectRanked(page)
   await resultsOpened(page)
 
@@ -291,7 +291,7 @@ test('a card dragged far down and right stops at the map’s edge', async ({ pag
 test('a wheel over a card is handed to the map', async ({ page }) => {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expectRanked(page)
   await resultsOpened(page)
 
@@ -378,7 +378,7 @@ test.describe('at a short viewport', () => {
   test('a capped ranked card dragged down opens to the room where it stands', async ({ page }) => {
     await page.goto(`/?type=peak&poly=${RING}`)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Analyze' }).click()
+    await forecastButton(page).click()
     await expectRanked(page)
     await resultsOpened(page)
 

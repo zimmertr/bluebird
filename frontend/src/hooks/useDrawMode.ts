@@ -9,9 +9,11 @@ export interface DrawModeInputs {
   polygon: GeoPolygon | null
   /** The ring a link restored, which seeds the point count before the map loads. */
   restoredPolygon: GeoPolygon | null | undefined
-  isDesktop: boolean
-  /** Closes the controls drawer, which on a phone covers the map. */
-  closeDrawer: () => void
+  /**
+   * Takes away what covers the map the ring is drawn on: the controls drawer
+   * on a phone, the Where card at a desk (record 0308).
+   */
+  uncoverMap: () => void
 }
 
 /**
@@ -23,7 +25,7 @@ export interface DrawModeInputs {
  * as it happens; this hook owns the mode and the one copy of the ring a Cancel
  * can put back.
  */
-export function useDrawMode({ mapRef, polygon, restoredPolygon, isDesktop, closeDrawer }: DrawModeInputs) {
+export function useDrawMode({ mapRef, polygon, restoredPolygon, uncoverMap }: DrawModeInputs) {
   // The map used to be permanently in draw mode, which is why a pan could move
   // a vertex and why a click could only ever mean "polygon corner". Every
   // session — including one restored from a link with a ring already in it —
@@ -52,12 +54,11 @@ export function useDrawMode({ mapRef, polygon, restoredPolygon, isDesktop, close
     // Editing a shape that has scrolled off screen is the one thing
     // the draw/idle split made easy to do by accident.
     mapRef.current?.framePolygon()
-    // On a phone the panel is an off-canvas drawer covering the map,
-    // so entering draw mode behind it leaves nothing to draw on. On
-    // desktop it is docked beside the map and closing it would be
-    // taking away the Done button you are about to need.
-    if (!isDesktop) closeDrawer()
-  }, [closeDrawer, isDesktop, mapRef, polygon])
+    // The phone's drawer and a desk's Where card both cover the map, so
+    // entering draw mode behind either leaves nothing to draw on. Done and
+    // Cancel come with the mode, on the map's draw bar (`MapDrawBar`).
+    uncoverMap()
+  }, [uncoverMap, mapRef, polygon])
 
   const finishDrawing = useCallback(() => setDrawing(false), [])
 

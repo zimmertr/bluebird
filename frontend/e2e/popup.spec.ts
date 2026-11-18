@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, isoDay, forecastButton, openCard } from './fixtures'
 import type { Locator } from '@playwright/test'
 
 // A result popup is built from the report it opened over, so a new report
@@ -20,7 +20,7 @@ test('a popup clears the forecast player, and the next analysis closes it', asyn
   // A window of days, because one hour gives the player nothing to play.
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const analyze = page.getByRole('button', { name: 'Analyze' })
+  const analyze = forecastButton(page)
   await analyze.click()
   // A pending row's centring opens no card, so not before the row is ranked.
   await expectRanked(page)
@@ -57,7 +57,7 @@ test('a popup clears the forecast player, and the next analysis closes it', asyn
 test('an open popup marks whichever number the panel ranks by', async ({ page }) => {
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expectRanked(page)
   await page.getByRole('button', { name: /^Center map on / }).first().click()
   const popup = page.locator('.maplibregl-popup')
@@ -79,6 +79,7 @@ test('an open popup marks whichever number the panel ranks by', async ({ page })
     })
   await expect.poll(marked).toEqual(['AQI Avg'])
 
+  await openCard(page, 'Limits')
   await page.getByRole('radio', { name: 'Temperature' }).check()
   await expect.poll(marked).toEqual([expect.stringMatching(/^Temperature \(°F\) (Min|Max|Avg)$/)])
 

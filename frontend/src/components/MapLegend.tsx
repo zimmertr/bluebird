@@ -162,8 +162,15 @@ export interface LegendInputs {
   markerScale: LabelledScale | null
   /** Whether the report's markers are on the map and coloured. */
   hasColoredMarkers: boolean
+  /** Whether a lens ranks the field, so the markers wear the score and the key says so (record 0306). */
+  scored?: boolean
   /** Whether the ranked metric has any value on the rows shown (`fieldHasValue`). */
   rankedFieldHasValue: boolean
+  /**
+   * The metric's own scale while a lens ranks, or null: the markers then wear
+   * the score, and the forecast grid, which paints the metric, keys on this.
+   */
+  gridScale?: LabelledScale | null
   /** Which overlays are on, each keyed by a section. */
   overlays: Pick<
     MapOverlays,
@@ -192,7 +199,7 @@ export type LegendSectionSpec = Parameters<typeof legendSection>[0]
  * and, with a suffix of their own, the fire chips'.
  */
 export function legendSections(
-  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }: LegendInputs,
+  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid, scored = false, gridScale = null }: LegendInputs,
   smokeId: string,
 ): LegendSectionSpec[] {
   const {
@@ -237,7 +244,7 @@ export function legendSections(
   // left out while it stands.
   const metricKeyed =
     markerScale !== null && rankedFieldHasValue && (hasColoredMarkers || gridPainted || gridCued)
-  const snowKeyed = metricKeyed && familyOf(sortBy) === 'snow_depth'
+  const snowKeyed = metricKeyed && !scored && familyOf(sortBy) === 'snow_depth'
   const sections: LegendSectionSpec[] = [
     // Keyed to the markers OR to the grid, because either can be
     // the only colored thing on screen: a live filter can empty
@@ -266,17 +273,25 @@ export function legendSections(
             // the results header and the table's own column
             // headers. AQI reads as the bare noun, its index
             // having no unit.
-            label: metricLabel(
-              familyOf(sortBy),
-              undefined,
-              markerScale.unit,
-            ),
+            // Under a lens the markers wear the score, and the key says so.
+            label: scored ? 'Score' : metricLabel(familyOf(sortBy), undefined, markerScale.unit),
             ...(snowKeyed ? { credit: { href: NOHRSC_HREF, name: 'NOHRSC' } } : {}),
             ramp: {
               css: snowKeyed ? snowRampCss() : scaleRampCss(markerScale),
               ticks: snowKeyed ? snowTicks() : scaleTicks(markerScale),
               bands: snowKeyed ? SNOW_RAMP.length : markerScale.colors.length,
             },
+          },
+        ]
+      : []),
+    // Under a lens the markers wear the score and the grid still paints the
+    // metric, so the one shared key above is the score's and the grid keys
+    // here, in the metric's own words.
+    ...(gridScale !== null && (gridPainted || gridCued)
+      ? [
+          {
+            label: metricLabel(familyOf(sortBy), undefined, gridScale.unit),
+            ramp: { css: scaleRampCss(gridScale), ticks: scaleTicks(gridScale), bands: gridScale.colors.length },
           },
         ]
       : []),

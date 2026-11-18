@@ -1,7 +1,7 @@
 import { useRef, type RefObject } from 'react'
 import BottomSheet from './BottomSheet'
 import type { SheetHeight } from '../utils/sheetDrag'
-import ControlPanel from './ControlPanel'
+import ControlPanel, { type PanelSection } from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
 import ThemeMenu from './ThemeMenu'
@@ -15,7 +15,7 @@ import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ActionWord } from '../utils/analyzeGate'
-import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER } from '../styles'
+import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER, SENTENCE_BAR, TEXT } from '../styles'
 import type { ThemeChoice } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
@@ -106,6 +106,23 @@ interface AppDrawerProps {
   /** The theme choice, and the setter the header's theme menu calls (`useTheme`, #843). */
   themeChoice: ThemeChoice
   onThemeChoice: (choice: ThemeChoice) => void
+  /**
+   * At a desk, the one section a sentence-bar chip opened, as a card under the
+   * bar, or null with none open (record 0308). Given, the desk draws no docked
+   * panel: the card is the panel.
+   */
+  card?: PanelSection | null
+  /** The map's view is the search area while no ring is drawn (record 0308). */
+  viewIsArea?: boolean
+  /** Closes the card: its close button. */
+  onCardClose?: () => void
+}
+
+// What each card is headed, the word its chip stands for. In the PR's table.
+const CARD_HEADING: Readonly<Record<PanelSection, string>> = {
+  destinations: 'Where',
+  forecast: 'When',
+  metrics: 'Limits',
 }
 
 /**
@@ -146,6 +163,9 @@ export default function AppDrawer({
   tutorialWaits,
   themeChoice,
   onThemeChoice,
+  card,
+  onCardClose,
+  viewIsArea = false,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
   const {
@@ -194,6 +214,7 @@ export default function AppDrawer({
       onStartDrawing={startDrawing}
       onFinishDrawing={finishDrawing}
       drawPointCount={drawPointCount}
+      viewIsArea={viewIsArea}
       polygonAreaKm2={polygonAreaKm2}
       onCancelDrawing={handleCancelDrawing}
       onClearDrawing={handleClearDrawing}
@@ -240,8 +261,24 @@ export default function AppDrawer({
       tutorialWaits={tutorialWaits}
       charted={chartMetrics.metrics}
       onChart={chartMetrics.chart}
+      only={isDesktop && card ? card : undefined}
     />
   )
+
+  if (isDesktop && card !== undefined) {
+    if (card === null) return null
+    return (
+      <section aria-label={CARD_HEADING[card]} className={SENTENCE_BAR.card}>
+        <div className={SENTENCE_BAR.head}>
+          <h2 className={TEXT.subheading}>{CARD_HEADING[card]}</h2>
+          <button ref={closeRef} onClick={onCardClose} aria-label="Close" className={HEADER_BUTTON}>
+            <IconClose />
+          </button>
+        </div>
+        <div className={SENTENCE_BAR.body}>{panel}</div>
+      </section>
+    )
+  }
 
   if (!isDesktop) {
     return (

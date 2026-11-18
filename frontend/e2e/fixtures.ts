@@ -142,6 +142,18 @@ export const DESTINATION_NAMES = ['Mount Alpha', 'Beta Peak', 'Gamma Butte', 'De
 // grid (#683), and its rows would count as results.
 export const resultRows = (page: Page) => page.locator('[data-results-table] tbody tr')
 
+// The one button that runs a forecast, at either width: the phone's map
+// button reads `Analyze`, the desk's sentence bar names its spend
+// (`Forecast 247 peaks`, `Forecast 31 new`, `Up to date`, record 0308), and
+// either reads `Try again` after a transient failure.
+export const FORECAST_WORD = /^(Analyze|Forecast|Forecast [\d,]+ [a-z]+|Up to date|Try again)$/
+// Scoped to the tour's Analyze anchor, which is the phone's button itself and
+// the desk's footer around it, since a popup's Forecast fold wears the word too.
+export const forecastButton = (scope: Page | Locator) =>
+  scope
+    .getByRole('button', { name: FORECAST_WORD })
+    .and(scope.locator('button[data-tour="analyze"], [data-tour="analyze"] button'))
+
 // A row's Type cell, the one cell a click lands on that holds no link or
 // button. Found by its header rather than by a count, because the ranked
 // group stands between it and Name and is as wide as the ranking (#586).
@@ -334,19 +346,45 @@ async function placeVertices(page: Page, vertices: readonly [number, number][]) 
   await page.getByRole('button', { name: 'Done' }).click()
 }
 
-export async function drawRing(page: Page) {
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
-  await placeVertices(page, [
-    [520, 260],
-    [760, 300],
-    [620, 480],
-  ])
+// At a desk the panel's sections are cards the sentence bar's chips open, one
+// at a time (record 0308): Where, When and Limits. A phone keeps its Controls
+// sheet, where this does nothing.
+export async function openCard(page: Page, name: 'Where' | 'When' | 'Limits') {
+  const bar = page.getByRole('group', { name: 'Forecast', exact: true })
+  if (!(await bar.isVisible())) return
+  const card = page.getByRole('region', { name })
+  if (await card.isVisible()) return
+  await bar.getByRole('button').nth(['Where', 'When', 'Limits'].indexOf(name)).click()
+  await expect(card).toBeVisible()
 }
 
-// Replaces the ring on the map with a new one through Edit polygon and Clear,
-// the way a reader moves the search area after a report.
+// The ring's controls are in the Where card at a desk. The card is shut again
+// afterwards, so it covers none of the map a test presses.
+export async function inWhere(page: Page, act: () => Promise<void>) {
+  await openCard(page, 'Where')
+  await act()
+  const card = page.getByRole('region', { name: 'Where' })
+  if (await card.isVisible()) await card.getByRole('button', { name: 'Close' }).click()
+}
+
+export async function drawRing(page: Page) {
+  await inWhere(page, async () => {
+    await page.getByRole('button', { name: 'Draw polygon' }).click()
+    await placeVertices(page, [
+      [520, 260],
+      [760, 300],
+      [620, 480],
+    ])
+  })
+}
+
+// Replaces the ring on the map with a new one through Clear and Draw polygon,
+// the way a reader moves the search area after a report. Draw polygon shuts
+// the Where card at a desk, so its Done is the map's draw bar.
 export async function redrawRing(page: Page, vertices: readonly [number, number][]) {
-  await page.getByRole('button', { name: 'Edit polygon' }).click()
-  await page.getByRole('button', { name: 'Clear', exact: true }).click()
-  await placeVertices(page, vertices)
+  await inWhere(page, async () => {
+    await page.getByRole('button', { name: 'Clear', exact: true }).last().click()
+    await page.getByRole('button', { name: 'Draw polygon' }).click()
+    await placeVertices(page, vertices)
+  })
 }

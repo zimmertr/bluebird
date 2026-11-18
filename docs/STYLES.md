@@ -56,6 +56,8 @@ The app has two themes since #706, and since #843 it opens in the device's own s
 | `BUTTON_PRIMARY` | Full-width main action: the Analyze button, which reads `Try again` after a failed run (record 0169) |
 | `BUTTON_SECONDARY` | Secondary action beside something else |
 | `BUTTON_ACCENT` | Leading action in a pair: Done button in draw mode |
+| `BUTTON_FORECAST` | The one button that spends a forecast, in `BUTTON_PRIMARY`'s shape and in alpenglow rather than the sky accent, with a dark label: the panel's at a phone. Nothing else wears the warm fill, so the eye knows which press costs upstream calls (record [0307](architectural-decision-records/0307-alpenglow-is-the-forecast-button.md); see The alpenglow fill below) |
+| `BUTTON_FORECAST_BAR` | The same button in a desk's sentence bar: as tall as the chips beside it and as wide as its words, which name what it will forecast (record [0308](architectural-decision-records/0308-the-view-is-the-search-area-under-a-sentence-bar.md)) |
 | `DRAW_ROW` | The Polygon row: three equal buttons in a grid, `BUTTON_SECONDARY` and `BUTTON_ACCENT` at a 4px inset, because a third of the panel is narrower than `Draw polygon` at their 12px (#687, record 0137) |
 | `ACTION_GROUP` / `ACTION_ITEM` | The results bar's Columns, Models, Removed and Download CSV as one group in the mode switch's look: the same bordered well, the same half and height, the same idle fill, a divider between each two, and a 6px inset so a glyph alone is 28px wide and passes target spacing on a fine pointer. They were underlined links, then ghost buttons that wrapped to three rows on a phone. Under a finger each is 44 wide and 32 tall, and presses 44 (`BAR_PRESS`) |
 | `BAR_GROUP` / `BAR_PRESS` | The results bar's two groups on a finger: `SEGMENT_FLUID`'s well without its clip, and a pseudo-element 6px over and under each button so a 32px button presses 44, as a chip does. The end buttons round their own outer corners at 3px, the group's 4px less its edge (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
@@ -196,6 +198,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `TRANSPORT_AXIS_ITEM` | The axis switch's halves: `SEGMENT_ITEM` with one step more inset, because the right half carries a ranked metric's noun rather than a word the app chose. That half also holds one line and takes the width its own noun needs, where a panel half splits a fixed box with its neighbour |
 | `TRANSPORT_PLAY` | The player's play button: 28px square on a fine pointer and a finger's 32 on touch, square on both, where `TAP.action` would stretch it to 44 wide (record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
 | `TRANSPORT_AXIS_W` | Private to `styles.ts` since #687, composed into `TRANSPORT_AXIS_ITEM`. The floor under both halves: the width `Radar` takes, so a one-word metric beside it is a matching half rather than a runt. Spelled again under `touch:`, because the tap target's own min-width is a later rule and would otherwise lower it |
+| `DAY_STRIP` | A desk's day strip at the map's foot, where the player stood alone: the floating card, bottom centre and up to 40rem wide because sixteen days want room a scrubber did not, one row of day cells lit by `DAY`'s own states, and the player under the row once a report spans hours (record [0310](architectural-decision-records/0310-a-desk-picks-its-days-on-a-strip-at-the-map-foot.md)) |
 
 **Layers**
 
@@ -222,6 +225,13 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `DAY.range` | Fill for days between selected ends |
 | `DAY.selected` | Accent fill for selected ends and single picks |
 | `DAY.today` | Ring marking today (can stack with other states) |
+
+**Sentence bar and score**
+
+| Role | Purpose |
+|---|---|
+| `SENTENCE_BAR` | A desk's bar beside the search pill: the brand chip that leads it, the chip group, the Forecast button's slot (on the chips' own face, so a blocked button's 40 percent greys against that face rather than the map's labels), the card a chip opens under the row on the legend card's face, and the desk's draw bar hung where the cards hang (record [0308](architectural-decision-records/0308-the-view-is-the-search-area-under-a-sentence-bar.md)) |
+| `HOUR_STRIP` | The strip in a row's Score cell: one bar per lit hour in the score's ramp, a wider gap where a night falls, and the best four drawn taller, so the best stretch marks itself by shape rather than by a second hue. A fixed 96px, so a long window narrows its bars rather than widening the column (record [0306](architectural-decision-records/0306-a-score-with-lenses-ranks-the-field.md)) |
 
 **Icons and tables**
 
@@ -549,6 +559,16 @@ The accent fill answers four measured constraints at once and must pass WCAG AA 
 **Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.56 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
+
+### The alpenglow fill
+
+The Forecast button wears `--color-act`, a warm orange defined in both blocks of `frontend/src/index.css`, and its label is dark ink rather than white, because a warm fill light enough to stand out on a dark map cannot carry a white label at 4.5:1. The light value is darker than the prototype's `#d96f38`, so the fill clears 3:1 on the panel and on a raised surface.
+
+- Dark: the label measures **7.37:1** on the fill and **8.88:1** on its hover, and the fill clears 3:1 on every ground it lands on
+- Light: the label measures **4.71:1** on the fill and **5.33:1** on its hover; the fill measures **3.37:1** on the panel, **3.01:1** on a raised surface and **3.6:1** on the page
+- The light hover lightens, which with a dark label gains contrast, and stands **2.98:1** on the panel, the one state under 3:1, as the sky accent's hover is the one state under AA
+
+`styles.test.ts` pins every number (record [0307](architectural-decision-records/0307-alpenglow-is-the-forecast-button.md)).
 
 ### The light theme
 
@@ -1173,6 +1193,8 @@ outside `styles.ts` allowed to name a hue, because a band's colour is what the
 number means rather than what the surface is. `snowDepth.ts` is the same
 exemption for the same reason: those bands are NOAA's, and the map draws NOAA's
 rendered image.
+
+The score has a ramp of its own there too, `SCORE_RAMP`, one per theme, on six thresholds from 0 to 90 (record [0306](architectural-decision-records/0306-a-score-with-lenses-ranks-the-field.md)). A score is not an absolute reading the way a wind speed is, so the thresholds are stretched over the field's own range, from its 5th percentile to its best (`scoreScale`), and the table's cells, the hour strips, the markers and the legend all read that one stretched scale, so none of them can drift from another over a rounding.
 
 Neither of them decides how a scale is DRAWN. That is `utils/legendRamp.ts`,
 which turns a band table into the legend's strip and the tick numbers on it, and

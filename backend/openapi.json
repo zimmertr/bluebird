@@ -1705,6 +1705,28 @@
             "description": "Cloud deck, feet above sea level; see `cloud_deck_min_ft` on the result. Null at every archive hour, which carries no pressure levels to read, and null as a whole when the cloud request answered nothing for this location.",
             "title": "Cloud Deck Ft"
           },
+          "cloud_top_ft": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Top of the lowest cloud layer, feet above sea level: where the column dries out again above `cloud_deck_ft`. Equal to `cloud_deck_ft` in a dry column. Null at every archive hour, and null as a whole when the cloud request answered nothing for this location.",
+            "title": "Cloud Top Ft"
+          },
           "freeze_ft": {
             "description": "Freezing level, feet above sea level. Null at every hour for the models that do not publish the variable; see `freeze_avg_ft` on the result.",
             "items": {
@@ -1788,7 +1810,8 @@
           "freeze_ft",
           "snowfall_in",
           "aqi",
-          "cloud_deck_ft"
+          "cloud_deck_ft",
+          "cloud_top_ft"
         ],
         "title": "HourlySeries",
         "type": "object"

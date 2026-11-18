@@ -8,8 +8,11 @@ import { type Place, placeType } from '../utils/geocode'
 import { geoKey } from '../utils/points'
 import { type PresentationKnobs, presentResults } from '../utils/present'
 import { isRankingOrder } from '../utils/sortResults'
-import type { SortDir, SortKey } from '../utils/tableColumns'
+import { SCORE_KEY, type SortDir, type SortKey } from '../utils/tableColumns'
 import { grouped } from '../utils/numbers'
+import { scoreRows } from '../utils/score/windowScore'
+import { headline, headlineText, scoreRange } from '../utils/score/headline'
+import { filterConstraints } from '../utils/clientAnalyze'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -131,10 +134,38 @@ export function usePresentedReport({
   // the remembered discovery identities by coordinate; genuine custom-CSV rows
   // simply have no match and pass through unchanged.
   const knobs = demoKnobs ?? liveKnobs
-  const presented = useMemo(
-    () => presentResults(universe, knobs, removedKeys),
-    [universe, knobs, removedKeys],
+  // Every row scored on the lens before the derivation ranks them, so the
+  // table, the markers and the count read one scored field (record 0306).
+  // Keyed on the lens and the field alone: a sort, cap or bound change
+  // re-presents the same scores.
+  const lens = knobs.lens ?? null
+  const times = response?.times
+  const scored = useMemo(
+    () => (universe !== null && lens !== null && times ? scoreRows(universe, times, lens) : universe),
+    [universe, lens, times],
   )
+  const presented = useMemo(
+    () => presentResults(scored, knobs, removedKeys),
+    [scored, knobs, removedKeys],
+  )
+  // The results bar's headline under a lens, counted over every scored row
+  // the bounds admit rather than the cut on screen, so a cap of ten still
+  // says how many reached the bar.
+  const keptScores = useMemo(() => {
+    if (lens === null || scored === null) return null
+    const kept = filterConstraints(scored, knobs.constraints).filter(
+      (r) => !removedKeys.has(geoKey(r.latitude, r.longitude)),
+    )
+    return kept.map((r) => r.score ?? null)
+  }, [lens, scored, knobs.constraints, removedKeys])
+  const scoreHeadline = useMemo(() => {
+    const h = keptScores === null ? null : headline(keptScores)
+    return h ? headlineText(h) : null
+  }, [keptScores])
+  // The range the score's colour is stretched over, over the same rows the
+  // headline counts, so the table, the strips, the markers and the legend
+  // read one ramp (record 0306).
+  const scoreSpan = useMemo(() => (keptScores === null ? null : scoreRange(keptScores)), [keptScores])
   const results = useMemo(
     () =>
       presented.rows.map((r) => {
@@ -167,10 +198,16 @@ export function usePresentedReport({
   // `tableRows` applies this sort for the table and the CSV. Handing the
   // sorted rows to the map would quietly make the markers follow a detail
   // sort, and the types would not complain.
+  // The ranking's own order, which the header arrow shows while nobody has
+  // pressed a header: the Score column, best first, while the reader's lens
+  // ranks the field (record 0306), and the panel's metric otherwise.
+  const readerLens = liveKnobs.lens ?? null
+  const rankKey: SortKey = readerLens !== null ? SCORE_KEY : view.sortBy
+  const rankDesc = readerLens !== null ? true : view.sortDesc
   const [detailSort, setDetailSort] = useState<{ key: SortKey; dir: SortDir }>(() =>
     restoredTableSort
       ? { key: restoredTableSort.key, dir: restoredTableSort.desc ? 'desc' : 'asc' }
-      : { key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' },
+      : { key: rankKey, dir: rankDesc ? 'desc' : 'asc' },
   )
 
   // A link's header sort is for the report the link reopens, which is the
@@ -178,7 +215,7 @@ export function usePresentedReport({
   // it was made under is held beside it: a change to either drops the sort
   // like any other, as does every report after the first.
   const keepRestoredSortRef = useRef(
-    restoredTableSort ? { sortBy: view.sortBy, sortDesc: view.sortDesc, seq: analysisSeq } : null,
+    restoredTableSort ? { sortBy: rankKey, sortDesc: rankDesc, seq: analysisSeq } : null,
   )
 
   // Follow the ranking: on a new report, and on a live ranking change, drop any
@@ -189,7 +226,7 @@ export function usePresentedReport({
   // user just asked for.
   useEffect(() => {
     const kept = keepRestoredSortRef.current
-    if (kept && kept.sortBy === view.sortBy && kept.sortDesc === view.sortDesc) {
+    if (kept && kept.sortBy === rankKey && kept.sortDesc === rankDesc) {
       // The mount run, and then the first report, which the link's sort is for.
       if (analysisSeq === kept.seq) return
       if (analysisSeq === kept.seq + 1) {
@@ -198,17 +235,17 @@ export function usePresentedReport({
       }
     }
     keepRestoredSortRef.current = null
-    setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
-  }, [view.sortBy, view.sortDesc, analysisSeq])
+    setDetailSort({ key: rankKey, dir: rankDesc ? 'desc' : 'asc' })
+  }, [rankKey, rankDesc, analysisSeq])
 
   // The header sort as a link carries it: null while it is the ranking's own
   // order, which is what the table shows when nobody clicked a header.
   const tableSort = useMemo(
     () =>
-      isRankingOrder(detailSort, view.sortBy, view.sortDesc)
+      isRankingOrder(detailSort, rankKey, rankDesc)
         ? null
         : { key: detailSort.key, desc: detailSort.dir === 'desc' },
-    [detailSort, view.sortBy, view.sortDesc],
+    [detailSort, rankKey, rankDesc],
   )
 
   // A stable identity for the table's callback, for the reason `NO_TIMES`
@@ -324,6 +361,9 @@ export function usePresentedReport({
     customPendingCount: customPending.length,
     rowCount,
     emptyReason,
+    lens,
+    scoreHeadline,
+    scoreRange: scoreSpan,
   }
 }
 

@@ -121,6 +121,8 @@ interface LayersPopoverProps {
   >
   /** Whether anything spans time, so the player row can be ticked. */
   playerOffered: boolean
+  /** Whether a report is held, so the cloud deck has something to draw (record 0309). */
+  cloudOffered?: boolean
   /** The map, for the view each bounded row is tested against while the menu is open. */
   mapRef: RefObject<Pick<MapViewHandle, 'watchBounds'> | null>
   /** The server's outlines for the three snapshot layers (`useCapabilities`). */
@@ -143,6 +145,7 @@ export default function LayersPopover({
   overlays,
   grid,
   playerOffered,
+  cloudOffered = false,
   mapRef,
   coverage,
   forcedOpen = false,
@@ -161,6 +164,8 @@ export default function LayersPopover({
     setShowSmoke,
     showSnow,
     setShowSnow,
+    showCloud,
+    setShowCloud,
     showGrid,
     setShowGrid,
     showContours,
@@ -325,6 +330,20 @@ export default function LayersPopover({
           disabled: outOfView.has('radar'),
         },
         { key: 'snow', label: SNOW_ROW_LABEL, checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
+        // The cloud sea (record 0309), grey until a report holds a deck to
+        // draw, with no `note`, for the player's reason. A desk's alone until
+        // the phone's shell, which draws none.
+        ...(sheet
+          ? []
+          : [
+              {
+                key: 'cloud',
+                label: 'Cloud deck',
+                checked: showCloud,
+                onChange: setShowCloud,
+                disabled: !cloudOffered,
+              },
+            ]),
         // Grey, too, with nothing to grid (#803, M5): before any report, and
         // over one whose ranked metric has no number anywhere. Those two carry
         // no `note`, for the player's reason; the archive's older sentence stays.

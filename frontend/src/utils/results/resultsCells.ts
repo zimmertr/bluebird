@@ -1,6 +1,6 @@
 import type { DestinationResult } from '../../types'
-import { cellInks, cellStyle, scaleFor } from '../colors'
-import type { ColDef } from '../tableColumns'
+import { cellInks, cellStyle, scaleFor, scoreCellStyle } from '../colors'
+import { type ColDef, SCORE_KEY } from '../tableColumns'
 import type { ModelRow } from '../model/modelCompare'
 import {
   FIRE_UNAVAILABLE_NOTE,
@@ -122,7 +122,10 @@ export function cellColor(
   raw: unknown,
   coloredGroup: ReadonlySet<string>,
   pointSample: boolean,
+  // The range the score's colour is stretched over (record 0306), or null.
+  scoreRange: { lo: number; hi: number } | null = null,
 ): { backgroundColor: string; color: string } | undefined {
+  if (key === SCORE_KEY) return raw != null ? scoreCellStyle(raw as number, scoreRange) : undefined
   const scale = coloredGroup.has(key) ? scaleFor(key, pointSample) : null
   return scale && raw != null ? cellStyle(raw as number, scale) : undefined
 }

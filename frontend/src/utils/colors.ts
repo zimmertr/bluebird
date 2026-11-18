@@ -2,6 +2,7 @@ import { SortBy } from '../types'
 import { FAMILY_KEYS, HOURLY_UNIT, MetricFamily, UNIT } from '../metrics'
 import { clamp } from './numbers'
 import { themed } from './themeColor'
+import type { Theme } from './viewPrefs'
 
 /**
  * A set of band boundaries and the colors they anchor.
@@ -569,4 +570,66 @@ export function cellInks(value: number, scale: ColorScale): { fill: string; ink:
     fill: `rgba(${r},${g},${b},0.2)`,
     ink: { dark: `rgb(${dr},${dg},${db})`, light: `rgb(${ir},${ig},${ib})` },
   }
+}
+
+/**
+ * The score's ramp, fog to bluebird (record 0306): one family of blues from a
+ * grey that recedes into the map to the deep blue of a clear high sky, so the
+ * best places are the ones the eye lands on. Not a verdict ramp, and not on
+ * the list above: the score is not a metric with a good end and a bad one in
+ * absolute terms, it is a ranking whose colour is stretched over the field's
+ * own range (`scoreRange` in `utils/score/headline.ts`), so green would claim
+ * a day is good when it is only the best of a wet week.
+ *
+ * The anchors sit where scores fall: most of the spread a reader weighs is
+ * between 50 and 95 of the stretched range. Each theme has its own, since the
+ * dark one's fog must recede into a dark map and the light one's into a pale
+ * one.
+ */
+const SCORE_THRESHOLDS = [0, 40, 55, 68, 80, 90]
+export const SCORE_RAMP: Record<Theme, readonly string[]> = {
+  dark: ['#303842', '#4a5663', '#68788a', '#7096be', '#4c98e8', '#409eff', '#7ac4ff'],
+  light: ['#788088', '#9ea7b0', '#b8c4cf', '#8cbae4', '#4092e6', '#1670de', '#0a4cba'],
+}
+
+/**
+ * The score's ramp as the map's legend keys it: the light ramp the markers
+ * wear (`ScoreColouring` in `resultFeatures.ts`), with no unit, a score having
+ * none.
+ */
+export const SCORE_MAP_SCALE: LabelledScale = { thresholds: SCORE_THRESHOLDS, colors: SCORE_RAMP.light, ink: [], unit: '' }
+
+/**
+ * The map's score scale stretched over the field's range: the ramp's
+ * thresholds carried back onto the scores they stand for, rounded, so the
+ * legend's ticks read the field's own numbers and a marker coloured on it
+ * matches `scoreFill` with the same range.
+ */
+export function scoreScale(range: { lo: number; hi: number } | null): LabelledScale {
+  if (range === null) return SCORE_MAP_SCALE
+  const at = (t: number) => Math.round(range.lo + (t / 100) * (range.hi - range.lo))
+  return { ...SCORE_MAP_SCALE, thresholds: SCORE_THRESHOLDS.map(at) }
+}
+
+/**
+ * A score's colour in one theme, for a channel that paints one (MapLibre,
+ * canvas): on `scoreScale`'s thresholds, the ones the legend prints, so a
+ * marker, a cell and the key cannot drift apart over a rounding.
+ */
+export function scoreFill(score: number, range: { lo: number; hi: number } | null, theme: Theme): string {
+  return colorOnScale(score, { thresholds: scoreScale(range).thresholds, colors: SCORE_RAMP[theme], ink: [] })
+}
+
+/** A score's colour as one string for both themes, for a class or a style. */
+export function scoreColor(score: number, range: { lo: number; hi: number } | null): string {
+  return themed(scoreFill(score, range, 'light'), scoreFill(score, range, 'dark'))
+}
+
+/**
+ * A Score cell's look: the score's colour as a tint under the row's own ink,
+ * which reads in both themes on every step of the ramp, where the ramp's fog
+ * end as text would sink into the panel it stands on.
+ */
+export function scoreCellStyle(score: number, range: { lo: number; hi: number } | null = null): { backgroundColor: string; color: string } {
+  return { backgroundColor: `color-mix(in oklab, ${scoreColor(score, range)} 30%, transparent)`, color: 'inherit' }
 }

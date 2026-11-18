@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
+  BUTTON_FORECAST,
+  BUTTON_FORECAST_BAR,
   ACCENT_RING,
   BADGE_ACCENT,
   BADGE_STEP,
@@ -3290,8 +3292,10 @@ describe('a blocked Analyze and the message list', () => {
   // (#803, record 0233), which is the docked panel less the footer's gutters,
   // so the 82-character over-cap sentence wraps inside it rather than running
   // the card past the panel's right edge over the map.
+  // The sentence bar hands its chips' span in place of the slot (record
+  // 0308), where the button alone would wrap every line.
   it("stands the desk card at the Analyze slot's width, 328px at the docked panel", () => {
-    expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: slotRef,/)
+    expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: bar\?\.widthRef \?\? slotRef,/)
     const panelPx = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) * 4
     const gutterPx = Number(panelFooterSource.match(/`px-(\d+) py-4 border-t \$\{PANEL_EDGE\}/)![1]) * 4
     expect(panelPx - 2 * gutterPx).toBe(328)
@@ -3512,7 +3516,7 @@ describe('the map layer rows', () => {
   const headings = [...block.matchAll(/heading: '([^']+)'/g)].map((m) => m[1])
 
   it('found every row', () => {
-    expect(labels).toHaveLength(13)
+    expect(labels).toHaveLength(14)
   })
 
   // By what a layer changes: the map itself, a hazard on it, the weather on
@@ -3532,6 +3536,7 @@ describe('the map layer rows', () => {
       'Trail closures',
       'Rain radar',
       'Snow depth',
+      'Cloud deck',
       'Forecast grid',
       'Forecast player',
     ])
@@ -3669,7 +3674,7 @@ describe('the map legend sections', () => {
     // The metric key's label is composed, not written: `metricLabel` is what
     // every surface in the app names a metric with, and it reads the SCALE's
     // unit so playback's swap to `in/hr` relabels the strip with its bands.
-    expect(box).toContain('label: metricLabel(')
+    expect(box).toContain("label: scored ? 'Score' : metricLabel(")
   })
 
   // In the Layers menu's order (record 0249): the metric key, the base map's
@@ -3677,7 +3682,7 @@ describe('the map legend sections', () => {
   // than sorted, so the order is the source's.
   it('lists the sections in the Layers menu\'s order, the metric key first', () => {
     const at = (mark: string) => box.indexOf(mark)
-    const order = ['label: metricLabel(', "label: 'Slope angle'", ...LAYER_LABELS_IN_ORDER]
+    const order = ["label: scored ? 'Score' : metricLabel(", "label: 'Slope angle'", ...LAYER_LABELS_IN_ORDER]
     expect(order.map(at).every((i) => i >= 0)).toBe(true)
     expect(order.map(at)).toEqual([...order.map(at)].sort((a, b) => a - b))
     expect(box).not.toContain('.sort(')
@@ -3694,7 +3699,7 @@ describe('the map legend sections', () => {
   // snow key being the odd one out.
   it('builds every section from the one recipe', () => {
     expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
-    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(3)
+    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(4)
   })
 })
 
@@ -5522,5 +5527,42 @@ describe('sheet handles and pull to refresh', () => {
 
   it('turns off overscroll on the page', () => {
     expect(indexCss).toMatch(/html,\s*body\s*\{\s*overscroll-behavior-y:\s*none;\s*\}/)
+  })
+})
+
+// Alpenglow (record 0307): the Forecast button's fill and its dark label.
+// Both themes measured here, the label against the fill (1.4.3) and the fill
+// against the surfaces it stands on (1.4.11); the light hover is the one state
+// under 3:1 on the panel and is pinned so a change to it is a re-measurement.
+describe('the alpenglow fill', () => {
+  const tok = (recipe: string, utility: string) => token(recipe, utility)
+
+  it('reads the label at AA on both fills and both hovers', () => {
+    for (const button of [BUTTON_FORECAST, BUTTON_FORECAST_BAR]) {
+      expect(tok(button, 'bg')).toBe('act')
+      expect(tok(button, 'text')).toBe('on-act')
+      expect(tok(button, 'hover:bg')).toBe('act-hover')
+    }
+    expect(ratio(dark('on-act'), dark('act'))).toBe(7.37)
+    expect(ratio(dark('on-act'), dark('act-hover'))).toBe(8.88)
+    expect(ratio(light('on-act'), light('act'))).toBe(4.71)
+    expect(ratio(light('on-act'), light('act-hover'))).toBe(5.33)
+  })
+
+  it('is the fill the Forecast button wears', () => {
+    expect(tok(BUTTON_FORECAST, 'bg')).toBe('act')
+    expect(tok(BUTTON_FORECAST, 'text')).toBe('on-act')
+    expect(tok(BUTTON_FORECAST, 'hover:bg')).toBe('act-hover')
+  })
+
+  it('stands the fill 3:1 on the surfaces it sits on', () => {
+    for (const ground of [dark('panel'), dark('raised'), dark('page')]) {
+      expect(contrast(dark('act'), ground)).toBeGreaterThanOrEqual(3)
+    }
+    expect(ratio(light('act'), light('panel'))).toBe(3.37)
+    expect(ratio(light('act'), light('raised'))).toBe(3.01)
+    expect(ratio(light('act'), light('page'))).toBe(3.6)
+    // The light hover lightens to gain label contrast, and pays for it here.
+    expect(ratio(light('act-hover'), light('panel'))).toBe(2.98)
   })
 })

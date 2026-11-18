@@ -7,6 +7,7 @@ vi.mock('maplibre-gl', () => ({ Popup: class {}, addProtocol: vi.fn() }))
 import type * as maplibregl from 'maplibre-gl'
 import { SLOTS, addLayerAt, beneathFor, slotOf, slotsOf, type StyleLayerRef } from './layerOrder'
 import { TRAIL_CASING_LAYER, TRAIL_LAYER } from './basemap'
+import { CLOUD_LAYER } from './cloudSea'
 import { PENDING_MARKER_LAYER, RESULT_MARKER_LAYER } from './resultsLayer'
 import {
   CONTOUR_CASING_LAYER,
@@ -64,6 +65,7 @@ describe('the slots', () => {
       'slope',
       'contours',
       'trails',
+      'cloud',
       'grid',
       'snow',
       'radar',
@@ -97,6 +99,7 @@ describe('the slots', () => {
       [CONTOUR_INDEX_LAYER, 'contours'],
       [TRAIL_CASING_LAYER, 'trails'],
       [TRAIL_LAYER, 'trails'],
+      [CLOUD_LAYER, 'cloud'],
       [SNOW_LAYER_ID, 'snow'],
       ...radarOffsets().map((offset): [string, string] => [radarLayerId(offset), 'radar']),
       ...SMOKE_DENSITIES.map((density): [string, string] => [smokeLayerId(density), 'smoke']),

@@ -1079,7 +1079,7 @@ EOF
 
 That ranks the destinations whose cloud came down least, among those whose
 deck never fell below 5,000 ft. With series on, each row's `series` also
-carries `cloud_deck_ft`, aligned to `times`. The cloud request is priced by Open-Meteo like any other:
+carries `cloud_deck_ft` and `cloud_top_ft`, the top of the same layer, both aligned to `times`. The cloud request is priced by Open-Meteo like any other:
 nine hourly variables at one model, a weight of 1 per location against the
 weather request's 1.5.
 

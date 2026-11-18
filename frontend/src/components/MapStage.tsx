@@ -1,7 +1,12 @@
-import { useCallback, useId, useRef, useState, type ComponentProps, type RefObject } from 'react'
+import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
 import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
+import type { DeckPoint } from '../utils/cloudSea'
+import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
+import DayStrip from './DayStrip'
+import type { TimelineAxis } from '../utils/timeline'
+import type { ScoreColouring } from '../utils/resultFeatures'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
 import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
@@ -23,7 +28,7 @@ import type { SortBy } from '../types'
 import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
 import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { NOUN, familyOf } from '../metrics'
-import { hourlyScale, rankedScale } from '../utils/colors'
+import { hourlyScale, rankedScale, scoreScale } from '../utils/colors'
 import {
   TRANSPORT_GAP_PX,
   fabBottomPx,
@@ -142,6 +147,22 @@ export interface MapStageProps {
    * how a tap on the map that opens a card gives it room, as a row's press does.
    */
   lowerSheetFirst: (then: () => void) => void
+  /** At a desk, the sentence bar and the card one of its chips opened (record 0308). */
+  bar?: ReactNode
+  barCard?: ReactNode
+  /**
+   * Every settled move of the camera: the link's, and the search area's
+   * view (`useSearchArea`). The link's alone where none is given.
+   */
+  onCameraMove?: (view: CameraView, readerMove: boolean) => void
+  /** At a desk with the bar, the document links the corner's credit line carries (`DocLinks`). */
+  cornerLinks?: ReactNode
+  /** The cloud deck at the hour drawn (record 0309), built in `App.tsx`. */
+  cloudDeck?: readonly DeckPoint[] | null
+  /** The markers' score colouring while a lens ranks the field (record 0306), memoized in `App.tsx`. */
+  scoreColouring?: ScoreColouring | null
+  /** At a desk, the window the day strip picks and the band it is drawn over (record 0310). */
+  dayStrip?: { selection: ForecastSelection; onSelection: (s: ForecastSelection) => void; band: BandLimits } | null
 }
 
 /**
@@ -185,6 +206,13 @@ export default function MapStage({
   onBasemapFailed,
   maxPolygonPoints,
   lowerSheetFirst,
+  bar,
+  barCard,
+  onCameraMove = urlSync.reportView,
+  cornerLinks,
+  cloudDeck = null,
+  scoreColouring = null,
+  dayStrip = null,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -240,7 +268,10 @@ export default function MapStage({
   // arrives without a scale. The key below has its own reason to stay away
   // (`fieldHasValue`): a box of bands over a field of N/A explains
   // nothing.
-  const markerScale = playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
+  // Under a lens the markers wear the score's ramp, hour or window alike.
+  const scored = scoreColouring !== null
+  const metricScale = playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
+  const markerScale = scoreColouring !== null ? scoreScale(scoreColouring.range) : metricScale
 
   const hasColoredMarkers = showResults && results.length > 0
   // Whether the ranked metric has anything to colour AT ALL on the rows shown.
@@ -248,9 +279,20 @@ export default function MapStage({
   // publish no freezing level: every marker is then the neutral no-value fill,
   // every cell reads N/A, and a key of six height bands beside them would be
   // the only thing on screen claiming the field was measured.
-  const rankedFieldHasValue = fieldHasValue(results, sortBy)
+  const rankedFieldHasValue = scored ? results.some((r) => r.score != null) : fieldHasValue(results, sortBy)
   // What the legend keys: a desk's card on the map, a phone's Legend sheet.
-  const legendInputs: LegendInputs = { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }
+  // The grid paints the metric whatever ranks (#246), so under a lens it keeps
+  // a key of its own beside the score's.
+  const legendInputs: LegendInputs = {
+    sortBy,
+    markerScale,
+    hasColoredMarkers,
+    rankedFieldHasValue,
+    overlays,
+    grid,
+    scored,
+    gridScale: scored ? metricScale : null,
+  }
   const legend = legendSections(legendInputs, smokeId)
 
   // The phone's draw bar stands under the chip row while a ring is drawn
@@ -274,6 +316,7 @@ export default function MapStage({
       overlays={overlays}
       grid={grid}
       playerOffered={timeline.playerOffered}
+      cloudOffered={analysis.analyzedAtMs !== null}
       mapRef={mapRef}
       coverage={coverage}
       forcedOpen={layersForcedOpen}
@@ -299,6 +342,25 @@ export default function MapStage({
       : layoutMotion === 'panes'
         ? LAYOUT_HOLD.mapPanes
         : LAYOUT_HOLD.rest
+
+  // The forecast player, alone over the map or hosted by the day strip.
+  const transport = (axis: TimelineAxis, embedded: boolean) => (
+    <TimelineTransport
+      axis={axis}
+      axes={timeline.timelineAxes}
+      onAxisChange={timeline.setChosenAxis}
+      index={timeline.frameIndex}
+      frameCount={timeline.frameCount}
+      onIndexChange={timeline.setFrameIndex}
+      playing={timeline.playing}
+      onPlayingChange={timeline.setPlaying}
+      readout={timeline.timelineReadout}
+      scale={timeline.timelineScale}
+      forecastLabel={scored ? 'Score' : NOUN[familyOf(sortBy)]}
+      liftPx={isDesktop ? layout.sheetLiftPx : transportStandPx(fabBottom)}
+      embedded={embedded}
+    />
+  )
 
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
@@ -365,6 +427,8 @@ export default function MapStage({
           showContours={overlays.showContours}
           showRelief={overlays.showRelief}
           showSlope={overlays.showSlope}
+          cloudDeck={cloudDeck}
+          scoreColouring={scoreColouring}
           showSatellite={overlays.showSatellite}
           baseOpacity={overlays.baseOpacity}
           showTerrain={overlays.showTerrain}
@@ -383,7 +447,7 @@ export default function MapStage({
           onMoveAggregate={tableView.handleAggregateMove}
           cameraPadBottomPx={layout.cameraPadBottomPx}
           restoredView={restoredView}
-          onCameraMove={urlSync.reportView}
+          onCameraMove={onCameraMove}
           onBasemapFailed={onBasemapFailed}
           maxPolygonPoints={maxPolygonPoints}
           lowerSheetFirst={lowerSheetFirst}
@@ -408,10 +472,12 @@ export default function MapStage({
         layers={layers}
         legend={legendChip}
         covered={layout.overMapRows}
+        bar={bar}
+        barCard={barCard}
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
-      {isDesktop && <MapCorner onSlots={setCornerSlots} />}
+      {isDesktop && <MapCorner onSlots={setCornerSlots} links={cornerLinks} />}
       {/* The foot of a phone's map: the Analyze button (record 0135) with
           the message badge at its corner (record 0208). */}
       {!isDesktop && (
@@ -436,21 +502,18 @@ export default function MapStage({
           onCancel={drawMode.handleCancelDrawing}
         />
       )}
-      {timelineShown && timelineAxis !== null && (
-        <TimelineTransport
-          axis={timelineAxis}
-          axes={timeline.timelineAxes}
-          onAxisChange={timeline.setChosenAxis}
-          index={timeline.frameIndex}
-          frameCount={timeline.frameCount}
-          onIndexChange={timeline.setFrameIndex}
-          playing={timeline.playing}
-          onPlayingChange={timeline.setPlaying}
-          readout={timeline.timelineReadout}
-          scale={timeline.timelineScale}
-          forecastLabel={NOUN[familyOf(sortBy)]}
-          liftPx={isDesktop ? layout.sheetLiftPx : transportStandPx(fabBottom)}
+      {/* At a desk the day strip stands at the map's foot and hosts the
+          player under its days (record 0310); a phone keeps the player alone. */}
+      {isDesktop && dayStrip ? (
+        <DayStrip
+          selection={dayStrip.selection}
+          onSelection={dayStrip.onSelection}
+          band={dayStrip.band}
+          liftPx={layout.sheetLiftPx}
+          transport={timelineShown && timelineAxis !== null ? transport(timelineAxis, true) : null}
         />
+      ) : (
+        timelineShown && timelineAxis !== null && transport(timelineAxis, false)
       )}
     </div>
   )

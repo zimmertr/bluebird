@@ -1,4 +1,4 @@
-import { test, expect, drawRing, expectRanked, message, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, drawRing, expectRanked, message, resultRows, DESTINATION_NAMES, forecastButton, openCard } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // The Analyze button counts the panel's messages in a badge at its corner and
@@ -40,7 +40,7 @@ test.describe('at a desk', () => {
   test('a blocker greys Analyze, reads red on the badge, and opens the list from the button or the badge', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    const analyze = page.getByRole('button', { name: 'Analyze', exact: true })
+    const analyze = forecastButton(page)
     // Nothing to analyze: greyed, not disabled, with the reason in the
     // badge's count and nowhere in the panel but the live region's copy.
     // Playwright reads `aria-disabled` as disabled, so the press below is
@@ -88,6 +88,7 @@ test.describe('at a desk', () => {
     // A ring and a type clear the blocker: the button is live and the line
     // is gone from the live region.
     await drawRing(page)
+    await openCard(page, 'Where')
     await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
     await expect(analyze).not.toHaveAttribute('aria-disabled')
     await expect(page.getByText(NO_DESTINATION)).toHaveCount(0)
@@ -96,10 +97,11 @@ test.describe('at a desk', () => {
   test('a cue after a report joins the badge, opens boxed, and its × takes it away', async ({ page }) => {
     await page.goto(RING)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    const analyze = page.getByRole('button', { name: 'Analyze', exact: true })
+    const analyze = forecastButton(page)
     await analyze.click()
     await expectRanked(page)
     const before = await count(page)
+    await openCard(page, 'Where')
     await page.getByRole('checkbox', { name: 'Lakes', exact: true }).check()
     await expect(badge(page)).toHaveAttribute('aria-label', `${before + 1} message${before + 1 === 1 ? '' : 's'}`)
     await badge(page).click()
@@ -157,7 +159,7 @@ for (const [width, height] of [
     test('a dismissed cue leaves the sheet and the badge', async ({ page }) => {
       await page.goto(RING)
       await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-      await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+      await forecastButton(page.getByRole('main')).click()
       await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
       const before = await count(page)
       await page.getByRole('button', { name: 'Open controls' }).tap()

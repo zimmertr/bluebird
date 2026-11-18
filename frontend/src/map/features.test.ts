@@ -164,6 +164,7 @@ describe('mountFeatures', () => {
     expect(Object.keys(features).sort()).toEqual(
       [
         'areaClosures',
+        'cloud',
         'drawRing',
         'fireActivity',
         'grid',

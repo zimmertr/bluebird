@@ -33,6 +33,12 @@ interface MapRowsProps {
   layers: ReactNode
   /** The Legend chip and its key (`MapLegend`). */
   legend: ReactNode
+  /**
+   * At a desk, the sentence bar that stands where the Controls chip stood,
+   * and the card one of its chips opened, under the chips (record 0308).
+   */
+  bar?: ReactNode
+  barCard?: ReactNode
   /** A full-screen results sheet stands over the rows (#837), which are out of reach until it comes down. */
   covered?: boolean
 }
@@ -72,10 +78,12 @@ export default function MapRows({
   layers,
   legend,
   covered = false,
+  bar,
+  barCard,
 }: MapRowsProps) {
   const summaryId = useId()
   const [searching, setSearching] = useState(false)
-  const summaryShown = !desk || !sidebarOpen
+  const summaryShown = (!desk || !sidebarOpen) && !(desk && bar)
 
   // Stands in for the Controls sheet's Done, or the desk panel's Close, so it
   // takes the keyboard when that button goes inert under it (#576).
@@ -93,6 +101,10 @@ export default function MapRows({
         {/* Empty here: the map stands its own 3D and locate buttons in them,
             so each keeps its states and the locate button its permission
             prompt. */}
+        {/* A desk's sentence bar beside the pill (record 0308), so Legend and
+            Layers keep the row under it and the legend's card its place over
+            the map's left edge (TJ, 2026-10-18). */}
+        {desk && bar && <div className={MAP_ROWS.barSlot}>{bar}</div>}
         {!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}
         {!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}
       </div>
@@ -129,6 +141,7 @@ export default function MapRows({
             which shows only while the map is turned or tilted. */}
         {!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}
       </div>
+      {desk && barCard && <div className={MAP_ROWS.barSlot}>{barCard}</div>}
     </div>
   )
 }

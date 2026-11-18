@@ -34,6 +34,7 @@ import {
   moveColumn,
   visibleColumns,
   withModelColumn,
+  withScoreColumn,
 } from '../utils/tableColumns'
 import { type ViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 
@@ -85,6 +86,8 @@ export interface TableViewInputs {
   fire: FireProximity
   /** The closure check (`useClosureProximity`), which sorts and fills the Closure column. */
   closure: ClosureProximity
+  /** A lens ranks the field, so the Score column stands after the name (record 0306). */
+  scored?: boolean
 }
 
 /**
@@ -116,6 +119,7 @@ export function useTableView({
   shared,
   fire,
   closure,
+  scored = false,
 }: TableViewInputs) {
   // Which columns the table displays (null = use default narrowed set, Set = user choice).
   // The CSV export always gets the full displayedColumns set regardless.
@@ -350,11 +354,11 @@ export function useTableView({
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, sortBy, effectiveVisibleKeys, rankedFirst)
     const flags = FLAG_COLS.filter((c) => effectiveVisibleKeys.has(c.key as string))
-    return applyColumnOrder(
-      withModelColumn([...cols, ...flags], modelColumnOn, rankedFirst ? sortBy : null),
-      columnOrder,
+    return withScoreColumn(
+      applyColumnOrder(withModelColumn([...cols, ...flags], modelColumnOn, rankedFirst ? sortBy : null), columnOrder),
+      scored,
     )
-  }, [pointSample, sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder, rankedFirst])
+  }, [pointSample, sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder, rankedFirst, scored])
 
   // Every column there is, in the reader's order: what the Columns picker
   // lists, and the list a move is made within.

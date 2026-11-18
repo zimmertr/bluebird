@@ -1,6 +1,6 @@
 import type { FeatureCollection } from 'geojson'
 import { DestinationResult, SortBy } from '../types'
-import { colorOnScale, hourlyScale, markerColor } from './colors'
+import { colorOnScale, hourlyScale, markerColor, scoreFill } from './colors'
 import { valueAt } from './chart/chartData'
 import { familyOf } from '../metrics'
 import { isFiniteNumber } from './numbers'
@@ -18,7 +18,18 @@ import { isFiniteNumber } from './numbers'
 export const NO_VALUE = '#64748b'
 
 /**
+ * The markers' colouring while a lens ranks the field (record 0306): the
+ * score's ramp stretched over the field's own range, the Score cells' own. The light ramp alone,
+ * because the map's ground ignores the theme and the dark ramp's fog is made
+ * to recede into a dark map the app never draws.
+ */
+export interface ScoreColouring {
+  range: { lo: number; hi: number } | null
+}
+
+/**
  * A marker's fill: the ranked window value, or one hour of it during playback.
+ * Under a lens, the window's score or that hour's.
  *
  * Shared with the forecast grid (#246), which is the whole of why the cells
  * under the markers and the markers themselves cannot be scored differently.
@@ -33,7 +44,12 @@ export function fillColor(
   row: DestinationResult,
   sortBy: SortBy,
   hourIndex: number | null,
+  score: ScoreColouring | null = null,
 ): string {
+  if (score !== null) {
+    const value = hourIndex !== null ? row.score_hours?.[hourIndex] : row.score
+    return value == null ? NO_VALUE : scoreFill(value, score.range, 'light')
+  }
   if (hourIndex !== null) {
     const scale = hourlyScale(sortBy)
     const family = familyOf(sortBy)
@@ -101,6 +117,8 @@ export function resultsFeatureCollection(
   // aggregate the ranking used (#121). An index into the report's own hourly
   // grid, so the map and the chart's playhead read the same column.
   hourIndex: number | null = null,
+  // The score's colouring while a lens ranks the field, or null for the metric's.
+  score: ScoreColouring | null = null,
 ): FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -118,7 +136,7 @@ export function resultsFeatureCollection(
         // see the note above on why geometry can't be used for those.
         lat: r.latitude,
         lon: r.longitude,
-        color: fillColor(r, sortBy, hourIndex),
+        color: fillColor(r, sortBy, hourIndex, score),
         // Where the arrow layer points during wind playback, and the reason it
         // is a feature property rather than feature-state: `icon-rotate` is a
         // LAYOUT property, and layout properties cannot read feature-state at

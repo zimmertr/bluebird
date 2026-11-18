@@ -1,0 +1,77 @@
+/**
+ * The words on the map's sentence bar (record 0308): what a Forecast will
+ * search, over which hours, and what the button will spend. Every string here
+ * is in the PR's table for the maintainer's approval.
+ */
+import type { DiscoveryType } from '../types'
+import type { AreaSource } from './searchArea'
+import { grouped } from './numbers'
+import { type ForecastSelection, selectionLocalWindow } from './calendar/calendarSelection'
+import { windowCaption } from './calendar/calendarPhrases'
+import { isPointSample } from './forecastWindow'
+import { WHEN_ARM_LABEL } from './controlsSummary'
+
+const KIND_PLURAL: Readonly<Record<DiscoveryType, string>> = {
+  peak: 'peaks',
+  lake: 'lakes',
+  crag: 'crags',
+  trailhead: 'trailheads',
+}
+
+// The order the kinds are named in, whatever order they were ticked in.
+const KIND_ORDER: readonly DiscoveryType[] = ['peak', 'lake', 'crag', 'trailhead']
+
+/** `Peaks`, `Peaks and lakes`, `Peaks, lakes and crags`. */
+export function kindsPhrase(types: readonly DiscoveryType[]): string {
+  const names = KIND_ORDER.filter((t) => types.includes(t)).map((t) => KIND_PLURAL[t])
+  const phrase =
+    names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1)
+}
+
+/** The Where chip: what a Forecast will look for, and where. */
+export function whereLabel(types: readonly DiscoveryType[], source: AreaSource, listed: number): string {
+  if (source === 'list' || types.length === 0) return listed > 0 ? 'Your list' : 'Choose what to find'
+  return `${kindsPhrase(types)} ${source === 'view' ? 'in this view' : 'in your area'}`
+}
+
+function plural(noun: string, n: number): string {
+  return n === 1 ? noun : `${noun}s`
+}
+
+export interface ForecastLabelInputs {
+  /** How many destinations a run would forecast, or null while unknown. */
+  count: number | null
+  /** How many of those the held report has no forecast for, or null with no report. */
+  fresh: number | null
+  /** `peak`, `lake`, or `destination` for a mix (`discoveryNoun`). */
+  noun: string
+}
+
+/**
+ * The Forecast button's words: `Forecast 247 peaks` ahead of a first run,
+ * `Forecast 31 new` once a report holds the rest, `Up to date` when it holds
+ * them all, and `Forecast` while the count is unknown.
+ */
+export function forecastLabel({ count, fresh, noun }: ForecastLabelInputs): string {
+  if (fresh !== null) {
+    if (fresh === 0) return 'Up to date'
+    return `Forecast ${grouped(fresh)} new`
+  }
+  if (count === null) return 'Forecast'
+  return `Forecast ${grouped(count)} ${plural(noun, count)}`
+}
+
+/**
+ * The When chip: the window in the words the results bar prints for an
+ * analysed one (`windowCaption`), the Current arm's own word, or a prompt for
+ * the Dates arm with no day picked.
+ */
+export function whenLabel(selection: ForecastSelection, now: Date): string {
+  if (selection.kind === 'now') return WHEN_ARM_LABEL.now
+  const local = selectionLocalWindow(selection, now)
+  if (local === null) return 'Pick the days'
+  const startMs = Date.parse(local.start)
+  const endMs = Date.parse(local.end)
+  return windowCaption('days', startMs, endMs, isPointSample(startMs, endMs), now)
+}

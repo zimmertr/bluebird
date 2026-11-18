@@ -16,7 +16,7 @@
 // overflow rather than adding 86,400,000 ms — a local day is 23 or 25 hours on
 // a DST transition, and millisecond arithmetic would land on the wrong day.
 //
-// The calendar is five sibling modules, and this file re-exports them so
+// The calendar is six sibling modules, and this file re-exports them so
 // every importer reads one name.
 
 export * from './calendarDates'
@@ -24,3 +24,4 @@ export * from './calendarBand'
 export * from './calendarGrid'
 export * from './calendarSelection'
 export * from './calendarPhrases'
+export * from './dayStrip'

@@ -41,6 +41,9 @@ interface Props {
   // the avg/min/max triplets, and no knob can change that without a new
   // analysis.
   pointSample?: boolean
+  // The range the Score cells' colour is stretched over while a lens ranks
+  // (record 0306), or null.
+  scoreRange?: { lo: number; hi: number } | null
   // Columns to display, filtered by user visibility choices. The file always
   // carries the full set via buildResultsCsv; only the screen narrows.
   columns?: ColDef[]
@@ -125,6 +128,7 @@ function ResultsTable({
   detailSortDir,
   onDetailSort,
   pointSample = false,
+  scoreRange = null,
   columns,
   modelFallbackLabel,
   onFocusPending,
@@ -269,6 +273,7 @@ function ResultsTable({
                   widths={widths}
                   coloredGroup={coloredGroup}
                   pointSample={pointSample}
+                  scoreRange={scoreRange}
                   modelFallbackLabel={modelFallbackLabel}
                   modelId={modelId}
                   times={times}

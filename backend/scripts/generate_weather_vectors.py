@@ -879,6 +879,61 @@ CLOUD_INPUTS = [
         ),
     },
     {
+        # The top of the layer (the cloud sea's surface). 6,000 ft is 1828.8 m.
+        # 925 hPa (762 m) and 850 hPa (1457 m) are saturated and 700 hPa
+        # (3012 m) is dry, so the deck's base is 925 hPa's own height above a
+        # dry 1000 hPa interpolation, and its top is interpolated between
+        # 850 hPa and 700 hPa where the humidity falls back through 95 %. The
+        # destination stands above the top, in sun.
+        "name": "layer_top_interpolated_where_the_column_dries",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 6000.0,
+        "payload": _cl(
+            H[:2],
+            [40.0, 40.0],
+            _dry(2, p1000=[80.0, 90.0], p925=[99.0, 97.0], p850=[97.0, 100.0], p700=[60.0, 35.0]),
+        ),
+    },
+    {
+        # Saturated from 700 hPa to the top of the column: the top is the
+        # ceiling, the height of 300 hPa.
+        "name": "layer_saturated_to_the_top_reads_the_ceiling",
+        "window": _win(H[0], H[0]),
+        "elevation_ft": 6000.0,
+        "payload": _cl(
+            H[:1],
+            [50.0],
+            _dry(1, p700=[99.0], p600=[99.0], p500=[98.0], p400=[96.0], p300=[95.0]),
+        ),
+    },
+    {
+        # Saturated at 700 hPa with nothing answered above it: the top is
+        # 700 hPa's own height, the last height the column vouches for.
+        "name": "layer_top_at_the_last_saturated_level_before_nulls",
+        "window": _win(H[0], H[0]),
+        "elevation_ft": 4000.0,
+        "payload": _cl(
+            H[:1],
+            [50.0],
+            _rh(
+                p1000=[30.0], p925=[30.0], p850=[60.0], p700=[99.0],
+                p600=[None], p500=[None], p400=[None], p300=[None],
+            ),
+        ),
+    },
+    {
+        # A second layer at 500 hPa above a dry 700 hPa: the top is the first
+        # layer's, between 850 hPa and 700 hPa, and the second layer is not seen.
+        "name": "second_layer_above_is_not_the_top",
+        "window": _win(H[0], H[0]),
+        "elevation_ft": 2000.0,
+        "payload": _cl(
+            H[:1],
+            [50.0],
+            _dry(1, p850=[99.0], p700=[40.0], p500=[99.0]),
+        ),
+    },
+    {
         "name": "empty_payload_is_null_null",
         "window": _win(H[0], H[2]),
         "elevation_ft": 5000.0,

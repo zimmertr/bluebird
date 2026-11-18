@@ -21,6 +21,8 @@ const OVERLAYS = {
   setShowSmoke: () => {},
   showSnow: false,
   setShowSnow: () => {},
+  showCloud: false,
+  setShowCloud: () => {},
   showGrid: false,
   setShowGrid: () => {},
   showContours: false,
@@ -120,7 +122,7 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     expect(screen.queryByRole('checkbox')).toBeNull()
     open()
-    expect(rows()).toHaveLength(13)
+    expect(rows()).toHaveLength(14)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('checkbox')).toBeNull()
     open()
@@ -153,7 +155,7 @@ describe('LayersPopover', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
     open()
     fireEvent.pointerDown(screen.getByRole('checkbox', { name: 'Smoke' }))
-    expect(rows()).toHaveLength(13)
+    expect(rows()).toHaveLength(14)
   })
 
   // A press with Shift held reaches every row from the last pressed to this
@@ -198,7 +200,7 @@ describe('LayersPopover', () => {
   it('keeps every row and greys the ones out of play', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={ARCHIVE} playerOffered={false} />)
     open()
-    expect(rows()).toHaveLength(13)
+    expect(rows()).toHaveLength(14)
     // The reason is what a reader hears with the row, since its title does
     // not exist on touch.
     const grid = screen.getByRole('checkbox', {
@@ -244,7 +246,7 @@ describe('LayersPopover', () => {
     expect(groups.map(rowsOf)).toEqual([
       ['Satellite', 'Topographic', 'Shaded relief', 'Slope angle'],
       ['Active wildfires', 'Fire activity', 'Smoke', 'Area closures', 'Trail closures'],
-      ['Rain radar', 'Snow depth', 'Forecast grid', 'Forecast player'],
+      ['Rain radar', 'Snow depth', 'Cloud deck', 'Forecast grid', 'Forecast player'],
     ])
     // The heading is the first thing in its group, with no box of its own.
     expect(groups[0].firstElementChild!.className).toBe(MENU_GROUP.cardHeading)
@@ -278,7 +280,7 @@ describe('LayersPopover', () => {
     const disabled = greyed
     const colorado = mapOver(-109, 37, -102, 41)
     const { unmount } = render(
-      <LayersPopover mapRef={colorado.ref} coverage={coverage} overlays={OVERLAYS} grid={GRID} playerOffered />,
+      <LayersPopover mapRef={colorado.ref} coverage={coverage} overlays={OVERLAYS} grid={GRID} playerOffered cloudOffered />,
     )
     expect(colorado.watchBounds).not.toHaveBeenCalled()
     open()
@@ -295,6 +297,7 @@ describe('LayersPopover', () => {
         overlays={{ ...OVERLAYS, showWildfires: true }}
         grid={GRID}
         playerOffered
+        cloudOffered
       />,
     )
     open()
@@ -435,6 +438,33 @@ describe('LayersPopover', () => {
     expect(setShowPlayer).toHaveBeenCalledWith(false)
   })
 
+  // The cloud sea draws the held report's deck (record 0309), so its row
+  // greys before a report, with no note, and is on until turned off.
+  // A phone's sheet has no room for it until the phone's shell, which draws no cloud.
+  it('leaves the cloud deck row off a phone\'s sheet', () => {
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered cloudOffered sheet />)
+    open()
+    expect(screen.queryByRole('checkbox', { name: 'Cloud deck' })).toBeNull()
+  })
+
+  it('greys the cloud deck row until a report is held, and turns it off', () => {
+    const setShowCloud = vi.fn()
+    const overlays = { ...OVERLAYS, showCloud: true, setShowCloud }
+    const { rerender } = render(
+      <LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={overlays} grid={GRID} playerOffered />,
+    )
+    open()
+    const cloud = () => screen.getByRole('checkbox', { name: 'Cloud deck' }) as HTMLInputElement
+    // Ticked and greyed, live for unticking, as the grid's row is.
+    expect(cloud().checked).toBe(true)
+    expect(greyed()).toEqual(['Cloud deck'])
+    expect(cloud().getAttribute('aria-describedby')).toBeNull()
+    rerender(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={overlays} grid={GRID} playerOffered cloudOffered />)
+    expect(greyed()).toEqual([])
+    fireEvent.click(cloud())
+    expect(setShowCloud).toHaveBeenCalledWith(false)
+  })
+
   // With nothing to grid (no report yet, or a ranked metric with no number
   // anywhere) the row greys like the player's, ticked or not, with no note
   // (#803, M5): the archive's sentence is for the archive alone.
@@ -458,7 +488,8 @@ describe('LayersPopover', () => {
         playerOffered
       />,
     )
-    expect(greyed()).toEqual(['Forecast grid'])
+    // The cloud deck greys beside it: no report, no deck to draw.
+    expect(greyed()).toEqual(['Cloud deck', 'Forecast grid'])
     expect(grid().checked).toBe(true)
     expect((screen.getByRole('slider', { name: 'Coverage' }) as HTMLInputElement).disabled).toBe(true)
   })
@@ -556,7 +587,7 @@ describe('LayersPopover', () => {
     )
     open()
     const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[]
-    expect(boxes).toHaveLength(13)
+    expect(boxes).toHaveLength(14)
     for (const box of boxes) {
       expect(box.className).toBe(CHOICE_INPUT)
       expect(box.closest('label')!.querySelector('svg')).toBeNull()

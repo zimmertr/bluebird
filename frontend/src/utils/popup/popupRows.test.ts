@@ -7,6 +7,7 @@ import {
   CLOSURE_COL,
   displayedColumns,
   visibleColumns,
+  withScoreColumn,
 } from '../tableColumns'
 import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT } from '../../metrics'
 import type { DestinationResult } from '../../types'
@@ -87,6 +88,11 @@ describe('popupGroups over a date range', () => {
   it('leaves the elevation out of the grid', () => {
     const groups = popupGroups(row, cols)
     expect(groups.some((g) => g.label.startsWith('Elevation'))).toBe(false)
+  })
+
+  it('leaves the lens score out of the grid, which is the metric families', () => {
+    const groups = popupGroups({ ...row, score: 72 }, withScoreColumn(cols, true))
+    expect(groups.map((g) => g.label)).toEqual(popupGroups(row, cols).map((g) => g.label))
   })
 
   it('links every value the table links, at the same layer', () => {

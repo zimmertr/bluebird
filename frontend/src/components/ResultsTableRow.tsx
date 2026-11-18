@@ -1,8 +1,10 @@
 import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import type { DestinationResult } from '../types'
+import HourStrip from './HourStrip'
 import {
   CLOSURE_KEY,
+  SCORE_KEY,
   ELEVATION_COL,
   MODEL_KEY,
   TERRAIN_HEIGHT_MARK,
@@ -248,6 +250,8 @@ interface CellContext {
   // The row's own id, from `useId`, so it holds still across renders of a
   // memoized row: the hidden sentences are found by ids built from it.
   rowId: string
+  // The range the score's colour is stretched over (record 0306), or null.
+  scoreRange: { lo: number; hi: number } | null
 }
 
 // The id of a cell's hidden note.
@@ -453,7 +457,22 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   if (key === 'name') {
     return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
   }
-  const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample)
+  const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample, ctx.scoreRange)
+  // The score carries its hours beside it (record 0306).
+  if (key === SCORE_KEY) {
+    return (
+      <td className={cellClass} style={colorSty}>
+        {sized(
+          ctx.widths,
+          key,
+          <>
+            {display}
+            <HourStrip row={row} range={ctx.scoreRange} />
+          </>,
+        )}
+      </td>
+    )
+  }
   if (col.windyLayer) {
     return (
       <td className={cellClass} style={colorSty}>
@@ -498,6 +517,8 @@ interface RowProps {
   widths: Record<string, number>
   coloredGroup: ReadonlySet<string>
   pointSample: boolean
+  /** The range the score's colour is stretched over, or null (record 0306). */
+  scoreRange?: { lo: number; hi: number } | null
   modelFallbackLabel?: string | null
   modelId?: string | null
   times?: readonly number[]
@@ -523,6 +544,7 @@ function ResultsTableRow({
   widths,
   coloredGroup,
   pointSample,
+  scoreRange = null,
   modelFallbackLabel,
   modelId,
   times,
@@ -556,6 +578,7 @@ function ResultsTableRow({
     heightPending,
     onCenter: () => onFocusResult?.(row),
     rowId,
+    scoreRange,
   }
   // A press on the row's ground opens the popup a click on its marker gives,
   // through the same fly-to the name's button takes (record 0143); a press on

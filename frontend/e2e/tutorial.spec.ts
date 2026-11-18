@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { test, expect, resultRows } from './fixtures'
+import { test, expect, resultRows, forecastButton } from './fixtures'
 
 // The guided tutorial (#536), walked the way a reader walks it. The unit
 // suites pin the steps, the placement arithmetic and the source anchors; this
@@ -92,7 +92,7 @@ async function expectSpotlightOn(page: Page, anchor: string) {
 }
 
 // A section the panel has room for stands whole inside the panel's scroll box,
-// rather than under its footer.
+// rather than under its footer, or whole on screen in a card that scrolls nothing.
 async function expectSectionInPanel(page: Page, anchor: string) {
   await expect(async () => {
     const fit = await page.evaluate((a) => {
@@ -101,8 +101,11 @@ async function expectSectionInPanel(page: Page, anchor: string) {
       while (box && !(['auto', 'scroll'].includes(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) {
         box = box.parentElement
       }
-      if (!el || !box) return null
+      if (!el) return null
       const s = el.getBoundingClientRect()
+      // A desk's card holds its one section (record 0308), and with room to
+      // spare it scrolls nothing: the section then stands whole on screen.
+      if (!box) return { fits: true, inside: s.top >= 0 && s.bottom <= innerHeight + 1 }
       const b = box.getBoundingClientRect()
       return { fits: s.height <= b.height, inside: s.top >= b.top - 1 && s.bottom <= b.bottom + 1 }
     }, anchor)
@@ -226,7 +229,7 @@ test('walks the twelve cards from the footer link and puts the app back', async 
     if (step.anchor === 'messages') {
       // Analyze greyed under the demonstration, its list open beside the card.
       await expectDemoMessages(page, page.getByRole('group', { name: 'Messages' }))
-      await expect(page.locator('aside').getByRole('button', { name: 'Analyze', exact: true })).toHaveAttribute('aria-disabled', 'true')
+      await expect(forecastButton(page)).toHaveAttribute('aria-disabled', 'true')
       await expectSpotlightOn(page, 'messages-list')
     }
     if (step.anchor === 'layers') await expect(page.getByRole('group', { name: 'Messages' })).toHaveCount(0)
@@ -329,7 +332,7 @@ test('at a desk a reader who never analyzed sees the table on Results and the ch
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await walkDeskViews(page)
   expect(await storedMode(page)).toBeUndefined()
-  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await forecastButton(page).click()
   await expectMode(page, 'chart')
 })
 
@@ -340,7 +343,7 @@ test('at a desk a reader who never analyzed sees the table on Results and the ch
 test('at a desk the Results and Chart cards switch a pressed Both to their view and store nothing', async ({ page }) => {
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await forecastButton(page).click()
   await expect(resultRows(page)).toHaveCount(5)
   await page.getByRole('button', { name: SEGMENT.both }).first().click()
   await expectMode(page, 'both')
@@ -399,7 +402,7 @@ test.describe('on a phone with a report', () => {
   test('walks a lowered report: the Analyze light, the Layers sheet, the table and the chart', async ({ page }) => {
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+    await forecastButton(page.getByRole('main')).click()
     await expect(resultRows(page)).toHaveCount(5)
     await page.getByRole('button', { name: 'Show chart only' }).first().tap()
     await expect(resultRows(page).first()).toBeHidden()

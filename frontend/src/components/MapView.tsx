@@ -18,7 +18,11 @@ import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { anyPointInView, framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, MAX_PITCH, initialCamera } from '../utils/mapView'
 import type { ViewBounds } from '../utils/layerCoverage'
+import { viewBoxOf } from '../utils/viewBox'
+import type { BBox } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
+import type { DeckPoint } from '../utils/cloudSea'
+import type { ScoreColouring } from '../utils/resultFeatures'
 // The plain-data half of this component, which is where anything testable
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
 // (#383). The `map-view-wiring` check fails a new one that lands in this file.
@@ -63,6 +67,8 @@ export interface MapViewHandle {
   // share link's camera is written without state (`map/camera.ts`): a pan
   // would otherwise render every child of the map's parent.
   watchBounds: (onBounds: (bounds: ViewBounds) => void) => () => void
+  /** The box the view covers lying flat (`viewBoxOf`), or null before the map exists: the search area while no ring is drawn (record 0308). */
+  getViewBox: () => BBox | null
   /** Put the camera back where `getCamera` found it, with no animation. */
   setCamera: (camera: MapCamera) => void
   framePolygon: () => void
@@ -120,6 +126,8 @@ interface Props {
   onDrawUpdate: (count: number) => void
   results: DestinationResult[]
   sortBy: SortBy
+  /** The markers' score colouring while a lens ranks the field, or null (record 0306). */
+  scoreColouring?: ScoreColouring | null
   // What a popup's Windy links carry, matching the results table's cells: the
   // model every number came from, and the report's own hourly grid, which is
   // what turns a row's series into the HOUR behind a floor or a ceiling.
@@ -164,6 +172,11 @@ interface Props {
   // The slope angle shading (#799), painted in the browser from the same
   // elevation tiles as the relief (`map/slope.ts`).
   showSlope: boolean
+  /**
+   * The cloud deck at the hour drawn, one point per destination, or null for
+   * no cloud sea (record 0309). Built once per hour and report in `App.tsx`.
+   */
+  cloudDeck?: readonly DeckPoint[] | null
   showSatellite: boolean
   // The four Base map rows' opacity levels, whole percents (record 0250).
   // One object that changes only when a level does, so the memo holds
@@ -297,6 +310,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showContours,
       showRelief,
       showSlope,
+      cloudDeck = null,
+      scoreColouring = null,
       showTerrain,
       onTerrainChange,
       radarIndex,
@@ -473,6 +488,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     }
 
     useImperativeHandle(ref, () => ({
+      getViewBox() {
+        const map = mapRef.current
+        return map ? viewBoxOf(map) : null
+      },
       watchBounds(onBounds) {
         const map = mapRef.current
         return map ? watchView(map, onBounds) : () => {}
@@ -836,8 +855,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // feature-state (the arrows could not read it anyway — see resultFeatures).
     // Rows that arrive before the map loads are drawn when `mapReady` flips.
     useEffect(() => {
-      if (mapReady) featuresRef.current?.results.update({ results, sortBy, playbackIndex })
-    }, [results, sortBy, playbackIndex, mapReady])
+      if (mapReady) featuresRef.current?.results.update({ results, sortBy, playbackIndex, score: scoreColouring })
+    }, [results, sortBy, playbackIndex, scoreColouring, mapReady])
 
     // An open result card follows the report the way the table does: its
     // rank, its ranked mark and its columns (TJ, 2026-10-08). Not on a
@@ -928,6 +947,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.terrain.updateSlope(showSlope)
     }, [showSlope, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.cloud.update(cloudDeck)
+    }, [cloudDeck, mapReady])
 
     // The three elevation rows' levels, before or after their layers exist:
     // a layer added later is drawn at the level held.

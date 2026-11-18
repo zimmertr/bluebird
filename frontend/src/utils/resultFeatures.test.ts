@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { NO_VALUE, fillColor, resultsFeatureCollection, windArrowsShowing } from './resultFeatures'
-import { markerColor } from './colors'
+import { markerColor, scoreFill } from './colors'
 import type { DestinationResult } from '../types'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -186,6 +186,23 @@ describe('resultsFeatureCollection', () => {
 // Snowfall plays back the way precipitation does (#678): an hour of it is a
 // rate, so a total ranking reads the hour under the playhead on the snowfall
 // rate scale rather than holding the window's colour, as snow depth did.
+// Under a lens the markers are the score's (record 0306): the window's, or the
+// hour's under the playhead, on the light ramp the map's ground wears.
+describe('fillColor under a lens', () => {
+  const scored = { ...resultRow({ precip_total_in: 0.1 }), score: 84, score_hours: [40, null, 91] }
+  const lens = { range: null }
+
+  it('colours by the score rather than the metric, and greys a row with none', () => {
+    expect(fillColor(scored, 'precip_total_in', null, lens)).toBe(scoreFill(84, null, 'light'))
+    expect(fillColor({ ...scored, score: null }, 'precip_total_in', null, lens)).toBe(NO_VALUE)
+  })
+
+  it('colours by the hour’s score during playback, and greys an hour with none', () => {
+    expect(fillColor(scored, 'precip_total_in', 2, lens)).toBe(scoreFill(91, null, 'light'))
+    expect(fillColor(scored, 'precip_total_in', 1, lens)).toBe(NO_VALUE)
+  })
+})
+
 describe('fillColor under a snowfall ranking', () => {
   const snowy = result({
     snowfall_total_in: 2.6,

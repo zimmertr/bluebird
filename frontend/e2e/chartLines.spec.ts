@@ -1,4 +1,4 @@
-import { test, expect, resultRows, isoDay } from './fixtures'
+import { test, expect, resultRows, isoDay, forecastButton } from './fixtures'
 
 // Up to twenty lines, every chart line is a ColorBrewer Set1 colour of its
 // own, with nothing drawn round it (#801): in light each clears 3:1 against
@@ -33,7 +33,7 @@ test('draws each chart line in a colour of its own, at 3:1 in light, under no fi
   await page.addInitScript(() => localStorage.setItem('bluebird_forecast_theme', 'light'))
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expect(resultRows(page).first()).toBeAttached()
 
   const strokes = () =>

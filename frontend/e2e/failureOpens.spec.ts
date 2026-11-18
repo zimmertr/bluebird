@@ -1,9 +1,9 @@
-import { test, expect } from './fixtures'
+import { test, expect, forecastButton, openCard } from './fixtures'
 import type { Page, Route } from '@playwright/test'
 
 // #803: a run that fails opens the message list itself (M1), at a desk and on
-// a phone, and a desk's panel the reader closed while the run was up opens
-// again around it (M2). A refused run is a blocker: Analyze greys, and a
+// a phone. A desk's list hangs from the sentence bar's button, which is always
+// on the map (record 0308), so there is no shut panel to open. A refused run is a blocker: Analyze greys, and a
 // second press opens the list rather than asking the pod the same question.
 
 const RING = '/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55'
@@ -39,7 +39,7 @@ test.describe('at a desk', () => {
     const calls = await refuseDiscovery(page)
     await page.goto(RING)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    const analyze = page.getByRole('button', { name: 'Analyze', exact: true })
+    const analyze = forecastButton(page)
     await analyze.click()
 
     await expect(list(page)).toBeVisible()
@@ -56,33 +56,28 @@ test.describe('at a desk', () => {
     await expect(list(page).getByText(OVER_CAP)).toBeVisible()
     expect(calls.count).toBe(1)
 
-    // A changed discovery input lifts it.
+    // A changed discovery input lifts it: Lakes, in the Where card.
     await page.keyboard.press('Escape')
+    await openCard(page, 'Where')
     await page.getByRole('checkbox', { name: 'Lakes', exact: true }).check()
     await expect(analyze).not.toHaveAttribute('aria-disabled')
   })
 
-  test('a panel closed while the run is up opens again, with the list open in it', async ({ page }) => {
+  test('a run that fails while it is up opens the list under the bar’s button', async ({ page }) => {
     let answer!: () => void
     await refuseDiscovery(page, new Promise<void>((resolve) => (answer = resolve)))
     await page.goto(RING)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Analyze', exact: true }).click()
-    // Dispatched rather than clicked: the run's overlay may stand over it.
-    await page.getByRole('button', { name: 'Close controls' }).dispatchEvent('click')
-    await expect(page.getByRole('button', { name: 'Close controls' })).not.toBeInViewport()
+    await forecastButton(page).click()
     answer()
 
-    await expect(page.getByRole('button', { name: 'Close controls' })).toBeInViewport()
     await expect(list(page).getByText(OVER_CAP)).toBeVisible()
-    // The card stands over the button it opened from, on the screen. Polled,
-    // because the panel slides back in: a box read the moment the button
-    // enters the viewport can catch the card partway, off the left edge.
+    // The card stands under the button it opened from, on the screen.
     await expect
       .poll(async () => {
         const card = (await list(page).locator('..').boundingBox())!
-        const button = (await page.getByRole('button', { name: 'Analyze', exact: true }).boundingBox())!
-        return card.x >= 0 && Math.abs(card.x - button.x) < button.width
+        const button = (await forecastButton(page).boundingBox())!
+        return card.x >= 0 && card.y >= button.y + button.height - 1
       })
       .toBe(true)
   })

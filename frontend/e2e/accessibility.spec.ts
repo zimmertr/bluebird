@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
-import { test, expect, drawRing, expectRanked, DESTINATION_NAMES } from './fixtures'
+import { test, expect, drawRing, expectRanked, DESTINATION_NAMES, forecastButton, openCard } from './fixtures'
 
 // Serious and critical fail the test. Minor and moderate are logged on the
 // test's annotations, so they are visible in the report without gating.
@@ -66,8 +66,9 @@ for (const theme of ['dark', 'light'] as const) {
 
     // Drawn first: the types are greyed until there is a ring to search.
     await drawRing(page)
+    await openCard(page, 'Where')
     await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
-    await page.getByRole('button', { name: 'Analyze' }).click()
+    await forecastButton(page).click()
     // The ranked table is the state audited, and a pending row's centring
     // opens no card.
     await expectRanked(page)

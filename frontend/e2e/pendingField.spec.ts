@@ -1,4 +1,4 @@
-import { test, expect, drawRing, message, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, drawRing, message, DESTINATION_NAMES, resultRows, forecastButton, openCard } from './fixtures'
 import type { Route } from '@playwright/test'
 
 // #782: a polygon search whose forecasts fail keeps what it found on screen as
@@ -23,8 +23,9 @@ test('a failed polygon run keeps its found destinations, and Try again forecasts
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await drawRing(page)
+  await openCard(page, 'Where')
   await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
 
   await expect(message(page, 'Open-Meteo quota reached. Try again later.')).toHaveCount(1)
   const retry = page.getByRole('button', { name: 'Try again' })
