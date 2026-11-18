@@ -121,7 +121,7 @@ describe('useAnalyzeCommand', () => {
   // and a run that does not commit leaves the old one there.
   it('records nothing and clears no removals when a run on a new ring does not commit', async () => {
     const r = recorder()
-    let inputs = r.inputs
+    const inputs = r.inputs
     const { result, rerender } = renderHook(() => useAnalyzeCommand(inputs))
     const first = result.current.handleAnalyze()
     await r.finish()
