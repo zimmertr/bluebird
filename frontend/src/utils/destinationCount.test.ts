@@ -8,6 +8,7 @@ import {
   countWanted,
   fieldKey,
   knownCount,
+  mergedCount,
   readCount,
 } from './destinationCount'
 import { discovered, fakeResponse } from '../testSupport/fixtures'
@@ -19,19 +20,18 @@ const RING: GeoPolygon = {
 }
 
 describe('countWanted', () => {
-  it('counts a finished, usable ring with a kind, where the places table answers', () => {
-    expect(countWanted('places', RING, true, false, ['peak'])).toBe(true)
+  it('counts usable areas with a kind, where the places table answers', () => {
+    expect(countWanted('places', true, false, ['peak'])).toBe(true)
   })
 
   it('never counts on Overpass, which is donated', () => {
-    expect(countWanted('overpass', RING, true, false, ['peak'])).toBe(false)
+    expect(countWanted('overpass', true, false, ['peak'])).toBe(false)
   })
 
-  it('waits for a ring that is finished, usable and searching for something', () => {
-    expect(countWanted('places', null, true, false, ['peak'])).toBe(false)
-    expect(countWanted('places', RING, false, false, ['peak'])).toBe(false)
-    expect(countWanted('places', RING, true, true, ['peak'])).toBe(false)
-    expect(countWanted('places', RING, true, false, [])).toBe(false)
+  it('waits for areas that are usable, finished and searching for something', () => {
+    expect(countWanted('places', false, false, ['peak'])).toBe(false)
+    expect(countWanted('places', true, true, ['peak'])).toBe(false)
+    expect(countWanted('places', true, false, [])).toBe(false)
   })
 })
 
@@ -53,17 +53,44 @@ describe('countRequest', () => {
 
 describe('fieldKey', () => {
   it('is the same discovery whatever order the kinds were ticked in', () => {
-    expect(fieldKey(RING, ['peak', 'lake'], false)).toBe(fieldKey(RING, ['lake', 'peak'], false))
+    expect(fieldKey([RING], ['peak', 'lake'], false)).toBe(fieldKey([RING], ['lake', 'peak'], false))
   })
 
   it('tells a ring counted alone from the same ring with a list riding along', () => {
     const list = [{ latitude: 47.5, longitude: -121.8 }]
-    expect(fieldKey(RING, ['peak'], false)).not.toBe(fieldKey(RING, ['peak'], false, list))
+    expect(fieldKey([RING], ['peak'], false)).not.toBe(fieldKey([RING], ['peak'], false, list))
   })
 
   it('moves with the unnamed-peaks toggle only while peaks are ticked', () => {
-    expect(fieldKey(RING, ['peak'], true)).not.toBe(fieldKey(RING, ['peak'], false))
-    expect(fieldKey(RING, ['lake'], true)).toBe(fieldKey(RING, ['lake'], false))
+    expect(fieldKey([RING], ['peak'], true)).not.toBe(fieldKey([RING], ['peak'], false))
+    expect(fieldKey([RING], ['lake'], true)).toBe(fieldKey([RING], ['lake'], false))
+  })
+})
+
+// Several areas are counted one by one (record 0306) and read as one field.
+describe('mergedCount', () => {
+  const found = (...names: string[]) => ({
+    kind: 'found' as const,
+    found: { candidates: names.map((name, i) => discovered({ name, osm_id: `node/${name}${i}` })), totalFound: null, truncated: false },
+  })
+
+  it('waits until every area has answered', () => {
+    expect(mergedCount([found('A'), undefined])).toBeUndefined()
+    expect(mergedCount([])).toBeUndefined()
+  })
+
+  it('keeps a destination two areas found once', () => {
+    const shared = discovered({ osm_id: 'node/shared' })
+    const one = { kind: 'found' as const, found: { candidates: [shared], totalFound: null, truncated: false } }
+    const merged = mergedCount([one, found('B'), one])
+    expect(merged?.kind === 'found' && merged.found.candidates.map((d) => d.osm_id)).toEqual(['node/shared', 'node/B0'])
+  })
+
+  // One area over the cap puts the whole search over it, by what every area
+  // found between them.
+  it('reads over the cap when any area is, counting every area', () => {
+    const merged = mergedCount([found('A', 'B'), { kind: 'over', found: 1600, limit: 1500 }])
+    expect(merged).toEqual({ kind: 'over', found: 1602, limit: 1500 })
   })
 })
 

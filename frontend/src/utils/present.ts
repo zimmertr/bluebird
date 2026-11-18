@@ -70,8 +70,8 @@ export interface CommitChanges {
 }
 
 /**
- * The identity of an analysis's discovery inputs: which ring was searched, and
- * for which kinds. One builder for both sides of the comparison — recorded off
+ * The identity of an analysis's discovery inputs: which areas were searched,
+ * in order, and for which kinds. No area at all keys as `null`. One builder for both sides of the comparison — recorded off
  * the request when an analysis commits, and derived from the panel afterwards —
  * so the two can never disagree on spelling. The unnamed-peaks toggle joins
  * the types key because it widens what discovery finds the same way checking
@@ -79,12 +79,12 @@ export interface CommitChanges {
  * (`unnamedApplies`).
  */
 export function discoveryKeys(
-  polygon: { coordinates: number[][][] } | null | undefined,
+  areas: readonly { coordinates: number[][][] }[] | undefined,
   types: readonly string[] | undefined,
   includeUnnamed: boolean | undefined,
 ): DiscoveryKeys {
   return {
-    polygonKey: JSON.stringify(polygon?.coordinates ?? null),
+    polygonKey: JSON.stringify(areas?.length ? areas.map((area) => area.coordinates) : null),
     // Sorted so checking peaks then lakes and lakes then peaks are one
     // discovery, matching the order-independent cache key upstream.
     typesKey: `${[...(types ?? [])].sort().join(',')}${unnamedApplies(types, includeUnnamed) ? '|unnamed' : ''}`,
@@ -211,7 +211,8 @@ export interface PanelState {
   windowMs: { startMs: number; endMs: number }
   forecastModel: string
   comparedModels: readonly string[]
-  polygon: { coordinates: number[][][] } | null
+  /** Every finished area, in order (record 0306). */
+  areas: readonly { coordinates: number[][][] }[]
   destinationTypes: readonly string[]
   includeUnnamedPeaks: boolean
   /** How many named destinations no analysis has covered (`pendingDestinations`). */
@@ -251,8 +252,8 @@ export function panelCommitCues(analyzed: AnalyzedView | null, panel: PanelState
     compareAdded(analyzed.compareModels, panel.comparedModels)
   const discovery = discoveryChanges(
     analyzed,
-    discoveryKeys(panel.polygon, panel.destinationTypes, panel.includeUnnamedPeaks),
-    panel.polygon !== null,
+    discoveryKeys(panel.areas, panel.destinationTypes, panel.includeUnnamedPeaks),
+    panel.areas.length > 0,
   )
   return commitNeeded(analyzed, {
     window,

@@ -4,9 +4,9 @@ import { type ShareableState, encodeState } from '../utils/urlState'
 import { type UrlWriter, debounceUrlWrite, urlNeedsSync } from '../utils/urlSync'
 
 export interface UrlSyncInputs {
-  /** The drawn ring, or null before one is drawn. */
-  polygon: ShareableState['polygon']
-  /** The kinds of place the ring looks for. */
+  /** Every area drawn, in order; empty before one is drawn. */
+  areas: ShareableState['areas']
+  /** The kinds of place the areas look for. */
   destinationTypes: ShareableState['destinationTypes']
   /** Whether peaks with an elevation and no name are found too. */
   includeUnnamedPeaks: boolean
@@ -27,8 +27,8 @@ export interface UrlSyncInputs {
   limit: number
   /** The coordinates box, as typed. */
   customCsv: string
-  /** The ready-made list the box holds or a link named, by id, or null (`list=`, #864). */
-  presetList: string | null
+  /** The ready-made lists added, by id (`list=`, #864). */
+  presetLists: ShareableState['presetLists']
   /** The map's layer switches. */
   showWildfires: boolean
   showAreaClosures: boolean
@@ -87,7 +87,7 @@ export interface UrlSync {
  * rather than a debounce later, and `reportView`, the map camera's way in.
  */
 export function useUrlSync({
-  polygon,
+  areas,
   destinationTypes,
   includeUnnamedPeaks,
   selection,
@@ -99,7 +99,7 @@ export function useUrlSync({
   constraints,
   limit,
   customCsv,
-  presetList,
+  presetLists,
   showWildfires,
   showAreaClosures,
   showTrailClosures,
@@ -188,7 +188,7 @@ export function useUrlSync({
   useEffect(() => {
     latestRef.current = {
       state: {
-        polygon,
+        areas,
         destinationTypes,
         includeUnnamedPeaks,
         selection,
@@ -200,7 +200,7 @@ export function useUrlSync({
         constraints,
         limit,
         customCsv,
-        presetList,
+        presetLists,
         showWildfires,
         showAreaClosures,
         showTrailClosures,
@@ -228,7 +228,7 @@ export function useUrlSync({
     // every keystroke and collapse nothing, which is the trap debounceUrlWrite
     // documents. Unmount is handled by its own effect below.
   }, [
-    polygon,
+    areas,
     destinationTypes,
     includeUnnamedPeaks,
     selection,
@@ -240,7 +240,7 @@ export function useUrlSync({
     constraints,
     limit,
     customCsv,
-    presetList,
+    presetLists,
     showWildfires,
     showAreaClosures,
     showTrailClosures,

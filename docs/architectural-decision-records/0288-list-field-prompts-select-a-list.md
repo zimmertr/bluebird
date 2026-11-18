@@ -1,6 +1,6 @@
 # 0288. The List search field reads Select a list until something is picked
 
-- Status: Accepted. Amends [0263](0263-coordinate-search-loads-preset-lists.md) (what the field reads while the box is shut)
+- Status: Accepted. Amends [0263](0263-coordinate-search-loads-preset-lists.md) (what the field reads while the box is shut). Superseded by [0306](0306-destinations-are-chips-with-several-areas-and-lists.md) (every destination is a chip in one field, beside Search by list and Search by area)
 - Date: 2026-11-12
 - Decider: the maintainer (TJ), 2026-11-12
 - Issues and PRs: #917

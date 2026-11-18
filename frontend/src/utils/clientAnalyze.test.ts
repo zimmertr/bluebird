@@ -1228,38 +1228,38 @@ describe('discoveryBase', () => {
   const csv = [{ name: 'Rainier', latitude: 46.85, longitude: -121.76 }]
 
   it('is the same discovery whichever order the kinds were checked in', () => {
-    expect(discoveryBase(ring, [], ['peak', 'lake'], false)).toBe(
-      discoveryBase(ring, [], ['lake', 'peak'], false),
+    expect(discoveryBase([ring], [], ['peak', 'lake'], false)).toBe(
+      discoveryBase([ring], [], ['lake', 'peak'], false),
     )
   })
 
   it('changes when a kind joins or leaves', () => {
-    expect(discoveryBase(ring, [], ['peak'], false)).not.toBe(
-      discoveryBase(ring, [], ['peak', 'lake'], false),
+    expect(discoveryBase([ring], [], ['peak'], false)).not.toBe(
+      discoveryBase([ring], [], ['peak', 'lake'], false),
     )
   })
 
   it('changes when the unnamed-peaks toggle moves', () => {
     // It widens what discovery finds the same way checking another kind does.
-    expect(discoveryBase(ring, [], ['peak'], false)).not.toBe(
-      discoveryBase(ring, [], ['peak'], true),
+    expect(discoveryBase([ring], [], ['peak'], false)).not.toBe(
+      discoveryBase([ring], [], ['peak'], true),
     )
   })
 
   it('changes when the pasted rows change', () => {
-    expect(discoveryBase(ring, csv, ['peak'], false)).not.toBe(
-      discoveryBase(ring, [], ['peak'], false),
+    expect(discoveryBase([ring], csv, ['peak'], false)).not.toBe(
+      discoveryBase([ring], [], ['peak'], false),
     )
-    expect(discoveryBase(ring, csv, ['peak'], false)).not.toBe(
-      discoveryBase(ring, [{ ...csv[0], latitude: 46.9 }], ['peak'], false),
+    expect(discoveryBase([ring], csv, ['peak'], false)).not.toBe(
+      discoveryBase([ring], [{ ...csv[0], latitude: 46.9 }], ['peak'], false),
     )
   })
 
   // It takes the PARSED rows, so editing a comment or the whitespace around a
   // coordinate leaves the discovery alone.
   it('is the rows, not the text they were typed as', () => {
-    expect(discoveryBase(ring, csv, ['peak'], false)).toBe(
-      discoveryBase(ring, [{ ...csv[0] }], ['peak'], false),
+    expect(discoveryBase([ring], csv, ['peak'], false)).toBe(
+      discoveryBase([ring], [{ ...csv[0] }], ['peak'], false),
     )
   })
 
@@ -1268,8 +1268,8 @@ describe('discoveryBase', () => {
       type: 'Polygon',
       coordinates: [ring.coordinates[0].map((p, i) => (i === 1 ? [-121.6, 46.8] : p))],
     }
-    expect(discoveryBase(ring, [], ['peak'], false)).not.toBe(
-      discoveryBase(moved, [], ['peak'], false),
+    expect(discoveryBase([ring], [], ['peak'], false)).not.toBe(
+      discoveryBase([moved], [], ['peak'], false),
     )
   })
 
@@ -1277,8 +1277,8 @@ describe('discoveryBase', () => {
   // A run with no ring can therefore never match a record, which is what makes
   // the caller's polygon guard a backstop rather than the only guard.
   it('never matches a recorded base when there is no ring', () => {
-    expect(discoveryBase(null, [], ['peak'], false)).not.toBe(
-      discoveryBase(ring, [], ['peak'], false),
+    expect(discoveryBase([], [], ['peak'], false)).not.toBe(
+      discoveryBase([ring], [], ['peak'], false),
     )
   })
 })

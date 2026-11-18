@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Coordinate lists",
-  "description": "The ready-made lists the Coordinate list field offers, and the regions its menu groups them under. Every name, description and region heading here is a user-facing string the maintainer approves before it lands.",
+  "description": "The ready-made lists the Search by list menu offers, and the regions its menu groups them under. Every name, description and region heading here is a user-facing string the maintainer approves before it lands.",
   "type": "object",
   "additionalProperties": false,
   "required": ["regions", "lists"],

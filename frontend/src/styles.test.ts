@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
-  ACCENT_RING,
+  DESTINATION_ADD,
+  DESTINATION_FIELD,
   BADGE_ACCENT,
   BADGE_STEP,
   LAYER,
@@ -66,7 +67,6 @@ import {
   HEADER_BUTTON,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
-  DRAW_ROW,
   METRIC_LABEL_PITCH,
   MOTION,
   PANEL_MS,
@@ -880,24 +880,36 @@ describe('grouping and segmenting', () => {
     for (const ratio of Object.values(MEASURED)) expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 
-  // Pointing at a control from across the screen is a ring, not a border or a
-  // fill: it has to layer onto something that already has both. DAY.today is
-  // the other one, and it wears slate because it labels a day rather than
-  // acting on it — this one wears the resting accent because it is the app
-  // answering a hover.
-  it('points with a ring in the resting accent', () => {
-    expect(darkStep(token(ACCENT_RING, 'ring'))).toBe('sky-400')
-    expect(ACCENT_RING).not.toContain('border')
+  // DAY.today's ring wears slate because it labels a day rather than acting
+  // on it.
+  it('rings today in slate', () => {
     expect(darkStep(token(DAY.today, 'ring'))).toBe('slate-400')
   })
+})
 
-  // The ring is a box-shadow and fades; a radius does not. Bundling one in here
-  // squared the corners the instant the ring began fading, so the outline spent
-  // the transition as a rectangle standing off a rounded field. The element
-  // wearing this keeps its own radius at all times.
-  it('leaves the radius to whatever wears the ring', () => {
-    expect(ACCENT_RING).not.toContain(RADIUS.surface)
-    expect(ACCENT_RING).not.toMatch(/\brounded\b/)
+// The Destinations section's field and its two add buttons (record 0306).
+describe('the destinations field', () => {
+  // A list's chip names it and does nothing when pressed, so its name is the
+  // pressable label's box without the pointer or the ring.
+  it('sizes a list chip\'s name as a pressable one', () => {
+    for (const word of words(DESTINATION_FIELD.text)) expect(words(CHIP.label)).toContain(word)
+    expect(DESTINATION_FIELD.text).not.toContain('cursor-pointer')
+    expect(DESTINATION_FIELD.text).not.toContain(FOCUS_RING)
+  })
+
+  // The field is a field: its edge and fill are FIELD's, and it lights its
+  // edge while the search inside it has the keyboard.
+  it('frames the chips and the search as one field', () => {
+    expect(DESTINATION_FIELD.frame).toContain('focus-within:border-mark')
+    expect(DESTINATION_FIELD.search).toContain(TAP.height)
+  })
+
+  // The pair reads as one: both tiles wear one face, and the line under each
+  // name is the caption measured on the raised fill.
+  it('gives both add buttons one face and the lifted caption', () => {
+    expect(DESTINATION_ADD.tile).toContain('bg-raised')
+    expect(DESTINATION_ADD.line).toContain(CAPTION_LIFTED)
+    expect(DESTINATION_ADD.row).toContain('grid-cols-2')
   })
 })
 
@@ -918,8 +930,7 @@ describe('shared recipes', () => {
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['FIELD', FIELD],
     ['SELECT', SELECT],
-    ['DRAW_ROW.secondary', DRAW_ROW.secondary],
-    ['DRAW_ROW.accent', DRAW_ROW.accent],
+    ['DESTINATION_ADD.tile', DESTINATION_ADD.tile],
     ['DAY.cell', DAY.cell],
   ])('%s is a tap target on a coarse pointer', (_name, recipe) => {
     expect(recipe).toContain('touch:')
@@ -1398,7 +1409,7 @@ describe('shared recipes', () => {
     expect(dropdownPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(TOTAL_PX)
   })
 
-  // A Metrics row's chart toggle (record 0290) wears the Coordinate list
+  // A Metrics row's chart toggle (record 0290) wears the Search by list
   // menu's two marks, and stands on the panel rather than a card, so its
   // glyph's 3:1 (1.4.11) is measured there, at rest and lit.
   it('draws the chart toggle past 3:1 on the panel, at rest and lit', () => {
@@ -2703,8 +2714,11 @@ describe('the map rows', () => {
     // The class map.css keys the vendor group's margin on.
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
-    expect(mapRowsSource).toContain('{!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}')
-    expect(mapRowsSource).toContain('{!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}')
+    // A desk's map has no pill row at all (record 0306), so the slots stand
+    // inside the phone's.
+    expect(mapRowsSource).toContain('{!desk && (')
+    expect(mapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.locate} />')
+    expect(mapRowsSource).toContain('<div ref={onTerrainSlot} className={MAP_SLOT.terrain} />')
     // A phone's compass, the chip row's last member (record 0147): no size of
     // its own, so a hidden compass leaves the row's end to the map. A desk
     // has none of the three slots.
@@ -3982,7 +3996,6 @@ describe('the elevation scale', () => {
   })
 
   it('keeps the glows off the scale', () => {
-    expect(ACCENT_RING).toMatch(/shadow-\[/)
     expect(STYLES.TOUR.spotlight).toMatch(/shadow-\[/)
   })
 })
@@ -4687,10 +4700,12 @@ describe('the one menu', () => {
   // Three trigger shapes, on purpose (TJ, 2026-10-20: "Three shapes,
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu. The segment and the
-  // square came with the chart's picker (#499), and the header's round button
-  // with the theme menu (#843), each the look of what it stands beside.
+  // square came with the chart's picker (#499), the header's round button
+  // with the theme menu (#843), and the tile with Search by list (record
+  // 0306), each the look of what it stands beside.
   it('keeps the trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square', 'tile'])
+    expect(MENU_TRIGGER.tile).toBe(DESTINATION_ADD.tile)
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())
@@ -5004,51 +5019,6 @@ describe('the calendar field', () => {
     expect(CALENDAR_FIELD.box).not.toContain(SELECT)
     expect(forecastCalendarSource).toMatch(/<Menu\s/)
     expect(forecastCalendarSource).toContain('CALENDAR_GROUND')
-  })
-})
-
-describe('the polygon row', () => {
-  // Three equal buttons on the fields' edges (#687): the two button roles with
-  // the inset cut to 4px and nothing else changed, because 12px a side would
-  // wrap `Draw polygon` (77.4px on a Mac, 78.77px in Inter since record 0304,
-  // 2026-11-16) in a third of a 295px field.
-  it('is the two button roles at a 4px inset, three to a row', () => {
-    expect(DRAW_ROW.secondary).toBe(BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '))
-    expect(DRAW_ROW.accent).toBe(BUTTON_ACCENT.replace(' px-3 ', ' px-1 '))
-    expect(DRAW_ROW.secondary).not.toBe(BUTTON_SECONDARY)
-    expect(DRAW_ROW.accent).not.toBe(BUTTON_ACCENT)
-    expect(DRAW_ROW.row).toContain('grid-cols-3')
-    const third = (field: number) => (field - 2 * stepPx(DRAW_ROW.row, 'gap')) / 3
-    const need = (inset: number) => 78.77 + 2 * inset
-    expect(need(stepPx(DRAW_ROW.secondary, 'px'))).toBeLessThan(third(295))
-    expect(need(stepPx(BUTTON_SECONDARY, 'px'))).toBeGreaterThan(third(317))
-    for (const name of ['DRAW_ROW.row', 'DRAW_ROW.secondary', 'DRAW_ROW.accent', 'DISABLED']) {
-      expect(destinationsSource).toContain(name)
-    }
-    expect(destinationsSource).not.toMatch(/BUTTON_(SECONDARY|ACCENT)/)
-  })
-
-  // The List search row is the same grid (#838, record 0263): the
-  // Coordinate list field across two cells and Clear in the third, the two the
-  // same height under either pointer.
-  it('stands the Coordinate list field as tall as the Clear beside it', () => {
-    const px = (cls: string, prefix: string) =>
-      Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-\\[(\\d+)px\\](?:\\s|$)`))![1])
-    const LINE = 16
-    expect(MENU_TRIGGER.field).toContain(TEXT.control)
-    expect(DRAW_ROW.secondary).toContain(TEXT.control)
-    expect(MENU_TRIGGER.field).toMatch(/(^|\s)border(\s|$)/)
-    expect(DRAW_ROW.secondary).not.toMatch(/(^|\s)border(\s|$)/)
-    const field = 2 * 1 + 2 * px(DRAW_ROW.field, 'py') + LINE
-    const button = 2 * stepPx(DRAW_ROW.secondary, 'py') + LINE
-    expect(field).toBe(28)
-    expect(button).toBe(28)
-    expect(MENU_TRIGGER.field).toContain(TAP.height)
-    expect(DRAW_ROW.secondary).toContain('touch:min-h-8')
-    expect(TAP.height).toBe('touch:min-h-8')
-    expect(DRAW_ROW.field).toMatch(/(^|\s)col-span-2(\s|$)/)
-    expect(destinationsSource).toContain('className={DRAW_ROW.field}')
-    expect(destinationsSource.match(/className=\{DRAW_ROW\.row\}|\$\{DRAW_ROW\.row\}/g)).toHaveLength(2)
   })
 })
 
@@ -5472,12 +5442,12 @@ describe('the browsing menu', () => {
     expect(ratio(light(token(MENU.description, 'text')), light('floating'))).toBe(8.91)
   })
 
-  // The search box is the panel's field at the Coordinate list field's own
-  // inset, so the two stand the same height: 28px at a desk, 32 on touch.
-  it('stands the search box as tall as the field that opened it', () => {
+  // The search box is the panel's field at a 5px inset, the 6px of a button
+  // less the field's border, so it stands 28px at a desk and 32 on touch.
+  it('stands the search box as tall as a button', () => {
     expect(MENU_BROWSE.input.startsWith(`${FIELD} `)).toBe(true)
     const inset = (recipe: string) => recipe.match(/(?:^|\s)py-\[(\d+)px\]/)![1]
-    expect(inset(MENU_BROWSE.input)).toBe(inset(DRAW_ROW.field))
+    expect(inset(MENU_BROWSE.input)).toBe('5')
   })
 
   // A description starts under its row's name: past the star's glyph and the

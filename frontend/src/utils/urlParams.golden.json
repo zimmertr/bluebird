@@ -49,29 +49,31 @@
       "minSnowDepthIn": 12,
       "maxSnowDepthIn": 120
     },
-    "polygon": {
-      "type": "Polygon",
-      "coordinates": [
-        [
+    "areas": [
+      {
+        "type": "Polygon",
+        "coordinates": [
           [
-            -121.76041,
-            46.85289
-          ],
-          [
-            -121.49094,
-            46.20241
-          ],
-          [
-            -121.11391,
-            48.11223
-          ],
-          [
-            -121.76041,
-            46.85289
+            [
+              -121.76041,
+              46.85289
+            ],
+            [
+              -121.49094,
+              46.20241
+            ],
+            [
+              -121.11391,
+              48.11223
+            ],
+            [
+              -121.76041,
+              46.85289
+            ]
           ]
         ]
-      ]
-    },
+      }
+    ],
     "customCsv": "Name,Lat,Lon\nA peak,46.85,-121.76\n",
     "showWildfires": true,
     "showAreaClosures": true,
@@ -387,29 +389,31 @@
       "dec": {
         "sortDesc": true,
         "limit": 7,
-        "polygon": {
-          "type": "Polygon",
-          "coordinates": [
-            [
+        "areas": [
+          {
+            "type": "Polygon",
+            "coordinates": [
               [
-                1,
-                2
-              ],
-              [
-                3,
-                4
-              ],
-              [
-                5,
-                6
-              ],
-              [
-                1,
-                2
+                [
+                  1,
+                  2
+                ],
+                [
+                  3,
+                  4
+                ],
+                [
+                  5,
+                  6
+                ],
+                [
+                  1,
+                  2
+                ]
               ]
             ]
-          ]
-        },
+          }
+        ],
         "showWildfires": true,
         "showSnow": true,
         "includeUnnamedPeaks": true

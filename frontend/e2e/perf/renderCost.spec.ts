@@ -133,10 +133,10 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
   await expect(page.getByRole('status').filter({ hasText: `${DESTINATIONS} of ${DESTINATIONS})` })).toHaveCount(1)
   await expect(resultRows(page)).toHaveCount(DESTINATIONS)
 
-  // The box stands once Custom coordinates is picked from the Coordinate list
-  // field (record 0263).
-  await page.getByRole('button', { name: 'Coordinate list', exact: true }).click()
-  await page.getByRole('button', { name: 'Custom coordinates', exact: true }).click()
+  // The box stands once Your own coordinates is picked from Search by list
+  // (record 0306).
+  await page.getByRole('button', { name: /^Search by list/ }).click()
+  await page.getByRole('button', { name: 'Your own coordinates', exact: true }).click()
   const box = page.getByRole('textbox', { name: /Custom destination coordinates/ })
   await box.evaluate((el) => el.setAttribute('data-probe', 'keystroke'))
   // A partial line that never parses, so every keystroke re-derives the

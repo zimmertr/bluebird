@@ -114,6 +114,23 @@ export const DRAW_FILL_OPACITY = 0.12
 export const DRAW_LINE_WIDTH = 2
 
 /**
+ * A finished area's number (record 0306), the one its chip names: bold white
+ * on the markers' slate halo, a step larger than a marker's name so it reads
+ * as the area's and not a place's. The map's ground ignores the theme, so one
+ * value serves both.
+ */
+export const AREA_LABEL_LAYOUT: Omit<SymbolLayerSpecification['layout'], 'text-field'> = {
+  'text-size': 14,
+  'text-font': ['Noto Sans Bold'],
+  'text-allow-overlap': true,
+}
+export const AREA_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
+  'text-color': MARKER_STROKE,
+  'text-halo-color': MARKER_HALO,
+  'text-halo-width': 1.5,
+}
+
+/**
  * The ring's two kinds of handle. A vertex is solid in the draw colour; a
  * midpoint, which only proposes a vertex, is hollow and a step smaller so the
  * two cannot be mistaken for each other under a finger.

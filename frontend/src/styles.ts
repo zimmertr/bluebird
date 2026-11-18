@@ -17,7 +17,7 @@
  *
  * Within a tier, roles separate by weight and color, not only by size: two
  * sizes cover the whole compact tier because `subheading` and `control` share
- * both a size and a color and let weight alone distinguish "Polygon search"
+ * both a size and a color and let weight alone distinguish "Find in areas"
  * from "Peaks". Roles that stand in that relationship are composed from
  * a shared constant below rather than spelled out twice, so the relationship
  * is something a test can assert instead of a comment that rots.
@@ -126,7 +126,7 @@ export const TEXT = {
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
   appTitle: 'text-lg font-bold text-ink-strong leading-tight',
-  /** Named sub-blocks: Map search, Polygon search, a calendar's month. */
+  /** Named sub-blocks: Find in areas, a calendar's month. */
   subheading: 'text-xs font-semibold text-ink',
   /**
    * Anything you read or type in a control (radio labels, inputs, pickers)
@@ -374,8 +374,8 @@ export const TAP = {
  *   the light basemap both register, but a menu can hang over the dark
  *   results sheet, where 0.1 alpha on a near-black surface is nothing at all.
  *
- * The glows are not on this scale: `ACCENT_RING` and the tutorial's spotlight
- * point at something rather than lift it. Nor is the marker popup's header
+ * The glows are not on this scale: the tutorial's spotlight points at
+ * something rather than lifting it. Nor is the marker popup's header
  * band, whose faint shadow is the card's own (`popupChrome.ts`, record 0123).
  */
 export const ELEVATION = {
@@ -769,41 +769,6 @@ export const BUTTON_SECONDARY =
 export const BUTTON_ACCENT =
   `text-xs ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
-
-/**
- * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
- * a third of the panel each, so the row stands on the edges the coordinates
- * box above it does. The List search row shares it since #838: the
- * Coordinate list field across the first two cells and Clear in the third, on
- * the edge the Polygon row's Clear stands on (record 0263).
- *
- * The two button roles at a 4px inset rather than 12px, and nothing else
- * changed. In a third the cell sets the width and the label is centred in it,
- * so the inset is only the floor under the widest label, `Draw polygon`
- * (77.4px at 12px on a Mac): at 12px a side it needs 101.4px, where a third of
- * the row is 100.3px on a desktop and 93px on a 360px phone (the row is
- * 317px and 295px, less two 8px gaps), so the label would wrap; at 4px it
- * needs 85.4px and fits both. Derived from the roles rather than spelled
- * again, so the fill, the type and the tap target cannot drift from the
- * buttons everywhere else.
- */
-export const DRAW_ROW = {
-  row: 'grid grid-cols-3 gap-2',
-  secondary: BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '),
-  accent: BUTTON_ACCENT.replace(' px-3 ', ' px-1 '),
-  /**
-   * The Coordinate list field (#838): what a `MenuSelect` adds to the field
-   * shape to stand in the first two cells. The trigger is the grid item
-   * itself, so the span is its own. Two cells because one leaves 72px of
-   * label beside the chevron at 12px and `The Bulger List` is 85px, so every
-   * name would truncate (measured 2026-11-03). The 5px is the button's 6px
-   * less the field's 1px border, so the field stands 28px beside a 28px Clear
-   * (16px of line each) where the Model row's 2px would leave it 22px; on
-   * touch both grow to `TAP`'s 32px, the field by `TAP.height` and the button
-   * by `TAP.action`.
-   */
-  field: 'col-span-2 px-2 py-[5px]',
-} as const
 
 /**
  * A word marking the row it sits in, not a control: "Recommended" on the
@@ -1760,7 +1725,7 @@ export const MAP_EDGE = {
 
 /**
  * The draw bar on a phone (#687): while a ring is being drawn, the panel's
- * readout and its Done and Cancel stand on the map, because Draw polygon
+ * readout and its Done and Cancel stand on the map, because Search by area
  * closes the drawer on a phone and left the map with no way to finish but
  * reopening Controls.
  *
@@ -1845,9 +1810,8 @@ export const MAP_ROWS = {
 /**
  * The search field as a pill (#696): the floating surface at the row's 32px,
  * fully rounded, its icon and its clear button inside the same 14px of
- * padding the mockup drew. The ring the panel's hover lights rides a wrapper
- * of the same radius (`ACCENT_RING`). `styles.test.ts` holds the fill, edge
- * and blur to `SURFACE_FLOATING`'s.
+ * padding the mockup drew. `styles.test.ts` holds the fill, edge and blur to
+ * `SURFACE_FLOATING`'s.
  */
 export const MAP_PILL =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
@@ -2494,39 +2458,6 @@ export const STATUS = {
   /** Neither good nor bad, just a fact about the data you are about to get. */
   info: 'text-info',
 } as const
-
-/**
- * A transient outline drawn around a control to point at it from somewhere
- * else: hovering the panel's Map group rings the map's search box,
- * which is a control the panel names but does not contain.
- *
- * A ring rather than a border or a fill, for the same reason `DAY.today` is
- * one: it layers onto a control that already has both without displacing it or
- * restating its own treatment.
- *
- * It stays in the accent rather than reaching for amber, which was the other
- * candidate. Every hue in this app carries a meaning and amber's is "something
- * is off" — the window warnings, the over-limit refusal, the failed wildfire
- * check. A yellow ring would say the search box had a problem rather than that
- * it is the thing being pointed at, and sky already means "the app acts here"
- * (see LINK_ACTION). What it buys instead is weight: four pixels and a glow,
- * because this has to register in peripheral vision two thirds of a screen
- * away while the eye is still in the sidebar, and a hairline ring at that
- * distance reads as an edge rather than as an answer.
- *
- * The glow is the whole shadow for whatever wears this, so a call site must
- * apply it to an element that is not already carrying `SURFACE_FLOATING`'s
- * `ELEVATION.raised`: two shadow utilities on one element resolve by stylesheet order,
- * not by intent.
- *
- * Carries no radius, and that is load-bearing rather than an omission. A ring
- * is a box-shadow, so it fades out under `transition-shadow` while a corner
- * radius does not: bundling the radius in here meant that on un-hover the
- * corners squared off instantly and the still-visible ring spent the fade as a
- * rectangle standing off a rounded field. The element wearing this owns its
- * radius permanently, and only the ring toggles.
- */
-export const ACCENT_RING = 'ring-4 ring-accent-ink shadow-[0_0_18px_var(--ui-accent-glow)]'
 
 /**
  * The box a status line sits in when it is a block rather than a sentence: the
@@ -3310,7 +3241,7 @@ export const FIELD =
   'focus:outline-none focus:border-mark placeholder-ink-soft'
 
 /**
- * The coordinates box under List search (#838, record
+ * The coordinates box for the reader's own rows (#838, record
  * [0265](../../docs/architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)):
  * a field whose lines are numbered in a gutter, with each line the parse
  * drops flagged there.
@@ -3357,6 +3288,58 @@ export const COORD_BOX = {
   area:
     'w-full min-w-0 bg-transparent p-2 font-mono resize-y whitespace-pre overflow-x-auto ' +
     'focus:outline-none placeholder-ink-soft',
+} as const
+
+/**
+ * The Destinations section's field (record 0306): every list, area and place
+ * the reader added, each a `CHIP.rest` with its ×, and under them the search
+ * by name, in one box with the field's look, so what the analysis covers and
+ * the way to add more read as one control.
+ *
+ * - `frame`: the field's fill, edge and radius, and its focus edge on
+ *   `focus-within` as `COORD_BOX` takes it, since the input inside has no
+ *   edge of its own. A column: the chips wrap above, the search keeps its own
+ *   line under them, so its results list spans the field's whole width.
+ * - `chips`: the wrapping row; 6px between chips, the gap the frame's inset is.
+ * - `search`: the search's line inside the field, the magnifier and the input,
+ *   at the field's tap height and the input's own inset.
+ * - `glyph`: a chip's kind, before its label, in the chip's ink.
+ */
+export const DESTINATION_FIELD = {
+  frame: `${FIELD_LOOK} flex flex-col gap-1.5 p-1.5 focus-within:border-mark`,
+  chips: 'flex flex-wrap gap-1.5',
+  search: `flex items-center gap-2 px-1.5 ${TAP.height}`,
+  glyph: 'mr-1.5 inline-block flex-shrink-0 align-[-1px]',
+  /** A chip's name that does nothing when pressed (a list): `CHIP.label` without the pointer and the ring. */
+  text: 'min-w-0 truncate py-1 pl-2',
+} as const
+
+/**
+ * The Destinations section's two add buttons (record 0306), `Search by list`,
+ * which opens the lists' menu (`MENU_TRIGGER.tile`), and `Search by area`,
+ * which starts an area: two halves of one row, wearing one look, so the pair
+ * reads as two ways to do one thing.
+ *
+ * With nothing added each carries a line under its name saying what it does
+ * (TJ's words, 2026-11-17), and once anything is added the lines go and each
+ * is its name alone, the tile at its control height. The face is
+ * `BUTTON_SECONDARY`'s fill, inset and type with a trigger's states rather
+ * than a button's hover fill, because one of the two is a menu trigger and a
+ * pair that lit two different ways would not read as a pair; the other never
+ * wears `aria-expanded`, so its open state never shows.
+ *
+ * - `title`: the name, with its glyph, in the face's ink, which the hover and
+ *   the open state move.
+ * - `line`: the lifted caption, the one measured on the raised fill (6.97:1
+ *   dark), and the label-on-fill ink while the menu is out, since the accent
+ *   fill under it would sink the caption's.
+ */
+const DESTINATION_ADD_FACE = `${TEXT.control} ${TAP.action} px-3 py-1.5 ${RADIUS.control} bg-raised group`
+export const DESTINATION_ADD = {
+  row: 'grid grid-cols-2 gap-2',
+  tile: `${DESTINATION_ADD_FACE} flex flex-col items-start gap-0.5 text-left ${TRIGGER_STATE}`,
+  title: 'flex items-center gap-1.5 font-semibold',
+  line: `${CAPTION_LIFTED} group-aria-expanded:text-on-fill`,
 } as const
 
 /**
@@ -3437,6 +3420,12 @@ export const MENU_TRIGGER = {
   chip: CHIP_FACE,
   field: TRIGGER_FIELD,
   /**
+   * `Search by list` in the Destinations section (record 0306): the add
+   * buttons' tile (`DESTINATION_ADD`), so it and `Search by area` beside it
+   * are one pair. It wears no chevron; its name says it opens something.
+   */
+  tile: DESTINATION_ADD.tile,
+  /**
    * A field's left segment inside `CHART_PICKER`'s group (#499): the field's
    * type and arrow room with no edge or radius of its own, because the group
    * wears them, and the one trigger's states (`TRIGGER_STATE`, record 0252).
@@ -3480,6 +3469,7 @@ export const MENU_TRIGGER = {
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
+  tile: '',
   bar: '-mr-0.5',
   field: ICON_ADORNMENT,
   segment: ICON_ADORNMENT,
@@ -3503,7 +3493,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   groups of rows inside its card, which is a different job.
  * - `divider`: a hairline between two runs of options inside a `list`, in
  *   the foot's rule colour and pulled out to the card's sides as the foot's
- *   rule runs. `Custom coordinates` stands under one in the Coordinate list
+ *   rule runs. `Custom coordinates` stands under one in the Search by list
  *   field, apart from the lists (#838, record 0263). A rule rather than a
  *   `heading`: one option set apart names itself. Hidden from a screen
  *   reader, because a listbox holds options and nothing else.
@@ -3549,7 +3539,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   needed.
  * - `description`: the sentence under a row's name that says what the row
  *   is: a model's summary in the model list, a list's description in the
- *   Coordinate list field's menu. Italic at the 11px step in the caption's
+ *   Search by list menu's menu. Italic at the 11px step in the caption's
  *   soft ink, in every menu, so a sentence never reads as a second name: the
  *   maintainer chose it in a lab over upright type and over a recessed, a
  *   tinted and a ruled ground (record
@@ -3612,14 +3602,14 @@ export const MENU_GROUP = {
  * A menu a reader searches and browses, where `MenuSelect`'s short list is
  * one they scan (#848, record
  * [0281](../../docs/architectural-decision-records/0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md)):
- * the Coordinate list field's, which holds well over a hundred lists under
+ * the Search by list menu's, which holds well over a hundred lists under
  * headings that stand inside one another (#892). A search box on top, then
  * the starred lists, then each heading, which opens in place to the headings
  * or the lists under it, on the one card at a desk and in a sheet on a phone.
  *
  * - `top`: the strip the search box stands in, over a hairline, so the box
  *   stays put while the rows scroll under it.
- * - `input`: the search box, the panel's field at the Coordinate list field's
+ * - `input`: the search box, the panel's field at the Search by list menu's
  *   own inset, so it stands 28px at a desk and 32 under a finger.
  * - `heading`: `MENU.heading` at a row's inset, over the starred rows and
  *   over each region's matches in a search. Read and never pressed.

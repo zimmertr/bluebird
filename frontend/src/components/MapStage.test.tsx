@@ -93,8 +93,8 @@ const ROW = resultRow()
 // Hoisted, so a second render hands MapStage the very objects App would: the
 // same hook results, rebuilt by nothing between the two.
 const INPUTS: MapStageProps['destinationInputs'] = {
-  polygon: null,
-  setPolygon: NOOP,
+  areas: [],
+  setDraft: NOOP,
   restoredPoints: [],
   places: [],
   removePlace: NOOP,
@@ -160,7 +160,8 @@ const DRAW: MapStageProps['drawMode'] = {
   drawing: false,
   handleDrawUpdate: NOOP,
   drawPointCount: 0,
-  finishDrawing: NOOP,
+  editing: null,
+  finishDrawing: () => [],
   handleCancelDrawing: NOOP,
 }
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP, removeResult: NOOP }
@@ -203,7 +204,6 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     messages: MESSAGES,
     actionWord: 'Analyze',
     onAnalyze: NOOP,
-    searchPointed: false,
     poisPointed: false,
     ...over,
   }
@@ -235,7 +235,8 @@ describe('MapStage', () => {
     expect(got.results).toBe(REPORT.results)
     expect(got.pending).toBe(REPORT.pending)
     expect(got.times).toBe(TIMELINE.forecastTimes)
-    expect(got.onPolygonChange).toBe(INPUTS.setPolygon)
+    expect(got.onPolygonChange).toBe(INPUTS.setDraft)
+    expect(got.areas).toBe(INPUTS.areas)
     expect(got.onDrawUpdate).toBe(DRAW.handleDrawUpdate)
     expect(got.searchedPlaces).toBe(INPUTS.places)
     expect(got.popupColumns).toBe(TABLE_VIEW.tableColumns)
@@ -299,7 +300,7 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 
-  // Draw polygon closes the drawer on a phone, so Done and Cancel come to the
+  // Search by area closes the drawer on a phone, so Done and Cancel come to the
   // map (#687). They are the panel's own two presses, the bar stands under the
   // chip row (#696), and the player steps out while it is up.
   it('puts Done and Cancel on the map while a phone draws, and the player away', async () => {
@@ -309,7 +310,7 @@ describe('MapStage', () => {
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
     const { user, rerender } = render(<MapStage {...props({ drawMode: drawing, isDesktop: false, sidebarOpen: false, timeline })} />)
     expect(screen.queryByTestId('transport')).toBeNull()
-    expect(screen.getByText('2 points placed, 1 more needed.')).toBeTruthy()
+    expect(screen.getByText('2 of 3 points placed')).toBeTruthy()
     const done = screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement
     expect(done.disabled).toBe(true)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))

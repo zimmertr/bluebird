@@ -89,7 +89,7 @@ const WATER_FILL_LAYER = 'water'
 // 2026-10-16 (#734).
 const STYLE_CLIMBING_CLASS = 'climbing'
 
-// The halo drawn under every clickable feature while the panel's Map search
+// The halo drawn under every clickable feature while the panel's Destinations section
 // group is hovered, beside the ring that group puts around the search box.
 //
 // Generated rather than shipped, because the basemap sprite carries no SDF

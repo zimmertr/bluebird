@@ -1143,13 +1143,14 @@ export function withKnownTypes(
  * of them reaches this function and none of them re-buys a discovery.
  */
 export function discoveryBase(
-  poly: GeoPolygon | null,
+  areas: readonly GeoPolygon[],
   csvRows: readonly CustomDestination[],
   types: readonly DiscoveryType[],
   includeUnnamedPeaks: boolean,
 ): string {
   return JSON.stringify({
-    ring: poly?.coordinates[0] ?? null,
+    // Every area's outer ring, in order (record 0306); null for none.
+    ring: areas.length > 0 ? areas.map((area) => area.coordinates[0]) : null,
     // Sorted so checking peaks then lakes and lakes then peaks are the same
     // discovery, matching the order-independent cache key upstream.
     types: [...types].sort(),

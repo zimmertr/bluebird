@@ -252,7 +252,7 @@ export function MenuSelect<V extends string>({
         // Centred, as the model picker centres its label: every field in the
         // panel's control column reads the same way. It was `text-left` until
         // 2026-11-03, which the aggregate's and the chart's fields never showed,
-        // each being sized to its longest label, and the Coordinate list field,
+        // each being sized to its longest label, and the Search by list menu,
         // then a `MenuSelect` at the column's width, did (the maintainer).
         className={`${className} text-center`}
       >
@@ -352,6 +352,13 @@ interface MenuBrowseProps {
   widthRef: React.RefObject<HTMLElement | null>
   /** A phone: the menu opens in a bottom sheet headed by `label` (record 0252). */
   sheet?: boolean
+  /**
+   * What the trigger shows in place of a field holding the pick: the
+   * Destinations section's `Search by list` (record 0306), a tile that adds a
+   * list rather than a field that holds one. It names the trigger, which
+   * wears the `tile` shape and no chevron.
+   */
+  face?: ReactNode
 }
 
 // The words on the menu itself, approved on 2026-11-05 (#848).
@@ -365,7 +372,7 @@ const BROWSE_ITEMS = '[data-browse-item]'
 
 /**
  * A choice of one row from dozens, as the one menu (#848, record 0281): the
- * Coordinate list field's. `MenuSelect` is a short list a reader scans; this
+ * Search by list menu's. `MenuSelect` is a short list a reader scans; this
  * is one they search and browse. A search box on top, the starred rows under
  * `Starred` once there are any, then each group as a heading that opens in
  * place, and `other` last under a rule. A group can stand
@@ -410,6 +417,7 @@ export function MenuBrowse({
   className,
   widthRef,
   sheet = false,
+  face,
 }: MenuBrowseProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -600,15 +608,18 @@ export function MenuBrowse({
     <>
       <MenuButton
         ref={triggerRef}
-        shape="field"
+        shape={face === undefined ? 'field' : 'tile'}
+        chevron={face === undefined}
         open={open}
         aria-haspopup="dialog"
         aria-labelledby={
-          labelledBy !== undefined
-            ? `${labelledBy} ${valueId}`
-            : showsPlaceholder && placeholder === label
-              ? nameId
-              : `${nameId} ${valueId}`
+          face !== undefined
+            ? undefined
+            : labelledBy !== undefined
+              ? `${labelledBy} ${valueId}`
+              : showsPlaceholder && placeholder === label
+                ? nameId
+                : `${nameId} ${valueId}`
         }
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={(e) => {
@@ -617,14 +628,18 @@ export function MenuBrowse({
             openMenu()
           }
         }}
-        className={`${className} text-center`}
+        className={face === undefined ? `${className} text-center` : className}
       >
-        <span id={nameId} className={SR_ONLY}>
-          {label}
-        </span>
-        <span id={valueId} className="block min-w-0 truncate">
-          {fieldText}
-        </span>
+        {face ?? (
+          <>
+            <span id={nameId} className={SR_ONLY}>
+              {label}
+            </span>
+            <span id={valueId} className="block min-w-0 truncate">
+              {fieldText}
+            </span>
+          </>
+        )}
       </MenuButton>
       {(box || (sheet && open)) && (
         <Menu

@@ -298,7 +298,7 @@ export const STYLES = [
   },
   {
     // The sentence under a row's name is MENU.description in every menu
-    // (record 0283): the model list's summaries and the Coordinate list
+    // (record 0283): the model list's summaries and the Search by list
     // menu's descriptions wear it through their own row roles, which
     // styles.test.ts holds to it. A menu file that reaches for the helper's
     // type itself is where the two would part again.
@@ -894,16 +894,16 @@ export const STYLES = [
     ],
   },
   {
-    // The point count's four states, each coloured by STATUS: the other half
-    // of style-draw-counter's six.
+    // The point count's three states, each coloured by STATUS: the other half
+    // of style-draw-counter's five.
     name: 'style-draw-readout',
     files: ['src/components/DrawReadout.tsx'],
     ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in the draw readout.' }],
     require: [
       {
         selector: fromExport('DrawReadout', role('STATUS')),
-        count: 4,
-        message: 'The draw readout colours its four states by STATUS.',
+        count: 3,
+        message: 'The draw readout colours its three states by STATUS.',
       },
     ],
   },

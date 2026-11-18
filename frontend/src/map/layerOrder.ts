@@ -102,7 +102,8 @@ const APP_LAYERS: Readonly<Record<AppSlot, readonly string[]>> = {
   'contour-labels': ['contours-label'],
   'poi-labels': withGlows(['ofm-peaks', ...LAKE_LAYERS]),
   landmarks: withGlows(LANDMARK_LAYERS),
-  ring: ['draw-fill', 'draw-line', 'draw-midpoints', 'draw-vertices'],
+  // The finished areas under the one being drawn (`areasLayer.ts`, record 0306).
+  ring: ['areas-fill', 'areas-line', 'areas-label', 'draw-fill', 'draw-line', 'draw-midpoints', 'draw-vertices'],
   pending: ['pending-destinations-halo', 'pending-destinations-circles', 'pending-destinations-labels'],
   results: ['results-halo', 'results-circles', 'results-wind', 'results-rank', 'results-labels'],
 }

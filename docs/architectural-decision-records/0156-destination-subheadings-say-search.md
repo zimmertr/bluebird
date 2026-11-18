@@ -1,6 +1,6 @@
 # 0156. The Destinations subheadings say each row searches, the Map line names no type, and the search box stays on the map
 
-- Status: Accepted. Amends [0137](0137-destinations-section-reordered.md). Amended by [0286](0286-list-search-subheading.md) (the middle subheading says `List search`)
+- Status: Accepted. Amends [0137](0137-destinations-section-reordered.md). Amended by [0286](0286-list-search-subheading.md) (the middle subheading says `List search`). Superseded by [0306](0306-destinations-are-chips-with-several-areas-and-lists.md) (every destination is a chip in one field, beside Search by list and Search by area)
 - Date: 2026-10-15
 - Decider: the maintainer (TJ), on issue #710, 2026-10-15
 - Issues and PRs: #710, #687, #707, #715

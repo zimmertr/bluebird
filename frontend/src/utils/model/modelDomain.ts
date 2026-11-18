@@ -41,23 +41,22 @@ export function modelOutsideDomain(
 }
 
 /**
- * Every point a domain is held against: the ring's vertices when the ring is
- * searched, and every row of the list.
+ * Every point a domain is held against: every area's vertices when the areas
+ * are searched, and every row of the list.
  *
- * The vertices are conservative on purpose. A ring with a vertex outside the
+ * The vertices are conservative on purpose. An area with a vertex outside the
  * grid reaches past it, and what it finds there is unknown until discovery
  * answers, so it is held even if every destination it would find stands
- * inside. A ring with no type checked searches nothing, so its vertices do
+ * inside. Areas with no type checked search nothing, so their vertices do
  * not count.
  */
 export function analysisPoints(
-  polygon: GeoPolygon | null,
+  areas: readonly GeoPolygon[],
   ringSearched: boolean,
   rows: readonly LatLon[],
 ): LatLon[] {
-  const ring =
-    polygon !== null && ringSearched
-      ? (polygon.coordinates[0] ?? []).map(([longitude, latitude]) => ({ latitude, longitude }))
-      : []
-  return [...ring, ...rows]
+  const vertices = ringSearched
+    ? areas.flatMap((area) => (area.coordinates[0] ?? []).map(([longitude, latitude]) => ({ latitude, longitude })))
+    : []
+  return [...vertices, ...rows]
 }
