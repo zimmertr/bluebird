@@ -13,6 +13,7 @@ import app from './App.tsx?raw'
 import contactBody from './components/ContactBody.tsx?raw'
 import controlPanel from './components/ControlPanel.tsx?raw'
 import panelFooter from './components/PanelFooter.tsx?raw'
+import docLinks from './components/DocLinks.tsx?raw'
 import dataSourceList from './components/DataSourceList.tsx?raw'
 import notFoundPage from './components/NotFoundPage.tsx?raw'
 import privacyPage from './components/PrivacyPage.tsx?raw'
@@ -108,9 +109,12 @@ describe('attribute copy', () => {
 // combined /privacy page; the dialog had no URL, and the "Terms" link beside
 // it pointed at the privacy page anyway.
 describe('the document pages', () => {
-  it('are both reachable from the control panel footer', () => {
-    expect(panelFooter).toMatch(/href="\/privacy"/)
-    expect(panelFooter).toMatch(/href="\/terms"/)
+  // Spelled once in `DocLinks`, which the panel's footer and a desk's credit
+  // line both render (record 0308).
+  it('are both reachable from the control panel footer and the desk credit line', () => {
+    expect(docLinks).toMatch(/href="\/privacy"/)
+    expect(docLinks).toMatch(/href="\/terms"/)
+    expect(panelFooter).toMatch(/<DocLinks /)
   })
 
   // The failure this replaces: a label that says one thing and navigates
@@ -118,6 +122,7 @@ describe('the document pages', () => {
   it('are links, not a dialog the app has to hold state for', () => {
     expect(controlPanel).not.toMatch(/onShowPrivacy/)
     expect(panelFooter).not.toMatch(/onShowPrivacy/)
+    expect(docLinks).not.toMatch(/onShowPrivacy/)
     expect(app).not.toMatch(/PrivacyModal|showPrivacy/)
     expect(Object.keys(componentSources)).not.toContain('./components/PrivacyModal.tsx')
     expect(Object.keys(componentSources)).not.toContain('./components/PrivacyBody.tsx')

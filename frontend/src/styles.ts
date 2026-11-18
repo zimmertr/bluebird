@@ -1864,6 +1864,14 @@ export const MAP_ROWS = {
   pill: 'absolute inset-y-0 left-0 right-22 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
   /**
+   * A desk's sentence bar beside the pill, and the card one of its chips
+   * opened under the chip row, both at the pill's 320px and the 12px the rows
+   * stand apart (record 0308). No wider than the map less the pill, its gap
+   * and the map's two edge insets, so a narrow desk truncates the chips'
+   * words rather than running the bar off the map.
+   */
+  barSlot: 'ml-83 w-max max-w-[calc(100cqw_-_20.75rem_-_2_*_var(--map-edge-inset))]',
+  /**
    * The second row: one line of chips, 6px apart, never wrapping. The rows
    * stand 12px apart, and 3D 12px left of locate (`MAP_SLOT`), because a
    * finger's press reaches 6px past each 32px control (44 in all), so 12px
@@ -3083,7 +3091,7 @@ export const PANEL_MS = 300
  * legend card's face, and scrolls inside what is left of the map below it.
  */
 export const SENTENCE_BAR = {
-  row: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
+  row: `flex h-8 min-w-0 items-center gap-1.5 ${YIELD_EMPTY}`,
   group: 'flex min-w-0 items-center gap-1.5',
   /** The product's name leading the bar, on a chip's face, which the panel's header carried. */
   brand:

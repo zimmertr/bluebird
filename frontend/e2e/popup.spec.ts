@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, isoDay, forecastButton } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, isoDay, forecastButton, openCard } from './fixtures'
 import type { Locator } from '@playwright/test'
 
 // A result popup is built from the report it opened over, so a new report
@@ -79,6 +79,7 @@ test('an open popup marks whichever number the panel ranks by', async ({ page })
     })
   await expect.poll(marked).toEqual(['AQI Avg'])
 
+  await openCard(page, 'Limits')
   await page.getByRole('radio', { name: 'Temperature' }).check()
   await expect.poll(marked).toEqual([expect.stringMatching(/^Temperature \(°F\) (Min|Max|Avg)$/)])
 

@@ -101,6 +101,10 @@ export default function MapRows({
         {/* Empty here: the map stands its own 3D and locate buttons in them,
             so each keeps its states and the locate button its permission
             prompt. */}
+        {/* A desk's sentence bar beside the pill (record 0308), so Legend and
+            Layers keep the row under it and the legend's card its place over
+            the map's left edge (TJ, 2026-10-18). */}
+        {desk && bar && <div className={MAP_ROWS.barSlot}>{bar}</div>}
         {!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}
         {!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}
       </div>
@@ -128,7 +132,6 @@ export default function MapRows({
             </span>
           </MenuButton>
         )}
-        {desk && bar}
         {/* Legend first, so its card, the one open by default, hangs over
             the map's left edge and covers less of it (TJ, 2026-10-18). */}
         {legend}
@@ -138,7 +141,7 @@ export default function MapRows({
             which shows only while the map is turned or tilted. */}
         {!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}
       </div>
-      {desk && barCard}
+      {desk && barCard && <div className={MAP_ROWS.barSlot}>{barCard}</div>}
     </div>
   )
 }

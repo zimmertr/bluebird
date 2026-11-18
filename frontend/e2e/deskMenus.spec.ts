@@ -123,6 +123,7 @@ test('the model list takes its row and lines up with the field\'s right edge', a
 
 test('the calendar stands 4px under its field at the field\'s width', async ({ page }) => {
   await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+  await openCard(page, 'When')
   const field = page.getByRole('button', { name: /^When\b/ })
   await field.click()
   await expect(page.getByRole('grid', { name: 'Forecast day' })).toBeVisible()
@@ -157,6 +158,7 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
 
   // The keyboard: the arrows open and walk the list, Enter picks, and the
   // keyboard is back on the field.
+  await openCard(page, 'Limits')
   const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
   const shown = aggregate.locator('span').nth(1)
   const before = (await shown.textContent())!
@@ -176,64 +178,10 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
   await expect(aggregate).toBeFocused()
 })
 
-// A three-digit Removed count is the one thing that wraps the bar's button
-// group at a desk, beside the docked panel at 1024. The group goes to a line
-// of its own as a whole, at the line's right end, and the results stand right
-// under the taller bar rather than under the one line the floor once counted.
-test.describe('a long Removed count at 1024', () => {
-  test.use({ viewport: { width: 1024, height: 768 } })
-
-  test('wraps the button group whole onto its own line, at the right end', async ({ page }) => {
-    const ring = { cx: (-121.9 - 121.7 - 121.7) / 3, cy: (47.4 + 47.4 + 47.55) / 3 }
-    const destinations = Array.from({ length: 105 }, (_, i) => ({
-      name: `Peak ${5000 + i}`,
-      type: 'peak',
-      latitude: Number((ring.cy + (Math.floor(i / 12) - 4) * 0.003).toFixed(5)),
-      longitude: Number((ring.cx + ((i % 12) - 6) * 0.003).toFixed(5)),
-      elevation_ft: 4000 + i * 10,
-      osm_id: `node/${2000 + i}`,
-    }))
-    await page.route('**/api/destinations', (r) =>
-      r.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ destinations, total: destinations.length, total_found: null, truncated: false }),
-      }),
-    )
-    const removed = destinations
-      .slice(0, 100)
-      .map((d) => `${d.longitude},${d.latitude}`)
-      .join(';')
-    await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&removed=${removed}`)
-    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await forecastButton(page).click()
-    const button = page.getByRole('button', { name: 'Removed (100)' })
-    await expect(button).toBeVisible()
-
-    const parts = await button.evaluate((el) => {
-      const box = (e: Element) => e.getBoundingClientRect().toJSON() as DOMRect
-      const group = el.parentElement!
-      const row = group.parentElement!.parentElement!
-      const bar = row.closest('[data-tour="results"]')!.firstElementChild!
-      return {
-        group: box(group),
-        modes: box(row.firstElementChild!),
-        row: box(row),
-        bar: box(bar),
-        under: box(bar.nextElementSibling!),
-        map: document.querySelector('.maplibregl-canvas')!.getBoundingClientRect().toJSON() as DOMRect,
-      }
-    })
-    // Its own line, under the mode switch, and the whole group on it.
-    expect(parts.group.top).toBeGreaterThanOrEqual(parts.modes.bottom)
-    expect(parts.group.height).toBeCloseTo(parts.modes.height, 0)
-    // At the right end of the line, as it stands on one line.
-    near(parts.group.right, parts.row.right)
-    // The map ends where the bar starts, and the panels start where it ends.
-    near(parts.map.bottom, parts.bar.top)
-    near(parts.under.top, parts.bar.bottom)
-  })
-})
+// A three-digit Removed count wrapped the bar's button group beside the docked
+// panel at 1024. No panel stands beside the map since the sentence bar (record
+// 0308), so the bar has the window's width at every desk and does not wrap;
+// the test that held the wrap went with the panel.
 
 // The panel's two field menus on a phone are bottom sheets instead (record
 // 0136), headed by their labels' words, with 44px days: no card is drawn
@@ -264,19 +212,22 @@ test('every trigger lights the one way while open and rests as it was after', as
   const pick = (name: string) => async () => {
     await page.getByRole('listbox', { name }).getByRole('option').last().click()
   }
-  const triggers: [string, Locator, (() => Promise<void>) | null][] = [
+  // The model picker and the calendar are in the When card at a desk, and
+  // the aggregate in the Limits card (record 0308): each opens its card first.
+  const triggers: [string, Locator, (() => Promise<void>) | null, ('When' | 'Limits')?][] = [
     ['Legend', page.getByRole('button', { name: 'Legend', exact: true }), null],
     ['Layers', page.getByRole('button', { name: 'Layers', exact: true }), null],
     ['Columns', page.getByRole('button', { name: 'Choose which columns to display', exact: true }), null],
     ['Models', page.getByRole('button', { name: 'Models', exact: true }), null],
-    ['model picker', page.getByRole('button', { name: /^Forecast model:/ }), null],
-    ['calendar', page.getByRole('button', { name: /^When\b/ }), null],
-    ['aggregate', page.getByRole('button', { name: /^Temperature aggregate / }), pick('Temperature aggregate')],
+    ['model picker', page.getByRole('button', { name: /^Forecast model:/ }), null, 'When'],
+    ['calendar', page.getByRole('button', { name: /^When\b/ }), null, 'When'],
+    ['aggregate', page.getByRole('button', { name: /^Temperature aggregate / }), pick('Temperature aggregate'), 'Limits'],
     ['chart metric', page.getByRole('button', { name: /^Chart metric / }), pick('Chart metric')],
   ]
   const lit = new Set<string>()
   const lifted = new Set<string>()
-  for (const [name, trigger, close] of triggers) {
+  for (const [name, trigger, close, inCard] of triggers) {
+    if (inCard) await openCard(page, inCard)
     // The legend's card stands open on a desk until it is shut.
     if ((await trigger.getAttribute('aria-expanded')) === 'true') await trigger.click()
     await away()

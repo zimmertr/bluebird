@@ -147,7 +147,12 @@ export const resultRows = (page: Page) => page.locator('[data-results-table] tbo
 // (`Forecast 247 peaks`, `Forecast 31 new`, `Up to date`, record 0308), and
 // either reads `Try again` after a transient failure.
 export const FORECAST_WORD = /^(Analyze|Forecast|Forecast [\d,]+ [a-z]+|Up to date|Try again)$/
-export const forecastButton = (scope: Page | Locator) => scope.getByRole('button', { name: FORECAST_WORD })
+// Scoped to the tour's Analyze anchor, which is the phone's button itself and
+// the desk's footer around it, since a popup's Forecast fold wears the word too.
+export const forecastButton = (scope: Page | Locator) =>
+  scope
+    .getByRole('button', { name: FORECAST_WORD })
+    .and(scope.locator('button[data-tour="analyze"], [data-tour="analyze"] button'))
 
 // A row's Type cell, the one cell a click lands on that holds no link or
 // button. Found by its header rather than by a count, because the ranked

@@ -92,7 +92,7 @@ async function expectSpotlightOn(page: Page, anchor: string) {
 }
 
 // A section the panel has room for stands whole inside the panel's scroll box,
-// rather than under its footer.
+// rather than under its footer, or whole on screen in a card that scrolls nothing.
 async function expectSectionInPanel(page: Page, anchor: string) {
   await expect(async () => {
     const fit = await page.evaluate((a) => {
@@ -101,8 +101,11 @@ async function expectSectionInPanel(page: Page, anchor: string) {
       while (box && !(['auto', 'scroll'].includes(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) {
         box = box.parentElement
       }
-      if (!el || !box) return null
+      if (!el) return null
       const s = el.getBoundingClientRect()
+      // A desk's card holds its one section (record 0308), and with room to
+      // spare it scrolls nothing: the section then stands whole on screen.
+      if (!box) return { fits: true, inside: s.top >= 0 && s.bottom <= innerHeight + 1 }
       const b = box.getBoundingClientRect()
       return { fits: s.height <= b.height, inside: s.top >= b.top - 1 && s.bottom <= b.bottom + 1 }
     }, anchor)

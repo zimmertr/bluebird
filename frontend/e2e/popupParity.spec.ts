@@ -80,7 +80,7 @@ for (const theme of ['dark', 'light'] as const) {
     // sentence bar's cards and the results wear since the docked panel went
     // (record 0308). Polled, because the map pans to fit a popup it has just
     // opened and a read can land on the card that pan replaces.
-    const panel = await paint(page, 'var(--color-panel)')
+    const panel = await paint(page, 'var(--ui-panel)')
     const content = popup.locator('.maplibregl-popup-content')
     await expect.poll(() => content.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(panel)
     const ink = await paint(page, 'var(--ui-ink)')
