@@ -17,6 +17,7 @@ import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ActionWord } from '../utils/analyzeGate'
 import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER } from '../styles'
 import type { ThemeChoice } from '../utils/viewPrefs'
+import type { Place } from '../utils/geocode'
 
 interface AppDrawerProps {
   /** Whether the panel is open: docked on a desktop, the Controls sheet on a phone. */
@@ -41,12 +42,17 @@ interface AppDrawerProps {
   /** Draw mode and its buttons (`useDrawMode`). */
   drawMode: Pick<
     DrawMode,
-    'drawing' | 'startDrawing' | 'finishDrawing' | 'drawPointCount' | 'handleCancelDrawing' | 'handleClearDrawing'
+    'drawing' | 'drawPointCount' | 'startArea' | 'editArea' | 'removeArea' | 'finishDrawing' | 'handleCancelDrawing'
   >
-  /** The discovery inputs: types and the coordinates box (`useDestinationInputs`). */
+  /** The discovery inputs: the areas, the lists, the places, the kinds and the coordinates box (`useDestinationInputs`). */
   destinationInputs: Pick<
     DestinationInputs,
-    | 'polygonAreaKm2'
+    | 'areas'
+    | 'areaKm2s'
+    | 'draftAreaKm2'
+    | 'presetLists'
+    | 'places'
+    | 'removePlace'
     | 'destinationTypes'
     | 'setDestinationTypes'
     | 'customCsv'
@@ -85,11 +91,14 @@ interface AppDrawerProps {
   caps: LiveCapabilities
   /** The map, which a pasted list of coordinates fits to. */
   mapRef: RefObject<MapViewHandle | null>
-  /** The panel's Map group is hovered: the search box and the map's features wear a cue. */
-  onPointAtSearch: (on: boolean) => void
+  /** The Destinations section is hovered: the map's clickable features wear a cue. */
   onPointAtMapPois: (on: boolean) => void
-  /** Whether the preset list last picked beside List search arrived (#838). */
-  onPresetListFailed: (failed: boolean) => void
+  /** How many areas a run would search (`AnalyzeGateInputs.areaCount`). */
+  areaCount: number
+  /** A place picked in the panel's search, which stands there at a desk alone (record 0306). */
+  onSearchSelect: (place: Place) => void
+  /** A place's chip: the camera goes to it. */
+  onFramePlace: (place: Place) => void
   /** Every message the panel has to say, with the Analyze gate and the blockers by field (`usePanelMessages`). */
   messages: PanelMessages
   /** Analyze, and the one run a link may ask for on open. */
@@ -133,9 +142,10 @@ export default function AppDrawer({
   chartMetrics,
   caps,
   mapRef,
-  onPointAtSearch,
   onPointAtMapPois,
-  onPresetListFailed,
+  areaCount,
+  onSearchSelect,
+  onFramePlace,
   messages,
   onAnalyze,
   autoAnalyze,
@@ -147,16 +157,6 @@ export default function AppDrawer({
   themeChoice,
   onThemeChoice,
 }: AppDrawerProps) {
-  const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
-  const {
-    polygonAreaKm2,
-    destinationTypes,
-    setDestinationTypes,
-    customCsv,
-    setCustomCsv,
-    includeUnnamedPeaks,
-    setIncludeUnnamedPeaks,
-  } = destinationInputs
   const {
     selection,
     changeSelection,
@@ -190,25 +190,37 @@ export default function AppDrawer({
   const panel = (
     <ControlPanel
       phone={!isDesktop}
-      drawing={drawing}
-      onStartDrawing={startDrawing}
-      onFinishDrawing={finishDrawing}
-      drawPointCount={drawPointCount}
-      polygonAreaKm2={polygonAreaKm2}
-      onCancelDrawing={handleCancelDrawing}
-      onClearDrawing={handleClearDrawing}
-      onPointAtSearch={onPointAtSearch}
-      onPointAtMapPois={onPointAtMapPois}
-      destinationTypes={destinationTypes}
-      setDestinationTypes={setDestinationTypes}
+      destinations={{
+        areas: destinationInputs.areas,
+        areaKm2s: destinationInputs.areaKm2s,
+        drawing: drawMode.drawing,
+        drawPointCount: drawMode.drawPointCount,
+        onStartArea: drawMode.startArea,
+        onEditArea: drawMode.editArea,
+        onRemoveArea: drawMode.removeArea,
+        onFinishDrawing: drawMode.finishDrawing,
+        onCancelDrawing: drawMode.handleCancelDrawing,
+        areaCount,
+        draftAreaKm2: destinationInputs.draftAreaKm2,
+        onPointAtMapPois,
+        destinationTypes: destinationInputs.destinationTypes,
+        setDestinationTypes: destinationInputs.setDestinationTypes,
+        includeUnnamedPeaks: destinationInputs.includeUnnamedPeaks,
+        setIncludeUnnamedPeaks: destinationInputs.setIncludeUnnamedPeaks,
+        presetLists: destinationInputs.presetLists,
+        customCsv: destinationInputs.customCsv,
+        setCustomCsv: destinationInputs.setCustomCsv,
+        onCsvPasted: (points) => mapRef.current?.fitToPoints(points),
+        places: destinationInputs.places,
+        onRemovePlace: destinationInputs.removePlace,
+        onFramePlace,
+        // A phone's search is the map's pill, so its panel holds none.
+        ...(isDesktop ? { onSearchSelect } : {}),
+      }}
       selection={selection}
       setSelection={changeSelection}
       limit={limit}
       setLimit={setLimit}
-      customCsv={customCsv}
-      setCustomCsv={setCustomCsv}
-      onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
-      onPresetListFailed={onPresetListFailed}
       messages={panelMessages}
       sortBy={sortBy}
       setSortBy={setSortBy}
@@ -219,8 +231,6 @@ export default function AppDrawer({
       constraints={constraints}
       setConstraints={setConstraints}
       onClearFilters={clearFilters}
-      includeUnnamedPeaks={includeUnnamedPeaks}
-      setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
       forecastModel={forecastModel}
       comparedModels={comparedModels}
       setComparedModels={setComparedModels}

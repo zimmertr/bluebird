@@ -31,6 +31,7 @@ const NO_ROWS: DestinationResult[] = []
 const NO_WAITING: ReadonlySet<string> = new Set()
 import { useTour } from './tour/useTour'
 import { customCsvTooLong } from './utils/urlParams'
+import type { Place } from './utils/geocode'
 import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
@@ -192,11 +193,8 @@ export default function App() {
   // A phone's home indicator band, which the chrome on the map's foot stands
   // above (record 0145); 0 on a desk.
   const safeBottomPx = useSafeAreaBottom()
-  // The panel's Map group is hovered, so the map's search box — a control
-  // the panel names but does not contain — wears a ring.
-  const [searchPointed, setSearchPointed] = useState(false)
-  // The same hover glows every clickable feature on the map: the Map group
-  // covers both map-borne methods, so its cue lights both controls at once.
+  // The Destinations section is hovered, which glows every clickable
+  // feature on the map: a press on one adds it, and no control says so.
   const [poisPointed, setPoisPointed] = useState(false)
   // The basemap style is failing to load: the map reports it and the panel's
   // messages say so (#580).
@@ -732,6 +730,17 @@ export default function App() {
     collapsed: layout.resultsCollapsed,
   })
 
+  // A place searched in the panel, or a place's chip pressed: the camera goes
+  // to it, framed for the sheet the report opens on a phone (#696). A search
+  // also adds it.
+  function framePlace(place: Place) {
+    mapRef.current?.flyToPlace(place, layout.sheetPadBottomPx)
+  }
+  function handleSearchSelect(place: Place) {
+    framePlace(place)
+    removals.registerPlace(place)
+  }
+
   // The tour waits while a polygon is being drawn or a run is in flight: its
   // first card frames the Destinations section, which mid-draw shows Cancel
   // and Clear in place of its controls, and a run that lands under the tour
@@ -789,9 +798,10 @@ export default function App() {
         chartMetrics={chartMetrics}
         caps={caps}
         mapRef={mapRef}
-        onPointAtSearch={setSearchPointed}
         onPointAtMapPois={setPoisPointed}
-        onPresetListFailed={setPresetListFailed}
+        areaCount={areaCount}
+        onSearchSelect={handleSearchSelect}
+        onFramePlace={framePlace}
         messages={shownMessages}
         onAnalyze={handleAnalyze}
         autoAnalyze={autoAnalyze}
@@ -843,7 +853,6 @@ export default function App() {
           actionWord={word}
           onAnalyze={handleAnalyze}
           layersForcedOpen={tour.layersOpen}
-          searchPointed={searchPointed}
           poisPointed={poisPointed}
           urlSync={urlSync}
           restoredView={restoredView}

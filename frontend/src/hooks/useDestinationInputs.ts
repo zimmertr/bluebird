@@ -47,6 +47,8 @@ export function useDestinationInputs(
   // printed its point count beside a blank area line until the reader edited
   // it (#429). A derived value cannot lag the ring it describes.
   const draftAreaKm2 = useMemo(() => largestKm2(draft ? [draft] : []), [draft])
+  // Each finished area's size, in order, which its chip prints.
+  const areaKm2s = useMemo(() => areas.map((area) => bboxAreaKm2(ringToPts(area)) ?? 0), [areas])
   // What the area cap reads: the largest area drawn or being drawn, since the
   // pod refuses each area on its own.
   const largestAreaKm2 = useMemo(() => largestKm2(draft ? [...areas, draft] : areas), [areas, draft])
@@ -125,6 +127,7 @@ export function useDestinationInputs(
     draft,
     setDraft,
     draftAreaKm2,
+    areaKm2s,
     largestAreaKm2,
     destinationTypes,
     setDestinationTypes,

@@ -3345,6 +3345,8 @@ export const DESTINATION_FIELD = {
   chips: 'flex flex-wrap gap-1.5',
   search: `flex items-center gap-2 px-1.5 ${TAP.height}`,
   glyph: 'mr-1.5 inline-block flex-shrink-0 align-[-1px]',
+  /** A chip's name that does nothing when pressed (a list): `CHIP.label` without the pointer and the ring. */
+  text: 'min-w-0 truncate py-1 pl-2',
 } as const
 
 /**

@@ -473,7 +473,7 @@ export function retryStands(
  */
 export function refusalStands(refusal: Refusal | null, failed: AnalyzedView | null, panel: RefusalPanel): boolean {
   if (refusal === null || failed === null) return false
-  const { polygonKey } = discoveryKeys(panel.polygon, panel.destinationTypes, panel.includeUnnamedPeaks)
+  const { polygonKey } = discoveryKeys(panel.areas, panel.destinationTypes, panel.includeUnnamedPeaks)
   if (polygonKey !== failed.polygonKey || panel.customCount !== failed.customKeys.size) return false
   return panelCommitCues(failed, { ...panel, settled: true }).length === 0
 }

@@ -125,9 +125,7 @@ export interface MapStageProps {
   onAnalyze: () => void
   /** The tutorial holds the Layers menu open for its step (#536). */
   layersForcedOpen: boolean
-  /** The panel's Map group is hovered, so the search field wears a ring. */
-  searchPointed: boolean
-  /** The same hover, so every clickable feature on the map glows. */
+  /** The panel's Destinations section is hovered, so every clickable feature on the map glows. */
   poisPointed: boolean
   /** The share link's camera callback, which writes without rendering. */
   urlSync: Pick<UrlSync, 'reportView'>
@@ -178,7 +176,6 @@ export default function MapStage({
   actionWord,
   onAnalyze,
   layersForcedOpen,
-  searchPointed,
   poisPointed,
   urlSync,
   restoredView,
@@ -397,7 +394,6 @@ export default function MapStage({
       <MapRows
         searchBoxRef={searchBoxRef}
         onSearchSelect={handleSearchSelect}
-        searchPointed={searchPointed}
         onLocateSlot={setLocateSlot}
         onCompassSlot={setCompassSlot}
         onTerrainSlot={setTerrainSlot}

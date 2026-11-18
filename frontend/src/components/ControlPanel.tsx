@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { CustomDestination, DiscoveryType, SortBy } from '../types'
-import DestinationsSection from './DestinationsSection'
+import { SortBy } from '../types'
+import DestinationsSection, { type DestinationsInputs } from './DestinationsSection'
 import ForecastSection from './ForecastSection'
 import MetricsTable from './MetricsTable'
 import PanelFooter from './PanelFooter'
@@ -27,19 +27,8 @@ import type { ChartMetric, ChartMetrics } from '../utils/chart/chartData'
 // Each field that one section alone draws is described on that section's own
 // props, beside the code that reads it.
 interface Props {
-  drawing: boolean
-  onStartDrawing: () => void
-  onFinishDrawing: () => void
-  drawPointCount: number
-  polygonAreaKm2: number | null
-  onCancelDrawing: () => void
-  onClearDrawing: () => void
-  onPointAtSearch: (on: boolean) => void
-  onPointAtMapPois: (on: boolean) => void
-  // A set: one polygon can look for several kinds at once, and none checked
-  // means the polygon discovers nothing.
-  destinationTypes: DiscoveryType[]
-  setDestinationTypes: (t: DiscoveryType[]) => void
+  /** The Destinations section's inputs, handed through whole (`DestinationsSection`). */
+  destinations: DestinationsInputs
   // What the analysis asks about: the current hour, or days off the calendar.
   // One value rather than a mode plus three sets of timestamps (#166), so there
   // is no dormant state to preserve across a switch.
@@ -47,11 +36,6 @@ interface Props {
   setSelection: (s: ForecastSelection) => void
   limit: number
   setLimit: (n: number) => void
-  customCsv: string
-  setCustomCsv: (s: string) => void
-  onCsvPasted: (points: CustomDestination[]) => void
-  /** Whether the preset list last picked beside List search arrived (#838). */
-  onPresetListFailed: (failed: boolean) => void
   sortBy: SortBy
   setSortBy: (s: SortBy) => void
   sortDesc: boolean
@@ -64,8 +48,6 @@ interface Props {
   constraints: Constraints
   setConstraints: (c: Constraints) => void
   onClearFilters: () => void
-  includeUnnamedPeaks: boolean
-  setIncludeUnnamedPeaks: (v: boolean) => void
   // Which weather model answers, and the set this deployment offers, from
   // /api/capabilities. A data knob: models disagree, so changing one needs new
   // forecasts rather than a re-presentation of held ones.
@@ -117,25 +99,11 @@ interface Props {
 }
 
 export default function ControlPanel({
-  drawing,
-  onStartDrawing,
-  onFinishDrawing,
-  drawPointCount,
-  polygonAreaKm2,
-  onCancelDrawing,
-  onClearDrawing,
-  onPointAtSearch,
-  onPointAtMapPois,
-  destinationTypes,
-  setDestinationTypes,
+  destinations,
   selection,
   setSelection,
   limit,
   setLimit,
-  customCsv,
-  setCustomCsv,
-  onCsvPasted,
-  onPresetListFailed,
   sortBy,
   setSortBy,
   sortDesc,
@@ -145,8 +113,6 @@ export default function ControlPanel({
   constraints,
   setConstraints,
   onClearFilters,
-  includeUnnamedPeaks,
-  setIncludeUnnamedPeaks,
   forecastModel,
   setForecastModel,
   forecastModels,
@@ -171,8 +137,8 @@ export default function ControlPanel({
 }: Props) {
   // A line pasted twice is one destination, and the count says so (#579).
   // Parsed once per change for the count; the gate reads App's parse.
-  const customCount = useMemo(() => distinctRows(parseCustomCsv(customCsv)).length, [customCsv])
-  const { analyzeEnabled, areaTooLarge, pointsNeeded, modelDisabled, unanswered } = messages
+  const customCount = useMemo(() => distinctRows(parseCustomCsv(destinations.customCsv)).length, [destinations.customCsv])
+  const { analyzeEnabled, areaTooLarge, modelDisabled, unanswered } = messages
 
   // A link's run on open is decided from here rather than from App because the
   // panel is what the link opens on. The ref keeps it to once per panel even
@@ -246,30 +212,13 @@ export default function ControlPanel({
         ref={bodyRef}
         className={`${PANEL_BODY} ${PANEL_RULE} ${phone ? CONTROLS_SHEET.body : ''}`}
       >
-        {/* Destinations — one list, defined via any of four methods
-            that union into a single ranked report */}
+        {/* Destinations: every way of naming them, as chips in one
+            field, unioned into a single ranked report */}
         <DestinationsSection
-          drawing={drawing}
-          onStartDrawing={onStartDrawing}
-          onFinishDrawing={onFinishDrawing}
-          onCancelDrawing={onCancelDrawing}
-          onClearDrawing={onClearDrawing}
-          drawPointCount={drawPointCount}
-          pointsNeeded={pointsNeeded}
+          {...destinations}
           areaTooLarge={areaTooLarge}
-          polygonAreaKm2={polygonAreaKm2}
           maxAreaKm2={maxAreaKm2}
-          onPointAtSearch={onPointAtSearch}
-          onPointAtMapPois={onPointAtMapPois}
-          destinationTypes={destinationTypes}
-          setDestinationTypes={setDestinationTypes}
-          includeUnnamedPeaks={includeUnnamedPeaks}
-          setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
-          customCsv={customCsv}
-          setCustomCsv={setCustomCsv}
           parsedCount={customCount}
-          onCsvPasted={onCsvPasted}
-          onPresetListFailed={onPresetListFailed}
           phone={phone}
         />
 
