@@ -36,7 +36,7 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
+  await page.getByRole('button', { name: /^Search by area/ }).click()
   // The panel slides away rather than vanishing, so the point is read once
   // nothing but the map or the legend stands at it.
   await expect.poll(async () => (await probe(page)).hit).toBe('map')
