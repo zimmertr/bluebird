@@ -117,7 +117,7 @@ export function IconFold({ open, className }: IconProps & { open: boolean }): Re
 }
 
 /**
- * The star on a row of the Coordinate list menu (#848): an outline until the
+ * The star on a row of the Search by list menu (#848): an outline until the
  * list is starred, then filled. The fill is the state, so the two read apart
  * without their colour.
  */

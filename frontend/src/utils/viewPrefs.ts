@@ -39,7 +39,7 @@ export const THEME_KEY = 'bluebird_forecast_theme'
 /**
  * The coordinate lists this browser starred (#848), under a key of its own:
  * a pick from a menu rather than a layout of the screen, and written from the
- * Coordinate list field alone.
+ * Search by list menu alone.
  */
 export const STARRED_LISTS_KEY = 'bluebird_forecast_starred_lists'
 

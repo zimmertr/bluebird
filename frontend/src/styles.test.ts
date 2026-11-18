@@ -1411,7 +1411,7 @@ describe('shared recipes', () => {
     expect(dropdownPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(TOTAL_PX)
   })
 
-  // A Metrics row's chart toggle (record 0290) wears the Coordinate list
+  // A Metrics row's chart toggle (record 0290) wears the Search by list
   // menu's two marks, and stands on the panel rather than a card, so its
   // glyph's 3:1 (1.4.11) is measured there, at rest and lit.
   it('draws the chart toggle past 3:1 on the panel, at rest and lit', () => {

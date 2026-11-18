@@ -322,7 +322,7 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 
-  // Draw polygon closes the drawer on a phone, so Done and Cancel come to the
+  // Search by area closes the drawer on a phone, so Done and Cancel come to the
   // map (#687). They are the panel's own two presses, the bar stands under the
   // chip row (#696), and the player steps out while it is up.
   it('puts Done and Cancel on the map while a phone draws, and the player away', async () => {

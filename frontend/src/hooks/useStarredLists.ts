@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { readStarredLists, writeStarredLists } from '../utils/viewPrefs'
 
 /**
- * The coordinate lists this browser starred (#848), which the Coordinate list
+ * The coordinate lists this browser starred (#848), which the Search by list
  * menu shows first under Starred: the ids, in the order they were starred,
  * and the toggle a row's star presses.
  *

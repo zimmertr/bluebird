@@ -298,7 +298,7 @@ export const STYLES = [
   },
   {
     // The sentence under a row's name is MENU.description in every menu
-    // (record 0283): the model list's summaries and the Coordinate list
+    // (record 0283): the model list's summaries and the Search by list
     // menu's descriptions wear it through their own row roles, which
     // styles.test.ts holds to it. A menu file that reaches for the helper's
     // type itself is where the two would part again.

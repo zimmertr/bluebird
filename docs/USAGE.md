@@ -912,4 +912,4 @@ nothing within 10 miles, which still is not proof there is no fire:
 successful check can still miss.
 
 Coordinates are deliberately absent. The file is meant to be read, not pasted
-back into [List search](#d-list-search).
+back into [Search by list](#d-search-by-list).
