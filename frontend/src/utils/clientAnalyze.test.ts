@@ -991,6 +991,11 @@ describe('alignCloud', () => {
   it('carries no array at all for a row the cloud request answered nothing for', () => {
     expect(alignCloud([1, 2], null)).toBeNull()
   })
+
+  it('aligns the top of the layer by its own key', () => {
+    const series = { times: [1, 3], cloud_deck_ft: [4000, 5000], cloud_top_ft: [6000, 7000] }
+    expect(alignCloud([1, 2, 3], series, 'cloud_top_ft')).toEqual([6000, null, 7000])
+  })
 })
 
 describe('withCloud', () => {

@@ -165,6 +165,9 @@ export interface HourlySeries {
   // Feet above sea level (#670). Absent when the cloud request answered
   // nothing for the row; every analysis asks it (#683).
   cloud_deck_ft?: (number | null)[] | null
+  // The top of the deck's layer, feet above sea level, from the same walk
+  // (record 0305). Absent with the deck; the map's cloud sea reads it.
+  cloud_top_ft?: (number | null)[] | null
   // Wind bearing in degrees clockwise from north, the direction the wind blows
   // FROM. Client-populated only: the backend does not fetch it, because nothing
   // it computes uses it, so a report from the SSE fallback carries none and the
