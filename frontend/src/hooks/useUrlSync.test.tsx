@@ -25,6 +25,7 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     comparedModels: NO_MODELS,
     sortBy: DEFAULT_SORT,
     sortDesc: false,
+    lens: null,
     rowKeys: DEFAULT_FAMILY_KEY,
     constraints: NO_CONSTRAINTS,
     limit: DEFAULT_LIMIT,

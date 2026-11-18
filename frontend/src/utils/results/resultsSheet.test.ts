@@ -407,12 +407,12 @@ describe('the camera padding', () => {
   const defaults = { chartPx: 288, tablePx: 280 }
 
   it('is the lift the sheet reserves at 402x874', () => {
-    // The sheet's chrome plus a default-height table (71 + 24 + 280) is 375,
+    // The sheet's chrome plus a default-height table (111 + 24 + 280) is 415,
     // and the resting reserve leaves 412 at this height (874 less
-    // `RESTING_MAP_PX`), so the table stands at its own default and the lift
-    // is the sheet's own height. #454's last 14px are what bought that: at a
-    // 196px stack the reserve was the binding edge and the table was clamped
-    // to 398.
+    // `RESTING_MAP_PX`), so the reserve binds by 3px since the lens row joined
+    // the header (record 0306) and the lift is exactly the reserve's. Until
+    // then the table stood at its own default, at 375. #454's last 14px are
+    // what bought that: at a 196px stack the table was clamped to 398.
     const lift = restingLiftPx({
       collapsed: false,
       gripCount: 1,
@@ -421,7 +421,7 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(375)
+    expect(lift).toBe(412)
     expect(874 - lift).toBeGreaterThanOrEqual(RESTING_MAP_PX)
   })
 
@@ -444,7 +444,7 @@ describe('the camera padding', () => {
       ...defaults,
     })
     expect(lift).toBe(sheetChromePx(1) + 120)
-    expect(lift).toBe(215)
+    expect(lift).toBe(255)
     expect(650 - lift).toBeLessThan(RESTING_MAP_PX)
   })
 

@@ -51,7 +51,9 @@ test('the address bar keeps the readable link the app writes, and writes it once
 
   // Opened in the fully escaped form URLSearchParams used to write, with a
   // default ranking and results cap spelled out, so the app has one rewrite
-  // to make: the delimiters readable, the defaults dropped.
+  // to make: the delimiters readable, the defaults dropped. A link that names
+  // a ranking opens on that metric rather than a lens, and says so with
+  // `lens=metric` (record 0306).
   const d1 = isoDay(1)
   const pin = '-121.94734,47.48844,peak,2995,node/349018340,East+Tiger+Mountain'
   await page.goto(
@@ -63,7 +65,7 @@ test('the address bar keeps the readable link the app writes, and writes it once
   // The model is the deployment's default, whatever it is today, and the
   // camera is where the opening fit left it, so both are read as a shape and
   // the rest of the query compared exactly.
-  const readable = `?type=peak&model=M&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&pins=${pin}&view=V`
+  const readable = `?type=peak&lens=metric&model=M&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&pins=${pin}&view=V`
   const shape = (search: string) =>
     search.replace(/model=[a-z0-9_]+/, 'model=M').replace(/&view=-?\d+(\.\d+)?,-?\d+(\.\d+)?,\d+(\.\d+)?$/, '&view=V')
   await expect.poll(async () => shape(await page.evaluate(() => location.search))).toBe(readable)

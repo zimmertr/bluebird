@@ -130,9 +130,17 @@ export const TRANSPORT_HEIGHT_PX = 68
 export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
 
 /**
+ * The lens row under the results bar (record 0306): `mt-1.5` and one 32px
+ * segment under a finger. Read off CI's fullScreen spec on 2026-11-18, where
+ * the sheet stood 40px taller than this estimate once the row joined it, so
+ * re-measure it in Chrome with the rest of the bar.
+ */
+const LENS_ROW_PX = 40
+
+/**
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
- * 71px on a coarse pointer: 12px of padding, the 20px title row, the 4px
+ * 71px on a coarse pointer, and the lens row under it (`LENS_ROW_PX`): 12px of padding, the 20px title row, the 4px
  * gap, the 34px actions line (the mode switch and the button group, 32px
  * controls in a 1px-bordered well, record 0223, side by side on one line
  * since #687 drops their words where the bar is narrow, `BAR_LABEL`), and the
@@ -152,7 +160,7 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 71
+export const SHEET_HEADER_PX = 71 + LENS_ROW_PX
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but
