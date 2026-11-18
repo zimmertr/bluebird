@@ -9,7 +9,14 @@ import { stripHours } from '../utils/score/hourStrip'
  * number beside it is what a reader hears, so the strip is hidden from a
  * screen reader rather than spelling out every hour.
  */
-export default function HourStrip({ row }: { row: DestinationResult }) {
+export default function HourStrip({
+  row,
+  range = null,
+}: {
+  row: DestinationResult
+  /** The range the score's colour is stretched over, the Score cell's own. */
+  range?: { lo: number; hi: number } | null
+}) {
   const hours = stripHours(row.score_hours, row.score_lit, row.score_best)
   if (hours.length === 0) return null
   return (
@@ -18,7 +25,7 @@ export default function HourStrip({ row }: { row: DestinationResult }) {
         <span
           key={i}
           className={`${HOUR_STRIP.hour} ${h.best ? HOUR_STRIP.best : ''} ${h.gap ? HOUR_STRIP.gap : ''}`}
-          style={h.score === null ? undefined : { backgroundColor: scoreColor(h.score, null) }}
+          style={h.score === null ? undefined : { backgroundColor: scoreColor(h.score, range) }}
         />
       ))}
     </span>

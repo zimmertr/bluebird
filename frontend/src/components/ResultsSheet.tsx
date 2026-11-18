@@ -43,7 +43,7 @@ interface ResultsSheetProps
   /** The displayed rows, the title's parts and the header sort (`usePresentedReport`). */
   report: Pick<
     PresentedReport,
-    'results' | 'windowTitle' | 'detailSort' | 'sortDetail' | 'pending' | 'rowCount' | 'emptyReason' | 'lens' | 'scoreHeadline'
+    'results' | 'windowTitle' | 'detailSort' | 'sortDetail' | 'pending' | 'rowCount' | 'emptyReason' | 'lens' | 'scoreHeadline' | 'scoreRange'
   >
   /** The removed rows and the ways back (`useRemovals`). */
   removals: Pick<Removals, 'removed' | 'removeResult' | 'restoreRemoved' | 'restoreAllRemoved'>

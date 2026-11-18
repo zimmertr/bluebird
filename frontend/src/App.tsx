@@ -39,9 +39,6 @@ import type { DestinationResult } from './types'
 // tutorial's demonstration report is on screen rather than a fresh one per
 // render.
 const NO_ROWS: DestinationResult[] = []
-// The markers' colouring while a lens ranks the field: the score's ramp over
-// 0 to 100, as the Score cells read it. Hoisted for the memoized map's sake.
-const SCORE_COLOURING: ScoreColouring = { range: null }
 // The same for the rows waiting on an elevation: one empty set, so the
 // memoized table sees no change between renders where nothing waits.
 const NO_WAITING: ReadonlySet<string> = new Set()
@@ -480,6 +477,14 @@ export default function App() {
     found: pendingField,
     restoredTableSort: restored?.tableSort ?? null,
   })
+  // The markers' colouring while a lens ranks the field: the score's ramp
+  // stretched over the range the Score cells read (record 0306), memoized for
+  // the memoized map's sake.
+  const scoreRangeNow = report.scoreRange
+  const scoreColouring = useMemo<ScoreColouring | null>(
+    () => (lens !== null ? { range: scoreRangeNow } : null),
+    [lens, scoreRangeNow],
+  )
   const {
     results,
     detailSort,
@@ -993,7 +998,7 @@ export default function App() {
           barCard={barCardNode}
           cornerLinks={cornerLinks}
           cloudDeck={cloudDeck}
-          scoreColouring={lens !== null ? SCORE_COLOURING : null}
+          scoreColouring={scoreColouring}
           dayStrip={isDesktop ? { selection, onSelection: forecastSelection.changeSelection, band: forecastSelection.band } : null}
           onCameraMove={onCameraMove}
         />

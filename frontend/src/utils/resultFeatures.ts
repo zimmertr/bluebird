@@ -19,7 +19,7 @@ export const NO_VALUE = '#64748b'
 
 /**
  * The markers' colouring while a lens ranks the field (record 0306): the
- * score's ramp stretched over the field's own range. The light ramp alone,
+ * score's ramp stretched over the field's own range, the Score cells' own. The light ramp alone,
  * because the map's ground ignores the theme and the dark ramp's fog is made
  * to recede into a dark map the app never draws.
  */

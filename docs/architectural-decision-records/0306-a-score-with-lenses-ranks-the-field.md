@@ -17,7 +17,7 @@ Each hour is scored from seven factors, each 0 to 1 and piecewise linear (sky fr
 
 The score is computed in the browser over the held field, so changing the lens re-presents data already fetched and is a presentation knob like sort and limit (record 0003). It is never sent to or computed by the pod.
 
-While a lens ranks, the markers wear the score too, the window's or, during playback, the hour's (`score_hours`), on the light ramp, because the map's ground ignores the theme. The legend keys it as `Score` and the table's arrow stands on the Score column. Each Score cell carries the row's hour strip: one bar per lit hour the score read, a gap where a night falls, and the best stretch drawn taller, hidden from a screen reader beside the number. Both read the ramp over 0 to 100 for now, as the Score cells do; the stretch over the field's range is still to come.
+While a lens ranks, the markers wear the score too, the window's or, during playback, the hour's (`score_hours`), on the light ramp, because the map's ground ignores the theme. The legend keys it as `Score` and the table's arrow stands on the Score column. Each Score cell carries the row's hour strip: one bar per lit hour the score read, a gap where a night falls, and the best stretch drawn taller, hidden from a screen reader beside the number. The Score cells, their strips, the markers and the legend read one stretch, `scoreRange` over the rows the headline counts, and the legend's ticks are the field's own scores at the ramp's steps (`scoreScale`).
 
 ## Evidence
 

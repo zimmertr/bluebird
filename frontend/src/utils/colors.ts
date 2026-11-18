@@ -599,14 +599,25 @@ export const SCORE_RAMP: Record<Theme, readonly string[]> = {
  */
 export const SCORE_MAP_SCALE: LabelledScale = { thresholds: SCORE_THRESHOLDS, colors: SCORE_RAMP.light, ink: [], unit: '' }
 
-/** Where a score stands on the stretched range, from 0 to 100. */
-export function stretchScore(score: number, range: { lo: number; hi: number } | null): number {
-  return range ? clamp(((score - range.lo) / (range.hi - range.lo)) * 100, 0, 100) : clamp(score, 0, 100)
+/**
+ * The map's score scale stretched over the field's range: the ramp's
+ * thresholds carried back onto the scores they stand for, rounded, so the
+ * legend's ticks read the field's own numbers and a marker coloured on it
+ * matches `scoreFill` with the same range.
+ */
+export function scoreScale(range: { lo: number; hi: number } | null): LabelledScale {
+  if (range === null) return SCORE_MAP_SCALE
+  const at = (t: number) => Math.round(range.lo + (t / 100) * (range.hi - range.lo))
+  return { ...SCORE_MAP_SCALE, thresholds: SCORE_THRESHOLDS.map(at) }
 }
 
-/** A score's colour in one theme, for a channel that paints one (MapLibre, canvas). */
+/**
+ * A score's colour in one theme, for a channel that paints one (MapLibre,
+ * canvas): on `scoreScale`'s thresholds, the ones the legend prints, so a
+ * marker, a cell and the key cannot drift apart over a rounding.
+ */
 export function scoreFill(score: number, range: { lo: number; hi: number } | null, theme: Theme): string {
-  return colorOnScale(stretchScore(score, range), { thresholds: SCORE_THRESHOLDS, colors: SCORE_RAMP[theme], ink: [] })
+  return colorOnScale(score, { thresholds: scoreScale(range).thresholds, colors: SCORE_RAMP[theme], ink: [] })
 }
 
 /** A score's colour as one string for both themes, for a class or a style. */

@@ -4,7 +4,6 @@ import {
   SCORE_RAMP,
   scoreColor,
   scoreFill,
-  stretchScore,
   METRIC_SCALE,
   VERDICT_RAMP,
   VERDICT_RAMP_REVERSED,
@@ -19,7 +18,7 @@ import {
 import { COLUMNS } from './tableColumns'
 import { scaleTicks } from './legendRamp'
 import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
-import { LabelledScale } from './colors'
+import { LabelledScale, SCORE_MAP_SCALE, colorOnScale, scoreScale } from './colors'
 import { FAMILY_KEYS, RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
 import { contrast, mixOver, relativeLuminance, round2 } from '../testSupport/contrast'
 import { SNOW_RAMP } from './snowDepth'
@@ -924,19 +923,28 @@ describe('the score ramp', () => {
     expect(lum(SCORE_RAMP.dark[6])).toBeGreaterThan(lum(SCORE_RAMP.dark[0]))
   })
 
-  it('stretches a score over the field and clamps past it', () => {
-    const range = { lo: 40, hi: 90 }
-    expect(stretchScore(40, range)).toBe(0)
-    expect(stretchScore(65, range)).toBe(50)
-    expect(stretchScore(95, range)).toBe(100)
-    expect(stretchScore(70, null)).toBe(70)
-  })
-
   it('paints the ends of the field in the ends of the ramp', () => {
     const range = { lo: 40, hi: 90 }
     expect(scoreFill(40, range, 'dark')).toBe(SCORE_RAMP.dark[0])
     expect(scoreFill(90, range, 'dark')).toBe(SCORE_RAMP.dark[6])
     expect(scoreFill(90, range, 'light')).toBe(SCORE_RAMP.light[6])
     expect(scoreColor(90, range)).toBe(`light-dark(${SCORE_RAMP.light[6]}, ${SCORE_RAMP.dark[6]})`)
+  })
+})
+
+// The score's map scale stretched over the field (record 0306): the legend's
+// ticks are the field's own scores, and a marker coloured on the scale wears
+// the colour `scoreFill` gives the same score over the same range.
+describe('scoreScale', () => {
+  it('is the plain ramp with no range, and carries the steps back onto the field’s scores', () => {
+    expect(scoreScale(null)).toBe(SCORE_MAP_SCALE)
+    expect(scoreScale({ lo: 50, hi: 100 }).thresholds).toEqual([50, 70, 78, 84, 90, 95])
+  })
+
+  it('colours a score as scoreFill does over the same range', () => {
+    const range = { lo: 40, hi: 97 }
+    for (const score of [40, 55, 70, 85, 97]) {
+      expect(colorOnScale(score, scoreScale(range))).toBe(scoreFill(score, range, 'light'))
+    }
   })
 })

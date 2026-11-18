@@ -28,7 +28,7 @@ import type { SortBy } from '../types'
 import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
 import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { NOUN, familyOf } from '../metrics'
-import { SCORE_MAP_SCALE, hourlyScale, rankedScale } from '../utils/colors'
+import { hourlyScale, rankedScale, scoreScale } from '../utils/colors'
 import {
   TRANSPORT_GAP_PX,
   fabBottomPx,
@@ -270,7 +270,7 @@ export default function MapStage({
   // nothing.
   // Under a lens the markers wear the score's ramp, hour or window alike.
   const scored = scoreColouring !== null
-  const markerScale = scored ? SCORE_MAP_SCALE : playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
+  const markerScale = scoreColouring !== null ? scoreScale(scoreColouring.range) : playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
 
   const hasColoredMarkers = showResults && results.length > 0
   // Whether the ranked metric has anything to colour AT ALL on the rows shown.
