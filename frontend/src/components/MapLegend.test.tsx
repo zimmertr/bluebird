@@ -123,6 +123,18 @@ describe('MapLegend', () => {
     expect(scored[0].ramp?.bands).toBe(SCORE_MAP_SCALE.colors.length)
   })
 
+  // The grid paints the metric whatever ranks (#246), so under a lens it keys
+  // in the metric's own words under the score's key, and only while it paints.
+  it('keys the grid in its metric under the score while a lens ranks', () => {
+    const scale = rankedScale('temp_avg_f')
+    const lens = { ...BASE, markerScale: SCORE_MAP_SCALE, hasColoredMarkers: true, scored: true, gridScale: scale }
+    const painted = { ...NO_GRID, gridPainted: true, gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const } }
+    const both = legendSections({ ...lens, grid: painted }, 'id')
+    expect(both.map((s) => s.label)).toEqual(['Score', 'Temperature (°F)', 'Forecast grid'])
+    expect(both[1].ramp?.bands).toBe(scale!.colors.length)
+    expect(legendSections(lens, 'id').map((s) => s.label)).toEqual(['Score'])
+  })
+
   // A chip shows a letter, and the word it stands for was its title alone,
   // which reaches a pointer and nobody else (#576). The word is in the chip
   // as hidden text too.

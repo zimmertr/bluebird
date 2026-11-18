@@ -270,7 +270,8 @@ export default function MapStage({
   // nothing.
   // Under a lens the markers wear the score's ramp, hour or window alike.
   const scored = scoreColouring !== null
-  const markerScale = scoreColouring !== null ? scoreScale(scoreColouring.range) : playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
+  const metricScale = playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
+  const markerScale = scoreColouring !== null ? scoreScale(scoreColouring.range) : metricScale
 
   const hasColoredMarkers = showResults && results.length > 0
   // Whether the ranked metric has anything to colour AT ALL on the rows shown.
@@ -280,7 +281,18 @@ export default function MapStage({
   // the only thing on screen claiming the field was measured.
   const rankedFieldHasValue = scored ? results.some((r) => r.score != null) : fieldHasValue(results, sortBy)
   // What the legend keys: a desk's card on the map, a phone's Legend sheet.
-  const legendInputs: LegendInputs = { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid, scored }
+  // The grid paints the metric whatever ranks (#246), so under a lens it keeps
+  // a key of its own beside the score's.
+  const legendInputs: LegendInputs = {
+    sortBy,
+    markerScale,
+    hasColoredMarkers,
+    rankedFieldHasValue,
+    overlays,
+    grid,
+    scored,
+    gridScale: scored ? metricScale : null,
+  }
   const legend = legendSections(legendInputs, smokeId)
 
   // The phone's draw bar stands under the chip row while a ring is drawn

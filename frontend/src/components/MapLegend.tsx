@@ -166,6 +166,11 @@ export interface LegendInputs {
   scored?: boolean
   /** Whether the ranked metric has any value on the rows shown (`fieldHasValue`). */
   rankedFieldHasValue: boolean
+  /**
+   * The metric's own scale while a lens ranks, or null: the markers then wear
+   * the score, and the forecast grid, which paints the metric, keys on this.
+   */
+  gridScale?: LabelledScale | null
   /** Which overlays are on, each keyed by a section. */
   overlays: Pick<
     MapOverlays,
@@ -194,7 +199,7 @@ export type LegendSectionSpec = Parameters<typeof legendSection>[0]
  * and, with a suffix of their own, the fire chips'.
  */
 export function legendSections(
-  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid, scored = false }: LegendInputs,
+  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid, scored = false, gridScale = null }: LegendInputs,
   smokeId: string,
 ): LegendSectionSpec[] {
   const {
@@ -276,6 +281,17 @@ export function legendSections(
               ticks: snowKeyed ? snowTicks() : scaleTicks(markerScale),
               bands: snowKeyed ? SNOW_RAMP.length : markerScale.colors.length,
             },
+          },
+        ]
+      : []),
+    // Under a lens the markers wear the score and the grid still paints the
+    // metric, so the one shared key above is the score's and the grid keys
+    // here, in the metric's own words.
+    ...(gridScale !== null && (gridPainted || gridCued)
+      ? [
+          {
+            label: metricLabel(familyOf(sortBy), undefined, gridScale.unit),
+            ramp: { css: scaleRampCss(gridScale), ticks: scaleTicks(gridScale), bands: gridScale.colors.length },
           },
         ]
       : []),
