@@ -18,6 +18,8 @@ import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { anyPointInView, framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, MAX_PITCH, initialCamera } from '../utils/mapView'
 import type { ViewBounds } from '../utils/layerCoverage'
+import { viewBoxOf } from '../utils/viewBox'
+import type { BBox } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
 // The plain-data half of this component, which is where anything testable
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
@@ -63,6 +65,8 @@ export interface MapViewHandle {
   // share link's camera is written without state (`map/camera.ts`): a pan
   // would otherwise render every child of the map's parent.
   watchBounds: (onBounds: (bounds: ViewBounds) => void) => () => void
+  /** The box the view covers lying flat (`viewBoxOf`), or null before the map exists: the search area while no ring is drawn (record 0308). */
+  getViewBox: () => BBox | null
   /** Put the camera back where `getCamera` found it, with no animation. */
   setCamera: (camera: MapCamera) => void
   framePolygon: () => void
@@ -473,6 +477,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     }
 
     useImperativeHandle(ref, () => ({
+      getViewBox() {
+        const map = mapRef.current
+        return map ? viewBoxOf(map) : null
+      },
       watchBounds(onBounds) {
         const map = mapRef.current
         return map ? watchView(map, onBounds) : () => {}
