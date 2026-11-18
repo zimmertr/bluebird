@@ -38,6 +38,7 @@ export interface UrlSyncInputs {
   showRadar: boolean
   showSmoke: boolean
   showSnow: boolean
+  showCloud: boolean
   showGrid: boolean
   showContours: boolean
   showRelief: boolean
@@ -109,6 +110,7 @@ export function useUrlSync({
   showRadar,
   showSmoke,
   showSnow,
+  showCloud,
   showGrid,
   showContours,
   showRelief,
@@ -211,6 +213,7 @@ export function useUrlSync({
         showRadar,
         showSmoke,
         showSnow,
+        showCloud,
         showGrid,
         showContours,
         showRelief,
@@ -252,6 +255,7 @@ export function useUrlSync({
     showRadar,
     showSmoke,
     showSnow,
+    showCloud,
     showGrid,
     showContours,
     showRelief,

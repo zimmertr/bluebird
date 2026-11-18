@@ -304,6 +304,7 @@ export default function MapStage({
       overlays={overlays}
       grid={grid}
       playerOffered={timeline.playerOffered}
+      cloudOffered={analysis.analyzedAtMs !== null}
       mapRef={mapRef}
       coverage={coverage}
       forcedOpen={layersForcedOpen}

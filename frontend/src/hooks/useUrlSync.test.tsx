@@ -37,6 +37,7 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     showRadar: false,
     showSmoke: false,
     showSnow: false,
+    showCloud: true,
     showGrid: false,
     showContours: false,
     showRelief: false,

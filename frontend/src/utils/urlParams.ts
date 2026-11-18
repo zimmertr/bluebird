@@ -692,6 +692,15 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   flag('radar', 'showRadar'),
   flag('smoke', 'showSmoke'),
   flag('snowdepth', 'showSnow'),
+  // The cloud sea is on until turned off (record 0309), so its one word in a
+  // link says it is off, read only from `1` as every flag is.
+  {
+    key: 'nocloud',
+    encode: (state) => (state.showCloud === false ? '1' : null),
+    decode: (raw, out) => {
+      if (raw === '1') out.showCloud = false
+    },
+  },
   flag('topo', 'showContours'),
   flag('relief', 'showRelief'),
   flag('slope', 'showSlope'),
@@ -820,6 +829,7 @@ export const FIELD_PARAMS = {
   showRadar: ['radar'],
   showSmoke: ['smoke'],
   showSnow: ['snowdepth'],
+  showCloud: ['nocloud'],
   showContours: ['topo'],
   showRelief: ['relief'],
   showSlope: ['slope'],

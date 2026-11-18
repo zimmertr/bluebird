@@ -242,6 +242,7 @@ export default function App() {
     showRadar,
     showSmoke,
     showSnow,
+    showCloud,
     showGrid,
     showContours,
     showRelief,
@@ -389,8 +390,11 @@ export default function App() {
   // report's own numbers, so drawing it asks nothing of Open-Meteo.
   const cloudHour = playbackIndex ?? (forecastTimes.length > 0 ? Math.floor(forecastTimes.length / 2) : null)
   const cloudDeck = useMemo(
-    () => (cloudHour === null || shownUniverse === null || shownUniverse.length === 0 ? null : deckPoints(shownUniverse, cloudHour)),
-    [cloudHour, shownUniverse],
+    () =>
+      !showCloud || cloudHour === null || shownUniverse === null || shownUniverse.length === 0
+        ? null
+        : deckPoints(shownUniverse, cloudHour),
+    [showCloud, cloudHour, shownUniverse],
   )
 
   // ── The forecast grid (#246) ──────────────────────────────────────────────
@@ -518,6 +522,7 @@ export default function App() {
     showRadar,
     showSmoke,
     showSnow,
+    showCloud,
     showGrid,
     showContours,
     showRelief,

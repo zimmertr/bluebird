@@ -91,6 +91,10 @@ export interface ShareableState {
   showSmoke: boolean
   showSnow: boolean
   showGrid: boolean
+  // The cloud sea (record 0309), the one layer on until the reader turns it
+  // off, so a link carries it only when it is off. Optional for `lens`'s
+  // reason: a state built before it existed still types and encodes as it did.
+  showCloud?: boolean
   // The terrain and imagery layers (#799): the Topographic row's contours,
   // shaded relief and the aerial imagery.
   showContours: boolean
@@ -203,6 +207,7 @@ export function encodeState(
     state.showRadar ||
     state.showSmoke ||
     state.showSnow ||
+    state.showCloud === false ||
     state.showGrid ||
     state.showContours ||
     state.showRelief ||

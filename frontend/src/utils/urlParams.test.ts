@@ -204,6 +204,16 @@ describe('the codec table against the links it wrote before', () => {
     expect(out).toMatchObject({ sortDesc: true, limit: 50, showSnow: true })
   })
 
+  // The cloud sea is on until turned off (record 0309): a link names it only
+  // when it is off, and an older link, which never names it, opens with it on.
+  it('writes nocloud only for a cloud sea turned off', () => {
+    expect(encodeState({ ...dateless, showCloud: false }, DEFAULT_MODEL)).toContain('nocloud=1')
+    expect(encodeState({ ...dateless, showCloud: true }, DEFAULT_MODEL)).not.toContain('nocloud')
+    expect(decodeState('nocloud=1')?.showCloud).toBe(false)
+    expect(decodeState('nocloud=0')?.showCloud).toBeUndefined()
+    expect(decodeState('snowdepth=1')?.showCloud).toBeUndefined()
+  })
+
   // #864, by the maintainer's word (2026-11-04): no old key is read and no
   // old name is an alias. The three habits are the browser's now, and the
   // three renamed keys answer only to their new spelling.
@@ -299,6 +309,7 @@ describe('the codec table', () => {
       'radar',
       'smoke',
       'snowdepth',
+      'nocloud',
       'topo',
       'relief',
       'slope',

@@ -3536,6 +3536,7 @@ describe('the map layer rows', () => {
       'Trail closures',
       'Rain radar',
       'Snow depth',
+      'Cloud deck',
       'Forecast grid',
       'Forecast player',
     ])
