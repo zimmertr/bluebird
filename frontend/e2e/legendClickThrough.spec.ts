@@ -1,4 +1,4 @@
-import { test, expect, message } from './fixtures'
+import { test, expect, message, openSection } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // At a desk the legend is a card under its chip (#714; record 0174), as tall
@@ -113,8 +113,9 @@ test('the desk legend card scrolls when its sections outgrow the map', async ({ 
 
 // With the player on, the card stops above its band only where the centred
 // bar reaches under it (record 0261). The controls card is open at both
-// widths (record 0305), so the legend stands beside it, in the map's first
-// row, and the bar reaches under it on a map narrower than 1610px.
+// widths with Metrics open in it (record 0305), too tall for the legend to
+// stand under, so the legend stands beside it, in the map's first row, and
+// the bar reaches under it on a map narrower than 1610px.
 for (const [width, side] of [
   [1680, 'wide'],
   [1280, 'narrow'],
@@ -124,6 +125,7 @@ for (const [width, side] of [
     await page.goto('/?wildfires=1&radar=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Play the timeline' })).toBeVisible()
+    await openSection(page, 'Metrics')
     const label = page.getByText('Active wildfires').first()
     await expect(label).toBeVisible()
     const at = await label.evaluate((el) => {

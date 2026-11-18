@@ -55,7 +55,6 @@ const INPUTS = {
   setCustomCsv: NOOP,
   includeUnnamedPeaks: false,
   setIncludeUnnamedPeaks: NOOP,
-  places: [],
 }
 const SELECTION = {
   selection: DEFAULT_SELECTION,
