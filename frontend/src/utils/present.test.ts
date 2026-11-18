@@ -151,14 +151,14 @@ describe('panelCommitCues', () => {
   const RING = { coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
   const WINDOW = { startMs: Date.UTC(2026, 6, 20, 6), endMs: Date.UTC(2026, 6, 20, 18) }
   // A report of peaks inside RING, and a panel that still says exactly that.
-  const report = analyzedSnapshot({ window: WINDOW, ...discoveryKeys(RING, ['peak'], false) })
+  const report = analyzedSnapshot({ window: WINDOW, ...discoveryKeys([RING], ['peak'], false) })
   const panel = (over: Partial<PanelState> = {}): PanelState => ({
     settled: true,
     selectionKind: 'days',
     windowMs: WINDOW,
     forecastModel: report.forecastModel,
     comparedModels: [],
-    polygon: RING,
+    areas: [RING],
     destinationTypes: ['peak'],
     includeUnnamedPeaks: false,
     pendingCount: 0,
@@ -177,7 +177,7 @@ describe('panelCommitCues', () => {
     const all = panel({
       windowMs: { ...WINDOW, endMs: WINDOW.endMs + 3_600_000 },
       forecastModel: 'ecmwf_ifs025',
-      polygon: { coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] },
+      areas: [{ coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] }],
       destinationTypes: ['peak', 'lake'],
       pendingCount: 1,
       sortBy: 'cloud_deck_max_ft',
@@ -232,34 +232,41 @@ describe('discoveryKeys', () => {
   const ring = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
 
   it('is order-independent over the type set, like the cache key upstream', () => {
-    expect(discoveryKeys(ring, ['peak', 'lake'], false).typesKey).toBe(
-      discoveryKeys(ring, ['lake', 'peak'], false).typesKey,
+    expect(discoveryKeys([ring], ['peak', 'lake'], false).typesKey).toBe(
+      discoveryKeys([ring], ['lake', 'peak'], false).typesKey,
     )
   })
 
   it('treats the unnamed-peaks toggle as a type change', () => {
     // The toggle widens what discovery finds the same way checking another
     // type does, so it must move the same key.
-    expect(discoveryKeys(ring, ['peak'], true).typesKey).not.toBe(
-      discoveryKeys(ring, ['peak'], false).typesKey,
+    expect(discoveryKeys([ring], ['peak'], true).typesKey).not.toBe(
+      discoveryKeys([ring], ['peak'], false).typesKey,
     )
   })
 
   it('ignores the unnamed-peaks toggle while peaks are not among the kinds (#803, M9)', () => {
     // Unticking Peaks hides the toggle and keeps its value, so a lakes search
     // with it left on is the same search as one with it off.
-    expect(discoveryKeys(ring, ['lake'], true).typesKey).toBe(discoveryKeys(ring, ['lake'], false).typesKey)
-    expect(discoveryKeys(ring, [], true).typesKey).toBe(discoveryKeys(ring, [], false).typesKey)
+    expect(discoveryKeys([ring], ['lake'], true).typesKey).toBe(discoveryKeys([ring], ['lake'], false).typesKey)
+    expect(discoveryKeys([ring], [], true).typesKey).toBe(discoveryKeys([ring], [], false).typesKey)
   })
 
   it('tells two rings apart, and a ring from none', () => {
     const other = { coordinates: [[[0, 0], [2, 0], [2, 2], [0, 0]]] }
-    expect(discoveryKeys(ring, [], false).polygonKey).not.toBe(
-      discoveryKeys(other, [], false).polygonKey,
+    expect(discoveryKeys([ring], [], false).polygonKey).not.toBe(
+      discoveryKeys([other], [], false).polygonKey,
     )
-    expect(discoveryKeys(ring, [], false).polygonKey).not.toBe(
-      discoveryKeys(null, [], false).polygonKey,
+    expect(discoveryKeys([ring], [], false).polygonKey).not.toBe(
+      discoveryKeys([], [], false).polygonKey,
     )
+  })
+
+  // Record 0306: a second area is a different search, and so is an area
+  // taken away.
+  it('tells one area from two', () => {
+    const other = { coordinates: [[[0, 0], [2, 0], [2, 2], [0, 0]]] }
+    expect(discoveryKeys([ring, other], [], false).polygonKey).not.toBe(discoveryKeys([ring], [], false).polygonKey)
   })
 
   it('spells the no-discovery case identically for both sides', () => {
@@ -267,7 +274,7 @@ describe('discoveryKeys', () => {
     // null and an unchecked set. The two must land on one spelling or every
     // custom-only report would cue.
     expect(discoveryKeys(undefined, undefined, undefined)).toEqual(
-      discoveryKeys(null, [], false),
+      discoveryKeys([], [], false),
     )
   })
 })
@@ -276,7 +283,7 @@ describe('discoveryKeys', () => {
 
 describe('discoveryChanges', () => {
   const ANALYZED_KEYS = discoveryKeys(
-    { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] },
+    [{ coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }],
     ['lake'],
     false,
   )
@@ -286,24 +293,24 @@ describe('discoveryChanges', () => {
     // The bug this function exists to pin: suppressing the types cue under a
     // changed ring silently dropped the knob the user had just clicked.
     expect(
-      discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['lake', 'peak'], false), true),
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys([REDRAWN], ['lake', 'peak'], false), true),
     ).toEqual({ polygon: true, types: true })
   })
 
   it('reports each alone when only one moved', () => {
     const ring = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
-    expect(discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['lake'], false), true)).toEqual({
+    expect(discoveryChanges(ANALYZED_KEYS, discoveryKeys([REDRAWN], ['lake'], false), true)).toEqual({
       polygon: true,
       types: false,
     })
     expect(
-      discoveryChanges(ANALYZED_KEYS, discoveryKeys(ring, ['lake', 'peak'], false), true),
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys([ring], ['lake', 'peak'], false), true),
     ).toEqual({ polygon: false, types: true })
   })
 
   it('stays silent when neither moved', () => {
     const same = { coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }
-    expect(discoveryChanges(ANALYZED_KEYS, discoveryKeys(same, ['lake'], false), true)).toEqual({
+    expect(discoveryChanges(ANALYZED_KEYS, discoveryKeys([same], ['lake'], false), true)).toEqual({
       polygon: false,
       types: false,
     })
@@ -313,12 +320,12 @@ describe('discoveryChanges', () => {
     // Mid-draw the polygon blocker is already speaking; a cleared ring leaves
     // nothing to re-search; types with no ring discover nothing.
     expect(
-      discoveryChanges(ANALYZED_KEYS, discoveryKeys(REDRAWN, ['peak'], true), false),
+      discoveryChanges(ANALYZED_KEYS, discoveryKeys([REDRAWN], ['peak'], true), false),
     ).toEqual({ polygon: false, types: false })
   })
 
   it('stays silent before the first analysis', () => {
-    expect(discoveryChanges(null, discoveryKeys(REDRAWN, ['peak'], false), true)).toEqual({
+    expect(discoveryChanges(null, discoveryKeys([REDRAWN], ['peak'], false), true)).toEqual({
       polygon: false,
       types: false,
     })

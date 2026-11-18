@@ -265,7 +265,9 @@ export default function DestinationsSection({
     }),
     ...(boxShown
       ? [
-          chip('custom', glyph(IconList), CUSTOM_LABEL, () => setCustomOpen((open) => !open || !csvBlank), () => {
+          // The box stands under the field while this chip does, so the chip
+          // has nothing to open; its × empties the box and shuts it.
+          chip('custom', glyph(IconList), CUSTOM_LABEL, null, () => {
             setCustomCsv('')
             setCustomOpen(false)
           }),

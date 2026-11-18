@@ -40,6 +40,7 @@ const READY_POLYGON: AnalyzeGate = {
   loading: false,
   areaTooLarge: false,
   polygonReady: true,
+  hasAreas: true,
   hasCustom: false,
   hasPins: false,
   compareAqi: false,
@@ -50,13 +51,13 @@ const READY_POLYGON: AnalyzeGate = {
 // The rule the type checkboxes grey on, which is the ring half of the polygon
 // gate: a type with no usable ring discovers nothing.
 describe('ringUsable', () => {
-  it('holds from three points, inside the cap', () => {
+  it('holds from one area, inside the cap', () => {
     expect(ringUsable(0, false)).toBe(false)
-    expect(ringUsable(2, false)).toBe(false)
-    expect(ringUsable(3, false)).toBe(true)
+    expect(ringUsable(1, false)).toBe(true)
+    expect(ringUsable(2, false)).toBe(true)
   })
-  it('fails a ring past the area cap however many points it has', () => {
-    expect(ringUsable(8, true)).toBe(false)
+  it('fails while any area is past the cap, however many there are', () => {
+    expect(ringUsable(3, true)).toBe(false)
   })
 })
 
@@ -108,7 +109,7 @@ describe('canAnalyze — pins-only path', () => {
 
 describe('analyzeBlockers', () => {
   // Nothing drawn, nothing pasted, nothing pinned: the panel's opening state.
-  const EMPTY = { ...READY_POLYGON, polygonReady: false, drawPointCount: 0 }
+  const EMPTY = { ...READY_POLYGON, polygonReady: false, hasAreas: false, drawPointCount: 0 }
 
   it('says nothing when Analyze is ready', () => {
     expect(analyzeBlockers({ ...READY_POLYGON, drawPointCount: 3 })).toEqual([])
@@ -181,6 +182,8 @@ describe('analyzeBlockers', () => {
           hasWindowWarning: on(0),
           areaTooLarge: on(1),
           polygonReady: on(2),
+          // Three points is a finished area, as the run would keep it.
+          hasAreas: drawPointCount >= 3,
           hasCustom: on(3),
           hasPins: on(4),
           datesPending: on(5),
@@ -290,7 +293,8 @@ describe('a polygon with nothing checked', () => {
     hasWindowWarning: false,
     loading: false,
     areaTooLarge: false,
-    polygonReady: false, // three points, but no types checked
+    polygonReady: false, // an area, but no types checked
+    hasAreas: true,
     hasCustom: false,
     hasPins: false,
     datesPending: false,
@@ -314,7 +318,7 @@ describe('a polygon with nothing checked', () => {
   })
 
   it('still reports an unfinished polygon as unfinished', () => {
-    expect(analyzeBlockers({ ...drawn, drawPointCount: 2 })).toEqual(['polygon'])
+    expect(analyzeBlockers({ ...drawn, hasAreas: false, drawPointCount: 2 })).toEqual(['polygon'])
   })
 
   // With another input the button stays open and the ring is simply ignored,
@@ -329,7 +333,7 @@ describe('a polygon with nothing checked', () => {
 
   it('says nothing while the ring is still being drawn', () => {
     expect(ringAddsNothing({ ...drawn, hasCustom: true, drawing: true })).toBe(false)
-    expect(ringAddsNothing({ ...drawn, hasCustom: true, drawing: false, drawPointCount: 2 })).toBe(false)
+    expect(ringAddsNothing({ ...drawn, hasCustom: true, drawing: false, hasAreas: false })).toBe(false)
   })
 
   it('says nothing for a ring with a type, an oversized ring, or no other input', () => {
@@ -490,7 +494,8 @@ describe('analyzeGateFor', () => {
     selection: { kind: 'now' },
     hasWindowWarning: false,
     loading: false,
-    polygonAreaKm2: null,
+    largestAreaKm2: null,
+    areaCount: 0,
     maxAreaKm2: 1000,
     drawPointCount: 0,
     destinationTypes: [],
@@ -514,11 +519,11 @@ describe('analyzeGateFor', () => {
   })
 
   it('reads a ring as an input only once it is closed, inside the cap and has a type', () => {
-    const ring = { hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, destinationTypes: ['peak' as const] }
+    const ring = { hasPins: false, areaCount: 1, largestAreaKm2: 10, destinationTypes: ['peak' as const] }
     expect(gateOf(ring).polygonReady).toBe(true)
-    expect(gateOf({ ...ring, drawPointCount: 2 }).polygonReady).toBe(false)
+    expect(gateOf({ ...ring, areaCount: 0, drawPointCount: 2 }).polygonReady).toBe(false)
     expect(gateOf({ ...ring, destinationTypes: [] }).polygonReady).toBe(false)
-    const big = gateOf({ ...ring, polygonAreaKm2: 2000 })
+    const big = gateOf({ ...ring, largestAreaKm2: 2000 })
     expect(big.areaTooLarge).toBe(true)
     expect(big.polygonReady).toBe(false)
   })
@@ -577,7 +582,7 @@ describe('analyzeGateFor', () => {
   })
 
   it('holds a refusal that stands, and lets one go once the panel moves', () => {
-    const failed = analyzedSnapshot(discoveryKeys(null, [], false))
+    const failed = analyzedSnapshot(discoveryKeys([], [], false))
     const refusal = { message: 'This search covers 1,501 destinations. The analysis limit is 1,500 destinations.' }
     expect(gateOf({ refusal, failedView: failed }).refused).toBe(true)
     expect(canAnalyze(gateOf({ refusal, failedView: failed }))).toBe(false)
@@ -686,14 +691,14 @@ describe('retryStands', () => {
   const RING = { coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
   const WINDOW = { startMs: Date.UTC(2026, 6, 20, 6), endMs: Date.UTC(2026, 6, 20, 18) }
   // The run that failed: peaks inside RING over WINDOW on the default model.
-  const failed = analyzedSnapshot({ window: WINDOW, ...discoveryKeys(RING, ['peak'], false) })
+  const failed = analyzedSnapshot({ window: WINDOW, ...discoveryKeys([RING], ['peak'], false) })
   const transient = { message: 'Open-Meteo request failed. Try again later.', retry: true }
   const panel = (over: Partial<Omit<PanelState, 'settled'>> = {}): Omit<PanelState, 'settled'> => ({
     selectionKind: 'days',
     windowMs: WINDOW,
     forecastModel: failed.forecastModel,
     comparedModels: [],
-    polygon: RING,
+    areas: [RING],
     destinationTypes: ['peak'],
     includeUnnamedPeaks: false,
     pendingCount: 0,
@@ -724,7 +729,7 @@ describe('retryStands', () => {
     ['a compared model', { comparedModels: ['ecmwf_ifs025'] }],
     ['the window', { windowMs: { startMs: WINDOW.startMs, endMs: WINDOW.endMs + 3_600_000 } }],
     ['the selection arm', { selectionKind: 'now' as const }],
-    ['the ring', { polygon: { coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] } }],
+    ['the ring', { areas: [{ coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] }]}],
     ['the types', { destinationTypes: ['peak', 'lake'] }],
     ['the unnamed-peaks toggle', { includeUnnamedPeaks: true }],
     ['a destination the run never saw', { pendingCount: 1 }],
@@ -743,7 +748,7 @@ describe('retryStands', () => {
   // a complete ring, so a failed ring search with the ring since cleared
   // keeps the word until the run or the error goes.
   it('ignores the ring while none is drawn, as the commit cue does', () => {
-    expect(retryStands(transient, failed, panel({ polygon: null }))).toBe(true)
+    expect(retryStands(transient, failed, panel({ areas: []}))).toBe(true)
   })
 })
 
@@ -756,14 +761,14 @@ describe('refusalStands', () => {
   // The run that was refused: peaks inside RING with two listed destinations.
   const failed = analyzedSnapshot({
     window: WINDOW,
-    ...discoveryKeys(RING, ['peak'], true),
+    ...discoveryKeys([RING], ['peak'], true),
     customKeys: new Set(['47.1,-121.2', '47.2,-121.3']),
   })
   const refusal = { message: 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.' }
   const panel = (over: Partial<Parameters<typeof refusalStands>[2]> = {}) =>
     refusalPanel({
       windowMs: WINDOW,
-      polygon: RING,
+      areas: [RING],
       destinationTypes: ['peak'],
       includeUnnamedPeaks: true,
       customCount: 2,
@@ -784,13 +789,13 @@ describe('refusalStands', () => {
     ['a compared model', { comparedModels: ['ecmwf_ifs025'] }],
     ['the window', { windowMs: { startMs: WINDOW.startMs, endMs: WINDOW.endMs + 3_600_000 } }],
     ['the selection arm', { selectionKind: 'now' as const }],
-    ['the ring', { polygon: { coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] } }],
+    ['the ring', { areas: [{ coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] }]}],
     ['the types', { destinationTypes: ['peak', 'lake'] }],
     // The remedy for the reported case: unnamed peaks unticked.
     ['the unnamed-peaks toggle', { includeUnnamedPeaks: false }],
     ['a destination the run never saw', { pendingCount: 1, customCount: 3 }],
     // The two the commit cues pass over: a cleared ring, and a shorter list.
-    ['the ring is cleared', { polygon: null }],
+    ['the ring is cleared', { areas: []}],
     ['a listed destination is taken out', { customCount: 1 }],
   ] as [string, Partial<Parameters<typeof refusalStands>[2]>][])('falls when %s changes', (_what, over) => {
     expect(refusalStands(refusal, failed, panel(over))).toBe(false)

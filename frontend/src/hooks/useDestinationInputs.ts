@@ -10,7 +10,7 @@ import type { ShareableState } from '../utils/urlState'
 
 /** The largest of these rings' areas, by the box around each, or null for none. */
 function largestKm2(rings: readonly GeoPolygon[]): number | null {
-  return rings.length === 0 ? null : Math.max(...rings.map((ring) => bboxAreaKm2(ringToPts(ring))))
+  return rings.length === 0 ? null : Math.max(...rings.map((ring) => bboxAreaKm2(ringToPts(ring)) ?? 0))
 }
 
 /**

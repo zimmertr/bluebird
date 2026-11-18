@@ -21,7 +21,6 @@ function rows(over: Partial<Parameters<typeof MapRows>[0]> = {}) {
     <MapRows
       searchBoxRef={createRef<SearchBoxHandle>()}
       onSearchSelect={() => {}}
-      searchPointed={false}
       onLocateSlot={() => {}}
       onTerrainSlot={() => {}}
       onCompassSlot={() => {}}
@@ -83,6 +82,15 @@ describe('MapRows', () => {
     expect(chips.className).toBe('hidden')
     fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
     expect(chips.className).not.toBe('hidden')
+  })
+
+  // A desk's search stands in the panel's Destinations field (record 0306),
+  // so its map carries no pill.
+  it('carries the search on a phone and not at a desk', () => {
+    const { rerender } = render(rows())
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
+    rerender(rows({ desk: true }))
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
   })
 
   it('hands up the slot the map stands its locate button in', () => {

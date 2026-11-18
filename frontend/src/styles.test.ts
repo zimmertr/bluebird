@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
-  ACCENT_RING,
+  DESTINATION_ADD,
+  DESTINATION_FIELD,
   BADGE_ACCENT,
   BADGE_STEP,
   LAYER,
@@ -880,24 +881,36 @@ describe('grouping and segmenting', () => {
     for (const ratio of Object.values(MEASURED)) expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 
-  // Pointing at a control from across the screen is a ring, not a border or a
-  // fill: it has to layer onto something that already has both. DAY.today is
-  // the other one, and it wears slate because it labels a day rather than
-  // acting on it — this one wears the resting accent because it is the app
-  // answering a hover.
-  it('points with a ring in the resting accent', () => {
-    expect(darkStep(token(ACCENT_RING, 'ring'))).toBe('sky-400')
-    expect(ACCENT_RING).not.toContain('border')
+  // DAY.today's ring wears slate because it labels a day rather than acting
+  // on it.
+  it('rings today in slate', () => {
     expect(darkStep(token(DAY.today, 'ring'))).toBe('slate-400')
   })
+})
 
-  // The ring is a box-shadow and fades; a radius does not. Bundling one in here
-  // squared the corners the instant the ring began fading, so the outline spent
-  // the transition as a rectangle standing off a rounded field. The element
-  // wearing this keeps its own radius at all times.
-  it('leaves the radius to whatever wears the ring', () => {
-    expect(ACCENT_RING).not.toContain(RADIUS.surface)
-    expect(ACCENT_RING).not.toMatch(/\brounded\b/)
+// The Destinations section's field and its two add buttons (record 0306).
+describe('the destinations field', () => {
+  // A list's chip names it and does nothing when pressed, so its name is the
+  // pressable label's box without the pointer or the ring.
+  it('sizes a list chip\'s name as a pressable one', () => {
+    for (const word of words(DESTINATION_FIELD.text)) expect(words(CHIP.label)).toContain(word)
+    expect(DESTINATION_FIELD.text).not.toContain('cursor-pointer')
+    expect(DESTINATION_FIELD.text).not.toContain(FOCUS_RING)
+  })
+
+  // The field is a field: its edge and fill are FIELD's, and it lights its
+  // edge while the search inside it has the keyboard.
+  it('frames the chips and the search as one field', () => {
+    expect(DESTINATION_FIELD.frame).toContain('focus-within:border-mark')
+    expect(DESTINATION_FIELD.search).toContain(TAP.height)
+  })
+
+  // The pair reads as one: both tiles wear one face, and the line under each
+  // name is the caption measured on the raised fill.
+  it('gives both add buttons one face and the lifted caption', () => {
+    expect(DESTINATION_ADD.tile).toContain('bg-raised')
+    expect(DESTINATION_ADD.line).toContain(CAPTION_LIFTED)
+    expect(DESTINATION_ADD.row).toContain('grid-cols-2')
   })
 })
 
@@ -3982,7 +3995,6 @@ describe('the elevation scale', () => {
   })
 
   it('keeps the glows off the scale', () => {
-    expect(ACCENT_RING).toMatch(/shadow-\[/)
     expect(STYLES.TOUR.spotlight).toMatch(/shadow-\[/)
   })
 })
@@ -4687,10 +4699,12 @@ describe('the one menu', () => {
   // Three trigger shapes, on purpose (TJ, 2026-10-20: "Three shapes,
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu. The segment and the
-  // square came with the chart's picker (#499), and the header's round button
-  // with the theme menu (#843), each the look of what it stands beside.
+  // square came with the chart's picker (#499), the header's round button
+  // with the theme menu (#843), and the tile with Search by list (record
+  // 0306), each the look of what it stands beside.
   it('keeps the trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square', 'tile'])
+    expect(MENU_TRIGGER.tile).toBe(DESTINATION_ADD.tile)
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())

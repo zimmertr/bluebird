@@ -22,14 +22,20 @@ vi.mock('./ControlPanel', () => ({
 const NOOP = () => {}
 const DRAW = {
   drawing: false,
-  startDrawing: NOOP,
-  finishDrawing: NOOP,
   drawPointCount: 0,
+  startArea: NOOP,
+  editArea: NOOP,
+  removeArea: NOOP,
+  finishDrawing: () => [],
   handleCancelDrawing: NOOP,
-  handleClearDrawing: NOOP,
 }
 const INPUTS = {
-  polygonAreaKm2: null,
+  areas: [],
+  areaKm2s: [],
+  draftAreaKm2: null,
+  presetLists: { ids: [], add: NOOP, remove: NOOP, rows: [], arriving: false },
+  places: [],
+  removePlace: NOOP,
   destinationTypes: [],
   setDestinationTypes: NOOP,
   customCsv: '',
@@ -81,9 +87,10 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       chartMetrics={chartMetricsOf()}
       caps={CAPS}
       mapRef={MAP}
-      onPointAtSearch={NOOP}
       onPointAtMapPois={NOOP}
-      onPresetListFailed={NOOP}
+      areaCount={0}
+      onSearchSelect={NOOP}
+      onFramePlace={NOOP}
       messages={MESSAGES}
       onAnalyze={NOOP}
       autoAnalyze={false}
@@ -96,6 +103,15 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
 }
 
 describe('AppDrawer', () => {
+  // A desk's search stands in the Destinations field (record 0306); a
+  // phone's is the map's pill, so its Controls sheet holds none.
+  it('puts the search in a desk\'s panel and not in a phone\'s', () => {
+    const { rerender } = render(drawer(true))
+    expect(screen.getByPlaceholderText('Search by name')).toBeTruthy()
+    rerender(drawer(true, NOOP, { isDesktop: false }))
+    expect(screen.queryByPlaceholderText('Search by name')).toBeNull()
+  })
+
   // The theme menu at a desk (#843): in the header, beside the close button
   // and in its box, named by the choice it holds, and a pick reaches App.
   it('carries the theme menu beside its close button at a desk', () => {

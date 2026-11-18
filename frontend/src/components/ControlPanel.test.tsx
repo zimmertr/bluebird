@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import ControlPanel from './ControlPanel'
+import type { DestinationsInputs } from './DestinationsSection'
 import { type PanelMessageState, usePanelMessages } from '../hooks/usePanelMessages'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
@@ -25,9 +26,10 @@ const MODELS = [
 
 type Props = Omit<ComponentProps<typeof ControlPanel>, 'messages'>
 type State = PanelMessageState
-// One override reaches both the panel's props and the messages' state, so a
-// point count or a type set is spelled once, as App spells it once.
-type Over = Partial<Props> & Partial<State>
+// One override reaches the panel's props, the Destinations section's and the
+// messages' state, so a point count or a type set is spelled once, as App
+// spells it once.
+type Over = Partial<Omit<Props, 'destinations'>> & Partial<State> & Partial<DestinationsInputs>
 
 // A panel with nothing to analyze yet: no polygon, no CSV, no pin, and every
 // knob at the value a first visit lands on. Each test overrides the few
@@ -40,7 +42,8 @@ function state(over: Partial<State> = {}): State {
     forecastModel: 'gfs_seamless',
     comparedModels: [],
     forecastModels: MODELS,
-    polygonAreaKm2: null,
+    largestAreaKm2: null,
+    areaCount: 0,
     maxAreaKm2: 100_000,
     drawPointCount: 0,
     drawing: false,
@@ -78,29 +81,54 @@ function state(over: Partial<State> = {}): State {
   }
 }
 
-function props(over: Partial<Props> = {}): Props {
+function destinations(over: Partial<DestinationsInputs> = {}): DestinationsInputs {
   const noop = () => {}
   return {
+    areas: [],
+    areaKm2s: [],
     drawing: false,
-    onStartDrawing: noop,
-    onFinishDrawing: noop,
-    onTutorial: noop,
     drawPointCount: 0,
-    polygonAreaKm2: null,
+    onStartArea: noop,
+    onEditArea: noop,
+    onRemoveArea: noop,
+    onFinishDrawing: noop,
     onCancelDrawing: noop,
-    onClearDrawing: noop,
-    onPointAtSearch: noop,
+    areaCount: 0,
+    draftAreaKm2: null,
     onPointAtMapPois: noop,
     destinationTypes: ['peak'],
     setDestinationTypes: noop,
+    includeUnnamedPeaks: false,
+    setIncludeUnnamedPeaks: noop,
+    presetLists: { ids: [], add: noop, remove: noop },
+    customCsv: '',
+    setCustomCsv: noop,
+    onCsvPasted: noop,
+    places: [],
+    onRemovePlace: noop,
+    onFramePlace: noop,
+    ...pick(over, DESTINATION_KEYS),
+  }
+}
+
+// The members of an override that are the section's rather than the panel's.
+const DESTINATION_KEYS = ['drawing', 'drawPointCount', 'areaCount', 'destinationTypes', 'customCsv'] as const
+function pick<T extends object, K extends keyof T>(from: T, keys: readonly K[]): Partial<Pick<T, K>> {
+  return Object.fromEntries(keys.filter((k) => k in from).map((k) => [k, from[k]])) as Partial<Pick<T, K>>
+}
+
+function props(over: Over = {}): Props {
+  const noop = () => {}
+  const panel = Object.fromEntries(
+    Object.entries(over).filter(([k]) => !(DESTINATION_KEYS as readonly string[]).includes(k)),
+  ) as Partial<Props>
+  return {
+    destinations: destinations(over),
+    onTutorial: noop,
     selection: { kind: 'now' },
     setSelection: noop,
     limit: DEFAULT_LIMIT,
     setLimit: noop,
-    customCsv: '',
-    setCustomCsv: noop,
-    onCsvPasted: noop,
-    onPresetListFailed: vi.fn(),
     sortBy: DEFAULT_FAMILY_KEY.precip,
     setSortBy: noop,
     sortDesc: false,
@@ -110,8 +138,6 @@ function props(over: Partial<Props> = {}): Props {
     constraints: NO_CONSTRAINTS,
     setConstraints: noop,
     onClearFilters: noop,
-    includeUnnamedPeaks: false,
-    setIncludeUnnamedPeaks: noop,
     forecastModel: 'gfs_seamless',
     setForecastModel: noop,
     forecastModels: MODELS,
@@ -129,7 +155,7 @@ function props(over: Partial<Props> = {}): Props {
     aqiForecastDays: 5,
     charted: ['precip'],
     onChart: noop,
-    ...over,
+    ...panel,
   }
 }
 
@@ -154,8 +180,8 @@ describe('the Analyze button', () => {
   const blocked: [string, Over, RegExp][] = [
     ['no destination', {}, /at least one destination/],
     ['a polygon under three points', { drawPointCount: 2 }, /1 more point/],
-    ['a polygon with no type checked', { drawPointCount: 3, destinationTypes: [] }, /destination type/],
-    ['a polygon over the area cap', { drawPointCount: 4, polygonAreaKm2: 200_000 }, /polygon is too large/],
+    ['a polygon with no type checked', { areaCount: 1, destinationTypes: [] }, /destination type/],
+    ['a polygon over the area cap', { areaCount: 1, largestAreaKm2: 200_000 }, /polygon is too large/],
     ['a window that cannot be served', { hasPins: true, windowWarning: 'order' }, /forecast window/],
     [
       'the Dates arm with no day picked',
@@ -209,7 +235,7 @@ describe('the Analyze button', () => {
   // the types line says as information that the ring adds nothing (#579), so
   // the badge reads blue rather than a blocker's red.
   it('stays enabled beside a finished ring with no type, and says the ring adds nothing', async () => {
-    const { user } = render(<Panel hasPins drawPointCount={3} destinationTypes={[]} />)
+    const { user } = render(<Panel hasPins areaCount={1} destinationTypes={[]} />)
     expect(analyze().disabled).toBe(false)
     expect(analyze().getAttribute('aria-disabled')).toBeNull()
     expect(badge().textContent).toBe('1')
@@ -219,7 +245,7 @@ describe('the Analyze button', () => {
   })
 
   it('says nothing about the ring while it is still being drawn', () => {
-    render(<Panel hasPins drawPointCount={3} destinationTypes={[]} drawing />)
+    render(<Panel hasPins areaCount={1} drawPointCount={3} destinationTypes={[]} drawing />)
     noBadge()
   })
 
@@ -233,7 +259,7 @@ describe('the Analyze button', () => {
   })
 
   it('is enabled by a finished polygon with a type checked', () => {
-    render(<Panel drawPointCount={3} polygonAreaKm2={500} />)
+    render(<Panel areaCount={1} largestAreaKm2={500} />)
     expect(analyze().disabled).toBe(false)
     noBadge()
   })
@@ -340,7 +366,7 @@ describe('the messages', () => {
   it('makes the Analyze button the one retry for a failed run', async () => {
     const onAnalyze = vi.fn()
     const { user } = render(
-      <Panel {...crowded} drawPointCount={3} destinationTypes={['peak']} polygonAreaKm2={10} onAnalyze={onAnalyze} />,
+      <Panel {...crowded} areaCount={1} destinationTypes={['peak']} largestAreaKm2={10} onAnalyze={onAnalyze} />,
     )
     expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1)
     expect(analyze().disabled).toBe(false)
