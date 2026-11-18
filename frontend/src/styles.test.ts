@@ -3673,7 +3673,7 @@ describe('the map legend sections', () => {
     // The metric key's label is composed, not written: `metricLabel` is what
     // every surface in the app names a metric with, and it reads the SCALE's
     // unit so playback's swap to `in/hr` relabels the strip with its bands.
-    expect(box).toContain('label: metricLabel(')
+    expect(box).toContain("label: scored ? 'Score' : metricLabel(")
   })
 
   // In the Layers menu's order (record 0249): the metric key, the base map's
@@ -3681,7 +3681,7 @@ describe('the map legend sections', () => {
   // than sorted, so the order is the source's.
   it('lists the sections in the Layers menu\'s order, the metric key first', () => {
     const at = (mark: string) => box.indexOf(mark)
-    const order = ['label: metricLabel(', "label: 'Slope angle'", ...LAYER_LABELS_IN_ORDER]
+    const order = ["label: scored ? 'Score' : metricLabel(", "label: 'Slope angle'", ...LAYER_LABELS_IN_ORDER]
     expect(order.map(at).every((i) => i >= 0)).toBe(true)
     expect(order.map(at)).toEqual([...order.map(at)].sort((a, b) => a - b))
     expect(box).not.toContain('.sort(')

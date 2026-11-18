@@ -994,6 +994,7 @@ export default function App() {
           cornerLinks={cornerLinks}
           cloudDeck={cloudDeck}
           scoreColouring={lens !== null ? SCORE_COLOURING : null}
+          dayStrip={isDesktop ? { selection, onSelection: forecastSelection.changeSelection, band: forecastSelection.band } : null}
           onCameraMove={onCameraMove}
         />
 

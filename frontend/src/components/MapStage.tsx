@@ -3,6 +3,9 @@ import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
 import type { DeckPoint } from '../utils/cloudSea'
+import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
+import DayStrip from './DayStrip'
+import type { TimelineAxis } from '../utils/timeline'
 import type { ScoreColouring } from '../utils/resultFeatures'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
@@ -158,6 +161,8 @@ export interface MapStageProps {
   cloudDeck?: readonly DeckPoint[] | null
   /** The markers' score colouring while a lens ranks the field (record 0306), memoized in `App.tsx`. */
   scoreColouring?: ScoreColouring | null
+  /** At a desk, the window the day strip picks and the band it is drawn over (record 0310). */
+  dayStrip?: { selection: ForecastSelection; onSelection: (s: ForecastSelection) => void; band: BandLimits } | null
 }
 
 /**
@@ -207,6 +212,7 @@ export default function MapStage({
   cornerLinks,
   cloudDeck = null,
   scoreColouring = null,
+  dayStrip = null,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -323,6 +329,25 @@ export default function MapStage({
       : layoutMotion === 'panes'
         ? LAYOUT_HOLD.mapPanes
         : LAYOUT_HOLD.rest
+
+  // The forecast player, alone over the map or hosted by the day strip.
+  const transport = (axis: TimelineAxis, embedded: boolean) => (
+    <TimelineTransport
+      axis={axis}
+      axes={timeline.timelineAxes}
+      onAxisChange={timeline.setChosenAxis}
+      index={timeline.frameIndex}
+      frameCount={timeline.frameCount}
+      onIndexChange={timeline.setFrameIndex}
+      playing={timeline.playing}
+      onPlayingChange={timeline.setPlaying}
+      readout={timeline.timelineReadout}
+      scale={timeline.timelineScale}
+      forecastLabel={scored ? 'Score' : NOUN[familyOf(sortBy)]}
+      liftPx={isDesktop ? layout.sheetLiftPx : transportStandPx(fabBottom)}
+      embedded={embedded}
+    />
+  )
 
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
@@ -464,21 +489,18 @@ export default function MapStage({
           onCancel={drawMode.handleCancelDrawing}
         />
       )}
-      {timelineShown && timelineAxis !== null && (
-        <TimelineTransport
-          axis={timelineAxis}
-          axes={timeline.timelineAxes}
-          onAxisChange={timeline.setChosenAxis}
-          index={timeline.frameIndex}
-          frameCount={timeline.frameCount}
-          onIndexChange={timeline.setFrameIndex}
-          playing={timeline.playing}
-          onPlayingChange={timeline.setPlaying}
-          readout={timeline.timelineReadout}
-          scale={timeline.timelineScale}
-          forecastLabel={NOUN[familyOf(sortBy)]}
-          liftPx={isDesktop ? layout.sheetLiftPx : transportStandPx(fabBottom)}
+      {/* At a desk the day strip stands at the map's foot and hosts the
+          player under its days (record 0310); a phone keeps the player alone. */}
+      {isDesktop && dayStrip ? (
+        <DayStrip
+          selection={dayStrip.selection}
+          onSelection={dayStrip.onSelection}
+          band={dayStrip.band}
+          liftPx={layout.sheetLiftPx}
+          transport={timelineShown && timelineAxis !== null ? transport(timelineAxis, true) : null}
         />
+      ) : (
+        timelineShown && timelineAxis !== null && transport(timelineAxis, false)
       )}
     </div>
   )

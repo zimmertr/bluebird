@@ -268,13 +268,8 @@ export function legendSections(
             // the results header and the table's own column
             // headers. AQI reads as the bare noun, its index
             // having no unit.
-            label: scored
-              ? 'Score'
-              : metricLabel(
-                  familyOf(sortBy),
-                  undefined,
-                  markerScale.unit,
-                ),
+            // Under a lens the markers wear the score, and the key says so.
+            label: scored ? 'Score' : metricLabel(familyOf(sortBy), undefined, markerScale.unit),
             ...(snowKeyed ? { credit: { href: NOHRSC_HREF, name: 'NOHRSC' } } : {}),
             ramp: {
               css: snowKeyed ? snowRampCss() : scaleRampCss(markerScale),

@@ -10,6 +10,8 @@ The welcome dialog offers a guided tutorial, the `Tutorial` link (on the map's c
 
 The map takes the whole width. Along its top runs one line that says what an analysis will search: the app's name, a chip for where (`Peaks in this view`), a chip for when (`Sat 21 – Sun 22`), a **Limits** chip, the button that runs it, and the theme switch. Each chip opens its part of the controls as a card under the line, one at a time, with its own close button: the destinations under where, the model and the window under when, and the Metrics table under **Limits**. The button says what it will forecast, `Forecast 247 peaks` when the count is known ahead of the run, and once a report is up, `Forecast 31 new` for what a moved map or a ticked type adds, or `Up to date` when nothing would change. While no polygon is drawn, the map's view is the search area, so a pan and a press is a whole search. Draw a polygon and it wins over the view; pick a list with no type ticked and nothing is searched but the list. A small disc at the button's corner counts the messages, in the colour of the worst of them. Press it, or the greyed button when something holds the run up, and the messages open as a card under the button. The search box stands above the line, and **Legend** and **Layers** sit after it. The zoom buttons stand at the bottom right of the map, over the credits, with the locate button and the compass above them, and scroll, pinch or double-click zoom too. The **Tutorial**, **Privacy** and **Terms** links lead the credit line there. A touch screen leaves the zoom buttons out, since a pinch zooms there. The compass is greyed out while north is up; turn the map and press it to put north back up.
 
+Along the map's foot runs a strip of days, one for every day from today to as far as the model reaches. Press a day to forecast that day, or drag across a few to forecast them all; drag an end of the days you picked to move it, and hold Shift to stretch them to the day you press. The arrow keys walk the days once one has focus. Before a run the days are plain, so nothing is forecast until you press the button. Once a report spans hours, the timeline stands under the days in the same strip. A window in the past is still picked from the calendar under the when chip.
+
 Every menu at a desk opens as a card just under the chip, field or button that opens it, and that control's arrow points down while the menu is shut and up while it is open. The arrow keys, Enter and Escape work in every list you pick one value from, as they would in any dropdown.
 
 ## On a phone
@@ -521,7 +523,7 @@ from drawing between summits.
 
 ### The timeline
 
-A bar appears at the bottom of the map whenever something on it spans time, as
+At a desk it stands under the strip of days. Elsewhere, a bar appears at the bottom of the map whenever something on it spans time, as
 long as **Forecast player** is switched on in the map's Layers list: it is on by
 default in a desktop-sized window and off on a phone. Press play to run it, or
 drag the scrubber to a moment. The spacebar plays and pauses it too, unless you
