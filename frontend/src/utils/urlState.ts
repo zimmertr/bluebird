@@ -323,7 +323,7 @@ export function decodeLink(
   // A link written before the score named its ranking with `sort` and `desc`
   // alone, and opens on that ranking rather than on a lens (record 0306). A
   // link that names neither opens on the default lens, which is the caller's.
-  if (out.lens === undefined && (params.has('sort') || params.has('desc'))) out.lens = null
+  if (out.lens === undefined && (out.sortBy !== undefined || out.sortDesc !== undefined)) out.lens = null
 
   return { state: Object.keys(out).length > 0 ? out : null, dropped }
 }

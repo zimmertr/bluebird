@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { headline, scoreRange } from './headline'
+import { headline, headlineText, scoreRange } from './headline'
 
 describe('headline', () => {
   it('counts the places at 80 or better', () => {
@@ -24,5 +24,13 @@ describe('scoreRange', () => {
   it('is null for a field with no spread', () => {
     expect(scoreRange([70])).toBeNull()
     expect(scoreRange([70, 70, 70])).toBeNull()
+  })
+})
+
+describe('headlineText', () => {
+  it('counts places, one in the singular', () => {
+    expect(headlineText({ bar: 80, count: 12 })).toBe('12 places score 80 or better')
+    expect(headlineText({ bar: 60, count: 1 })).toBe('1 place scores 60 or better')
+    expect(headlineText({ bar: 80, count: 1500 })).toBe('1,500 places score 80 or better')
   })
 })

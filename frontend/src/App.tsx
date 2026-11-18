@@ -40,6 +40,7 @@ import { useDestinationCount } from './hooks/useDestinationCount'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
+import { DEFAULT_LENS } from './utils/score/lenses'
 import { useDestinationInputs } from './hooks/useDestinationInputs'
 import { useAnalyzeCommand } from './hooks/useAnalyzeCommand'
 import { useDrawMode } from './hooks/useDrawMode'
@@ -149,10 +150,11 @@ export default function App() {
     panelWindowMs,
     forgetPreClamp,
   } = forecastSelection
-  const rankingKnobs = useRankingKnobs(restored, caps.maxLimit)
+  const rankingKnobs = useRankingKnobs(restored, caps.maxLimit, DEFAULT_LENS)
   const {
     sortBy,
     sortDesc,
+    lens,
     rowKeys,
     constraints,
     limit,
@@ -450,6 +452,7 @@ export default function App() {
     comparedModels,
     sortBy,
     sortDesc,
+    lens,
     rowKeys,
     constraints,
     limit,
@@ -700,6 +703,8 @@ export default function App() {
   // The results sheet's view: its layout, the comparison chart, the table's
   // shape and file, and the table's callbacks (useResultsView).
   const resultsView = useResultsView({
+    // The tour's demonstration ranks by its own metric, so its table carries no score.
+    scored: demo === null && lens !== null,
     showResults: showResults || demo !== null,
     collapsedOverride: tour.sheetCollapsed,
     restView: tour.sheetView,
@@ -872,6 +877,7 @@ export default function App() {
           report={report}
           removals={removals}
           analysisSeq={analysisSeq}
+          onLens={rankingKnobs.setLens}
           sortBy={view.sortBy}
           sortDesc={view.sortDesc}
           pointSample={pointSample}

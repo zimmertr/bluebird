@@ -748,6 +748,15 @@ export const BUTTON_PRIMARY =
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
+ * The button that spends a forecast: `BUTTON_PRIMARY`'s shape in alpenglow
+ * (`ACT`, record 0307), so it is the one primary action that does not wear
+ * the sky accent.
+ */
+export const BUTTON_FORECAST =
+  `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
+  `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING}`
+
+/**
  * The secondary action standing next to something else: Clear under the
  * polygon status, Cancel on the analysis overlay.
  *

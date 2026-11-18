@@ -11,6 +11,8 @@ import { isRankingOrder } from '../utils/sortResults'
 import type { SortDir, SortKey } from '../utils/tableColumns'
 import { grouped } from '../utils/numbers'
 import { scoreRows } from '../utils/score/windowScore'
+import { headline, headlineText } from '../utils/score/headline'
+import { filterConstraints } from '../utils/clientAnalyze'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -146,6 +148,17 @@ export function usePresentedReport({
     () => presentResults(scored, knobs, removedKeys),
     [scored, knobs, removedKeys],
   )
+  // The results bar's headline under a lens, counted over every scored row
+  // the bounds admit rather than the cut on screen, so a cap of ten still
+  // says how many reached the bar.
+  const scoreHeadline = useMemo(() => {
+    if (lens === null || scored === null) return null
+    const kept = filterConstraints(scored, knobs.constraints).filter(
+      (r) => !removedKeys.has(geoKey(r.latitude, r.longitude)),
+    )
+    const h = headline(kept.map((r) => r.score ?? null))
+    return h ? headlineText(h) : null
+  }, [lens, scored, knobs.constraints, removedKeys])
   const results = useMemo(
     () =>
       presented.rows.map((r) => {
@@ -335,6 +348,8 @@ export function usePresentedReport({
     customPendingCount: customPending.length,
     rowCount,
     emptyReason,
+    lens,
+    scoreHeadline,
   }
 }
 

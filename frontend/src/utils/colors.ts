@@ -606,3 +606,12 @@ export function scoreFill(score: number, range: { lo: number; hi: number } | nul
 export function scoreColor(score: number, range: { lo: number; hi: number } | null): string {
   return themed(scoreFill(score, range, 'light'), scoreFill(score, range, 'dark'))
 }
+
+/**
+ * A Score cell's look: the score's colour as a tint under the row's own ink,
+ * which reads in both themes on every step of the ramp, where the ramp's fog
+ * end as text would sink into the panel it stands on.
+ */
+export function scoreCellStyle(score: number, range: { lo: number; hi: number } | null = null): { backgroundColor: string; color: string } {
+  return { backgroundColor: `color-mix(in oklab, ${scoreColor(score, range)} 30%, transparent)`, color: 'inherit' }
+}

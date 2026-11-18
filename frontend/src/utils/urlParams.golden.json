@@ -125,7 +125,8 @@
     "chart": [
       "temp",
       "precip"
-    ]
+    ],
+    "lens": null
   },
   "nowOnly": {
     "selection": {
@@ -174,7 +175,8 @@
     },
     "forecastModel": "ecmwf_ifs025",
     "showGrid": true,
-    "gridStyle": "blocks"
+    "gridStyle": "blocks",
+    "lens": null
   },
   "links": [
     {
@@ -193,7 +195,8 @@
         },
         "showGrid": true,
         "gridStyle": "blocks",
-        "gridReachFrac": 1
+        "gridReachFrac": 1,
+        "lens": null
       }
     },
     {
@@ -257,7 +260,8 @@
             "start": "07:00",
             "end": "09:00"
           }
-        }
+        },
+        "lens": null
       }
     },
     {
@@ -300,7 +304,8 @@
           "aqi": "aqi_avg",
           "cloud_deck": "cloud_deck_min_ft",
           "snow_depth": "snow_depth_max_in"
-        }
+        },
+        "lens": null
       }
     },
     {
@@ -331,13 +336,15 @@
           "aqi": "aqi_avg",
           "cloud_deck": "cloud_deck_min_ft",
           "snow_depth": "snow_depth_max_in"
-        }
+        },
+        "lens": null
       }
     },
     {
       "q": "sort=temp_avg_f&sort=wind_max_mph&limit=2.5",
       "dec": {
-        "sortBy": "temp_avg_f"
+        "sortBy": "temp_avg_f",
+        "lens": null
       }
     },
     {
@@ -412,7 +419,8 @@
         },
         "showWildfires": true,
         "showSnow": true,
-        "includeUnnamedPeaks": true
+        "includeUnnamedPeaks": true,
+        "lens": null
       }
     },
     {

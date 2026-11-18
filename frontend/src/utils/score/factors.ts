@@ -23,7 +23,9 @@ export function ramp(points: Curve, x: number): number {
   for (let k = 1; k < points.length; k++) {
     const [x1, y1] = points[k]
     const [x0, y0] = points[k - 1]
-    if (x <= x1) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0)
+    // A point is its own value exactly, never a sum that rounds beside it.
+    if (x === x1) return y1
+    if (x < x1) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0)
   }
   return last[1]
 }

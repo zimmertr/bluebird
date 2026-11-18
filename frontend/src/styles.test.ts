@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
   ACT,
+  BUTTON_FORECAST,
   ACCENT_RING,
   BADGE_ACCENT,
   BADGE_STEP,
@@ -5541,6 +5542,12 @@ describe('the alpenglow fill', () => {
     expect(ratio(dark('on-act'), dark('act-hover'))).toBe(8.88)
     expect(ratio(light('on-act'), light('act'))).toBe(4.71)
     expect(ratio(light('on-act'), light('act-hover'))).toBe(5.33)
+  })
+
+  it('is the fill the Forecast button wears', () => {
+    expect(tok(BUTTON_FORECAST, 'bg')).toBe('act')
+    expect(tok(BUTTON_FORECAST, 'text')).toBe('on-act')
+    expect(tok(BUTTON_FORECAST, 'hover:bg')).toBe('act-hover')
   })
 
   it('stands the fill 3:1 on the surfaces it sits on', () => {

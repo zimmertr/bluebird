@@ -35,3 +35,11 @@ export function scoreRange(scores: readonly (number | null)[]): { lo: number; hi
   const hi = sorted[sorted.length - 1] ?? lo
   return hi > lo ? { lo, hi } : null
 }
+
+/**
+ * The headline as the results bar says it (record 0306): `12 places score 80
+ * or better`, or one place in the singular. In the PR's table for approval.
+ */
+export function headlineText(h: Headline): string {
+  return h.count === 1 ? `1 place scores ${h.bar} or better` : `${h.count.toLocaleString('en-US')} places score ${h.bar} or better`
+}

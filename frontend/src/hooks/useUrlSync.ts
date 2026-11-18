@@ -19,6 +19,8 @@ export interface UrlSyncInputs {
   /** The ranking and its direction. */
   sortBy: ShareableState['sortBy']
   sortDesc: boolean
+  /** The lens the field ranks by, or null for the metric (record 0306). */
+  lens: ShareableState['lens']
   /** The aggregate each metric row's dropdown holds. */
   rowKeys: ShareableState['rowKeys']
   /** The forecast bounds. */
@@ -95,6 +97,7 @@ export function useUrlSync({
   comparedModels,
   sortBy,
   sortDesc,
+  lens,
   rowKeys,
   constraints,
   limit,
@@ -196,6 +199,7 @@ export function useUrlSync({
         compareModels: comparedModels,
         sortBy,
         sortDesc,
+        lens,
         rowKeys,
         constraints,
         limit,
@@ -236,6 +240,7 @@ export function useUrlSync({
     comparedModels,
     sortBy,
     sortDesc,
+    lens,
     rowKeys,
     constraints,
     limit,

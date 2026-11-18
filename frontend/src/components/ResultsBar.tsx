@@ -4,6 +4,8 @@ import { resultsHeading } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
 import type { SortBy } from '../types'
 import { MenuButton } from './Menu'
+import LensChips from './LensChips'
+import type { Lens } from '../utils/score/lenses'
 import {
   IconChart,
   IconChartTable,
@@ -82,6 +84,11 @@ interface ResultsBarProps {
   compareWait: string | null
   /** Why a compared model has no rows, when the chart cannot say it. */
   compareNotes: readonly CompareNote[]
+  /** The lens the field ranks by, or null, and its setter (record 0306). Absent: no lens row. */
+  lens?: Lens | null
+  onLens?: (lens: Lens | null) => void
+  /** The headline that stands for the title while a lens ranks the field. */
+  scoreHeadline?: string | null
 }
 
 /**
@@ -124,6 +131,9 @@ export default function ResultsBar({
   onDownloadCsv,
   compareWait,
   compareNotes,
+  lens = null,
+  onLens,
+  scoreHeadline = null,
 }: ResultsBarProps) {
   // The bar's buttons, in order, each present under its own condition, so the
   // group can put one divider between each two that stand.
@@ -239,7 +249,9 @@ export default function ResultsBar({
               been ranked yet. The window timestamp joins once a
               report exists (windowTitle below). */}
           <span className={`${TEXT.subheading} min-w-0 truncate`}>
-            {resultsHeading(sortBy, sortDesc, pointSample, rowCount, pendingCount)}
+            {lens !== null && scoreHeadline !== null
+              ? scoreHeadline
+              : resultsHeading(sortBy, sortDesc, pointSample, rowCount, pendingCount)}
           </span>
           {windowTitle !== null && (
             <span className={`${CAPTION_LIFTED} truncate`}>
@@ -343,6 +355,13 @@ export default function ResultsBar({
           </div>
         </div>
       </div>
+      {/* The lenses, a row of their own under the title and the buttons:
+          they rank the field, which is the bar's whole subject. */}
+      {onLens && showResults && (
+        <div className="mt-1.5 flex">
+          <LensChips lens={lens} onLens={onLens} />
+        </div>
+      )}
       {/* One line under the bar, never beside a control in it: the
           wait is about the whole comparison, where every member of the
           row above is about one thing the reader can press. */}

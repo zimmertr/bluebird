@@ -9,6 +9,8 @@ import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { SinglePanel } from '../utils/layout'
 
 export interface ResultsViewInputs {
+  /** A lens ranks the field, so the table carries the Score column (record 0306). */
+  scored?: boolean
   /** The reader has the forecast player on (`useResultsLayout`'s `playerOn`). */
   playerOn?: boolean
   /** A phone's home indicator band (`useResultsLayout`'s `safeBottomPx`). */
@@ -81,6 +83,7 @@ export interface ResultsViewInputs {
  * `chartShowing`, and the table reads the chart's comparison.
  */
 export function useResultsView({
+  scored = false,
   collapsedOverride = null,
   restView = null,
   fullOverride = false,
@@ -173,6 +176,7 @@ export function useResultsView({
     shared,
     fire,
     closure,
+    scored,
   })
 
   // Stable identities for the table's callbacks, for the reason `NO_TIMES`

@@ -1,6 +1,6 @@
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
-import { BLOCKED, BUTTON_PRIMARY, DISABLED, LINK, LINK_INERT, MESSAGE_BADGE, PANEL_EDGE, TEXT } from '../styles'
+import { BLOCKED, BUTTON_FORECAST, DISABLED, LINK, LINK_INERT, MESSAGE_BADGE, PANEL_EDGE, TEXT } from '../styles'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import { usePopover } from '../hooks/usePopover'
@@ -127,7 +127,7 @@ export default function PanelFooter({
             onClick={blocked ? toggle : onAnalyze}
             disabled={!analyzeEnabled && !blocked}
             aria-disabled={blocked || undefined}
-            className={`${BUTTON_PRIMARY} ${DISABLED} ${BLOCKED}`}
+            className={`${BUTTON_FORECAST} ${DISABLED} ${BLOCKED}`}
           >
             {word}
           </button>
