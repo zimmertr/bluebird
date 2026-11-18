@@ -16,7 +16,6 @@
 import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { type DeckPoint, cloudRaster, sampleHeights, tileInReach } from '../utils/cloudSea'
-import { rootTheme } from '../utils/chart/chartCanvas'
 import { DEM_MAXZOOM } from '../utils/terrainSources'
 import { addLayerAt } from './layerOrder'
 import type { DemGrids } from './slope'
@@ -51,7 +50,7 @@ export function serveCloudTiles(dem: DemGrids, register: typeof addProtocol = ad
     const points = field
     if (points.length === 0 || !tileInReach(points, z, x, y)) return { data: await emptyTile() }
     const grid = await dem.getDemTile(z, x, y, abort)
-    const rgba = cloudRaster(points, z, x, y, sampleHeights(grid, TILE_PX), rootTheme())
+    const rgba = cloudRaster(points, z, x, y, sampleHeights(grid, TILE_PX))
     return { data: await createImageBitmap(new ImageData(rgba, TILE_PX, TILE_PX)) }
   })
 }
@@ -68,17 +67,6 @@ export interface CloudSeaLayer {
 export function mountCloudSea(map: maplibregl.Map, demTiles: () => Promise<DemGrids>): CloudSeaLayer {
   let version = 0
   let shown = false
-  // A theme switch repaints the tiles in the other theme's cloud. Watched
-  // from the first time the layer shows, so a map that never draws it
-  // watches nothing.
-  let watching = false
-  function watchTheme() {
-    if (watching || typeof MutationObserver !== 'function') return
-    watching = true
-    new MutationObserver(() => {
-      if (shown) retile()
-    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-  }
 
   const template = () => `${CLOUD_SCHEME}://{z}/{x}/{y}?v=${version}`
   function retile() {
@@ -87,7 +75,6 @@ export function mountCloudSea(map: maplibregl.Map, demTiles: () => Promise<DemGr
     source?.setTiles([template()])
   }
   function show() {
-    watchTheme()
     if (map.getSource(CLOUD_SOURCE)) {
       retile()
       return

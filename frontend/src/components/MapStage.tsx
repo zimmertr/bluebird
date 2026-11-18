@@ -3,6 +3,7 @@ import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
 import type { DeckPoint } from '../utils/cloudSea'
+import type { ScoreColouring } from '../utils/resultFeatures'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
 import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
@@ -24,7 +25,7 @@ import type { SortBy } from '../types'
 import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
 import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { NOUN, familyOf } from '../metrics'
-import { hourlyScale, rankedScale } from '../utils/colors'
+import { SCORE_MAP_SCALE, hourlyScale, rankedScale } from '../utils/colors'
 import {
   TRANSPORT_GAP_PX,
   fabBottomPx,
@@ -155,6 +156,8 @@ export interface MapStageProps {
   cornerLinks?: ReactNode
   /** The cloud deck at the hour drawn (record 0309), built in `App.tsx`. */
   cloudDeck?: readonly DeckPoint[] | null
+  /** The markers' score colouring while a lens ranks the field (record 0306), memoized in `App.tsx`. */
+  scoreColouring?: ScoreColouring | null
 }
 
 /**
@@ -203,6 +206,7 @@ export default function MapStage({
   onCameraMove = urlSync.reportView,
   cornerLinks,
   cloudDeck = null,
+  scoreColouring = null,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -258,7 +262,9 @@ export default function MapStage({
   // arrives without a scale. The key below has its own reason to stay away
   // (`fieldHasValue`): a box of bands over a field of N/A explains
   // nothing.
-  const markerScale = playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
+  // Under a lens the markers wear the score's ramp, hour or window alike.
+  const scored = scoreColouring !== null
+  const markerScale = scored ? SCORE_MAP_SCALE : playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
 
   const hasColoredMarkers = showResults && results.length > 0
   // Whether the ranked metric has anything to colour AT ALL on the rows shown.
@@ -266,9 +272,9 @@ export default function MapStage({
   // publish no freezing level: every marker is then the neutral no-value fill,
   // every cell reads N/A, and a key of six height bands beside them would be
   // the only thing on screen claiming the field was measured.
-  const rankedFieldHasValue = fieldHasValue(results, sortBy)
+  const rankedFieldHasValue = scored ? results.some((r) => r.score != null) : fieldHasValue(results, sortBy)
   // What the legend keys: a desk's card on the map, a phone's Legend sheet.
-  const legendInputs: LegendInputs = { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }
+  const legendInputs: LegendInputs = { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid, scored }
   const legend = legendSections(legendInputs, smokeId)
 
   // The phone's draw bar stands under the chip row while a ring is drawn
@@ -384,6 +390,7 @@ export default function MapStage({
           showRelief={overlays.showRelief}
           showSlope={overlays.showSlope}
           cloudDeck={cloudDeck}
+          scoreColouring={scoreColouring}
           showSatellite={overlays.showSatellite}
           baseOpacity={overlays.baseOpacity}
           showTerrain={overlays.showTerrain}

@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
+import type { ScoreColouring } from './utils/resultFeatures'
 import MapDrawBar from './components/MapDrawBar'
 import SentenceBar from './components/SentenceBar'
 import DocLinks from './components/DocLinks'
@@ -38,6 +39,9 @@ import type { DestinationResult } from './types'
 // tutorial's demonstration report is on screen rather than a fresh one per
 // render.
 const NO_ROWS: DestinationResult[] = []
+// The markers' colouring while a lens ranks the field: the score's ramp over
+// 0 to 100, as the Score cells read it. Hoisted for the memoized map's sake.
+const SCORE_COLOURING: ScoreColouring = { range: null }
 // The same for the rows waiting on an elevation: one empty set, so the
 // memoized table sees no change between renders where nothing waits.
 const NO_WAITING: ReadonlySet<string> = new Set()
@@ -989,6 +993,7 @@ export default function App() {
           barCard={barCardNode}
           cornerLinks={cornerLinks}
           cloudDeck={cloudDeck}
+          scoreColouring={lens !== null ? SCORE_COLOURING : null}
           onCameraMove={onCameraMove}
         />
 

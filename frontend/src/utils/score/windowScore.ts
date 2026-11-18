@@ -131,7 +131,7 @@ export function scoreRow(row: DestinationResult, times: readonly number[], lens:
  */
 export function scoreRows(rows: readonly DestinationResult[], times: readonly number[], lens: Lens): DestinationResult[] {
   return rows.map((row) => {
-    const { score, bestStartMs, bestEndMs } = scoreRow(row, times, lens)
-    return { ...row, score, best_start_ms: bestStartMs, best_end_ms: bestEndMs }
+    const { score, bestStartMs, bestEndMs, hours } = scoreRow(row, times, lens)
+    return { ...row, score, best_start_ms: bestStartMs, best_end_ms: bestEndMs, score_hours: hours }
   })
 }

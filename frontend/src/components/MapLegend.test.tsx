@@ -3,7 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { useId, type ComponentProps } from 'react'
 import MapLegend, { LegendSections, legendSections, type LegendInputs } from './MapLegend'
 import { render } from '../testSupport/render'
-import { rankedScale } from '../utils/colors'
+import { SCORE_MAP_SCALE, rankedScale } from '../utils/colors'
 import { SMOKE_DENSITIES } from '../utils/smoke'
 import { legendMaxCss } from '../utils/results/resultsSheet'
 import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
@@ -113,6 +113,14 @@ describe('MapLegend', () => {
     // Another ranking keeps the layer's own row beside its key.
     const temp = legendSections({ ...BASE, hasColoredMarkers: true, overlays: { ...NONE, showSnow: true } }, 'id')
     expect(temp.map((s) => s.label)).toEqual(['Temperature (°F)', 'Snow depth (in)'])
+  })
+
+  // Under a lens the markers wear the score (record 0306), so the key is the
+  // score's, whatever metric the panel last ranked by.
+  it('keys the score while a lens ranks the field', () => {
+    const scored = legendSections({ ...BASE, markerScale: SCORE_MAP_SCALE, hasColoredMarkers: true, scored: true }, 'id')
+    expect(scored.map((s) => s.label)).toEqual(['Score'])
+    expect(scored[0].ramp?.bands).toBe(SCORE_MAP_SCALE.colors.length)
   })
 
   // A chip shows a letter, and the word it stands for was its title alone,

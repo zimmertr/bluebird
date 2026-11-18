@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resultRow, series } from '../../testSupport/fixtures'
 import { CLOUD_DECK_CEILING_FT } from '../openMeteoAggregate'
-import { scoreRow } from './windowScore'
+import { scoreRow, scoreRows } from './windowScore'
 
 // Mount Rainier in July: the sun is up from about 12:30 to 04:00 UTC.
 const H = 3_600_000
@@ -70,5 +70,19 @@ describe('scoreRow', () => {
     const r = row(() => true)
     const out = scoreRow({ ...r, series_times: night }, night, 'bluebird')
     expect(out.score).toBe(100)
+  })
+})
+
+// The markers read a lens's hours during playback, so a scored row carries
+// them beside its window score.
+describe('scoreRows', () => {
+  it('lays each row’s score, best stretch and hours on a copy of it', () => {
+    const r = row(() => true)
+    const [out] = scoreRows([r], times, 'bluebird')
+    const direct = scoreRow(r, times, 'bluebird')
+    expect(out).not.toBe(r)
+    expect(out.score).toBe(direct.score)
+    expect(out.best_start_ms).toBe(direct.bestStartMs)
+    expect(out.score_hours).toEqual(direct.hours)
   })
 })

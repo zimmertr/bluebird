@@ -65,27 +65,25 @@ describe('cloudAlpha', () => {
   const whole = { baseFt: 3000, topFt: 6000, share: 1, reach: 1 }
 
   it('paints the ground inside the deck, veils it under, and leaves it clear above the top', () => {
-    for (const theme of ['dark', 'light'] as const) {
-      const { inside, under } = CLOUD_ALPHA[theme]
-      expect(cloudAlpha(4500, whole, theme)).toBeCloseTo(inside, 9)
-      expect(cloudAlpha(1000, whole, theme)).toBeCloseTo(under, 9)
-      expect(cloudAlpha(6000, whole, theme)).toBe(0)
-      expect(cloudAlpha(9000, whole, theme)).toBe(0)
-    }
+    const { inside, under } = CLOUD_ALPHA
+    expect(cloudAlpha(4500, whole)).toBeCloseTo(inside, 9)
+    expect(cloudAlpha(1000, whole)).toBeCloseTo(under, 9)
+    expect(cloudAlpha(6000, whole)).toBe(0)
+    expect(cloudAlpha(9000, whole)).toBe(0)
   })
 
   it('fades the top and the base over EDGE_FT', () => {
-    const { inside, under } = CLOUD_ALPHA.light
-    expect(cloudAlpha(6000 - EDGE_FT / 2, whole, 'light')).toBeCloseTo(inside / 2, 5)
-    expect(cloudAlpha(3000 - EDGE_FT / 2, whole, 'light')).toBeCloseTo((under + inside) / 2, 5)
+    const { inside, under } = CLOUD_ALPHA
+    expect(cloudAlpha(6000 - EDGE_FT / 2, whole)).toBeCloseTo(inside / 2, 5)
+    expect(cloudAlpha(3000 - EDGE_FT / 2, whole)).toBeCloseTo((under + inside) / 2, 5)
   })
 
   it('draws nothing under a quarter in cloud, and all of it over three quarters', () => {
-    const at = (share: number) => cloudAlpha(4500, { ...whole, share }, 'dark')
+    const at = (share: number) => cloudAlpha(4500, { ...whole, share })
     expect(at(0.25)).toBe(0)
-    expect(at(0.5)).toBeCloseTo(CLOUD_ALPHA.dark.inside / 2, 5)
-    expect(at(0.75)).toBeCloseTo(CLOUD_ALPHA.dark.inside, 9)
-    expect(cloudAlpha(4500, null, 'dark')).toBe(0)
+    expect(at(0.5)).toBeCloseTo(CLOUD_ALPHA.inside / 2, 5)
+    expect(at(0.75)).toBeCloseTo(CLOUD_ALPHA.inside, 9)
+    expect(cloudAlpha(4500, null)).toBe(0)
   })
 })
 
@@ -111,16 +109,16 @@ describe('the tiles', () => {
 
   const flat = (metres: number, size = 8) => ({ size, metres: new Float32Array(size * size).fill(metres) })
 
-  it('paints a valley under the deck in the theme’s cloud, and a summit above it clear', () => {
+  it('paints a valley under the deck in the cloud’s slate, and a summit above it clear', () => {
     const points = [deck(2000, 5000)]
-    const valley = cloudRaster(points, Z, X, Y, flat(3000 / FEET_PER_METER), 'light')
+    const valley = cloudRaster(points, Z, X, Y, flat(3000 / FEET_PER_METER))
     // The pixel nearest the destination, where the reach is whole; the
     // tile's far corners stand past two thirds of it and fade.
     const alphas = [...valley].filter((_, i) => i % 4 === 3)
     const strongest = alphas.indexOf(Math.max(...alphas))
-    expect([...valley.slice(strongest * 4, strongest * 4 + 3)]).toEqual([...CLOUD_RGB.light])
-    expect(alphas[strongest]).toBe(Math.round(CLOUD_ALPHA.light.inside * 255))
-    const summit = cloudRaster(points, Z, X, Y, flat(8000 / FEET_PER_METER), 'light')
+    expect([...valley.slice(strongest * 4, strongest * 4 + 3)]).toEqual([...CLOUD_RGB])
+    expect(alphas[strongest]).toBe(Math.round(CLOUD_ALPHA.inside * 255))
+    const summit = cloudRaster(points, Z, X, Y, flat(8000 / FEET_PER_METER))
     expect(summit.every((v) => v === 0)).toBe(true)
   })
 

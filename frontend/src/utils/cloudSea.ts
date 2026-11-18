@@ -8,7 +8,7 @@
  * `cloud_top_ft`, record 0305); between destinations they are interpolated,
  * and the ground's height under each pixel is the elevation tile the relief
  * and the slope read. A pixel is painted by where the ground stands against
- * the deck there: inside it, near white; under it, a light veil; above its
+ * the deck there: inside it, a slate fog; under it, a light veil; above its
  * top, nothing.
  *
  * A dry column reads its base and top at the ceiling (record 0113), which is
@@ -20,7 +20,6 @@
  */
 import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
 import { FEET_PER_METER } from './basemapPoi'
-import type { Theme } from './viewPrefs'
 import { clamp } from './numbers'
 
 /** One destination's deck at the hour drawn. */
@@ -56,17 +55,20 @@ export const REACH_KM = 30
  */
 export const EDGE_FT = 350
 
-/** How opaque the ground is inside the deck and under it, by theme: the light map's pale relief takes more. */
-export const CLOUD_ALPHA: Readonly<Record<Theme, { inside: number; under: number }>> = {
-  dark: { inside: 0.62, under: 0.22 },
-  light: { inside: 0.86, under: 0.3 },
-}
+/**
+ * How opaque the ground is inside the deck and under it. One value for both
+ * themes, because the map's ground ignores the theme (root CLAUDE.md): the
+ * basemap is the same pale one under either.
+ */
+export const CLOUD_ALPHA = { inside: 0.72, under: 0.28 } as const
 
-/** The cloud's colour, by theme: a cool grey on the dark map, white on the light one. A canvas channel, so a pair here (root CLAUDE.md). */
-export const CLOUD_RGB: Readonly<Record<Theme, readonly [number, number, number]>> = {
-  dark: [196, 210, 226],
-  light: [255, 255, 255],
-}
+/**
+ * The cloud's colour: a cool slate, darker than the pale basemap it lies on,
+ * so a valley under the deck reads as fog rather than as the white of a
+ * glacier or a road, and the summits above it keep their own colours. One
+ * value for the reason `CLOUD_ALPHA` is one.
+ */
+export const CLOUD_RGB = [168, 184, 204] as const
 
 const KM_PER_DEG = 111.32
 const clamp01 = (v: number) => clamp(v, 0, 1)
@@ -119,9 +121,9 @@ export function deckAt(points: readonly DeckPoint[], lon: number, lat: number): 
  * edge faded over {@link EDGE_FT}, then faded by the share in cloud (none
  * under a quarter, whole over three quarters) and by the reach.
  */
-export function cloudAlpha(groundFt: number, deck: DeckAt | null, theme: Theme): number {
+export function cloudAlpha(groundFt: number, deck: DeckAt | null): number {
   if (deck === null || deck.share === 0) return 0
-  const { inside, under } = CLOUD_ALPHA[theme]
+  const { inside, under } = CLOUD_ALPHA
   const belowTop = clamp01((deck.topFt - groundFt) / EDGE_FT)
   const intoBase = clamp01((groundFt - (deck.baseFt - EDGE_FT)) / EDGE_FT)
   const depth = under + (inside - under) * intoBase
@@ -171,7 +173,6 @@ export function cloudRaster(
   x: number,
   y: number,
   heights: TileHeights,
-  theme: Theme,
 ): Uint8ClampedArray<ArrayBuffer> {
   const { size, metres } = heights
   const [w, , e] = tileBounds(z, x, y)
@@ -189,7 +190,7 @@ export function cloudRaster(
     for (let i = 0; i < NODES; i++) nodes.push(deckAt(points, lonAt(i / span), latAt(j / span)))
   }
   const out = new Uint8ClampedArray(size * size * 4)
-  const [r, g, b] = CLOUD_RGB[theme]
+  const [r, g, b] = CLOUD_RGB
   for (let py = 0; py < size; py++) {
     const v = ((py + 0.5) / size) * span
     const j0 = Math.min(span - 1, Math.floor(v))
@@ -206,7 +207,7 @@ export function cloudRaster(
         fu,
         fv,
       )
-      const a = cloudAlpha(metres[py * size + px] * FEET_PER_METER, deck, theme)
+      const a = cloudAlpha(metres[py * size + px] * FEET_PER_METER, deck)
       if (a <= 0) continue
       const o = (py * size + px) * 4
       out[o] = r

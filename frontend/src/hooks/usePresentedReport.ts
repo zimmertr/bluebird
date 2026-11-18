@@ -8,7 +8,7 @@ import { type Place, placeType } from '../utils/geocode'
 import { geoKey } from '../utils/points'
 import { type PresentationKnobs, presentResults } from '../utils/present'
 import { isRankingOrder } from '../utils/sortResults'
-import type { SortDir, SortKey } from '../utils/tableColumns'
+import { SCORE_KEY, type SortDir, type SortKey } from '../utils/tableColumns'
 import { grouped } from '../utils/numbers'
 import { scoreRows } from '../utils/score/windowScore'
 import { headline, headlineText } from '../utils/score/headline'
@@ -191,10 +191,16 @@ export function usePresentedReport({
   // `tableRows` applies this sort for the table and the CSV. Handing the
   // sorted rows to the map would quietly make the markers follow a detail
   // sort, and the types would not complain.
+  // The ranking's own order, which the header arrow shows while nobody has
+  // pressed a header: the Score column, best first, while the reader's lens
+  // ranks the field (record 0306), and the panel's metric otherwise.
+  const readerLens = liveKnobs.lens ?? null
+  const rankKey: SortKey = readerLens !== null ? SCORE_KEY : view.sortBy
+  const rankDesc = readerLens !== null ? true : view.sortDesc
   const [detailSort, setDetailSort] = useState<{ key: SortKey; dir: SortDir }>(() =>
     restoredTableSort
       ? { key: restoredTableSort.key, dir: restoredTableSort.desc ? 'desc' : 'asc' }
-      : { key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' },
+      : { key: rankKey, dir: rankDesc ? 'desc' : 'asc' },
   )
 
   // A link's header sort is for the report the link reopens, which is the
@@ -202,7 +208,7 @@ export function usePresentedReport({
   // it was made under is held beside it: a change to either drops the sort
   // like any other, as does every report after the first.
   const keepRestoredSortRef = useRef(
-    restoredTableSort ? { sortBy: view.sortBy, sortDesc: view.sortDesc, seq: analysisSeq } : null,
+    restoredTableSort ? { sortBy: rankKey, sortDesc: rankDesc, seq: analysisSeq } : null,
   )
 
   // Follow the ranking: on a new report, and on a live ranking change, drop any
@@ -213,7 +219,7 @@ export function usePresentedReport({
   // user just asked for.
   useEffect(() => {
     const kept = keepRestoredSortRef.current
-    if (kept && kept.sortBy === view.sortBy && kept.sortDesc === view.sortDesc) {
+    if (kept && kept.sortBy === rankKey && kept.sortDesc === rankDesc) {
       // The mount run, and then the first report, which the link's sort is for.
       if (analysisSeq === kept.seq) return
       if (analysisSeq === kept.seq + 1) {
@@ -222,17 +228,17 @@ export function usePresentedReport({
       }
     }
     keepRestoredSortRef.current = null
-    setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
-  }, [view.sortBy, view.sortDesc, analysisSeq])
+    setDetailSort({ key: rankKey, dir: rankDesc ? 'desc' : 'asc' })
+  }, [rankKey, rankDesc, analysisSeq])
 
   // The header sort as a link carries it: null while it is the ranking's own
   // order, which is what the table shows when nobody clicked a header.
   const tableSort = useMemo(
     () =>
-      isRankingOrder(detailSort, view.sortBy, view.sortDesc)
+      isRankingOrder(detailSort, rankKey, rankDesc)
         ? null
         : { key: detailSort.key, desc: detailSort.dir === 'desc' },
-    [detailSort, view.sortBy, view.sortDesc],
+    [detailSort, rankKey, rankDesc],
   )
 
   // A stable identity for the table's callback, for the reason `NO_TIMES`

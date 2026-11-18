@@ -592,6 +592,13 @@ export const SCORE_RAMP: Record<Theme, readonly string[]> = {
   light: ['#788088', '#9ea7b0', '#b8c4cf', '#8cbae4', '#4092e6', '#1670de', '#0a4cba'],
 }
 
+/**
+ * The score's ramp as the map's legend keys it: the light ramp the markers
+ * wear (`ScoreColouring` in `resultFeatures.ts`), with no unit, a score having
+ * none.
+ */
+export const SCORE_MAP_SCALE: LabelledScale = { thresholds: SCORE_THRESHOLDS, colors: SCORE_RAMP.light, ink: [], unit: '' }
+
 /** Where a score stands on the stretched range, from 0 to 100. */
 export function stretchScore(score: number, range: { lo: number; hi: number } | null): number {
   return range ? clamp(((score - range.lo) / (range.hi - range.lo)) * 100, 0, 100) : clamp(score, 0, 100)

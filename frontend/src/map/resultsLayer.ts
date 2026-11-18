@@ -17,7 +17,7 @@ import type { DestinationResult, SortBy } from '../types'
 import type { PendingDestination } from '../utils/customList'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
 import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
-import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
+import { type ScoreColouring, resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
 import { emptyFC, setSource } from './basemap'
 import { addLayerAt } from './layerOrder'
 import type { MapController } from './controller'
@@ -89,8 +89,9 @@ function updateResults(
   results: DestinationResult[],
   sortBy: SortBy,
   hourIndex: number | null,
+  score: ScoreColouring | null,
 ) {
-  setSource(map, 'results', resultsFeatureCollection(results, sortBy, true, hourIndex))
+  setSource(map, 'results', resultsFeatureCollection(results, sortBy, true, hourIndex, score))
 }
 
 interface ResultsDrawing {
@@ -98,6 +99,9 @@ interface ResultsDrawing {
   sortBy: SortBy
   // The hour the markers are coloured for, or null for the window aggregate.
   playbackIndex: number | null
+  // The score's colouring while a lens ranks the field, or null (absent) for
+  // the metric's. The wind's arrows are the metric's, so a lens hides them.
+  score?: ScoreColouring | null
 }
 
 export interface ResultsLayer {
@@ -293,10 +297,10 @@ export function mountResultsLayer(
 
   let arrows = false
   return {
-    update({ results, sortBy, playbackIndex }) {
-      updateResults(map, results, sortBy, playbackIndex)
+    update({ results, sortBy, playbackIndex, score = null }) {
+      updateResults(map, results, sortBy, playbackIndex, score)
       // Set only when it changes, because a scrub calls this twice a second.
-      const showing = windArrowsShowing(sortBy, playbackIndex)
+      const showing = score === null && windArrowsShowing(sortBy, playbackIndex)
       if (showing !== arrows) {
         map.setLayoutProperty('results-wind', 'visibility', showing ? 'visible' : 'none')
         arrows = showing

@@ -273,6 +273,9 @@ export interface DestinationResult {
   score?: number | null
   best_start_ms?: number | null
   best_end_ms?: number | null
+  // Every hour's score on the lens, unrounded, on the row's grid: what a
+  // marker is coloured by during playback while a lens ranks the field.
+  score_hours?: (number | null)[] | null
   // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
   series?: HourlySeries | null
   // Timestamps for `series` when the row came from its own analyze response

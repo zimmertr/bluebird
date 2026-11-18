@@ -162,6 +162,8 @@ export interface LegendInputs {
   markerScale: LabelledScale | null
   /** Whether the report's markers are on the map and coloured. */
   hasColoredMarkers: boolean
+  /** Whether a lens ranks the field, so the markers wear the score and the key says so (record 0306). */
+  scored?: boolean
   /** Whether the ranked metric has any value on the rows shown (`fieldHasValue`). */
   rankedFieldHasValue: boolean
   /** Which overlays are on, each keyed by a section. */
@@ -192,7 +194,7 @@ export type LegendSectionSpec = Parameters<typeof legendSection>[0]
  * and, with a suffix of their own, the fire chips'.
  */
 export function legendSections(
-  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }: LegendInputs,
+  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid, scored = false }: LegendInputs,
   smokeId: string,
 ): LegendSectionSpec[] {
   const {
@@ -237,7 +239,7 @@ export function legendSections(
   // left out while it stands.
   const metricKeyed =
     markerScale !== null && rankedFieldHasValue && (hasColoredMarkers || gridPainted || gridCued)
-  const snowKeyed = metricKeyed && familyOf(sortBy) === 'snow_depth'
+  const snowKeyed = metricKeyed && !scored && familyOf(sortBy) === 'snow_depth'
   const sections: LegendSectionSpec[] = [
     // Keyed to the markers OR to the grid, because either can be
     // the only colored thing on screen: a live filter can empty
@@ -266,11 +268,13 @@ export function legendSections(
             // the results header and the table's own column
             // headers. AQI reads as the bare noun, its index
             // having no unit.
-            label: metricLabel(
-              familyOf(sortBy),
-              undefined,
-              markerScale.unit,
-            ),
+            label: scored
+              ? 'Score'
+              : metricLabel(
+                  familyOf(sortBy),
+                  undefined,
+                  markerScale.unit,
+                ),
             ...(snowKeyed ? { credit: { href: NOHRSC_HREF, name: 'NOHRSC' } } : {}),
             ramp: {
               css: snowKeyed ? snowRampCss() : scaleRampCss(markerScale),
