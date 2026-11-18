@@ -58,8 +58,10 @@ test('the results sheet goes full screen dragged to the top, and comes back down
   // clear of.
   await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(2)
 
-  // Back down to the middle: it holds there, and they come back.
-  await dragTo(page, await grip(), 420)
+  // Back down to the middle: it holds there, and they come back. The grip
+  // stands under the sheet's bar and its lens row (record 0306), 40px further
+  // below the sheet's top than before them, so the finger goes that much lower.
+  await dragTo(page, await grip(), 460)
   await expect.poll(async () => (await sheet.boundingBox())!.y).toBeGreaterThan(300)
   await expect.poll(() => onTop(controls)).toBe('control')
   await expect.poll(() => onTop(fab)).toBe('control')

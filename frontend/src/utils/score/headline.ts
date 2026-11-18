@@ -6,6 +6,7 @@
  * to the highest multiple of ten anything reached, so the headline still names
  * the best of a bad field rather than a count of zero.
  */
+import { grouped } from '../numbers'
 
 export const HEADLINE_BAR = 80
 
@@ -41,5 +42,5 @@ export function scoreRange(scores: readonly (number | null)[]): { lo: number; hi
  * or better`, or one place in the singular. In the PR's table for approval.
  */
 export function headlineText(h: Headline): string {
-  return h.count === 1 ? `1 place scores ${h.bar} or better` : `${h.count.toLocaleString('en-US')} places score ${h.bar} or better`
+  return h.count === 1 ? `1 place scores ${h.bar} or better` : `${grouped(h.count)} places score ${h.bar} or better`
 }
