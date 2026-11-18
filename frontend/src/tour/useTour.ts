@@ -5,6 +5,7 @@ import type { DemoReport } from './demoReport'
 import type { ChartMetrics } from '../utils/chart/chartData'
 import { loadTimeSeriesChart } from '../components/ResultsPanels'
 import { cardMode, sheetKeepOut, SPOTLIGHT_PAD } from './place'
+import { PANEL_MS } from '../styles'
 
 interface Args {
   isDesktop: boolean
@@ -280,8 +281,9 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   // The marker step cuts to the first demonstration row and opens its popup,
   // the same framing a click on its rank in the table makes but with no
   // flight: a tour that flies reads as the app doing something, and the
-  // reader waits on it. Two frames first, so the results have collapsed and
-  // reported their height before the framing reads it. The framing is
+  // reader waits on it. Two frames first, and more while the results are
+  // still moving, so they have collapsed and reported their height before
+  // the framing reads it. The framing is
   // handed the one thing over the map it cannot know about: this card,
   // where it is a sheet along the screen's edge, as the room the card needs
   // to keep that edge (`sheetKeepOut`); the button column it finds for
@@ -291,13 +293,32 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   useEffect(() => {
     if (!showingMarker || demo === null) return
     const map = mapRef.current
+    // A desk's results collapse at the panel's speed rather than in a frame,
+    // and a popup opened mid-collapse is fitted to a map that is still
+    // growing: it stepped clear of where the chrome stood in that frame and
+    // hung past the results once they came to rest (the browser suite's tour
+    // walk, 2026-11-18). So the frames run on until the results' top has held
+    // still from one frame to the next, a few panel lengths at most.
+    const resultsTop = () => document.querySelector('[data-tour="results"]')?.getBoundingClientRect().top ?? null
+    const until = performance.now() + PANEL_MS * 3
+    let was = resultsTop()
+    const open = () => {
+      const card = cardMode(window.innerWidth) === 'sheet' ? document.querySelector('[data-tour-card]') : null
+      const box = card?.getBoundingClientRect()
+      const avoid = box ? [sheetKeepOut(box, box.height, window.innerHeight, SPOTLIGHT_PAD)] : []
+      map?.focusResult(demo.universe[0], { instant: true, avoid })
+    }
+    const settle = () => {
+      const now = resultsTop()
+      if (now === was || performance.now() > until) open()
+      else {
+        was = now
+        frame = requestAnimationFrame(settle)
+      }
+    }
     let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
-        const card = cardMode(window.innerWidth) === 'sheet' ? document.querySelector('[data-tour-card]') : null
-        const box = card?.getBoundingClientRect()
-        const avoid = box ? [sheetKeepOut(box, box.height, window.innerHeight, SPOTLIGHT_PAD)] : []
-        map?.focusResult(demo.universe[0], { instant: true, avoid })
-      })
+      was = resultsTop()
+      frame = requestAnimationFrame(settle)
     })
     return () => {
       cancelAnimationFrame(frame)

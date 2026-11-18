@@ -3516,7 +3516,7 @@ describe('the map layer rows', () => {
   const headings = [...block.matchAll(/heading: '([^']+)'/g)].map((m) => m[1])
 
   it('found every row', () => {
-    expect(labels).toHaveLength(13)
+    expect(labels).toHaveLength(14)
   })
 
   // By what a layer changes: the map itself, a hazard on it, the weather on
@@ -3699,7 +3699,7 @@ describe('the map legend sections', () => {
   // snow key being the odd one out.
   it('builds every section from the one recipe', () => {
     expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
-    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(3)
+    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(4)
   })
 })
 

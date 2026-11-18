@@ -260,7 +260,7 @@ again. Eight are credited in their own section of the map's legend, and the thre
 | *Forecast* | | |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | The contiguous states, Alaska, Hawaii, Puerto Rico and Guam |
 | **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
-| **Cloud deck** | The cloud deck your report found, drawn on the ground: a slate fog where a slope stands inside the cloud, a light veil under it, and nothing above its top. It follows the player hour by hour. On until you turn it off, and greyed until you have a report | Wherever your report's destinations reach, about 30 km around each |
+| **Cloud deck** | The cloud deck your report found, drawn on the ground: a slate fog where a slope stands inside the cloud, a light veil under it, and nothing above its top. It follows the player hour by hour. On until you turn it off, and greyed until you have a report. At a desk only for now | Wherever your report's destinations reach, about 30 km around each |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 **Topographic** draws contour lines and **Shaded relief** shading, both from

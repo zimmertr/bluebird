@@ -267,7 +267,7 @@ describe('LayersPopover', () => {
     const grid = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!.parentElement!
     expect(grid.className).toBe(MENU_GROUP.sheetRow)
     expect(grid.querySelector('input[type="range"]')).not.toBeNull()
-    expect(rows()).toHaveLength(14)
+    expect(rows()).toHaveLength(13)
   })
 
   // A layer with nothing to draw over the view greys, with no note, the way
@@ -440,6 +440,13 @@ describe('LayersPopover', () => {
 
   // The cloud sea draws the held report's deck (record 0309), so its row
   // greys before a report, with no note, and is on until turned off.
+  // A phone's sheet has no room for it until the phone's shell, which draws no cloud.
+  it('leaves the cloud deck row off a phone\'s sheet', () => {
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered cloudOffered sheet />)
+    open()
+    expect(screen.queryByRole('checkbox', { name: 'Cloud deck' })).toBeNull()
+  })
+
   it('greys the cloud deck row until a report is held, and turns it off', () => {
     const setShowCloud = vi.fn()
     const overlays = { ...OVERLAYS, showCloud: true, setShowCloud }
@@ -448,10 +455,12 @@ describe('LayersPopover', () => {
     )
     open()
     const cloud = () => screen.getByRole('checkbox', { name: 'Cloud deck' }) as HTMLInputElement
-    expect([cloud().checked, cloud().disabled]).toEqual([true, true])
+    // Ticked and greyed, live for unticking, as the grid's row is.
+    expect(cloud().checked).toBe(true)
+    expect(greyed()).toEqual(['Cloud deck'])
     expect(cloud().getAttribute('aria-describedby')).toBeNull()
     rerender(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={overlays} grid={GRID} playerOffered cloudOffered />)
-    expect(cloud().disabled).toBe(false)
+    expect(greyed()).toEqual([])
     fireEvent.click(cloud())
     expect(setShowCloud).toHaveBeenCalledWith(false)
   })
@@ -479,7 +488,8 @@ describe('LayersPopover', () => {
         playerOffered
       />,
     )
-    expect(greyed()).toEqual(['Forecast grid'])
+    // The cloud deck greys beside it: no report, no deck to draw.
+    expect(greyed()).toEqual(['Cloud deck', 'Forecast grid'])
     expect(grid().checked).toBe(true)
     expect((screen.getByRole('slider', { name: 'Coverage' }) as HTMLInputElement).disabled).toBe(true)
   })
@@ -541,7 +551,7 @@ describe('LayersPopover', () => {
     open()
     expect(chip.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('dialog', { name: 'Layers' })).toBeTruthy()
-    expect(rows()).toHaveLength(14)
+    expect(rows()).toHaveLength(13)
     // A press in the sheet, which is in a portal outside the chip's column,
     // is not a press outside the menu.
     fireEvent.pointerDown(screen.getAllByRole('checkbox')[0])
