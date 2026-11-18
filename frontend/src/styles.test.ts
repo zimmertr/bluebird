@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
+  ACT,
   ACCENT_RING,
   BADGE_ACCENT,
   BADGE_STEP,
@@ -5522,5 +5523,34 @@ describe('sheet handles and pull to refresh', () => {
 
   it('turns off overscroll on the page', () => {
     expect(indexCss).toMatch(/html,\s*body\s*\{\s*overscroll-behavior-y:\s*none;\s*\}/)
+  })
+})
+
+// Alpenglow (record 0307): the Forecast button's fill and its dark label.
+// Both themes measured here, the label against the fill (1.4.3) and the fill
+// against the surfaces it stands on (1.4.11); the light hover is the one state
+// under 3:1 on the panel and is pinned so a change to it is a re-measurement.
+describe('the alpenglow fill', () => {
+  const tok = (recipe: string, utility: string) => token(recipe, utility)
+
+  it('reads the label at AA on both fills and both hovers', () => {
+    expect(tok(ACT.fill, 'bg')).toBe('act')
+    expect(tok(ACT.fill, 'text')).toBe('on-act')
+    expect(tok(ACT.fillHover, 'hover:bg')).toBe('act-hover')
+    expect(ratio(dark('on-act'), dark('act'))).toBe(7.37)
+    expect(ratio(dark('on-act'), dark('act-hover'))).toBe(8.88)
+    expect(ratio(light('on-act'), light('act'))).toBe(4.71)
+    expect(ratio(light('on-act'), light('act-hover'))).toBe(5.33)
+  })
+
+  it('stands the fill 3:1 on the surfaces it sits on', () => {
+    for (const ground of [dark('panel'), dark('raised'), dark('page')]) {
+      expect(contrast(dark('act'), ground)).toBeGreaterThanOrEqual(3)
+    }
+    expect(ratio(light('act'), light('panel'))).toBe(3.37)
+    expect(ratio(light('act'), light('raised'))).toBe(3.01)
+    expect(ratio(light('act'), light('page'))).toBe(3.6)
+    // The light hover lightens to gain label contrast, and pays for it here.
+    expect(ratio(light('act-hover'), light('panel'))).toBe(2.98)
   })
 })

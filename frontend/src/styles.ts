@@ -726,6 +726,23 @@ const TRIGGER_STATE =
  * bundle — the same trap the RADIUS comment warns about, and one this change
  * fell into before the built stylesheet was read.
  */
+/**
+ * Alpenglow (record 0307): the warm light on the summits at first light, worn
+ * by the one control that spends a forecast and by nothing else, so the eye
+ * knows which press costs upstream calls. Everything else that acts wears the
+ * sky accent. The label is a dark ink rather than white, because a warm fill
+ * light enough to stand out on a dark map cannot carry a white label at 4.5:1.
+ *
+ * Dark: label 7.37:1 on the fill, the fill 6.05:1 on the panel. Light: label
+ * 4.71:1, the fill 3.37:1 on the panel and 3.01:1 on a raised surface; the
+ * light hover lightens, gaining label contrast (5.33:1) and standing 2.98:1 on
+ * the panel, the one state under 3:1. `styles.test.ts` pins every number.
+ */
+export const ACT = {
+  fill: 'bg-act text-on-act',
+  fillHover: 'hover:bg-act-hover',
+} as const
+
 export const BUTTON_PRIMARY =
   `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`

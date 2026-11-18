@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   ColoredFamily,
+  SCORE_RAMP,
+  scoreColor,
+  scoreFill,
+  stretchScore,
   METRIC_SCALE,
   VERDICT_RAMP,
   VERDICT_RAMP_REVERSED,
@@ -906,5 +910,33 @@ describe('hexToRgb', () => {
     expect(hexToRgb('#000000')).toEqual([0, 0, 0])
     expect(hexToRgb('#ffffff')).toEqual([255, 255, 255])
     expect(hexToRgb('#0a84c6')).toEqual([10, 132, 198])
+  })
+})
+
+describe('the score ramp', () => {
+  it('runs from fog to bluebird in each theme, darkening toward the best in light', () => {
+    expect(SCORE_RAMP.dark).toHaveLength(7)
+    expect(SCORE_RAMP.light).toHaveLength(7)
+    const lum = (hex: string) => hexToRgb(hex).reduce((a, b) => a + b, 0)
+    // The light ramp ends darker than it starts, so the best rows stand out
+    // on a pale map; the dark one ends brighter.
+    expect(lum(SCORE_RAMP.light[6])).toBeLessThan(lum(SCORE_RAMP.light[0]))
+    expect(lum(SCORE_RAMP.dark[6])).toBeGreaterThan(lum(SCORE_RAMP.dark[0]))
+  })
+
+  it('stretches a score over the field and clamps past it', () => {
+    const range = { lo: 40, hi: 90 }
+    expect(stretchScore(40, range)).toBe(0)
+    expect(stretchScore(65, range)).toBe(50)
+    expect(stretchScore(95, range)).toBe(100)
+    expect(stretchScore(70, null)).toBe(70)
+  })
+
+  it('paints the ends of the field in the ends of the ramp', () => {
+    const range = { lo: 40, hi: 90 }
+    expect(scoreFill(40, range, 'dark')).toBe(SCORE_RAMP.dark[0])
+    expect(scoreFill(90, range, 'dark')).toBe(SCORE_RAMP.dark[6])
+    expect(scoreFill(90, range, 'light')).toBe(SCORE_RAMP.light[6])
+    expect(scoreColor(90, range)).toBe(`light-dark(${SCORE_RAMP.light[6]}, ${SCORE_RAMP.dark[6]})`)
   })
 })

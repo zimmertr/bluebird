@@ -2,6 +2,7 @@ import { SortBy } from '../types'
 import { FAMILY_KEYS, HOURLY_UNIT, MetricFamily, UNIT } from '../metrics'
 import { clamp } from './numbers'
 import { themed } from './themeColor'
+import type { Theme } from './viewPrefs'
 
 /**
  * A set of band boundaries and the colors they anchor.
@@ -569,4 +570,39 @@ export function cellInks(value: number, scale: ColorScale): { fill: string; ink:
     fill: `rgba(${r},${g},${b},0.2)`,
     ink: { dark: `rgb(${dr},${dg},${db})`, light: `rgb(${ir},${ig},${ib})` },
   }
+}
+
+/**
+ * The score's ramp, fog to bluebird (record 0306): one family of blues from a
+ * grey that recedes into the map to the deep blue of a clear high sky, so the
+ * best places are the ones the eye lands on. Not a verdict ramp, and not on
+ * the list above: the score is not a metric with a good end and a bad one in
+ * absolute terms, it is a ranking whose colour is stretched over the field's
+ * own range (`scoreRange` in `utils/score/headline.ts`), so green would claim
+ * a day is good when it is only the best of a wet week.
+ *
+ * The anchors sit where scores fall: most of the spread a reader weighs is
+ * between 50 and 95 of the stretched range. Each theme has its own, since the
+ * dark one's fog must recede into a dark map and the light one's into a pale
+ * one.
+ */
+const SCORE_THRESHOLDS = [0, 40, 55, 68, 80, 90]
+export const SCORE_RAMP: Record<Theme, readonly string[]> = {
+  dark: ['#303842', '#4a5663', '#68788a', '#7096be', '#4c98e8', '#409eff', '#7ac4ff'],
+  light: ['#788088', '#9ea7b0', '#b8c4cf', '#8cbae4', '#4092e6', '#1670de', '#0a4cba'],
+}
+
+/** Where a score stands on the stretched range, from 0 to 100. */
+export function stretchScore(score: number, range: { lo: number; hi: number } | null): number {
+  return range ? clamp(((score - range.lo) / (range.hi - range.lo)) * 100, 0, 100) : clamp(score, 0, 100)
+}
+
+/** A score's colour in one theme, for a channel that paints one (MapLibre, canvas). */
+export function scoreFill(score: number, range: { lo: number; hi: number } | null, theme: Theme): string {
+  return colorOnScale(stretchScore(score, range), { thresholds: SCORE_THRESHOLDS, colors: SCORE_RAMP[theme], ink: [] })
+}
+
+/** A score's colour as one string for both themes, for a class or a style. */
+export function scoreColor(score: number, range: { lo: number; hi: number } | null): string {
+  return themed(scoreFill(score, range, 'light'), scoreFill(score, range, 'dark'))
 }
