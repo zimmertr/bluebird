@@ -13,12 +13,12 @@
  * instead, so it still ranks.
  */
 import type { DestinationResult } from '../../types'
+import { HOUR_MS } from '../forecastWindow'
 import { litHours, solarDay } from './daylight'
 import { AIR_CURVE, COMFORT_CURVE, DRY_CURVE, WARMTH_CURVE, WIND_CURVE, freshFactor, ramp, skyFactor } from './factors'
 import { hourScore } from './hourScore'
 import { LENS_WEIGHTS, type Factor, type Lens } from './lenses'
 
-const HOUR_MS = 3_600_000
 
 /** How many consecutive hours make the best stretch of a day. */
 export const BEST_RUN_HOURS = 4

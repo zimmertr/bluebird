@@ -10,9 +10,9 @@
  * ones the sun actually lights there.
  */
 
+import { DAY_MS, HOUR_MS, MINUTE_MS } from '../forecastWindow'
+
 const RAD = Math.PI / 180
-const DAY_MS = 86_400_000
-const HOUR_MS = 3_600_000
 
 /** The sun's declination (radians) and the equation of time (minutes) at an instant. */
 function solar(ms: number): { decl: number; eqTimeMin: number } {
@@ -62,15 +62,15 @@ export interface SunTimes {
 export function sunTimes(latDeg: number, lonDeg: number, day: number): SunTimes {
   // Evaluated at the day's mean noon: the declination moves under half a
   // degree a day, well inside a minute of rise or set.
-  const meanNoonMs = day * DAY_MS + 43_200_000 - (lonDeg / 15) * HOUR_MS
+  const meanNoonMs = day * DAY_MS + DAY_MS / 2 - (lonDeg / 15) * HOUR_MS
   const { decl, eqTimeMin } = solar(meanNoonMs)
   // Solar noon is the mean noon corrected by the equation of time.
-  const noonMs = meanNoonMs - eqTimeMin * 60_000
+  const noonMs = meanNoonMs - eqTimeMin * MINUTE_MS
   const lat = latDeg * RAD
   const cosH = Math.cos(90.833 * RAD) / (Math.cos(lat) * Math.cos(decl)) - Math.tan(lat) * Math.tan(decl)
   if (cosH <= -1) return { riseMs: -Infinity, setMs: Infinity }
   if (cosH >= 1) return { riseMs: noonMs, setMs: noonMs }
-  const halfMs = (Math.acos(cosH) / RAD) * 4 * 60_000
+  const halfMs = (Math.acos(cosH) / RAD) * 4 * MINUTE_MS
   return { riseMs: noonMs - halfMs, setMs: noonMs + halfMs }
 }
 
@@ -84,7 +84,7 @@ export function daylightMinutes(latDeg: number, lonDeg: number, hourMs: number):
     const { riseMs, setMs } = sunTimes(latDeg, lonDeg, d)
     lit += Math.max(0, Math.min(setMs, hourMs + HOUR_MS) - Math.max(riseMs, hourMs))
   }
-  return Math.min(60, lit / 60_000)
+  return Math.min(60, lit / MINUTE_MS)
 }
 
 /** At least half the hour in daylight: the hours the score reads. */
@@ -115,6 +115,6 @@ export function litHours(latDeg: number, lonDeg: number, times: readonly number[
       const { riseMs, setMs } = sun(d)
       lit += Math.max(0, Math.min(setMs, hourMs + HOUR_MS) - Math.max(riseMs, hourMs))
     }
-    return lit >= 30 * 60_000
+    return lit >= 30 * MINUTE_MS
   })
 }
