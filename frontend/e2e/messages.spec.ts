@@ -1,4 +1,4 @@
-import { test, expect, drawRing, expectRanked, message, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, drawRing, expectRanked, message, resultRows, DESTINATION_NAMES, openSection } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // The Analyze button counts the panel's messages in a badge at its corner and
@@ -100,6 +100,7 @@ test.describe('at a desk', () => {
     await analyze.click()
     await expectRanked(page)
     const before = await count(page)
+    await openSection(page, 'Destinations')
     await page.getByRole('checkbox', { name: 'Lakes', exact: true }).check()
     await expect(badge(page)).toHaveAttribute('aria-label', `${before + 1} message${before + 1 === 1 ? '' : 's'}`)
     await badge(page).click()

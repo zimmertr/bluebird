@@ -40,6 +40,7 @@ const ROWS: DestinationResult[] = [
 ]
 const signal = new AbortController().signal
 interface PostedBody {
+  polygon?: GeoPolygon
   destination_types?: string[]
   custom_destinations?: Record<string, unknown>[]
   elevation_lookup?: boolean
@@ -71,6 +72,12 @@ function options(over: Partial<PipelineOptions> = {}): PipelineOptions {
     onPace: () => {},
     ...over,
   }
+}
+
+// The app hands a run its areas beside the request (record 0306): here the
+// ring the request names, or none.
+function run(request: AnalyzeRequest, opts: PipelineOptions) {
+  return runAnalysisPipeline(request, { areas: request.polygon ? [request.polygon] : [], ...opts })
 }
 
 // What the ranking answers: nothing ranked, unless a test says otherwise.
@@ -135,7 +142,7 @@ describe('a polygon run', () => {
     const lake = discovered({ name: 'Tarn', type: 'lake', latitude: 47.5, longitude: -121.75, elevation_ft: null, osm_id: 'way/2' })
     stubDestinations({ destinations: [CANDIDATE, lake], total: 2 })
     const { seen, onDiscovered } = found()
-    await runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'lake', 'trailhead', 'crag'] }, options({ onDiscovered }))
+    await run({ ...REQUEST, destination_types: ['peak', 'lake', 'trailhead', 'crag'] }, options({ onDiscovered }))
     expect(posted).toHaveLength(1)
     expect(posted[0]).toMatchObject({ destination_types: ['peak', 'lake', 'trailhead', 'crag'] })
     expect(posted[0]).not.toHaveProperty('custom_destinations')
@@ -153,7 +160,7 @@ describe('a polygon run', () => {
     })
     const { seen, onDiscovered } = found()
     const identity = new Map([[geoKey(47, -121), { elevation_ft: 6000, osm_id: 'node/77' }]])
-    await runAnalysisPipeline(
+    await run(
       { ...REQUEST, custom_destinations: [MINE] },
       options({ onDiscovered, identity: { latest: () => identity }, knownTypes: { [geoKey(47, -121)]: 'peak' } }),
     )
@@ -171,7 +178,7 @@ describe('a polygon run', () => {
     stubDestinations({ destinations: [discovered({ name: 'Fresh' })], total: 1 })
     const { seen, onDiscovered } = found()
     const held = { candidates: [CANDIDATE], totalFound: 3000, truncated: true }
-    const out = await runAnalysisPipeline(REQUEST, options({ onDiscovered, found: held }))
+    const out = await run(REQUEST, options({ onDiscovered, found: held }))
     expect(posted).toHaveLength(0)
     expect(seen).toEqual([held])
     expect(ranked.mock.calls[0][1]).toEqual([CANDIDATE])
@@ -181,7 +188,7 @@ describe('a polygon run', () => {
   it('asks the pod as before when no field is held', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     const { seen, onDiscovered } = found()
-    await runAnalysisPipeline(REQUEST, options({ onDiscovered, found: null }))
+    await run(REQUEST, options({ onDiscovered, found: null }))
     expect(posted).toHaveLength(1)
     expect(seen[0].candidates).toEqual([CANDIDATE])
   })
@@ -193,7 +200,7 @@ describe('a polygon run', () => {
     const { seen, onDiscovered } = found()
     const mine = discovered({ ...MINE, type: 'custom', elevation_ft: null, osm_id: null })
     const identity = new Map([[geoKey(47, -121), { elevation_ft: 6000, osm_id: 'node/77' }]])
-    await runAnalysisPipeline(
+    await run(
       { ...REQUEST, custom_destinations: [MINE] },
       options({
         onDiscovered,
@@ -210,7 +217,7 @@ describe('a polygon run', () => {
   it('ignores a held field for a run with no polygon', async () => {
     stubDestinations({ destinations: [discovered({ ...MINE, type: 'custom' })], total: 1 })
     const { seen, onDiscovered } = found()
-    await runAnalysisPipeline(
+    await run(
       { ...REQUEST, polygon: undefined, custom_destinations: [MINE] },
       options({ onDiscovered, found: { candidates: [CANDIDATE], totalFound: null, truncated: false } }),
     )
@@ -222,7 +229,7 @@ describe('a polygon run', () => {
   it('fails when the pod cannot discover', async () => {
     stubDestinations({ detail: DISCOVERY_UNAVAILABLE_MESSAGE }, 502)
     await expect(
-      runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'], custom_destinations: [MINE] }, options()),
+      run({ ...REQUEST, destination_types: ['peak', 'trailhead'], custom_destinations: [MINE] }, options()),
     ).rejects.toThrow(DISCOVERY_UNAVAILABLE_MESSAGE)
     expect(ranked).not.toHaveBeenCalled()
   })
@@ -231,21 +238,36 @@ describe('a polygon run', () => {
 describe('discoverCandidates', () => {
   it('sends the discovery knobs with their defaults, and custom rows only when there are some', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1, total_found: 9, truncated: true })
-    const found = await discoverCandidates(REQUEST, signal)
+    const found = await discoverCandidates(REQUEST, [RING], signal)
     expect(posted[0]).toMatchObject({ include_unnamed_peaks: false, top_by_elevation: false })
     expect(posted[0]).not.toHaveProperty('custom_destinations')
     expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true })
 
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
-    await discoverCandidates({ ...REQUEST, custom_destinations: custom }, signal)
+    await discoverCandidates({ ...REQUEST, custom_destinations: custom }, [RING], signal)
     expect(posted[1]).toMatchObject({ custom_destinations: custom, elevation_lookup: false })
+  })
+
+  // Record 0306: one call an area, in order, the list riding the first alone,
+  // and a destination two overlapping areas both found is one row.
+  it('asks once an area, sends the list with the first, and keeps a shared destination once', async () => {
+    const OTHER: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.6, 47.4], [-121.4, 47.4], [-121.4, 47.55], [-121.6, 47.4]]] }
+    stubDestinations({ destinations: [CANDIDATE], total: 1, total_found: 1, truncated: false })
+    const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
+    const found = await discoverCandidates({ ...REQUEST, custom_destinations: custom }, [RING, OTHER], signal)
+    expect(posted).toHaveLength(2)
+    expect(posted[0]).toMatchObject({ polygon: RING, custom_destinations: custom })
+    expect(posted[1]).toMatchObject({ polygon: OTHER })
+    expect(posted[1]).not.toHaveProperty('custom_destinations')
+    expect(found.candidates).toEqual([CANDIDATE])
+    expect(found.totalFound).toBe(2)
   })
 
   it('throws a refusal for a structured 400, and a plain error otherwise', async () => {
     stubDestinations({ detail: 'Over the cap.', found: 2000 }, 400)
-    await expect(discoverCandidates(REQUEST, signal)).rejects.toBeInstanceOf(AnalysisRefusalError)
+    await expect(discoverCandidates(REQUEST, [RING], signal)).rejects.toBeInstanceOf(AnalysisRefusalError)
     stubDestinations({ detail: 'Bad ring.' }, 400)
-    const plain = discoverCandidates(REQUEST, signal)
+    const plain = discoverCandidates(REQUEST, [RING], signal)
     await expect(plain).rejects.toThrow('Bad ring.')
     await expect(plain).rejects.not.toBeInstanceOf(AnalysisRefusalError)
   })
@@ -256,7 +278,7 @@ describe('discoverCandidates', () => {
   it('throws a refusal for a 422 with no count, in the pod\'s own words', async () => {
     const detail = 'Too many custom destinations (1,501). Maximum is 1,500.'
     stubDestinations({ detail }, 422)
-    const refused = discoverCandidates(REQUEST, signal)
+    const refused = discoverCandidates(REQUEST, [RING], signal)
     await expect(refused).rejects.toBeInstanceOf(AnalysisRefusalError)
     await expect(refused).rejects.toThrow(detail)
   })
@@ -268,7 +290,7 @@ describe('runAnalysisPipeline', () => {
     const lake = discovered({ name: 'Tarn', type: 'custom', elevation_ft: null, osm_id: null })
     stubDestinations({ destinations: [lake], total: 1 })
     const seen: string[] = []
-    await runAnalysisPipeline(
+    await run(
       { ...REQUEST, polygon: undefined, custom_destinations: [{ name: 'Tarn', latitude: lake.latitude, longitude: lake.longitude }] },
       options({
         knownTypes: { [geoKey(lake.latitude, lake.longitude)]: 'lake' },
@@ -292,7 +314,7 @@ describe('runAnalysisPipeline', () => {
       handed = cb!.resolving
       return rankedResult()
     })
-    await runAnalysisPipeline(
+    await run(
       { ...REQUEST, polygon: undefined, custom_destinations: custom },
       options({
         knownTypes: { [geoKey(47, -121)]: 'peak' },
@@ -333,7 +355,7 @@ describe('runAnalysisPipeline', () => {
         late: cb!.resolving!.then(() => ({ rows: [patched], columns: new Map() })),
       }),
     )
-    const out = await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options())
+    const out = await run({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options())
     expect([...out.pending]).toEqual([geoKey(47, -121)])
     expect(out.held.columns?.size).toBe(1)
     expect(await out.late).toEqual({ rows: [patched], columns: new Map() })
@@ -365,7 +387,7 @@ describe('runAnalysisPipeline', () => {
       await cb!.resolving
       return rankedResult()
     })
-    await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity }))
+    await run({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity }))
     // The field carries what was learned from the start.
     expect(order).toEqual(['ranked 6000,null'])
     expect(bodies).toHaveLength(1)
@@ -386,7 +408,7 @@ describe('runAnalysisPipeline', () => {
       }),
     )
     ranked.mockResolvedValue(rankedResult())
-    await runAnalysisPipeline(
+    await run(
       { ...REQUEST, polygon: undefined, custom_destinations: custom, top_by_elevation: true },
       options({ maxDestinations: 2 }),
     )
@@ -399,7 +421,7 @@ describe('runAnalysisPipeline', () => {
     ranked.mockResolvedValueOnce(
       rankedResult({ response: { results: [], total_queried: 1, total_matched: 1 }, columns: held }),
     )
-    const out = await runAnalysisPipeline(REQUEST, options())
+    const out = await run(REQUEST, options())
     expect(out.pending.size).toBe(0)
     expect(out.late).toBeNull()
     // The columns are still held for a later run's lookup.
@@ -408,13 +430,13 @@ describe('runAnalysisPipeline', () => {
 
   it('hands the ranking the clock it was given, so the fetches read one time', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
-    await runAnalysisPipeline(REQUEST, options())
+    await run(REQUEST, options())
     expect(ranked.mock.calls[0][4]!.nowMs).toBe(NOW)
   })
 
   it('hands a ring no lookup: discovery already answered', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
-    await runAnalysisPipeline(REQUEST, options())
+    await run(REQUEST, options())
     expect(ranked.mock.calls[0][4]!.resolving).toBeUndefined()
   })
 
@@ -425,7 +447,7 @@ describe('runAnalysisPipeline', () => {
       order.push('ranked')
       return rankedResult()
     })
-    await runAnalysisPipeline(REQUEST, options({ onDiscovered: (f) => order.push(`found ${f.candidates.length}`) }))
+    await run(REQUEST, options({ onDiscovered: (f) => order.push(`found ${f.candidates.length}`) }))
     expect(order).toEqual(['found 1', 'ranked'])
   })
 
@@ -436,7 +458,7 @@ describe('runAnalysisPipeline', () => {
       return rankedResult()
     })
     const onPartial = vi.fn()
-    await runAnalysisPipeline(REQUEST, options({ onPartial }))
+    await run(REQUEST, options({ onPartial }))
     expect(onPartial).toHaveBeenCalledWith(
       { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [7] },
       ROWS,
@@ -445,7 +467,7 @@ describe('runAnalysisPipeline', () => {
 
   it('merges the truncation discovery reported into the report', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1, total_found: 3000, truncated: true })
-    const out = await runAnalysisPipeline(REQUEST, options())
+    const out = await run(REQUEST, options())
     expect(out.response).toMatchObject({ total_found: 3000, truncated: true })
     expect(out.field).toBe(ROWS)
   })
@@ -465,7 +487,7 @@ describe('runAnalysisPipeline', () => {
         aqiFailed: stillFailed,
       }),
     )
-    const out = await runAnalysisPipeline(REQUEST, options({ held }))
+    const out = await run(REQUEST, options({ held }))
     // The rows whose air quality failed go to the run that may ask again
     // (#580), and the ones that failed again come back to be held.
     expect(ranked.mock.calls[0][4]!.reuse).toEqual({ rows: ROWS, times: [1], aqiFailed: new Set(['held']) })
@@ -480,7 +502,7 @@ describe('runAnalysisPipeline', () => {
     const held: HeldForecasts = {
       rows: ROWS, times: [1], startMs, endMs: startMs + 2 * HOUR_MS, model: 'gfs_seamless', fetchedAtMs: NOW - FORECAST_REUSE_MS,
     }
-    const out = await runAnalysisPipeline(REQUEST, options({ held }))
+    const out = await run(REQUEST, options({ held }))
     expect(ranked.mock.calls[0][4]!.reuse).toBeNull()
     expect(out.held.fetchedAtMs).toBe(NOW)
   })
@@ -488,7 +510,7 @@ describe('runAnalysisPipeline', () => {
   it('refuses a window outside the limits before it asks the server anything', async () => {
     stubDestinations({ destinations: [], total: 0 })
     const late = { ...REQUEST, start_datetime: '2027-07-21T00:00:00Z', end_datetime: '2027-07-21T02:00:00Z' }
-    await expect(runAnalysisPipeline(late, options())).rejects.toThrow(/forecast horizon/)
+    await expect(run(late, options())).rejects.toThrow(/forecast horizon/)
     expect(posted).toEqual([])
   })
 })

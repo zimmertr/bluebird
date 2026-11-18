@@ -317,10 +317,11 @@ export default function ResultsBar({
               one line, its word (`BAR_LABEL`), and the wide chevron stands
               after it. */}
           {/* At the row's right end. On one line `justify-between` stands it
-              there already; where a three-digit Removed count wraps it onto a
-              line of its own (beside the docked panel at 1024, #714) the
-              margin keeps it there rather than at the line's start. Not before
-              a report, where it is the row's only member. */}
+              there already; where the group wraps onto a line of its own (a
+              three-digit Removed count did, beside the docked panel at 1024,
+              #714; a desk's bar is the window's width since #825) the margin
+              keeps it there rather than at the line's start. Not before a
+              report, where it is the row's only member. */}
           <div className={`flex items-center gap-2 ${showResults ? 'ml-auto' : ''}`}>
             <div className={ACTION_GROUP}>
               {actions.map((action, i) => (

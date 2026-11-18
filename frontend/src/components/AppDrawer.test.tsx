@@ -9,12 +9,25 @@ import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import type { PanelMessages } from '../hooks/usePanelMessages'
-import { DESK_PANEL, LAYOUT_HOLD } from '../styles'
+import { DESK_CARD, PANEL_HEADER } from '../styles'
 
 vi.mock('./ControlPanel', () => ({
-  default: (props: { pointSample: boolean; messages: PanelMessages; phone?: boolean }) => (
-    <div data-testid="panel" data-phone={String(props.phone)} data-messages={String(props.messages.count)}>
+  default: (props: {
+    pointSample: boolean
+    messages: PanelMessages
+    phone?: boolean
+    destinations: { onSearchSelect?: unknown }
+    card?: { open: boolean; section: string | null; onSection: (id: string) => void }
+  }) => (
+    <div
+      data-testid="panel"
+      data-phone={String(props.phone)}
+      data-messages={String(props.messages.count)}
+      data-card={props.card ? `${props.card.open ? 'open' : 'shut'}:${props.card.section}` : 'none'}
+      data-search={String(props.destinations.onSearchSelect !== undefined)}
+    >
       {props.pointSample ? 'point' : 'window'}
+      {props.card && <button onClick={() => props.card?.onSection('metrics')}>open metrics</button>}
     </div>
   ),
 }))
@@ -22,14 +35,20 @@ vi.mock('./ControlPanel', () => ({
 const NOOP = () => {}
 const DRAW = {
   drawing: false,
-  startDrawing: NOOP,
-  finishDrawing: NOOP,
   drawPointCount: 0,
+  startArea: NOOP,
+  editArea: NOOP,
+  removeArea: NOOP,
+  finishDrawing: () => [],
   handleCancelDrawing: NOOP,
-  handleClearDrawing: NOOP,
 }
 const INPUTS = {
-  polygonAreaKm2: null,
+  areas: [],
+  areaKm2s: [],
+  draftAreaKm2: null,
+  presetLists: { ids: [], add: NOOP, remove: NOOP, rows: [], arriving: false },
+  places: [],
+  removePlace: NOOP,
   destinationTypes: [],
   setDestinationTypes: NOOP,
   customCsv: '',
@@ -81,9 +100,10 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       chartMetrics={chartMetricsOf()}
       caps={CAPS}
       mapRef={MAP}
-      onPointAtSearch={NOOP}
       onPointAtMapPois={NOOP}
-      onPresetListFailed={NOOP}
+      areaCount={0}
+      onSearchSelect={NOOP}
+      onFramePlace={NOOP}
       messages={MESSAGES}
       onAnalyze={NOOP}
       autoAnalyze={false}
@@ -96,6 +116,15 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
 }
 
 describe('AppDrawer', () => {
+  // A desk's search stands in the Destinations field (record 0306); a
+  // phone's is the map's pill, so its Controls sheet holds none.
+  it('puts the search in a desk\'s panel and not in a phone\'s', () => {
+    const { rerender } = render(drawer(true))
+    expect(screen.getByTestId('panel').dataset.search).toBe('true')
+    rerender(drawer(true, NOOP, { isDesktop: false }))
+    expect(screen.getByTestId('panel').dataset.search).toBe('false')
+  })
+
   // The theme menu at a desk (#843): in the header, beside the close button
   // and in its box, named by the choice it holds, and a pick reaches App.
   it('carries the theme menu beside its close button at a desk', () => {
@@ -122,45 +151,56 @@ describe('AppDrawer', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  // A desk docks the panel beside the map and draws nothing behind it.
-  it('docks at a desk with no backdrop and no sheet', () => {
+  // A desk's controls are a card (record 0305) with nothing drawn behind it.
+  it('stands as a card at a desk with no backdrop and no sheet', () => {
     const { container } = render(drawer(true))
     expect(container.querySelector('aside')?.previousElementSibling).toBeNull()
+    expect(container.querySelector('aside')?.className).toBe(DESK_CARD.card)
+    // A popup keeps clear of the card as it does of the map's rows.
+    expect(container.querySelector('aside')?.hasAttribute('data-map-overlay')).toBe(true)
     expect(screen.queryByRole('dialog', { name: 'Controls' })).toBeNull()
     expect(screen.getByTestId('panel').dataset.phone).toBe('false')
   })
 
-  // Shut, it stays in the row and its margin takes its width back, so the
-  // map's edge moves with the panel's both ways (record 0202).
-  it('pushes off the left edge when closed and stays mounted', () => {
+  // Shut, the card is hidden whole, and the panel stays mounted so its state
+  // and a link's run on open outlive a close.
+  it('hides whole when closed and stays mounted', () => {
     const { container, rerender } = render(drawer(true))
-    const shut = DESK_PANEL.shut
-    expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
-    expect(container.querySelector('aside')?.className.split(' ')).not.toContain(shut)
     rerender(drawer(false))
-    expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
-    expect(container.querySelector('aside')?.className.split(' ')).toContain(shut)
+    expect(container.querySelector('aside')?.className).toBe('hidden')
     expect(screen.getByTestId('panel')).toBeTruthy()
   })
 
-  // On a layer of its own while it moves, so a frame of the move paints none
-  // of it (record 0216), and only then.
-  it('stands on a layer of its own while it moves', () => {
-    const { container, rerender } = render(drawer(true))
-    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
-    rerender(drawer(false, NOOP, { moving: true }))
-    expect(container.querySelector('aside')?.className).toContain(LAYOUT_HOLD.layer)
+  // Hidden is out of the Tab order: closed, the drawer once kept some 45
+  // stops a keyboard walked through blind (#576). Inert as well, which is
+  // what tells the focus hand-off that the pressed Close button has lost the
+  // keyboard before the browser moves it.
+  it('hides its header buttons while closed, inert', () => {
+    const { rerender } = render(drawer(true))
+    const actions = () => screen.getByRole('button', { name: 'Close controls', hidden: true }).parentElement
+    expect(actions()?.className).toBe(PANEL_HEADER.actions)
+    expect(actions()?.hasAttribute('inert')).toBe(false)
     rerender(drawer(false))
-    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
+    expect(actions()?.className).toBe('hidden')
+    expect(actions()?.hasAttribute('inert')).toBe(true)
   })
 
-  // Off screen is not out of the Tab order: closed, the drawer kept some 45
-  // stops a keyboard walked through blind (#576).
-  it('leaves the Tab order while closed', () => {
-    const { container, rerender } = render(drawer(true))
-    expect(container.querySelector('aside')?.hasAttribute('inert')).toBe(false)
-    rerender(drawer(false))
-    expect(container.querySelector('aside')?.hasAttribute('inert')).toBe(true)
+  // The card hands the panel whether it is open, the section that is, and
+  // the press that opens another (record 0305).
+  it('hands a desk\'s panel its card: the open section and the press', () => {
+    const onSection = vi.fn()
+    const { rerender } = render(drawer(true, NOOP, { onSection, section: 'forecast' }))
+    expect(screen.getByTestId('panel').dataset.card).toBe('open:forecast')
+    fireEvent.click(screen.getByRole('button', { name: 'open metrics' }))
+    expect(onSection).toHaveBeenCalledExactlyOnceWith('metrics')
+    rerender(drawer(false, NOOP, { onSection, section: null }))
+    expect(screen.getByTestId('panel').dataset.card).toBe('shut:null')
+  })
+
+  // A phone's sheet shows every section whole, so its panel gets no card.
+  it('hands a phone\'s panel no card', () => {
+    render(drawer(true, NOOP, { isDesktop: false, onSection: NOOP }))
+    expect(screen.getByTestId('panel').dataset.card).toBe('none')
   })
 
   // The map's Controls button unmounts as the drawer opens, so the drawer's

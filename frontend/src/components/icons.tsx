@@ -117,7 +117,7 @@ export function IconFold({ open, className }: IconProps & { open: boolean }): Re
 }
 
 /**
- * The star on a row of the Coordinate list menu (#848): an outline until the
+ * The star on a row of the Search by list menu (#848): an outline until the
  * list is starred, then filled. The fill is the state, so the two read apart
  * without their colour.
  */
@@ -511,6 +511,67 @@ export function IconPlay({ playing, className }: IconProps & { playing: boolean 
       ) : (
         <path d="M1,0 L10,5 L1,10 Z" />
       )}
+    </svg>
+  )
+}
+
+// The three kinds of destination the Destinations section adds (record
+// 0306), on its chips and its two add buttons: a list, an area, a place. Each
+// takes a size, the chip's step on a chip and the control's on a button.
+
+/** A list: rows of points, the ready-made lists and the reader's own coordinates. */
+export function IconList({ size = 'control', className }: IconProps & { size?: keyof typeof ICON }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      className={join(ICON[size], className)}
+      aria-hidden="true"
+    >
+      <line x1="9" y1="6" x2="20" y2="6" />
+      <line x1="9" y1="12" x2="20" y2="12" />
+      <line x1="9" y1="18" x2="20" y2="18" />
+      <line x1="4.5" y1="6" x2="4.5" y2="6" />
+      <line x1="4.5" y1="12" x2="4.5" y2="12" />
+      <line x1="4.5" y1="18" x2="4.5" y2="18" />
+    </svg>
+  )
+}
+
+/** An area: a drawn shape, the outline Search by area makes. */
+export function IconArea({ size = 'control', className }: IconProps & { size?: keyof typeof ICON }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+      className={join(ICON[size], className)}
+      aria-hidden="true"
+    >
+      <polygon points="5,8 13,4 20,9 17,19 7,20" />
+    </svg>
+  )
+}
+
+/** A place: one destination, searched by name or picked on the map. */
+export function IconPin({ size = 'control', className }: IconProps & { size?: keyof typeof ICON }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+      className={join(ICON[size], className)}
+      aria-hidden="true"
+    >
+      <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z" />
+      <circle cx="12" cy="10" r="2.5" />
     </svg>
   )
 }

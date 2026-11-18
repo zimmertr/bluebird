@@ -11,7 +11,7 @@
  * Read `inputs` inside the handler every time. A value copied out of it when a
  * handler is registered is the stale closure this object exists to prevent.
  */
-import type { DestinationResult, SortBy } from '../types'
+import type { DestinationResult, GeoPolygon, SortBy } from '../types'
 import type { Place } from '../utils/geocode'
 import type { CameraView } from '../utils/mapView'
 import type { ColDef } from '../utils/tableColumns'
@@ -40,11 +40,15 @@ export interface MapInputs {
   // A result card's aggregate head carried to another (TJ 2026-10-30).
   onMoveAggregate: (from: string, to: string) => void
   cameraPadBottomPx: number
+  // A desk's open controls card's reach from the map's left edge (record 0305).
+  cameraPadLeftPx: number
   // Where the settled camera goes, and whether the reader moved it
   // (`map/camera.ts`). The share link's writer, which never renders.
   onCameraMove: (view: CameraView, readerMove: boolean) => void
   // The most positions a ring may carry, as /api/capabilities publishes it.
   maxPolygonPoints: number
+  // Every finished area (record 0306), which the opening frame fits.
+  areas: readonly GeoPolygon[]
   // The 3D button's press, asking for the terrain on or off (#799). The
   // switch is the overlays', so the button, the link and the map agree.
   onTerrainChange: (on: boolean) => void

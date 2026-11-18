@@ -24,10 +24,12 @@ import { geoKey } from './points'
  * between analyses there is no ring to compare; and a ring never names a
  * pending destination, which is the one consumer this scope serves.
  */
-export function authoredScope(types: readonly string[], csv: string): string {
+export function authoredScope(types: readonly string[], csv: string, lists: readonly string[] = []): string {
   // Sorted so checking peaks then lakes and lakes then peaks are one scope,
   // matching the reset comparison and the order-independent cache key upstream.
-  return JSON.stringify({ types: [...types].sort(), csv: csv.trim() })
+  // The ready-made lists are sorted for the same reason: adding two lists in
+  // either order asks for the same field (record 0306).
+  return JSON.stringify({ types: [...types].sort(), csv: csv.trim(), lists: [...lists].sort() })
 }
 
 export interface RemovedEntry {

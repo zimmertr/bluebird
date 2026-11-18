@@ -33,7 +33,15 @@ import {
   transportStandPx,
   legendBottomPx,
   legendMaxCss,
+  legendRowsPx,
+  legendRowVars,
+  cardChips,
+  CHIP_MENU_MAX_CSS,
+  LEGEND_UNDER_CARD_MIN_PX,
+  CARD_CHIPS_RISE_PX,
   CHIP_MENU_GAP_PX,
+  DESK_CARD_W_PX,
+  LEGEND_BESIDE_CARD_TRANSPORT_PX,
   LEGEND_BESIDE_TRANSPORT_PX,
   LEGEND_CARD_W_PX,
   MAP_EDGE_INSET_PX,
@@ -55,6 +63,10 @@ import { SHEET_SNAP_PX } from '../sheetDrag'
 // tools/eslint/checks/app.js.
 import stylesSource from '../../styles.ts?raw'
 import transportSource from '../../components/TimelineTransport.tsx?raw'
+
+// What `legendMaxCss` reads off the rows, with the shut card's two rows and line as the fallbacks.
+const ROWS = `var(--legend-rows, ${MAP_ROWS_PX}px)`
+const LINE = `var(--legend-line, ${LEGEND_BESIDE_TRANSPORT_PX}px)`
 
 describe('sheetHeightPx', () => {
   it('is the header alone while the results are collapsed', () => {
@@ -113,20 +125,20 @@ describe('the map chrome anchors', () => {
   // stack kept.
   it('caps a desk\'s legend card at the map under the rows, less the floor', () => {
     expect(CHIP_MENU_GAP_PX).toBe(4)
-    expect(legendMaxCss(0, false)).toBe(`calc(100cqh - ${MAP_ROWS_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX}px)`)
+    expect(legendMaxCss(0, false)).toBe(`calc(100cqh - ${ROWS} - ${CHIP_MENU_GAP_PX + LEGEND_GAP_PX}px)`)
     expect(stylesSource).toContain('[container-type:size]')
   })
 
   // With the player on, the card clears its band only on a map narrow enough
   // for the centred bar to reach under it; wider, it keeps the plain gap.
   it('clears the player only where the bar reaches under the card', () => {
-    const base = MAP_ROWS_PX + CHIP_MENU_GAP_PX + LEGEND_GAP_PX
+    const base = CHIP_MENU_GAP_PX + LEGEND_GAP_PX
     const extra = TRANSPORT_BAND_PX - LEGEND_GAP_PX
     expect(legendMaxCss(0, true)).toBe(
-      `calc(100cqh - ${base}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`,
+      `calc(100cqh - ${ROWS} - ${base}px - clamp(0px, (${LINE} - 100cqw) * 1000, ${extra}px))`,
     )
     expect(legendMaxCss(120, true)).toBe(
-      `calc(100cqh - ${base + 120}px - clamp(0px, (${LEGEND_BESIDE_TRANSPORT_PX}px - 100cqw) * 1000, ${extra}px))`,
+      `calc(100cqh - ${ROWS} - ${base + 120}px - clamp(0px, (${LINE} - 100cqw) * 1000, ${extra}px))`,
     )
     // The clamp is a step: evaluate it at a few map widths the way CSS would.
     const reserve = (mapW: number) => LEGEND_GAP_PX + Math.min(extra, Math.max(0, (LEGEND_BESIDE_TRANSPORT_PX - mapW) * 1000))
@@ -134,6 +146,52 @@ describe('the map chrome anchors', () => {
     expect(reserve(1648)).toBe(LEGEND_GAP_PX)
     expect(reserve(LEGEND_BESIDE_TRANSPORT_PX - 1)).toBe(TRANSPORT_BAND_PX)
     expect(reserve(737)).toBe(TRANSPORT_BAND_PX)
+  })
+
+  // Around a desk's open controls card (record 0305) the rows end where the
+  // chip row stands. Beside the card it is the map's first row, 44px higher,
+  // and the legend's card stands the controls card's reach further right, so
+  // the line it clears the player under moves out by twice that: 1610px.
+  // Under the card it is the inset, the card, the gap and the chip row, in
+  // the card's own column, so the line is the shut card's.
+  it('ends the rows where the chip row stands around an open controls card', () => {
+    expect(CARD_CHIPS_RISE_PX).toBe(44)
+    expect(LEGEND_BESIDE_CARD_TRANSPORT_PX).toBe(1610)
+    expect(LEGEND_BESIDE_CARD_TRANSPORT_PX - LEGEND_BESIDE_TRANSPORT_PX).toBe(2 * (DESK_CARD_W_PX + MAP_EDGE_INSET_PX))
+    expect(legendRowsPx(null)).toBe(MAP_ROWS_PX)
+    expect(legendRowsPx({ side: 'beside' })).toBe(44)
+    expect(legendRowsPx({ side: 'under' }, 335)).toBe(12 + 335 + 12 + 32)
+    expect(legendRowVars({ side: 'beside' })).toEqual({ '--legend-rows': '44px', '--legend-line': '1610px' })
+    expect(legendRowVars({ side: 'under', cardPx: 335, menuPx: 461.5 })).toEqual({
+      '--legend-rows': '391px',
+      '--legend-line': `${LEGEND_BESIDE_TRANSPORT_PX}px`,
+      '--chip-menu-max': '461px',
+    })
+    // With no window to bound it, a menu under the card is as tall as its rows.
+    expect(legendRowVars({ side: 'under', cardPx: 335, menuPx: Number.POSITIVE_INFINITY })).not.toHaveProperty('--chip-menu-max')
+    expect(CHIP_MENU_MAX_CSS).toBe('var(--chip-menu-max, none)')
+  })
+
+  // Under the card wherever the legend then has 120px of the map: the
+  // collapsed card, 335px, on the 594px map the maintainer screenshotted
+  // (2026-11-17), with 167px to spare. Beside it on the 380px map a
+  // 1389x868 window leaves after a run with both panes open, where the chips
+  // would hang off the map's foot, and before a run with Metrics open (723px
+  // of an 825px map). A card not measured yet reads as beside.
+  it('stands the chips under the card where the legend has room there, and beside it where it has not', () => {
+    expect(LEGEND_UNDER_CARD_MIN_PX).toBe(120)
+    expect(cardChips(594, 335)).toEqual({ side: 'under', cardPx: 335, menuPx: Number.POSITIVE_INFINITY })
+    expect(cardChips(380, 335)).toEqual({ side: 'beside' })
+    expect(cardChips(825, 535).side).toBe('under')
+    expect(cardChips(825, 723)).toEqual({ side: 'beside' })
+    // A chip's menu under the card stops one inset over the window's foot:
+    // 868px of window under the map's top, less the rows, the gap and the inset.
+    expect(cardChips(594, 335, 868)).toEqual({ side: 'under', cardPx: 335, menuPx: 868 - 391 - CHIP_MENU_GAP_PX - 12 })
+    // The line itself: the rows, the gap under the chip, the key's least and its floor.
+    const least = 12 + 335 + 12 + 32 + CHIP_MENU_GAP_PX + LEGEND_UNDER_CARD_MIN_PX + LEGEND_GAP_PX
+    expect(cardChips(least, 335).side).toBe('under')
+    expect(cardChips(least - 1, 335).side).toBe('beside')
+    expect(cardChips(2000, 0)).toEqual({ side: 'beside' })
   })
 
   // The line is where the bar's left edge stands one inset clear of the
@@ -480,8 +538,8 @@ describe('dockedMapFloorPx', () => {
   })
 
   // The one-line estimate holds until the bar is measured, and the bar's own
-  // height replaces it after: 85px beside the docked panel at 1024 with a
-  // three-digit Removed count (#714).
+  // height replaces it after: 85px, as it was beside the docked panel at
+  // 1024 with a three-digit Removed count (#714).
   it('counts the bar as measured once it is', () => {
     expect(dockedMapFloorPx(1, RESULTS_BAR_PX)).toBe(dockedMapFloorPx(1))
     expect(dockedMapFloorPx(1, 85) - dockedMapFloorPx(1)).toBe(85 - RESULTS_BAR_PX)

@@ -66,7 +66,7 @@ describe('analysisPoints', () => {
   }
 
   it('takes the ring vertices of a searched ring, then the list', () => {
-    expect(analysisPoints(RING, true, [RAINIER])).toEqual([
+    expect(analysisPoints([RING], true, [RAINIER])).toEqual([
       { latitude: 47.4, longitude: -121.9 },
       { latitude: 47.4, longitude: -121.7 },
       { latitude: 47.55, longitude: -121.7 },
@@ -77,8 +77,8 @@ describe('analysisPoints', () => {
 
   // A ring with no type checked searches nothing.
   it('leaves out a ring nothing is searched for, and a missing ring', () => {
-    expect(analysisPoints(RING, false, [RAINIER])).toEqual([RAINIER])
-    expect(analysisPoints(null, true, [])).toEqual([])
+    expect(analysisPoints([RING], false, [RAINIER])).toEqual([RAINIER])
+    expect(analysisPoints([], true, [])).toEqual([])
   })
 
   // Conservative: a ring with a vertex outside is held, whatever it would find.
@@ -94,7 +94,7 @@ describe('analysisPoints', () => {
         ] as [number, number][],
       ],
     }
-    expect(modelOutsideDomain([HRRR], analysisPoints(reaching, true, []))).toBe('NOAA HRRR')
-    expect(modelOutsideDomain([HRRR], analysisPoints(RING, true, []))).toBeNull()
+    expect(modelOutsideDomain([HRRR], analysisPoints([reaching], true, []))).toBe('NOAA HRRR')
+    expect(modelOutsideDomain([HRRR], analysisPoints([RING], true, []))).toBeNull()
   })
 })

@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
-  ACCENT_RING,
+  DESTINATION_ADD,
+  DESTINATION_FIELD,
   BADGE_ACCENT,
   BADGE_STEP,
   LAYER,
@@ -46,6 +47,7 @@ import {
   CARD_BODY_END,
   CARD_FOLD,
   CARD_RESIZE,
+  CARD_SECTION,
   CARD_TITLE_ROW,
   NOTICE,
   NOTICE_DISMISS,
@@ -66,11 +68,10 @@ import {
   HEADER_BUTTON,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
-  DRAW_ROW,
   METRIC_LABEL_PITCH,
   MOTION,
   PANEL_MS,
-  DESK_PANEL,
+  DESK_CARD,
   RESULTS_PANE,
   LAYOUT_HOLD,
   PANEL_BODY,
@@ -149,7 +150,7 @@ import { CHEVRON_PX, EXTERNAL_LINK_PX, GRIP_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX } from './utils/results/resultsSheet'
+import { CHIP_MENU_GAP_PX, DESK_CARD_REACH_PX, DESK_CARD_W_PX, MAP_EDGE_INSET_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
@@ -213,6 +214,7 @@ import bottomSheetSource from './components/BottomSheet.tsx?raw'
 import phoneFootSource from './components/PhoneFoot.tsx?raw'
 import mapStageSource from './components/MapStage.tsx?raw'
 import appDrawerSource from './components/AppDrawer.tsx?raw'
+import panelSectionSource from './components/PanelSection.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
@@ -880,24 +882,36 @@ describe('grouping and segmenting', () => {
     for (const ratio of Object.values(MEASURED)) expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 
-  // Pointing at a control from across the screen is a ring, not a border or a
-  // fill: it has to layer onto something that already has both. DAY.today is
-  // the other one, and it wears slate because it labels a day rather than
-  // acting on it — this one wears the resting accent because it is the app
-  // answering a hover.
-  it('points with a ring in the resting accent', () => {
-    expect(darkStep(token(ACCENT_RING, 'ring'))).toBe('sky-400')
-    expect(ACCENT_RING).not.toContain('border')
+  // DAY.today's ring wears slate because it labels a day rather than acting
+  // on it.
+  it('rings today in slate', () => {
     expect(darkStep(token(DAY.today, 'ring'))).toBe('slate-400')
   })
+})
 
-  // The ring is a box-shadow and fades; a radius does not. Bundling one in here
-  // squared the corners the instant the ring began fading, so the outline spent
-  // the transition as a rectangle standing off a rounded field. The element
-  // wearing this keeps its own radius at all times.
-  it('leaves the radius to whatever wears the ring', () => {
-    expect(ACCENT_RING).not.toContain(RADIUS.surface)
-    expect(ACCENT_RING).not.toMatch(/\brounded\b/)
+// The Destinations section's field and its two add buttons (record 0306).
+describe('the destinations field', () => {
+  // A list's chip names it and does nothing when pressed, so its name is the
+  // pressable label's box without the pointer or the ring.
+  it('sizes a list chip\'s name as a pressable one', () => {
+    for (const word of words(DESTINATION_FIELD.text)) expect(words(CHIP.label)).toContain(word)
+    expect(DESTINATION_FIELD.text).not.toContain('cursor-pointer')
+    expect(DESTINATION_FIELD.text).not.toContain(FOCUS_RING)
+  })
+
+  // The field is a field: its edge and fill are FIELD's, and it lights its
+  // edge while the search inside it has the keyboard.
+  it('frames the chips and the search as one field', () => {
+    expect(DESTINATION_FIELD.frame).toContain('focus-within:border-mark')
+    expect(DESTINATION_FIELD.search).toContain(TAP.height)
+  })
+
+  // The pair reads as one: both tiles wear one face, and the line under each
+  // name is the caption measured on the raised fill.
+  it('gives both add buttons one face and the lifted caption', () => {
+    expect(DESTINATION_ADD.tile).toContain('bg-raised')
+    expect(DESTINATION_ADD.line).toContain(CAPTION_LIFTED)
+    expect(DESTINATION_ADD.row).toContain('grid-cols-2')
   })
 })
 
@@ -918,8 +932,7 @@ describe('shared recipes', () => {
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['FIELD', FIELD],
     ['SELECT', SELECT],
-    ['DRAW_ROW.secondary', DRAW_ROW.secondary],
-    ['DRAW_ROW.accent', DRAW_ROW.accent],
+    ['DESTINATION_ADD.tile', DESTINATION_ADD.tile],
     ['DAY.cell', DAY.cell],
   ])('%s is a tap target on a coarse pointer', (_name, recipe) => {
     expect(recipe).toContain('touch:')
@@ -1398,7 +1411,7 @@ describe('shared recipes', () => {
     expect(dropdownPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(TOTAL_PX)
   })
 
-  // A Metrics row's chart toggle (record 0290) wears the Coordinate list
+  // A Metrics row's chart toggle (record 0290) wears the Search by list
   // menu's two marks, and stands on the panel rather than a card, so its
   // glyph's 3:1 (1.4.11) is measured there, at rest and lit.
   it('draws the chart toggle past 3:1 on the panel, at rest and lit', () => {
@@ -2703,8 +2716,11 @@ describe('the map rows', () => {
     // The class map.css keys the vendor group's margin on.
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
-    expect(mapRowsSource).toContain('{!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}')
-    expect(mapRowsSource).toContain('{!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}')
+    // A desk's map has no pill row at all (record 0306), so the slots stand
+    // inside the phone's.
+    expect(mapRowsSource).toContain('{!desk && (')
+    expect(mapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.locate} />')
+    expect(mapRowsSource).toContain('<div ref={onTerrainSlot} className={MAP_SLOT.terrain} />')
     // A phone's compass, the chip row's last member (record 0147): no size of
     // its own, so a hidden compass leaves the row's end to the map. A desk
     // has none of the three slots.
@@ -3286,15 +3302,14 @@ describe('a blocked Analyze and the message list', () => {
     expect(MESSAGE_LIST.sheet).toBe('space-y-2 py-2')
   })
 
-  // The desk card takes the width of the slot the button and its badge share
-  // (#803, record 0233), which is the docked panel less the footer's gutters,
-  // so the 82-character over-cap sentence wraps inside it rather than running
-  // the card past the panel's right edge over the map.
-  it("stands the desk card at the Analyze slot's width, 328px at the docked panel", () => {
+  // The message list takes the width of the slot the button and its badge
+  // share (#803, record 0233), which is the controls card less its two edges
+  // and the footer's gutters, so the 82-character over-cap sentence wraps
+  // inside it rather than running the list past the card's right edge.
+  it("stands the message list at the Analyze slot's width, 327px in the controls card", () => {
     expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: slotRef,/)
-    const panelPx = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) * 4
     const gutterPx = Number(panelFooterSource.match(/`px-(\d+) py-4 border-t \$\{PANEL_EDGE\}/)![1]) * 4
-    expect(panelPx - 2 * gutterPx).toBe(328)
+    expect(DESK_CARD_W_PX - 2 - 2 * gutterPx).toBe(327)
   })
 })
 
@@ -3982,7 +3997,6 @@ describe('the elevation scale', () => {
   })
 
   it('keeps the glows off the scale', () => {
-    expect(ACCENT_RING).toMatch(/shadow-\[/)
     expect(STYLES.TOUR.spotlight).toMatch(/shadow-\[/)
   })
 })
@@ -4563,14 +4577,17 @@ describe('the results bar buttons', () => {
     const fits = Number(BAR_LABEL.match(/@min-\[(\d+)px\]:inline/)![1])
     expect(BAR_LABEL.startsWith('hidden ')).toBe(true)
     expect(fits).toBe(Math.ceil(MEASURED.switch + MEASURED.group + MEASURED.gap + MEASURED.digits))
-    // The docked bar at 1024 wide has 640px and keeps them; the widest phone
-    // measured, 430, has 406.
-    expect(640).toBeGreaterThanOrEqual(fits)
+    // A desk's bar at 1024 wide has 1000px, the window's width less its
+    // padding, since the controls are a card over the map (#825; record
+    // 0305), and keeps them; the widest phone measured, 430, has 406.
+    const DESK_BAR = 1024 - 24
+    expect(DESK_BAR).toBeGreaterThanOrEqual(fits)
     expect(406).toBeLessThan(fits)
     // At a desk the menu buttons carry chevrons (record 0201), measured
-    // 2026-10-20: the docked bar at 1024 still holds a two-digit count.
+    // 2026-10-20: the bar holds the line with a three-digit Removed count,
+    // which wrapped the group in the 640px beside the docked panel.
     const DESK_GROUP = 437.8
-    expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits / 2).toBeLessThanOrEqual(640)
+    expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits).toBeLessThanOrEqual(DESK_BAR)
   })
 })
 
@@ -4687,10 +4704,12 @@ describe('the one menu', () => {
   // Three trigger shapes, on purpose (TJ, 2026-10-20: "Three shapes,
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu. The segment and the
-  // square came with the chart's picker (#499), and the header's round button
-  // with the theme menu (#843), each the look of what it stands beside.
+  // square came with the chart's picker (#499), the header's round button
+  // with the theme menu (#843), and the tile with Search by list (record
+  // 0306), each the look of what it stands beside.
   it('keeps the trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square', 'tile'])
+    expect(MENU_TRIGGER.tile).toBe(DESTINATION_ADD.tile)
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())
@@ -4791,8 +4810,8 @@ describe('the panel frame', () => {
       page: ratio(edge, dark('page')),
       wasBefore: ratio(dark(token(SURFACE_DIVIDER, 'border')), dark('panel')),
     }).toEqual(MEASURED)
-    expect(DESK_PANEL.card).toContain(`border-r ${PANEL_EDGE}`)
-    expect(appDrawerSource).toContain('DESK_PANEL.card')
+    expect(words(DESK_CARD.card)).toEqual(expect.arrayContaining(['border', PANEL_EDGE]))
+    expect(appDrawerSource).toContain('DESK_CARD.card')
     expect(appDrawerSource).not.toMatch(/SURFACE_DIVIDER/)
     expect(Math.min(MEASURED.panel, MEASURED.page)).toBeGreaterThanOrEqual(3)
     expect(MEASURED.wasBefore).toBeLessThan(3)
@@ -4875,7 +4894,6 @@ describe('the panel frame', () => {
       expect(recipe).toContain('motion-reduce:transition-none')
     }
     expect(CONTROLS_SHEET.card).toContain(MOTION.slide)
-    expect(DESK_PANEL.card).toContain(MOTION.push)
     expect(appDrawerSource).not.toMatch(/(^|\s)transition-transform duration/)
     expect(analysisOverlaySource).toContain('MOTION.progress')
     expect(resultsPanelsSource).toContain('MOTION.pane')
@@ -4890,45 +4908,71 @@ describe('the panel frame', () => {
     const easing = (recipe: string) => recipe.match(/(?:^|\s)(ease-[a-z-]+)(?=\s|$)/)?.[1]
     expect(PANEL_MS).toBe(300)
     expect(duration(MOTION.menu)).toBe(150)
-    for (const recipe of [MOTION.slide, MOTION.push, MOTION.pane]) {
+    for (const recipe of [MOTION.slide, MOTION.pane]) {
       expect(duration(recipe)).toBe(PANEL_MS)
       expect(easing(recipe)).toBe('ease-in-out')
     }
     // Each names the one property it moves, so a grip's drag on a sheet's or
     // a pane's height never chases the finger.
     expect(MOTION.slide).toMatch(/(^|\s)transition-transform(\s|$)/)
-    expect(MOTION.push).toMatch(/(^|\s)transition-\[margin-left\](\s|$)/)
     expect(MOTION.pane).toMatch(/(^|\s)transition-\[grid-template-rows\](\s|$)/)
     expect(MOTION.menu).toMatch(/(^|\s)transition-\[opacity,translate\](\s|$)/)
   })
 
-  // The desk panel pushes the map's edge (record 0202): it stays in the row
-  // shut, and its margin takes back exactly its own width.
-  it('takes the desk panel out of the row by its own width', () => {
-    const width = DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)?.[1]
-    expect(width).toBe('90')
-    expect(DESK_PANEL.shut).toBe(`-ml-${width}`)
-    expect(DESK_PANEL.card).not.toMatch(/(^|\s)(absolute|fixed)(\s|$)/)
-    expect(DESK_PANEL.card).toMatch(/(^|\s)relative(\s|$)/)
-    expect(DESK_PANEL.card).toContain(LAYER.base)
+  // The controls at a desk are a card over the map (record 0305), where
+  // they were a column that pushed it. 361px: the 360px panel and the left
+  // edge a docked panel never drew, so the content is the same 359px and
+  // every control keeps its measured width.
+  it('stands the desk controls as a card over the map, at the panel\'s content width', () => {
+    const width = Number(DESK_CARD.card.match(/(?:^|\s)w-\[(\d+)px\](?=\s|$)/)?.[1])
+    expect(width).toBe(DESK_CARD_W_PX)
+    expect(width - 2).toBe(359)
+    expect(DESK_CARD_REACH_PX).toBe(MAP_EDGE_INSET_PX + width)
+    const card = words(DESK_CARD.card)
+    // The panel's fill, so every ratio measured on the panel holds, with a
+    // floating box's edge, corners and shadow.
+    expect(card).toEqual(
+      expect.arrayContaining(['relative', 'pointer-events-auto', 'bg-panel', 'border', RADIUS.surface, ELEVATION.raised]),
+    )
+    // Never taller than the map less one inset over and under it.
+    expect(card).toContain(`max-h-[calc(100cqh-${(2 * MAP_EDGE_INSET_PX) / 16}rem)]`)
+    // No clip: the search field's list hangs past a short card's foot.
+    expect(card.some((w) => w.startsWith('overflow'))).toBe(false)
+    // Open, the chip row stands beside the card rather than under it.
+    expect(DESK_CARD.stackOpen).toBe('lg:flex-row lg:items-start')
   })
 
-  // While a desk's layout moves, the map and the results hold one size
-  // (record 0202). The map's box is the window's width or height, centred on
-  // its column, so MapLibre, which keeps the centre on a resize, draws what it
-  // would at every size in between. The chart closing keeps its open width,
-  // the window less the panel.
-  it('holds the map centred on its column, and the chart at the width it had', () => {
-    expect(words(LAYOUT_HOLD.mapPush)).toEqual(expect.arrayContaining(['absolute', 'inset-y-0', 'w-screen', 'left-[calc(50%-50vw)]']))
+  // A section's heading in the card is a 40px row with one rule between
+  // sections and no other space, so three collapsed sections are 122px,
+  // where the panel's stack spends 16px over and under each rule.
+  it('draws a card section\'s heading as a 40px row, with a rule and no gap between sections', () => {
+    const rowPx = (Number(CARD_SECTION.head.match(/(?:^|\s)h-(\d+)(?=\s|$)/)![1]) / 4) * 16
+    expect(rowPx).toBe(40)
+    expect(3 * rowPx + 2).toBe(122)
+    // The 20px name is centred, so the controls start 10px under it, as
+    // they do under a phone's heading.
+    expect((rowPx - 20) / 2).toBe(10)
+    expect(CARD_SECTION.rule).toBe('[&>*+*]:border-t [&>*+*]:border-rule')
+    expect(token(CARD_SECTION.rule, '[&>*+*]:border')).toBe(token(SURFACE_DIVIDER, 'border'))
+    expect(CARD_SECTION.body).toBe('pb-4')
+    // The ring inside the row, where the scrolling body cannot clip it.
+    expect(CARD_SECTION.head).toContain(FOCUS_RING_INSET)
+    expect(CARD_SECTION.summary).toContain(TEXT.caption)
+    expect(words(CARD_SECTION.summary)).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'truncate']))
+    expect(panelSectionSource).toContain('aria-expanded={fold.open}')
+    // The card's body is the panel's with no padding of its own.
+    expect(DESK_CARD.body).toBe(PANEL_BODY.replace(' py-4 ', ' py-0 '))
+    expect(controlPanelSource).toContain('`${DESK_CARD.body} ${CARD_SECTION.rule}`')
+  })
+
+  // While a desk's results panes move, the map holds one size (record
+  // 0202). Its box is the window's height, centred on its column, so
+  // MapLibre, which keeps the centre on a resize, draws what it would at
+  // every size in between.
+  it('holds the map centred on its column while the panes move', () => {
     expect(words(LAYOUT_HOLD.mapPanes)).toEqual(expect.arrayContaining(['absolute', 'inset-x-0', 'h-dvh', 'top-[calc(50%-50dvh)]']))
     expect(LAYOUT_HOLD.rest).toBe('absolute inset-0')
-    expect(LAYOUT_HOLD.table).toBe('w-screen')
-    expect(LAYOUT_HOLD.chartOpening).toBe('w-screen')
-    const panelRem = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) / 4
-    expect(LAYOUT_HOLD.chartClosing).toBe(`w-[calc(100vw-${panelRem}rem)]`)
     expect(LAYOUT_HOLD.clip).toBe('overflow-clip')
-    // What moves stands on a layer of its own while it moves (record 0216).
-    expect(LAYOUT_HOLD.layer).toBe('will-change-transform')
   })
 
   // A results pane opens to its body's height and shuts to none, and the
@@ -5004,51 +5048,6 @@ describe('the calendar field', () => {
     expect(CALENDAR_FIELD.box).not.toContain(SELECT)
     expect(forecastCalendarSource).toMatch(/<Menu\s/)
     expect(forecastCalendarSource).toContain('CALENDAR_GROUND')
-  })
-})
-
-describe('the polygon row', () => {
-  // Three equal buttons on the fields' edges (#687): the two button roles with
-  // the inset cut to 4px and nothing else changed, because 12px a side would
-  // wrap `Draw polygon` (77.4px on a Mac, 78.77px in Inter since record 0304,
-  // 2026-11-16) in a third of a 295px field.
-  it('is the two button roles at a 4px inset, three to a row', () => {
-    expect(DRAW_ROW.secondary).toBe(BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '))
-    expect(DRAW_ROW.accent).toBe(BUTTON_ACCENT.replace(' px-3 ', ' px-1 '))
-    expect(DRAW_ROW.secondary).not.toBe(BUTTON_SECONDARY)
-    expect(DRAW_ROW.accent).not.toBe(BUTTON_ACCENT)
-    expect(DRAW_ROW.row).toContain('grid-cols-3')
-    const third = (field: number) => (field - 2 * stepPx(DRAW_ROW.row, 'gap')) / 3
-    const need = (inset: number) => 78.77 + 2 * inset
-    expect(need(stepPx(DRAW_ROW.secondary, 'px'))).toBeLessThan(third(295))
-    expect(need(stepPx(BUTTON_SECONDARY, 'px'))).toBeGreaterThan(third(317))
-    for (const name of ['DRAW_ROW.row', 'DRAW_ROW.secondary', 'DRAW_ROW.accent', 'DISABLED']) {
-      expect(destinationsSource).toContain(name)
-    }
-    expect(destinationsSource).not.toMatch(/BUTTON_(SECONDARY|ACCENT)/)
-  })
-
-  // The List search row is the same grid (#838, record 0263): the
-  // Coordinate list field across two cells and Clear in the third, the two the
-  // same height under either pointer.
-  it('stands the Coordinate list field as tall as the Clear beside it', () => {
-    const px = (cls: string, prefix: string) =>
-      Number(cls.match(new RegExp(`(?:^|\\s)${prefix}-\\[(\\d+)px\\](?:\\s|$)`))![1])
-    const LINE = 16
-    expect(MENU_TRIGGER.field).toContain(TEXT.control)
-    expect(DRAW_ROW.secondary).toContain(TEXT.control)
-    expect(MENU_TRIGGER.field).toMatch(/(^|\s)border(\s|$)/)
-    expect(DRAW_ROW.secondary).not.toMatch(/(^|\s)border(\s|$)/)
-    const field = 2 * 1 + 2 * px(DRAW_ROW.field, 'py') + LINE
-    const button = 2 * stepPx(DRAW_ROW.secondary, 'py') + LINE
-    expect(field).toBe(28)
-    expect(button).toBe(28)
-    expect(MENU_TRIGGER.field).toContain(TAP.height)
-    expect(DRAW_ROW.secondary).toContain('touch:min-h-8')
-    expect(TAP.height).toBe('touch:min-h-8')
-    expect(DRAW_ROW.field).toMatch(/(^|\s)col-span-2(\s|$)/)
-    expect(destinationsSource).toContain('className={DRAW_ROW.field}')
-    expect(destinationsSource.match(/className=\{DRAW_ROW\.row\}|\$\{DRAW_ROW\.row\}/g)).toHaveLength(2)
   })
 })
 
@@ -5472,12 +5471,12 @@ describe('the browsing menu', () => {
     expect(ratio(light(token(MENU.description, 'text')), light('floating'))).toBe(8.91)
   })
 
-  // The search box is the panel's field at the Coordinate list field's own
-  // inset, so the two stand the same height: 28px at a desk, 32 on touch.
-  it('stands the search box as tall as the field that opened it', () => {
+  // The search box is the panel's field at a 5px inset, the 6px of a button
+  // less the field's border, so it stands 28px at a desk and 32 on touch.
+  it('stands the search box as tall as a button', () => {
     expect(MENU_BROWSE.input.startsWith(`${FIELD} `)).toBe(true)
     const inset = (recipe: string) => recipe.match(/(?:^|\s)py-\[(\d+)px\]/)![1]
-    expect(inset(MENU_BROWSE.input)).toBe(inset(DRAW_ROW.field))
+    expect(inset(MENU_BROWSE.input)).toBe('5')
   })
 
   // A description starts under its row's name: past the star's glyph and the

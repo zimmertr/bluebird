@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, isoDay } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, isoDay, openSection } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every menu at a desk is the one menu (#714, record 0201): a card 4px under
@@ -103,6 +103,7 @@ test('the Layers chip and the results bar open their menus under themselves, lit
 
 test('the model list takes its row and lines up with the field\'s right edge', async ({ page }) => {
   await analyzed(page)
+  await openSection(page, 'Forecast')
   const field = page.getByRole('button', { name: /^Forecast model:/ })
   const rest = await edgeOf(field)
   await field.click()
@@ -122,6 +123,7 @@ test('the model list takes its row and lines up with the field\'s right edge', a
 
 test('the calendar stands 4px under its field at the field\'s width', async ({ page }) => {
   await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+  await openSection(page, 'Forecast')
   const field = page.getByRole('button', { name: /^When\b/ })
   await field.click()
   await expect(page.getByRole('grid', { name: 'Forecast day' })).toBeVisible()
@@ -156,6 +158,7 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
 
   // The keyboard: the arrows open and walk the list, Enter picks, and the
   // keyboard is back on the field.
+  await openSection(page, 'Metrics')
   const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
   const shown = aggregate.locator('span').nth(1)
   const before = (await shown.textContent())!
@@ -175,14 +178,15 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
   await expect(aggregate).toBeFocused()
 })
 
-// A three-digit Removed count is the one thing that wraps the bar's button
-// group at a desk, beside the docked panel at 1024. The group goes to a line
-// of its own as a whole, at the line's right end, and the results stand right
-// under the taller bar rather than under the one line the floor once counted.
+// A three-digit Removed count wrapped the bar's button group at a desk,
+// beside the docked panel at 1024, where the bar had 640px. The controls are
+// a card over the map since #825 (record 0305), so the bar is the window's
+// width and holds the count on its one line, the group at the line's right
+// end, with the results right under the bar.
 test.describe('a long Removed count at 1024', () => {
   test.use({ viewport: { width: 1024, height: 768 } })
 
-  test('wraps the button group whole onto its own line, at the right end', async ({ page }) => {
+  test('keeps the button group on the bar\'s one line, at the right end', async ({ page }) => {
     const ring = { cx: (-121.9 - 121.7 - 121.7) / 3, cy: (47.4 + 47.4 + 47.55) / 3 }
     const destinations = Array.from({ length: 105 }, (_, i) => ({
       name: `Peak ${5000 + i}`,
@@ -216,6 +220,7 @@ test.describe('a long Removed count at 1024', () => {
       const bar = row.closest('[data-tour="results"]')!.firstElementChild!
       return {
         group: box(group),
+        end: box(group.parentElement!),
         modes: box(row.firstElementChild!),
         row: box(row),
         bar: box(bar),
@@ -223,11 +228,14 @@ test.describe('a long Removed count at 1024', () => {
         map: document.querySelector('.maplibregl-canvas')!.getBoundingClientRect().toJSON() as DOMRect,
       }
     })
-    // Its own line, under the mode switch, and the whole group on it.
-    expect(parts.group.top).toBeGreaterThanOrEqual(parts.modes.bottom)
+    // On the mode switch's line, the whole group, with every word.
+    expect(Math.abs(parts.group.top - parts.modes.top)).toBeLessThanOrEqual(1)
     expect(parts.group.height).toBeCloseTo(parts.modes.height, 0)
-    // At the right end of the line, as it stands on one line.
-    near(parts.group.right, parts.row.right)
+    await expect(button.getByText('Removed (100)')).toBeVisible()
+    // At the right end of the line, with the bar's collapse button after
+    // it, which stands on this line once the bar is one line (896px).
+    near(parts.end.right, parts.row.right)
+    expect(parts.end.right - parts.group.right).toBeLessThanOrEqual(32)
     // The map ends where the bar starts, and the panels start where it ends.
     near(parts.map.bottom, parts.bar.top)
     near(parts.under.top, parts.bar.bottom)
@@ -276,6 +284,10 @@ test('every trigger lights the one way while open and rests as it was after', as
   const lit = new Set<string>()
   const lifted = new Set<string>()
   for (const [name, trigger, close] of triggers) {
+    // A panel field stands in its section of the card, which a report
+    // collapsed (record 0305).
+    if (name === 'model picker' || name === 'calendar') await openSection(page, 'Forecast')
+    if (name === 'aggregate') await openSection(page, 'Metrics')
     // The legend's card stands open on a desk until it is shut.
     if ((await trigger.getAttribute('aria-expanded')) === 'true') await trigger.click()
     await away()

@@ -4,6 +4,8 @@ import ModelPicker from './ModelPicker'
 import { CONTROL_W, TEXT } from '../styles'
 import type { ForecastSelection } from '../utils/calendar/calendar'
 import { modelForecastHours, type ForecastModelOption } from '../hooks/useCapabilities'
+import PanelSection, { type SectionFold } from './PanelSection'
+import { controlsSummary } from '../utils/controlsSummary'
 
 interface Props {
   // Which weather model answers, and the set this deployment offers, from
@@ -31,6 +33,8 @@ interface Props {
   // A phone, where the model list and the calendar open as bottom sheets
   // (record 0136) rather than as cards under their fields.
   phone?: boolean
+  // A desk's card opens and collapses the section under its heading (record 0305).
+  fold?: SectionFold
 }
 
 /**
@@ -51,6 +55,7 @@ export default function ForecastSection({
   archiveDays,
   aqiForecastDays,
   phone = false,
+  fold,
 }: Props) {
   const forecastHours = modelForecastHours(forecastModels, forecastModel)
   // The Model row, which the model list spans (record 0134).
@@ -63,10 +68,12 @@ export default function ForecastSection({
   )
 
   return (
-    <section data-tour="forecast">
-      <h2 className={`${TEXT.section} mb-2.5`}>
-        Forecast
-      </h2>
+    <PanelSection
+      data-tour="forecast"
+      heading="Forecast"
+      fold={fold}
+      summary={controlsSummary(selection.kind, forecastModels, forecastModel)}
+    >
 
       {/* Above the calendar rather than in Options, because it bounds the
           calendar: the grid below redraws when this changes, and a control
@@ -117,6 +124,6 @@ export default function ForecastSection({
           every message this section has to make is a line in the list the
           Analyze button's badge opens (`utils/panelMessages.ts`). */}
       <ForecastCalendar selection={selection} onChange={setSelection} band={band} sheet={phone} />
-    </section>
+    </PanelSection>
   )
 }

@@ -276,7 +276,7 @@ describe('nextToolbarIndex', () => {
   })
 })
 
-// What the Coordinate list menu's search box finds a row by (#848).
+// What the Search by list menu's search box finds a row by (#848).
 describe('matchesSearch', () => {
   const ROW = 'Wyoming 13ers Northern Rockies Idaho Montana Wyoming'
 

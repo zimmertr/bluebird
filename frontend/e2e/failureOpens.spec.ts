@@ -75,9 +75,9 @@ test.describe('at a desk', () => {
 
     await expect(page.getByRole('button', { name: 'Close controls' })).toBeInViewport()
     await expect(list(page).getByText(OVER_CAP)).toBeVisible()
-    // The card stands over the button it opened from, on the screen. Polled,
-    // because the panel slides back in: a box read the moment the button
-    // enters the viewport can catch the card partway, off the left edge.
+    // The list stands over the button it opened from, on the screen. Polled,
+    // because the controls open and the list opens in one render after
+    // another, and a box read between the two has no place yet.
     await expect
       .poll(async () => {
         const card = (await list(page).locator('..').boundingBox())!

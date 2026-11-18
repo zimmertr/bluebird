@@ -7,6 +7,8 @@ import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_LIMIT, DEFAULT_SORT } from '../utils/urlState'
 import { metricsFor } from '../utils/chart/chartData'
 
+const NO_LISTS: UrlSyncInputs['presetLists'] = []
+const NO_AREAS: UrlSyncInputs['areas'] = []
 const NO_TYPES: UrlSyncInputs['destinationTypes'] = []
 const NO_MODELS: UrlSyncInputs['comparedModels'] = []
 const NO_PLACES: UrlSyncInputs['places'] = []
@@ -17,7 +19,7 @@ const DEFAULT_CHART = metricsFor(DEFAULT_SORT)
 // Every input at its default, so the link is the bare path.
 function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
   return {
-    polygon: null,
+    areas: NO_AREAS,
     destinationTypes: NO_TYPES,
     includeUnnamedPeaks: false,
     selection: DEFAULT_SELECTION,
@@ -29,7 +31,7 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     constraints: NO_CONSTRAINTS,
     limit: DEFAULT_LIMIT,
     customCsv: '',
-    presetList: null,
+    presetLists: NO_LISTS,
     showWildfires: false,
     showAreaClosures: false,
     showTrailClosures: false,

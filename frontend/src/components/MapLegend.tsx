@@ -558,7 +558,13 @@ interface MapLegendProps {
  * markers it explains. On a phone it is a bottom sheet (record 0136), shut
  * until asked for and never remembered, because a sheet covers the map.
  */
-export default function MapLegend({ sections, sheet, sheetLiftPx, timelineShown, initiallyOpen }: MapLegendProps) {
+export default function MapLegend({
+  sections,
+  sheet,
+  sheetLiftPx,
+  timelineShown,
+  initiallyOpen,
+}: MapLegendProps) {
   const [deskOpen, setDeskOpen] = useState(initiallyOpen)
   const [sheetOpen, setSheetOpen] = useState(false)
   const shown = sections.length > 0

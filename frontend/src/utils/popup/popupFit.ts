@@ -65,6 +65,9 @@ const MARKER_HALF_PX = 8
  */
 const AREA_SLOP = 0.5
 
+/** How far inside the fit's breath a surface may stand and still stop a dragged card, in pixels (`clearSize`). */
+const PLACE_SLOP_PX = 1
+
 /** Whether a candidate that shows `area` beats the best so far, the shorter move breaking a tie. */
 function better(area: number, bestArea: number, shorter: boolean): boolean {
   return area > bestArea + AREA_SLOP || (Math.abs(area - bestArea) <= AREA_SLOP && shorter)
@@ -303,6 +306,15 @@ export function dragBodyRange(
  * size here is the popup's whole box, its tip included, as the caller
  * measures it, so the tip is not added again: counted twice, it stopped a
  * drag 18px over the scale rather than 8.
+ *
+ * A card the opening fit stood exactly the breath from a surface is found
+ * a hair inside it here: the point MapLibre projects carries noise in its
+ * last digits (`AREA_SLOP`), and the popup's place is rounded to a whole
+ * pixel. Read exactly, that surface was one the card could not clear at
+ * `least`, so it was left alone and a drag widened the card over the legend
+ * beside it (#825, once the legend stood beside a desk's controls card). So
+ * a surface up to `PLACE_SLOP_PX` inside the breath still stops the card,
+ * at `least` on that side.
  */
 export function clearSize(
   marker: Point,
@@ -327,13 +339,15 @@ export function clearSize(
         : o.right < marker.x
           ? 2 * (marker.x - o.right - FIT_MARGIN_PX)
           : -1
-    const byHeight = lower >= least.height
-    const byWidth = narrower >= least.width
-    if (wide && byWidth) width = Math.floor(narrower)
-    if (tall && byHeight) height = Math.floor(lower)
+    const byHeight = lower + PLACE_SLOP_PX >= least.height
+    const byWidth = narrower + 2 * PLACE_SLOP_PX >= least.width
+    const lowered = clamp(Math.floor(lower), least.height, height)
+    const narrowed = clamp(Math.floor(narrower), least.width, width)
+    if (wide && byWidth) width = narrowed
+    if (tall && byHeight) height = lowered
     if (wide || tall) continue
-    if (byHeight && (!byWidth || width * lower >= narrower * height)) height = Math.floor(lower)
-    else if (byWidth) width = Math.floor(narrower)
+    if (byHeight && (!byWidth || width * lower >= narrower * height)) height = lowered
+    else if (byWidth) width = narrowed
   }
   return { width, height }
 }

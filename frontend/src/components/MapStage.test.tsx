@@ -9,6 +9,7 @@ import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { DRAGGED_MAP_PX, FAB_INSET_PX, phoneCornerLiftPx, transportStandPx } from '../utils/results/resultsSheet'
 import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
+import { DESK_CARD_REACH_PX } from '../utils/results/resultsSheet'
 import type { Place } from '../utils/geocode'
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
@@ -23,7 +24,11 @@ vi.mock('./MapView', () => ({
 vi.mock('./MapLegend', async (original) => ({
   ...(await original<typeof import('./MapLegend')>()),
   default: (props: { sections: readonly unknown[]; sheet: boolean }) => (
-    <div data-testid="legend" data-sections={String(props.sections.length)} data-sheet={String(props.sheet)} />
+    <div
+      data-testid="legend"
+      data-sections={String(props.sections.length)}
+      data-sheet={String(props.sheet)}
+    />
   ),
 }))
 vi.mock('./LayersPopover', () => ({
@@ -68,10 +73,12 @@ vi.mock('./MapRows', () => ({
     layers: ReactNode
     legend: ReactNode
     covered: boolean
+    card?: ReactNode
   }) => (
     <div
       data-testid="rows"
       data-desk={String(props.desk)}
+      data-card={String(props.card !== undefined)}
       data-summary={props.controlsSummary}
       data-covered={String(props.covered)}
     >
@@ -93,8 +100,8 @@ const ROW = resultRow()
 // Hoisted, so a second render hands MapStage the very objects App would: the
 // same hook results, rebuilt by nothing between the two.
 const INPUTS: MapStageProps['destinationInputs'] = {
-  polygon: null,
-  setPolygon: NOOP,
+  areas: [],
+  setDraft: NOOP,
   restoredPoints: [],
   places: [],
   removePlace: NOOP,
@@ -160,7 +167,8 @@ const DRAW: MapStageProps['drawMode'] = {
   drawing: false,
   handleDrawUpdate: NOOP,
   drawPointCount: 0,
-  finishDrawing: NOOP,
+  editing: null,
+  finishDrawing: () => [],
   handleCancelDrawing: NOOP,
 }
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP, removeResult: NOOP }
@@ -203,7 +211,6 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     messages: MESSAGES,
     actionWord: 'Analyze',
     onAnalyze: NOOP,
-    searchPointed: false,
     poisPointed: false,
     ...over,
   }
@@ -235,7 +242,8 @@ describe('MapStage', () => {
     expect(got.results).toBe(REPORT.results)
     expect(got.pending).toBe(REPORT.pending)
     expect(got.times).toBe(TIMELINE.forecastTimes)
-    expect(got.onPolygonChange).toBe(INPUTS.setPolygon)
+    expect(got.onPolygonChange).toBe(INPUTS.setDraft)
+    expect(got.areas).toBe(INPUTS.areas)
     expect(got.onDrawUpdate).toBe(DRAW.handleDrawUpdate)
     expect(got.searchedPlaces).toBe(INPUTS.places)
     expect(got.popupColumns).toBe(TABLE_VIEW.tableColumns)
@@ -261,23 +269,38 @@ describe('MapStage', () => {
   // The chip row holds Legend and Layers at both widths (#714, record 0174),
   // each handed to the rows rather than drawn beside them; their order is
   // the rows' own (MapRows.test.tsx).
-  // While a desk's layout moves the map's column clips the map it holds to
-  // one size (record 0202), and while the panel moves it stands on a layer
-  // of its own (record 0216).
-  it('clips the map\'s column while the layout moves, and gives it a layer while the panel does', () => {
+  // While a desk's results panes move the map's column clips the map it
+  // holds to one size (record 0202).
+  it('clips the map\'s column while the results panes move', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const column = () => container.firstElementChild as HTMLElement
     expect(column().className).toContain('flex-1')
     expect(column().className).not.toContain(LAYOUT_HOLD.clip)
-    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
     rerender(<MapStage {...props({ layoutMotion: 'panes' })} />)
     expect(column().className).toContain(LAYOUT_HOLD.clip)
-    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
-    for (const layoutMotion of ['opening', 'closing'] as const) {
-      rerender(<MapStage {...props({ layoutMotion })} />)
-      expect(column().className).toContain(LAYOUT_HOLD.clip)
-      expect(column().className).toContain(LAYOUT_HOLD.layer)
+  })
+
+  // A desk's controls card stands in the rows (record 0305). While it is
+  // open a framing move leaves its reach clear on the map's left and the
+  // legend's chip stands beside it; shut, or on a phone, neither.
+  it('hands a desk\'s rows the controls card, and the map where it stands', () => {
+    const controlsCard = <aside />
+    const cases = [
+      { isDesktop: true, sidebarOpen: true, card: 'true', pad: DESK_CARD_REACH_PX },
+      { isDesktop: true, sidebarOpen: false, card: 'true', pad: 0 },
+      { isDesktop: false, sidebarOpen: true, card: 'false', pad: 0 },
+    ]
+    for (const { isDesktop, sidebarOpen, card, pad } of cases) {
+      seen.mapView.length = 0
+      const { unmount } = render(<MapStage {...props({ isDesktop, sidebarOpen, controlsCard })} />)
+      expect(screen.getByTestId('rows').dataset.card).toBe(card)
+      expect(seen.mapView[0].cameraPadLeftPx).toBe(pad)
+      unmount()
     }
+    // With no card handed to it, an open panel pads nothing.
+    seen.mapView.length = 0
+    render(<MapStage {...props({ isDesktop: true, sidebarOpen: true })} />)
+    expect(seen.mapView[0].cameraPadLeftPx).toBe(0)
   })
 
   it('hands the rows the Legend and Layers chips at both widths', () => {
@@ -299,7 +322,7 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 
-  // Draw polygon closes the drawer on a phone, so Done and Cancel come to the
+  // Search by area closes the drawer on a phone, so Done and Cancel come to the
   // map (#687). They are the panel's own two presses, the bar stands under the
   // chip row (#696), and the player steps out while it is up.
   it('puts Done and Cancel on the map while a phone draws, and the player away', async () => {
@@ -309,7 +332,7 @@ describe('MapStage', () => {
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
     const { user, rerender } = render(<MapStage {...props({ drawMode: drawing, isDesktop: false, sidebarOpen: false, timeline })} />)
     expect(screen.queryByTestId('transport')).toBeNull()
-    expect(screen.getByText('2 points placed, 1 more needed.')).toBeTruthy()
+    expect(screen.getByText('2 of 3 points placed')).toBeTruthy()
     const done = screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement
     expect(done.disabled).toBe(true)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))

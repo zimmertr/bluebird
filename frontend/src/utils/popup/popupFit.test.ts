@@ -307,6 +307,20 @@ describe('clearSize', () => {
     expect(clearSize(at, 'bottom', START, { width: 400, height: 790 }, LEAST, [rows])).toEqual({ width: 400, height: 732 })
   })
 
+  // The opening fit stands a card exactly the breath from a legend, and the
+  // drag then reads its point with noise in the last digits, or half a pixel
+  // off where MapLibre rounded the popup: the legend still stops the width,
+  // at the card's least. A pixel and more inside is one it cannot clear.
+  it('holds the width at its least beside a surface a hair inside the breath', () => {
+    const start = { width: 280, height: 300 }
+    const asked = { width: 400, height: 300 }
+    const legend = (right: number) => ({ left: 0, top: 120, right, bottom: 900 })
+    expect(clearSize(MARKER, 'top', start, asked, LEAST, [legend(492)])).toEqual({ width: 280, height: 300 })
+    expect(clearSize(MARKER, 'top', start, asked, LEAST, [legend(492.0000001)])).toEqual({ width: 280, height: 300 })
+    expect(clearSize(MARKER, 'top', start, asked, LEAST, [legend(492.5)])).toEqual({ width: 280, height: 300 })
+    expect(clearSize(MARKER, 'top', start, asked, LEAST, [legend(494)])).toEqual({ width: 400, height: 300 })
+  })
+
   it('leaves alone what it cannot clear at its least', () => {
     const over = { left: 600, top: 150, right: 700, bottom: 200 }
     expect(clearSize(MARKER, 'top', START, { width: 400, height: 300 }, LEAST, [over])).toEqual({ width: 400, height: 300 })

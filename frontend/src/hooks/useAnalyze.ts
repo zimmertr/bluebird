@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { geoKey } from '../utils/points'
-import type { AnalyzeRequest, DiscoveredDestination } from '../types'
+import type { AnalyzeRequest, DiscoveredDestination, GeoPolygon } from '../types'
 import { RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
@@ -28,18 +28,13 @@ interface FoundField {
   key: string
 }
 
-// What a polygon request asks discovery, as one string (`fieldKey`): the
-// ring, the kinds with the unnamed-peaks toggle, and the reader's list by
-// coordinate, which rides in the same call. Null for a request with no
-// polygon, which discovers nothing.
-function foundKey(request: AnalyzeRequest): string | null {
-  if (!request.polygon) return null
-  return fieldKey(
-    request.polygon,
-    request.destination_types,
-    request.include_unnamed_peaks,
-    request.custom_destinations ?? [],
-  )
+// What a polygon run asks discovery, as one string (`fieldKey`): the areas,
+// the kinds with the unnamed-peaks toggle, and the reader's list by
+// coordinate, which rides in the same call. Null for a run with no area,
+// which discovers nothing.
+function foundKey(request: AnalyzeRequest, areas: readonly GeoPolygon[]): string | null {
+  if (areas.length === 0) return null
+  return fieldKey(areas, request.destination_types, request.include_unnamed_peaks, request.custom_destinations ?? [])
 }
 
 // One Analyze click, end to end, composed from three parts: the run in flight
@@ -159,13 +154,13 @@ export function useAnalyze(
     kind: SelectionKind = 'days',
     options: AnalyzeOptions = {},
   ): Promise<boolean> {
-    const { discovery, compareModels = [], onCommit, identity, counted } = options
+    const { discovery, compareModels = [], onCommit, identity, counted, areas = [] } = options
     setFailedView(null)
     const runSeq = ++runSeqRef.current
     // A failed run's field stands in for discovery when this request would
     // ask the pod the same question, and so does the ring's count ahead of
     // Analyze (#803, D1); any other request discovers afresh.
-    const key = foundKey(request)
+    const key = foundKey(request, areas)
     const held = foundRef.current
     const found =
       key === null ? null : held?.key === key ? held.found : counted?.key === key ? counted.found : null
@@ -174,8 +169,7 @@ export function useAnalyze(
     // only refresh re-fetches a polygon report through the custom path, so its
     // request carries no polygon.
     const facts: RecordedFacts = {
-      discovery:
-        discovery ?? discoveryKeys(request.polygon ?? null, request.destination_types, request.include_unnamed_peaks),
+      discovery: discovery ?? discoveryKeys(areas, request.destination_types, request.include_unnamed_peaks),
       compareModels,
     }
     const view = () => analyzedView(request, kind, facts, Date.now(), windowLimits)
@@ -185,7 +179,7 @@ export function useAnalyze(
     // custom or refresh run on the forecasts, which it asks for at once while
     // its elevation lookup runs beside them (#643). Either gives way to the
     // counted retrieval label once the field is announced.
-    const seed = request.polygon ? SEARCHING_MESSAGE : RETRIEVING_MESSAGE
+    const seed = areas.length > 0 ? SEARCHING_MESSAGE : RETRIEVING_MESSAGE
     // No server fallback (#240). An OpenMeteoUnreachable used to reroute the
     // whole analysis through POST /api/analyze/stream on the pod's shared
     // quota: a public quota-amplification surface no ordinary visitor ever
@@ -202,6 +196,7 @@ export function useAnalyze(
           aqiForecastDays,
           knownTypes: options.knownTypes,
           identity,
+          areas,
           found,
           hourlyCalls,
           compareModels,

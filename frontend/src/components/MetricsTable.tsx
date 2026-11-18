@@ -22,6 +22,8 @@ import {
   TEXT,
 } from '../styles'
 import { MenuSelect } from './Menu'
+import PanelSection, { type SectionFold } from './PanelSection'
+import { metricsSummary } from '../utils/controlsSummary'
 import { IconChart } from './icons'
 import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
@@ -187,6 +189,13 @@ const AGGREGATE_OPTIONS = Object.fromEntries(
   ]),
 ) as Record<MetricFamily, { value: SortBy; label: string }[]>
 
+// The ranking's two directions, by the word each half of the segment shows,
+// which the section's summary line repeats (record 0305).
+const DIRECTIONS = [
+  { desc: false, label: 'Lowest' },
+  { desc: true, label: 'Highest' },
+] as const
+
 interface Props {
   sortBy: SortBy
   setSortBy: (s: SortBy) => void
@@ -225,6 +234,8 @@ interface Props {
   // the press that draws metrics as panels or takes them away (record 0290).
   charted: ChartMetrics
   onChart: (keys: readonly ChartMetric[], on: boolean) => void
+  // A desk's card opens and collapses the section under its heading (record 0305).
+  fold?: SectionFold
 }
 
 /**
@@ -248,6 +259,7 @@ export default function MetricsTable({
   unanswered = ALL_ANSWERED,
   charted,
   onChart,
+  fold,
 }: Props) {
   // What Clear filters offers to undo, and therefore whether it is enabled.
   // The button is always drawn: a control that appears and disappears moves
@@ -303,10 +315,12 @@ export default function MetricsTable({
   // then METRIC_HEAD_GAP above the two box headings, then the table
   // of the five bounds the ranking can use.
   return (
-    <section data-tour="metrics">
-      <h2 className={`${TEXT.section} mb-2.5`}>
-        Metrics
-      </h2>
+    <PanelSection
+      data-tour="metrics"
+      heading="Metrics"
+      fold={fold}
+      summary={metricsSummary(sortBy, DIRECTIONS.find((d) => d.desc === sortDesc)!.label, limit)}
+    >
       <div className={METRICS_GRID}>
         {/* The one direction. Pressing a half never changes WHICH metric
             ranks; the radios own that. Two grid cells rather than a row of
@@ -320,10 +334,7 @@ export default function MetricsTable({
           Rank by
         </span>
         <div className={`${SEGMENT_FILL} col-span-2`} role="group" aria-labelledby="rank-by">
-          {[
-            { desc: false, label: 'Lowest' },
-            { desc: true, label: 'Highest' },
-          ].map((dir, i) => (
+          {DIRECTIONS.map((dir, i) => (
             <button
               key={dir.label}
               aria-pressed={sortDesc === dir.desc}
@@ -501,6 +512,6 @@ export default function MetricsTable({
           Clear filters
         </button>
       </div>
-    </section>
+    </PanelSection>
   )
 }

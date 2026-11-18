@@ -92,15 +92,15 @@ async function expectSpotlightOn(page: Page, anchor: string) {
 }
 
 // A section the panel has room for stands whole inside the panel's scroll box,
-// rather than under its footer.
+// rather than under its footer. The box is the nearest one that scrolls,
+// whether or not it has anything to scroll: a card short enough to hold the
+// section whole has nothing past its foot.
 async function expectSectionInPanel(page: Page, anchor: string) {
   await expect(async () => {
     const fit = await page.evaluate((a) => {
       const el = document.querySelector(`[data-tour="${a}"]`)
       let box = el?.parentElement ?? null
-      while (box && !(['auto', 'scroll'].includes(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) {
-        box = box.parentElement
-      }
+      while (box && !['auto', 'scroll'].includes(getComputedStyle(box).overflowY)) box = box.parentElement
       if (!el || !box) return null
       const s = el.getBoundingClientRect()
       const b = box.getBoundingClientRect()

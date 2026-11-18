@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState, type ComponentProps, type RefObject } from 'react'
+import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
 import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
@@ -30,6 +30,7 @@ import {
   phoneCornerLiftPx,
   transportFits,
   transportStandPx,
+  DESK_CARD_REACH_PX,
 } from '../utils/results/resultsSheet'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { Place } from '../utils/geocode'
@@ -49,12 +50,12 @@ export interface MapStageProps {
    */
   drawMode: Pick<
     DrawMode,
-    'drawing' | 'handleDrawUpdate' | 'drawPointCount' | 'finishDrawing' | 'handleCancelDrawing'
+    'drawing' | 'editing' | 'handleDrawUpdate' | 'drawPointCount' | 'finishDrawing' | 'handleCancelDrawing'
   >
   /** A desk keeps Done and Cancel in the docked panel; a phone gets them on the map. */
   isDesktop: boolean
-  /** The ring, the link's restored points and the searched places, with the setters the map calls. */
-  destinationInputs: Pick<DestinationInputs, 'polygon' | 'setPolygon' | 'restoredPoints' | 'places' | 'removePlace'>
+  /** The areas, the link's restored points and the searched places, with the setters the map calls. */
+  destinationInputs: Pick<DestinationInputs, 'areas' | 'setDraft' | 'restoredPoints' | 'places' | 'removePlace'>
   /** Registers a place picked in the search field or clicked on the map, and removes a ranked row from its card. */
   removals: Pick<Removals, 'registerPlace' | 'removeResult'>
   /** Which overlays are on, and their setters for the Layers popover. */
@@ -105,8 +106,10 @@ export interface MapStageProps {
   modelId: string | null
   /** Whether the results are shown, which is when the markers wear the ranking's colours. */
   showResults: boolean
-  /** Whether the controls panel is open. */
+  /** Whether the controls are open: a desk's card, a phone's sheet. */
   sidebarOpen: boolean
+  /** A desk's controls card, which the map's rows stand at their head (record 0305). */
+  controlsCard?: ReactNode
   /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
   layoutMotion?: LayoutMotion
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
@@ -125,9 +128,7 @@ export interface MapStageProps {
   onAnalyze: () => void
   /** The tutorial holds the Layers menu open for its step (#536). */
   layersForcedOpen: boolean
-  /** The panel's Map group is hovered, so the search field wears a ring. */
-  searchPointed: boolean
-  /** The same hover, so every clickable feature on the map glows. */
+  /** The panel's Destinations section is hovered, so every clickable feature on the map glows. */
   poisPointed: boolean
   /** The share link's camera callback, which writes without rendering. */
   urlSync: Pick<UrlSync, 'reportView'>
@@ -169,6 +170,7 @@ export default function MapStage({
   modelId,
   showResults,
   sidebarOpen,
+  controlsCard,
   layoutMotion = null,
   legendInitiallyOpen,
   onOpenControls,
@@ -178,7 +180,6 @@ export default function MapStage({
   actionWord,
   onAnalyze,
   layersForcedOpen,
-  searchPointed,
   poisPointed,
   urlSync,
   restoredView,
@@ -280,6 +281,10 @@ export default function MapStage({
       sheet={!isDesktop}
     />
   )
+  // A desk's controls card is open: a framing move leaves its width clear on
+  // the left (record 0305).
+  const cardOpen = isDesktop && sidebarOpen && controlsCard !== undefined
+  const cameraPadLeftPx = cardOpen ? DESK_CARD_REACH_PX : 0
   const legendChip = (
     <MapLegend
       sections={legend}
@@ -290,15 +295,11 @@ export default function MapStage({
     />
   )
 
-  // While the panel moves the box is the window's width, and while a pane
-  // moves the window's height, centred on the column either way, so the map
-  // is resized where the move starts or ends rather than in every frame.
-  const mapBox =
-    layoutMotion === 'opening' || layoutMotion === 'closing'
-      ? LAYOUT_HOLD.mapPush
-      : layoutMotion === 'panes'
-        ? LAYOUT_HOLD.mapPanes
-        : LAYOUT_HOLD.rest
+
+  // While a pane moves the box is the window's height, centred on the
+  // column, so the map is resized where the move starts or ends rather than
+  // in every frame.
+  const mapBox = layoutMotion === 'panes' ? LAYOUT_HOLD.mapPanes : LAYOUT_HOLD.rest
 
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
@@ -318,7 +319,7 @@ export default function MapStage({
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
         isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      } ${layoutMotion ? LAYOUT_HOLD.clip : ''} ${layoutMotion === 'opening' || layoutMotion === 'closing' ? LAYOUT_HOLD.layer : ''}`}
+      } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
       style={
         {
           // A phone's scale and (i) stand on the Analyze button's row
@@ -344,9 +345,10 @@ export default function MapStage({
           ref={mapRef}
           drawing={drawMode.drawing}
           pointedPois={poisPointed}
-          polygon={destinationInputs.polygon}
+          areas={destinationInputs.areas}
+          editingArea={drawMode.editing}
           restoredPoints={destinationInputs.restoredPoints}
-          onPolygonChange={destinationInputs.setPolygon}
+          onPolygonChange={destinationInputs.setDraft}
           onDrawUpdate={drawMode.handleDrawUpdate}
           results={results}
           sortBy={sortBy}
@@ -382,6 +384,7 @@ export default function MapStage({
           onRemoveResult={removeResult}
           onMoveAggregate={tableView.handleAggregateMove}
           cameraPadBottomPx={layout.cameraPadBottomPx}
+          cameraPadLeftPx={cameraPadLeftPx}
           restoredView={restoredView}
           onCameraMove={urlSync.reportView}
           onBasemapFailed={onBasemapFailed}
@@ -396,12 +399,12 @@ export default function MapStage({
       <MapRows
         searchBoxRef={searchBoxRef}
         onSearchSelect={handleSearchSelect}
-        searchPointed={searchPointed}
         onLocateSlot={setLocateSlot}
         onCompassSlot={setCompassSlot}
         onTerrainSlot={setTerrainSlot}
         desk={isDesktop}
         sidebarOpen={sidebarOpen}
+        card={isDesktop ? controlsCard : undefined}
         onOpenControls={onOpenControls}
         onCloseControls={onCloseControls}
         controlsSummary={controlsSummary}

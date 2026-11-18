@@ -21,6 +21,7 @@
 import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import type { GeoPolygon } from '../types'
+import { mountAreasLayer, type AreasLayer } from './areasLayer'
 import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
@@ -55,6 +56,7 @@ export interface MapFeatures {
   fireActivity: FireActivityOverlay
   snow: SnowOverlay
   radar: RadarOverlay
+  areas: AreasLayer
   drawRing: DrawRing
   results: ResultsLayer
   pois: PoiPopups
@@ -111,6 +113,7 @@ export function mountFeatures(
   const fireActivity = mountFireActivity(map, { popups: mapPopups })
   const snow = mountSnow(map, { popups: mapPopups })
   const radar = mountRadar(map, { popups: mapPopups })
+  const areas = mountAreasLayer(map)
   const drawRing = mountDrawRing(map, {
     ring: deps.ring,
     controller,
@@ -158,6 +161,7 @@ export function mountFeatures(
     fireActivity,
     snow,
     radar,
+    areas,
     drawRing,
     results,
     pois,

@@ -1,6 +1,6 @@
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
-import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
+import { anchorSelector, stepLayout, stepSection, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
 import type { DemoReport } from './demoReport'
 import type { ChartMetrics } from '../utils/chart/chartData'
 import { loadTimeSeriesChart } from '../components/ResultsPanels'
@@ -296,6 +296,8 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     end,
     next,
     prev,
+    /** The section of a desk's controls card held open for its step, or null (record 0305). */
+    panelSection: step ? stepSection(step) : null,
     /** The Layers menu is held open for its step. */
     layersOpen: step?.reveal === 'layers',
     /** The message list is held open over its demonstration for its step (`demoMessages.ts`). */

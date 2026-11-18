@@ -779,9 +779,9 @@ describe('useResultsLayout', () => {
   })
 
   // The docked bar's MEASURED height is what the map's floor counts on a desk:
-  // beside the docked panel at 1024 it is two lines or three rather than the
-  // one the estimate counts, and the panels give up the difference rather
-  // than the map (#714).
+  // a bar of two lines or three, as it was beside the docked panel at 1024,
+  // rather than the one the estimate counts, has the panels give up the
+  // difference rather than the map (#714).
   it('keeps a desk map its floor under a bar taller than one line', () => {
     setViewport(768)
     vi.stubGlobal(

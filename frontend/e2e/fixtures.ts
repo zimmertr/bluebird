@@ -312,30 +312,44 @@ export async function discoveryFromPlaces(page: Page) {
 // a bare text locator would find two.
 export const message = (page: Page, text: string | RegExp) => page.locator('[role="status"]').getByText(text)
 
+// What the draw readout says once `placed` points stand (record 0306). A
+// phone's Controls sheet stays mounted under its draw bar, so the words can
+// be in the page twice, and the first is enough to say the count moved.
+export const pointsPlaced = (page: Page, placed: number) =>
+  page
+    .getByText(placed < 3 ? `${placed} of 3 points placed` : `${placed} points placed. Press Done or Analyze.`, { exact: true })
+    .first()
+
 // A click on the map counts only once MapLibre has fired `load` and the draw
 // handler is attached, and nothing in the page says when that is. So click,
-// wait for the panel's own readout to move, and click again while it has not.
-// Every vertex goes through here so the retry lives in one place.
+// wait for the readout to move, and click again while it has not. Every
+// vertex goes through here so the retry lives in one place.
 async function placeVertices(page: Page, vertices: readonly [number, number][]) {
   for (const [index, [x, y]] of vertices.entries()) {
-    const remaining = vertices.length - index - 1
-    const moved =
-      remaining === 0
-        ? page.getByRole('button', { name: 'Done' })
-        : message(page, `Add at least ${remaining} more point${remaining === 1 ? '' : 's'}`)
-    const hasMoved = async () => (remaining === 0 ? moved.isEnabled() : (await moved.count()) > 0)
+    const moved = pointsPlaced(page, index + 1)
     await expect(async () => {
       // A slow readout must not earn the ring a second vertex at this spot.
-      if (!(await hasMoved())) await page.locator('.maplibregl-canvas').click({ position: { x, y } })
-      if (remaining === 0) await expect(moved).toBeEnabled({ timeout: 1_500 })
-      else await expect(moved).toBeAttached({ timeout: 1_500 })
+      if ((await moved.count()) === 0) await page.locator('.maplibregl-canvas').click({ position: { x, y } })
+      await expect(moved).toBeAttached({ timeout: 1_500 })
     }).toPass({ timeout: 20_000 })
   }
   await page.getByRole('button', { name: 'Done' }).click()
 }
 
+// A desk's controls card shows one section open at a time, and a committed
+// report collapses them all (record 0305), so a spec opens the section whose
+// control it presses. Nothing to open on a phone, whose sheet shows them whole.
+export async function openSection(page: Page, name: 'Destinations' | 'Forecast' | 'Metrics') {
+  const head = page.locator('aside h2').getByRole('button', { name: new RegExp(`^${name}`) })
+  if ((await head.count()) > 0 && (await head.getAttribute('aria-expanded')) === 'false') await head.click()
+}
+
+// The chip a finished area stands as, `Area 1 · ~453 km²` (record 0306).
+export const areaChip = (page: Page, n = 1) => page.getByRole('button', { name: new RegExp(`^Area ${n} · `) })
+
 export async function drawRing(page: Page) {
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
+  await openSection(page, 'Destinations')
+  await page.getByRole('button', { name: /^Search by area/ }).click()
   await placeVertices(page, [
     [520, 260],
     [760, 300],
@@ -343,10 +357,11 @@ export async function drawRing(page: Page) {
   ])
 }
 
-// Replaces the ring on the map with a new one through Edit polygon and Clear,
-// the way a reader moves the search area after a report.
+// Replaces the area on the map with a new one, its chip's × and then Search
+// by area, the way a reader moves the search after a report.
 export async function redrawRing(page: Page, vertices: readonly [number, number][]) {
-  await page.getByRole('button', { name: 'Edit polygon' }).click()
-  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  await openSection(page, 'Destinations')
+  await page.getByRole('button', { name: /^Remove Area 1 · / }).click()
+  await page.getByRole('button', { name: /^Search by area/ }).click()
   await placeVertices(page, vertices)
 }

@@ -298,7 +298,7 @@ export const STYLES = [
   },
   {
     // The sentence under a row's name is MENU.description in every menu
-    // (record 0283): the model list's summaries and the Coordinate list
+    // (record 0283): the model list's summaries and the Search by list
     // menu's descriptions wear it through their own row roles, which
     // styles.test.ts holds to it. A menu file that reaches for the helper's
     // type itself is where the two would part again.
@@ -387,10 +387,13 @@ export const STYLES = [
     // button's corner, which the maintainer chose over a trigger shape,
     // opening the one list, and which keeps its severity colour while the
     // list is out because the colour is its message (the maintainer,
-    // 2026-10-30).
+    // 2026-10-30). A section's heading in a desk's controls card (record
+    // 0305) is no trigger at all: it opens its own section in place, where a
+    // trigger opens a card or a sheet over the page, and `aria-expanded` is
+    // how a disclosure says which state it is in.
     name: 'style-menu-trigger',
     files: SOURCES,
-    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge],
+    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge, 'src/components/PanelSection.tsx'],
     probe: 'src/components/ResultsBar.tsx',
     ban: [
       {
@@ -894,16 +897,16 @@ export const STYLES = [
     ],
   },
   {
-    // The point count's four states, each coloured by STATUS: the other half
-    // of style-draw-counter's six.
+    // The point count's three states, each coloured by STATUS: the other half
+    // of style-draw-counter's five.
     name: 'style-draw-readout',
     files: ['src/components/DrawReadout.tsx'],
     ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in the draw readout.' }],
     require: [
       {
         selector: fromExport('DrawReadout', role('STATUS')),
-        count: 4,
-        message: 'The draw readout colours its four states by STATUS.',
+        count: 3,
+        message: 'The draw readout colours its three states by STATUS.',
       },
     ],
   },

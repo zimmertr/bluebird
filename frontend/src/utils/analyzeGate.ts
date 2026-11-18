@@ -44,6 +44,9 @@ export interface AnalyzeGate {
   // letting it enable Analyze would send a request the server answers with
   // "nothing to analyze".
   polygonReady: boolean
+  // At least one area is drawn, ready or not: what tells a missing kind from
+  // a missing destination (record 0306).
+  hasAreas: boolean
   hasCustom: boolean
   hasPins: boolean
   // The two ways a model selection and a ranking can contradict each other.
@@ -92,15 +95,15 @@ export interface AnalyzeGate {
 }
 
 /**
- * Whether the drawn ring is one a polygon search can use: three points or
- * more, inside the area cap. The type checkboxes read this too, and stay
- * greyed until it holds (the maintainer, 2026-10-15, on PR #731): a type with
- * no usable ring discovers nothing, and a box that could be ticked then said
- * otherwise. One spelling, so the boxes and Analyze cannot disagree about
- * which ring counts.
+ * Whether the areas are ones a polygon search can use: at least one, and
+ * none over the area cap, which the pod reads area by area (record 0306).
+ * The kinds read this too, and stay greyed until it holds (the maintainer,
+ * 2026-10-15, on PR #731): a kind with no usable area discovers nothing, and
+ * a box that could be ticked then said otherwise. One spelling, so the kinds
+ * and Analyze cannot disagree about which areas count.
  */
-export function ringUsable(drawPointCount: number, areaTooLarge: boolean): boolean {
-  return drawPointCount >= 3 && !areaTooLarge
+export function ringUsable(areaCount: number, areaTooLarge: boolean): boolean {
+  return areaCount > 0 && !areaTooLarge
 }
 
 export function canAnalyze(g: AnalyzeGate): boolean {
@@ -131,8 +134,15 @@ export interface AnalyzeGateInputs {
   selection: ForecastSelection
   hasWindowWarning: boolean
   loading: boolean
-  polygonAreaKm2: number | null
+  /** The largest area drawn or being drawn, which the area cap reads (`useDestinationInputs`). */
+  largestAreaKm2: number | null
   maxAreaKm2: number
+  /**
+   * How many areas the run would search: the finished ones, and a new one
+   * mid-draw with three points, which an Analyze keeps (`useDrawMode`).
+   */
+  areaCount: number
+  /** The points on the ring being drawn, or 0 outside draw mode. */
   drawPointCount: number
   destinationTypes: readonly DiscoveryType[]
   /** Whether the coordinates box parses to at least one row. */
@@ -188,7 +198,7 @@ export function analyzeGateFor(i: AnalyzeGateInputs): {
   freezeGaps: string[]
   unanswered: UnansweredMetrics
 } {
-  const areaTooLarge = i.polygonAreaKm2 !== null && i.polygonAreaKm2 > i.maxAreaKm2
+  const areaTooLarge = i.largestAreaKm2 !== null && i.largestAreaKm2 > i.maxAreaKm2
   const source = i.source ?? null
   // Every model the analysis would fetch, the ranking one first. The checks
   // below are pre-flight: they read the picker rather than a report, because
@@ -221,7 +231,8 @@ export function analyzeGateFor(i: AnalyzeGateInputs): {
       datesPending: i.selection.kind === 'days' && !hasDates(i.selection),
       loading: i.loading,
       areaTooLarge,
-      polygonReady: ringUsable(i.drawPointCount, areaTooLarge) && i.destinationTypes.length > 0,
+      polygonReady: ringUsable(i.areaCount, areaTooLarge) && i.destinationTypes.length > 0,
+      hasAreas: i.areaCount > 0,
       hasCustom: i.hasCustom,
       hasPins: i.hasPins,
       // Air quality comes from one source for every model, so a comparison on
@@ -333,11 +344,11 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
   if (g.modelDomain !== null) blockers.push('model-domain')
   if (g.boundOrder) blockers.push('bound-order')
   if (!g.polygonReady && !g.hasCustom && !g.hasPins) {
-    if (g.drawPointCount > 0 && g.drawPointCount < 3) blockers.push('polygon')
-    // A finished polygon with nothing checked is not an unfinished polygon
-    // and not a missing destination — it is a search with nothing to look
-    // for, and only one of the three lines can act on that.
-    else if (g.drawPointCount >= 3 && !g.areaTooLarge) blockers.push('types')
+    if (!g.hasAreas && g.drawPointCount > 0 && g.drawPointCount < 3) blockers.push('polygon')
+    // A finished area with nothing checked is not an unfinished one and not
+    // a missing destination — it is a search with nothing to look for, and
+    // only one of the three lines can act on that.
+    else if (g.hasAreas && !g.areaTooLarge) blockers.push('types')
     else if (!g.areaTooLarge) blockers.push('destinations')
   }
   return blockers
@@ -360,7 +371,7 @@ export function ringAddsNothing(
 ): boolean {
   return (
     !g.drawing &&
-    g.drawPointCount >= 3 &&
+    g.hasAreas &&
     !g.polygonReady &&
     !g.areaTooLarge &&
     (g.hasCustom || g.hasPins)
@@ -462,7 +473,7 @@ export function retryStands(
  */
 export function refusalStands(refusal: Refusal | null, failed: AnalyzedView | null, panel: RefusalPanel): boolean {
   if (refusal === null || failed === null) return false
-  const { polygonKey } = discoveryKeys(panel.polygon, panel.destinationTypes, panel.includeUnnamedPeaks)
+  const { polygonKey } = discoveryKeys(panel.areas, panel.destinationTypes, panel.includeUnnamedPeaks)
   if (polygonKey !== failed.polygonKey || panel.customCount !== failed.customKeys.size) return false
   return panelCommitCues(failed, { ...panel, settled: true }).length === 0
 }

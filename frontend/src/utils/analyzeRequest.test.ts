@@ -20,7 +20,7 @@ function inputs(over: Partial<AnalyzeInputs> = {}): AnalyzeInputs {
   return {
     kind: 'days',
     window: WINDOW,
-    polygon: RING,
+    areas: [RING],
     identity: elevationLookup(),
     destinationTypes: ['peak'],
     includeUnnamedPeaks: false,
@@ -43,15 +43,17 @@ function inputs(over: Partial<AnalyzeInputs> = {}): AnalyzeInputs {
 }
 
 // The record the discovery above leaves, so the next click can refresh.
-const RECORD = { base: discoveryBase(RING, [], ['peak'], false), searchedKeys: [] }
+const RECORD = { base: discoveryBase([RING], [], ['peak'], false), searchedKeys: [] }
 
 describe('planAnalysis', () => {
   it('discovers a first ring, and records it after the run', () => {
     const plan = planAnalysis(inputs())
     expect(plan.branch).toBe('discovery')
     expect(plan.willRank).toBe(true)
+    // The areas ride beside the request, one discovery each (record 0306).
+    expect(plan.run?.options.areas).toEqual([RING])
+    expect(plan.run?.request.polygon).toBeUndefined()
     expect(plan.run?.request).toMatchObject({
-      polygon: RING,
       destination_types: ['peak'],
       start_datetime: WINDOW.start,
       end_datetime: WINDOW.end,
@@ -74,7 +76,7 @@ describe('planAnalysis', () => {
   it('sends the unnamed-peaks toggle only while peaks are among the kinds (#803, M9)', () => {
     const lakes = planAnalysis(inputs({ destinationTypes: ['lake'], includeUnnamedPeaks: true }))
     expect(lakes.run?.request.include_unnamed_peaks).toBe(false)
-    expect(lakes.record?.value?.base).toBe(discoveryBase(RING, [], ['lake'], false))
+    expect(lakes.record?.value?.base).toBe(discoveryBase([RING], [], ['lake'], false))
     const peaks = planAnalysis(inputs({ destinationTypes: ['peak'], includeUnnamedPeaks: true }))
     expect(peaks.run?.request.include_unnamed_peaks).toBe(true)
   })
@@ -101,7 +103,7 @@ describe('planAnalysis', () => {
     expect(plan.run?.request.destination_types).toEqual([])
     expect(plan.run?.request.custom_destinations?.map((d) => d.name)).toEqual(['Kept'])
     // The snapshot answers for the ring it echoes, not the custom request.
-    expect(plan.run?.options.discovery).toEqual(discoveryKeys(RING, ['peak'], false))
+    expect(plan.run?.options.discovery).toEqual(discoveryKeys([RING], ['peak'], false))
     expect(plan.record).toEqual({ when: 'before', value: RECORD })
   })
 
@@ -112,14 +114,14 @@ describe('planAnalysis', () => {
   })
 
   it('runs a custom list with no ring, and forgets the discovery', () => {
-    const plan = planAnalysis(inputs({ polygon: null, places: [place()], previous: RECORD }))
+    const plan = planAnalysis(inputs({ areas: [], places: [place()], previous: RECORD }))
     expect(plan.branch).toBe('custom')
     expect(plan.run?.request.custom_destinations).toHaveLength(1)
     expect(plan.record).toEqual({ when: 'before', value: null })
   })
 
   it('runs nothing with no ring and no list', () => {
-    const plan = planAnalysis(inputs({ polygon: null }))
+    const plan = planAnalysis(inputs({ areas: []}))
     expect(plan).toMatchObject({ branch: 'nothing', willRank: false, run: null, record: null })
   })
 
@@ -128,7 +130,7 @@ describe('planAnalysis', () => {
   it('keeps searched places out of the removal scope', () => {
     const one = planAnalysis(inputs({ places: [place()] })).removalScope
     expect(planAnalysis(inputs()).removalScope).toBe(one)
-    expect(planAnalysis(inputs({ polygon: null })).removalScope).not.toBe(one)
+    expect(planAnalysis(inputs({ areas: []})).removalScope).not.toBe(one)
     expect(planAnalysis(inputs({ destinationScope: 'other' })).removalScope).not.toBe(one)
   })
 

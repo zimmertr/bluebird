@@ -11,7 +11,7 @@ import ResultsBar from './ResultsBar'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, LAYOUT_HOLD, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
+import { LAYER, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
   extends Omit<
@@ -131,7 +131,6 @@ export default function ResultsSheet({
   closure,
   pendingHeights,
   modelId,
-  layoutMotion = null,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
   const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
@@ -210,9 +209,7 @@ export default function ResultsSheet({
           style={isDesktop && layout.roomHoldPx !== null ? { height: `${layout.roomHoldPx}px` } : undefined}
           className={
             isDesktop
-              ? // On a layer of its own while a desk's panel moves (record 0216).
-                'flex flex-shrink-0 flex-col bg-panel' +
-                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '') +
+              ? 'flex flex-shrink-0 flex-col bg-panel' +
                 // A press's panes move inside the height the results stood
                 // at, so the map holds still (#850).
                 (layout.roomHoldPx !== null ? ' overflow-hidden' : '')
@@ -276,7 +273,6 @@ export default function ResultsSheet({
               chartPhone={!isDesktop}
               panesMove={isDesktop}
               collapsed={resultsCollapsed}
-              layoutMotion={layoutMotion}
               pointSample={pointSample}
               forecastTimes={forecastTimes}
               playbackIndex={playbackIndex}

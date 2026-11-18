@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type AnalyzeCommandInputs, useAnalyzeCommand } from './useAnalyzeCommand'
 import { useAnalyze } from './useAnalyze'
-import type { MapViewHandle } from '../components/MapView'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { runClientAnalysis } from '../utils/clientAnalyze'
 import { discoveryChanges, discoveryKeys } from '../utils/present'
@@ -38,13 +37,11 @@ function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
   const scopes: string[] = []
   const options: AnalyzeOptions[] = []
   const waiting: ((committed: boolean) => void)[] = []
-  const map = { finishDrawing: vi.fn(() => RING) }
+  // The areas the click ends drawing on (`useDrawMode.finishDrawing`).
+  const map = { finishDrawing: vi.fn((): GeoPolygon[] => [RING]) }
   const inputs: AnalyzeCommandInputs = {
     selection: { kind: 'now' },
-    polygon: RING,
     identity: elevationLookup(),
-    drawPointCount: 3,
-    mapRef: { current: map as unknown as MapViewHandle },
     destinationTypes: ['peak'],
     includeUnnamedPeaks: false,
     csvRows: [],
@@ -63,8 +60,12 @@ function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
     // A commit runs the click's own bookkeeping before it resolves, the way
     // useAnalyze does; a cancel or a failure resolves false and runs nothing.
     analyze: (request, _kind, opts) => {
-      calls.push(request.polygon ? 'analyze:discovery' : 'analyze:custom')
-      requests.push(request)
+      // The areas ride on the options (record 0306); each request is kept
+      // with its first area as its polygon, so a test can tell a discovery
+      // from the rest by the request alone.
+      const area = opts.areas?.[0]
+      calls.push(area ? 'analyze:discovery' : 'analyze:custom')
+      requests.push(area ? { ...request, polygon: area } : request)
       options.push(opts)
       return new Promise<boolean>((resolve) => {
         waiting.push((committed) => {
@@ -74,7 +75,10 @@ function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
       })
     },
     reset: () => calls.push('reset'),
-    finishDrawing: () => calls.push('finishDrawing'),
+    finishDrawing: () => {
+      calls.push('finishDrawing')
+      return map.finishDrawing()
+    },
     forgetPreClamp: () => calls.push('forgetPreClamp'),
     clearRemovalsForScope: (scope) => {
       calls.push('clearRemovals')
@@ -117,14 +121,13 @@ describe('useAnalyzeCommand', () => {
   // and a run that does not commit leaves the old one there.
   it('records nothing and clears no removals when a run on a new ring does not commit', async () => {
     const r = recorder()
-    let inputs = r.inputs
+    const inputs = r.inputs
     const { result, rerender } = renderHook(() => useAnalyzeCommand(inputs))
     const first = result.current.handleAnalyze()
     await r.finish()
     await act(() => first)
 
-    r.map.finishDrawing.mockReturnValue(RING_B)
-    inputs = { ...r.inputs, polygon: RING_B }
+    r.map.finishDrawing.mockReturnValue([RING_B])
     rerender()
     const stopped = result.current.handleAnalyze()
     await r.finish(false)
@@ -145,8 +148,13 @@ describe('useAnalyzeCommand', () => {
     const r = recorder()
     let inputs = r.inputs
     const { result, rerender } = renderHook(() => useAnalyzeCommand(inputs))
-    const steps: [Partial<AnalyzeCommandInputs>, boolean][] = [[{}, true], [{ drawPointCount: 0, places: [place()] }, false], [{}, true]]
-    for (const [next, committed] of steps) {
+    const steps: [GeoPolygon[], Partial<AnalyzeCommandInputs>, boolean][] = [
+      [[RING], {}, true],
+      [[], { places: [place()] }, false],
+      [[RING], {}, true],
+    ]
+    for (const [areas, next, committed] of steps) {
+      r.map.finishDrawing.mockReturnValue(areas)
       inputs = { ...r.inputs, ...next }
       rerender()
       const run = result.current.handleAnalyze()
@@ -162,8 +170,8 @@ describe('useAnalyzeCommand', () => {
   // the same request later does.
   it('hands the run what its commit changes, for the commit to apply', async () => {
     const r = recorder()
-    r.map.finishDrawing.mockReturnValue(RING_B)
-    const { result } = renderHook(() => useAnalyzeCommand({ ...r.inputs, polygon: RING_B }))
+    r.map.finishDrawing.mockReturnValue([RING_B])
+    const { result } = renderHook(() => useAnalyzeCommand(r.inputs))
     const failed = result.current.handleAnalyze()
     await r.finish(false)
     await act(() => failed)
@@ -208,7 +216,9 @@ describe('useAnalyzeCommand', () => {
     const r = recorder()
     let inputs = r.inputs
     const { result, rerender } = renderHook(() => useAnalyzeCommand(inputs))
-    for (const next of [{}, { drawPointCount: 0, places: [place()] }, {}]) {
+    const steps: [GeoPolygon[], Partial<AnalyzeCommandInputs>][] = [[[RING], {}], [[], { places: [place()] }], [[RING], {}]]
+    for (const [areas, next] of steps) {
+      r.map.finishDrawing.mockReturnValue(areas)
       inputs = { ...r.inputs, ...next }
       rerender()
       const run = result.current.handleAnalyze()
@@ -225,24 +235,26 @@ describe('useAnalyzeCommand', () => {
     expect(r.calls).toEqual(['finishDrawing', 'forgetPreClamp'])
   })
 
+  // A ring of two points is dropped at the click, which leaves no area.
   it('drops the report when there is nothing to rank', async () => {
-    const r = recorder({ drawPointCount: 2 })
+    const r = recorder()
+    r.map.finishDrawing.mockReturnValue([])
     const { result } = renderHook(() => useAnalyzeCommand(r.inputs))
     await act(() => result.current.handleAnalyze())
     expect(r.calls).toEqual(['finishDrawing', 'forgetPreClamp', 'clearRemovals', 'reset', 'showResults:true'])
   })
 
-  // Before the map loads there is no handle to snapshot, and the ring the app
-  // holds (a restored link's) is the one that goes out. The removal scope is
-  // that ring plus the authored inputs.
-  it('falls back to the held ring before the map loads, and scopes removals to it', async () => {
-    const r = recorder({ mapRef: { current: null }, universe: null, results: [], hasResults: false })
+  // The removal scope is every area's ring plus the authored inputs, so a
+  // second area is a new scope.
+  it('searches every area and scopes removals to them', async () => {
+    const r = recorder({ universe: null, results: [], hasResults: false })
+    r.map.finishDrawing.mockReturnValue([RING, RING_B])
     const { result } = renderHook(() => useAnalyzeCommand(r.inputs))
     const run = result.current.handleAnalyze()
     await r.finish()
     await act(() => run)
-    expect(r.requests[0].polygon).toEqual(RING)
-    expect(r.scopes).toEqual([JSON.stringify({ ring: RING.coordinates[0], authored: 'scope' })])
+    expect(r.options[0].areas).toEqual([RING, RING_B])
+    expect(r.scopes).toEqual([JSON.stringify({ ring: [RING.coordinates[0], RING_B.coordinates[0]], authored: 'scope' })])
   })
 })
 
@@ -327,8 +339,8 @@ describe('a run that does not commit changes nothing', () => {
       await act(() => done)
     }
     const moveTo = (ring: GeoPolygon) => {
-      r.map.finishDrawing.mockReturnValue(ring)
-      over = { polygon: ring }
+      r.map.finishDrawing.mockReturnValue([ring])
+      over = {}
       hook.rerender()
     }
     const names = () => hook.result.current.analysis.response?.results.map((row: DestinationResult) => row.name)
@@ -358,7 +370,7 @@ describe('a run that does not commit changes nothing', () => {
       expect(names()).toEqual(PEAKS.A)
       // Nothing new was on screen, so the popups over ring A stay open.
       expect(hook.result.current.analysis.discardSeq).toBe(0)
-      const cue = discoveryChanges(hook.result.current.analysis.analyzed, discoveryKeys(RING_B, ['peak'], false), true)
+      const cue = discoveryChanges(hook.result.current.analysis.analyzed, discoveryKeys([RING_B], ['peak'], false), true)
       expect(cue.polygon).toBe(true)
       expect(clearRemovalsForScope).toHaveBeenCalledOnce()
 

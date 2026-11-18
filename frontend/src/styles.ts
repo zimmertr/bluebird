@@ -17,7 +17,7 @@
  *
  * Within a tier, roles separate by weight and color, not only by size: two
  * sizes cover the whole compact tier because `subheading` and `control` share
- * both a size and a color and let weight alone distinguish "Polygon search"
+ * both a size and a color and let weight alone distinguish "Find in areas"
  * from "Peaks". Roles that stand in that relationship are composed from
  * a shared constant below rather than spelled out twice, so the relationship
  * is something a test can assert instead of a comment that rots.
@@ -126,7 +126,7 @@ export const TEXT = {
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
   appTitle: 'text-lg font-bold text-ink-strong leading-tight',
-  /** Named sub-blocks: Map search, Polygon search, a calendar's month. */
+  /** Named sub-blocks: Find in areas, a calendar's month. */
   subheading: 'text-xs font-semibold text-ink',
   /**
    * Anything you read or type in a control (radio labels, inputs, pickers)
@@ -374,8 +374,8 @@ export const TAP = {
  *   the light basemap both register, but a menu can hang over the dark
  *   results sheet, where 0.1 alpha on a near-black surface is nothing at all.
  *
- * The glows are not on this scale: `ACCENT_RING` and the tutorial's spotlight
- * point at something rather than lift it. Nor is the marker popup's header
+ * The glows are not on this scale: the tutorial's spotlight points at
+ * something rather than lifting it. Nor is the marker popup's header
  * band, whose faint shadow is the card's own (`popupChrome.ts`, record 0123).
  */
 export const ELEVATION = {
@@ -769,41 +769,6 @@ export const BUTTON_SECONDARY =
 export const BUTTON_ACCENT =
   `text-xs ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
-
-/**
- * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
- * a third of the panel each, so the row stands on the edges the coordinates
- * box above it does. The List search row shares it since #838: the
- * Coordinate list field across the first two cells and Clear in the third, on
- * the edge the Polygon row's Clear stands on (record 0263).
- *
- * The two button roles at a 4px inset rather than 12px, and nothing else
- * changed. In a third the cell sets the width and the label is centred in it,
- * so the inset is only the floor under the widest label, `Draw polygon`
- * (77.4px at 12px on a Mac): at 12px a side it needs 101.4px, where a third of
- * the row is 100.3px on a desktop and 93px on a 360px phone (the row is
- * 317px and 295px, less two 8px gaps), so the label would wrap; at 4px it
- * needs 85.4px and fits both. Derived from the roles rather than spelled
- * again, so the fill, the type and the tap target cannot drift from the
- * buttons everywhere else.
- */
-export const DRAW_ROW = {
-  row: 'grid grid-cols-3 gap-2',
-  secondary: BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '),
-  accent: BUTTON_ACCENT.replace(' px-3 ', ' px-1 '),
-  /**
-   * The Coordinate list field (#838): what a `MenuSelect` adds to the field
-   * shape to stand in the first two cells. The trigger is the grid item
-   * itself, so the span is its own. Two cells because one leaves 72px of
-   * label beside the chevron at 12px and `The Bulger List` is 85px, so every
-   * name would truncate (measured 2026-11-03). The 5px is the button's 6px
-   * less the field's 1px border, so the field stands 28px beside a 28px Clear
-   * (16px of line each) where the Model row's 2px would leave it 22px; on
-   * touch both grow to `TAP`'s 32px, the field by `TAP.height` and the button
-   * by `TAP.action`.
-   */
-  field: 'col-span-2 px-2 py-[5px]',
-} as const
 
 /**
  * A word marking the row it sits in, not a control: "Recommended" on the
@@ -1760,7 +1725,7 @@ export const MAP_EDGE = {
 
 /**
  * The draw bar on a phone (#687): while a ring is being drawn, the panel's
- * readout and its Done and Cancel stand on the map, because Draw polygon
+ * readout and its Done and Cancel stand on the map, because Search by area
  * closes the drawer on a phone and left the map with no way to finish but
  * reopening Controls.
  *
@@ -1845,9 +1810,8 @@ export const MAP_ROWS = {
 /**
  * The search field as a pill (#696): the floating surface at the row's 32px,
  * fully rounded, its icon and its clear button inside the same 14px of
- * padding the mockup drew. The ring the panel's hover lights rides a wrapper
- * of the same radius (`ACCENT_RING`). `styles.test.ts` holds the fill, edge
- * and blur to `SURFACE_FLOATING`'s.
+ * padding the mockup drew. `styles.test.ts` holds the fill, edge and blur to
+ * `SURFACE_FLOATING`'s.
  */
 export const MAP_PILL =
   `bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
@@ -2404,23 +2368,25 @@ export const ACTION_ITEM =
  * switch and all four buttons on one line with their words (#687); under that,
  * every control is its glyph alone and keeps the word as its accessible name,
  * as the switch's halves already did on a phone. A container rule, because the
- * bar's width is the viewport less the docked panel.
+ * bar's width was the viewport less the docked panel, and is a sheet's on a
+ * phone.
  *
  * 584px of the bar's content, measured 2026-10-13 at text-xs: the labelled
  * switch is 176.7px, the labelled group with `Removed (1)` showing 377.8px,
  * and the groups stand at least 16px apart (`gap-x-4`) on the folded line,
  * 570.5px; then two more digits of a Removed count, 13.4px, so a reader with
- * a hundred removals still gets one line. The bar beside the docked panel at
- * 1024 wide has 640px and keeps its words; a phone has 336px at 360 wide and
+ * a hundred removals still gets one line. A phone has 336px at 360 wide and
  * 406px at 430, and shows the switch and the glyphs on one line, Removed or
  * not. It replaces the switch's `sm:` viewport rule, so the bar's words come
  * and go together.
  *
  * At a desk the three menu buttons carry chevrons, which a phone's never do
  * (record 0201), and the labelled group is 437.8px, measured 2026-10-20. A
- * desk's bar is never under the 640px it has beside the docked panel at 1024,
- * which holds the line with a two-digit Removed count (637.2px); a
- * three-digit count wraps the group onto a line of its own there.
+ * desk's bar is the window's width since #825, the controls being a card
+ * over the map (record 0305): 1000px of content at 1024 wide, where it had
+ * 640 beside the docked panel, so it keeps its words and holds the line
+ * with a three-digit Removed count (644px), which used to wrap the group
+ * onto a line of its own there.
  */
 export const BAR_LABEL = 'hidden @min-[584px]:inline'
 
@@ -2494,39 +2460,6 @@ export const STATUS = {
   /** Neither good nor bad, just a fact about the data you are about to get. */
   info: 'text-info',
 } as const
-
-/**
- * A transient outline drawn around a control to point at it from somewhere
- * else: hovering the panel's Map group rings the map's search box,
- * which is a control the panel names but does not contain.
- *
- * A ring rather than a border or a fill, for the same reason `DAY.today` is
- * one: it layers onto a control that already has both without displacing it or
- * restating its own treatment.
- *
- * It stays in the accent rather than reaching for amber, which was the other
- * candidate. Every hue in this app carries a meaning and amber's is "something
- * is off" — the window warnings, the over-limit refusal, the failed wildfire
- * check. A yellow ring would say the search box had a problem rather than that
- * it is the thing being pointed at, and sky already means "the app acts here"
- * (see LINK_ACTION). What it buys instead is weight: four pixels and a glow,
- * because this has to register in peripheral vision two thirds of a screen
- * away while the eye is still in the sidebar, and a hairline ring at that
- * distance reads as an edge rather than as an answer.
- *
- * The glow is the whole shadow for whatever wears this, so a call site must
- * apply it to an element that is not already carrying `SURFACE_FLOATING`'s
- * `ELEVATION.raised`: two shadow utilities on one element resolve by stylesheet order,
- * not by intent.
- *
- * Carries no radius, and that is load-bearing rather than an omission. A ring
- * is a box-shadow, so it fades out under `transition-shadow` while a corner
- * radius does not: bundling the radius in here meant that on un-hover the
- * corners squared off instantly and the still-visible ring spent the fade as a
- * rectangle standing off a rounded field. The element wearing this owns its
- * radius permanently, and only the ring toggles.
- */
-export const ACCENT_RING = 'ring-4 ring-accent-ink shadow-[0_0_18px_var(--ui-accent-glow)]'
 
 /**
  * The box a status line sits in when it is a block rather than a sentence: the
@@ -2955,9 +2888,10 @@ export const SCROLL_SHADOW = {
  * width in `styles.test.ts`. The bleed tells the scroll shadows to reach across
  * the `px-4` to both edges.
  */
-export const PANEL_BODY =
-  `flex-1 overflow-y-auto px-4 py-4 [scrollbar-gutter:stable] [--scroll-shadow-bleed:1rem] ` +
+const panelBody = (pad: string) =>
+  `flex-1 overflow-y-auto px-4 ${pad} [scrollbar-gutter:stable] [--scroll-shadow-bleed:1rem] ` +
   `${SCROLL_BARS} ${SCROLL_SHADOW.both}`
+export const PANEL_BODY = panelBody('py-4')
 
 /**
  * The panel's header: the logo and the title block beside it (#687).
@@ -3029,32 +2963,76 @@ export const MOTION = {
   menu: MENU_MOTION,
   /** A phone sheet rising and falling. */
   slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
-  /** The desk panel moving the map's edge as it leaves and returns (`DESK_PANEL`). */
-  push: 'transition-[margin-left] duration-300 ease-in-out motion-reduce:transition-none',
   /** A results pane opening or closing on a Table, Chart or Both press (`RESULTS_PANE`). */
   pane: 'transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none',
   /** A progress bar's fill growing to its next width. */
   progress: 'transition-all duration-300 ease-out motion-reduce:transition-none',
 } as const
 
-/** The duration `MOTION.slide`, `MOTION.push` and `MOTION.pane` share, in milliseconds. */
+/** The duration `MOTION.slide` and `MOTION.pane` share, in milliseconds. */
 export const PANEL_MS = 300
 
 /**
- * The controls panel at a desk (#714; record 0202): a column in the page's
- * row beside the map, 360px wide, that stays in the row while it is shut.
- * Shut, its left margin takes its own width back, so it slides off the left
- * edge and the map's column widens in the same frames; open, the margin
- * returns and the column narrows as the panel comes in. One property moves,
- * and the map's edge is the panel's edge in every frame, so nothing is
- * painted over anything.
+ * The controls at a desk (#825; record 0305): a card over the map's top
+ * left, with the map running on under it and the results docked across the
+ * whole window. It was a column beside the map (record 0202), 360px with one
+ * edge on its right; the card is 361px, that panel and the left edge a
+ * docked one never drew, so its content is the same 359px and every control
+ * keeps the width it was measured at (327px inside the body's padding).
  *
- * `relative` because the header's buttons stand absolutely in its top right
- * (`PANEL_HEADER.actions`). `LAYER.base` is a docked panel's layer.
+ * The card stands in the map's own stack (`MAP_ROWS.stack`), so the stack
+ * is the card with the chip row under it, in the card's own column, wherever the legend's card then has room on the
+ * map (`cardChips`), so the map to the card's right stays clear. Where it
+ * has not, a short map after a run or a tall section open, the stack turns
+ * to a row and the chips stand beside the card (`stackOpen`), since under
+ * it they would hang off the map's foot. Shut, the card is hidden and the
+ * chips stand where it stood. The search it held is the Destinations
+ * field's since record 0306.
+ *
+ * Never taller than the map less one inset over and under it: the map's
+ * wrapper is a size container (`MAP_EDGE.publish`), and past that the card's
+ * body scrolls. The panel's own fill, so every ratio measured on the panel
+ * holds, with the edge, corners and shadow of a box floating on the map
+ * (`SURFACE_FLOATING`). `relative` because the header's buttons stand
+ * absolutely in its top right (`PANEL_HEADER.actions`). No clip, because the
+ * search field's list hangs past a short card's foot.
  */
-export const DESK_PANEL = {
-  card: `relative ${LAYER.base} flex w-90 flex-shrink-0 flex-col overflow-hidden bg-panel border-r ${PANEL_EDGE} ${MOTION.push}`,
-  shut: '-ml-90',
+export const DESK_CARD = {
+  stackOpen: 'lg:flex-row lg:items-start',
+  card:
+    `relative pointer-events-auto flex w-[361px] flex-shrink-0 flex-col max-h-[calc(100cqh-1.5rem)] ` +
+    `bg-panel border ${PANEL_EDGE} ${RADIUS.surface} ${ELEVATION.raised}`,
+  /**
+   * The card's scrolling body: the panel's, with no padding over or under
+   * it, because each section's 40px heading row carries its own
+   * (`CARD_SECTION`).
+   */
+  body: panelBody('py-0'),
+} as const
+
+/**
+ * A section in a desk's card (record 0305). Its heading is a 40px button
+ * across the card that opens the section and collapses it again, with one
+ * rule between sections and no other space (`rule`), so three collapsed
+ * sections are 122px and the whole card 335, which is what lets it stand
+ * over a map the docked results have left about 380px of (1389x868, the
+ * card measured 2026-11-17). The panel's own stack (`PANEL_RULE`) spends 16px over
+ * and under each rule, which made the same card 383px.
+ *
+ * Collapsed, the section's summary stands beside its name in the caption's
+ * ink, cut where the row ends, and the fold points right; open, the fold
+ * points down and the summary is gone, because the controls under it say the
+ * same thing. The 20px name is centred in the row, so the controls start
+ * 10px under it, as they do under a phone's heading, and `body` closes an
+ * open section with the 16px the panel's stack gives it. The ring is drawn
+ * inside the row, where the scrolling body cannot clip it.
+ */
+export const CARD_SECTION = {
+  rule: '[&>*+*]:border-t [&>*+*]:border-rule',
+  head: `flex h-10 w-full items-center gap-2 text-left ${FOCUS_RING_INSET}`,
+  body: 'pb-4',
+  summary: `${CAPTION} min-w-0 flex-1 truncate`,
+  fold: 'ml-auto flex-shrink-0 text-ink-soft',
 } as const
 
 /**
@@ -3103,40 +3081,18 @@ export const CHART_LEGEND = {
  * `useLayoutMotion`), so a frame of the move shifts boxes rather than
  * resizing a map canvas or laying out a table of a thousand rows.
  *
- * The map's box is the window's width while the panel moves and the window's
- * height while a pane moves, centred on the map's column, which clips it
- * (`clip`). MapLibre keeps the centre on a resize, so the map draws the way
- * it would at every width in between and is resized only where the box
- * changes: at the start of a close and the end of an open, the closed width
- * being the window's. `rest` is the box the rest of the time.
- *
- * The panes' bodies hold a width while the panel moves. The table's box takes
- * the window's, the widest it will be, so a close lays it out once at the
- * start and an open once at the end, with the spare width in its filler
- * column. The chart keeps the width it had (`chartClosing` is the window less
- * the panel), because drawing it is the costliest thing on the page, and is
- * drawn once at the end.
- *
- * While the panel moves, what moves with it stands on a layer of its own
- * (`layer`): the panel, the map's column, the results and each pane's body
- * (record 0216). A frame of the move then shifts layers the GPU already holds
- * rather than painting the panel, the table and the chart again where they
- * now stand, which was 185 ms of painting across a 300 ms close of a 200-row
- * report, and 35 ms on layers (2026-10-22). Only while it moves, because a
- * layer is a containing block for anything fixed inside it, and the table's
- * column-drag ghost is. Not while the panes move: the table stands still on
- * the screen then, the chart is cheap to paint where it now stands, and
- * lifting both onto layers at the press cost more than the frames saved.
+ * The map's box is the window's height while a pane moves, centred on the
+ * map's column, which clips it (`clip`). MapLibre keeps the centre on a
+ * resize, so the map draws the way it would at every height in between and
+ * is resized only where the box changes. `rest` is the box the rest of the
+ * time. The controls move no edge: they are a card over the map (record
+ * 0305), where they were a panel that pushed it and held the map, the table
+ * and the chart to one width meanwhile (record 0216).
  */
 export const LAYOUT_HOLD = {
   rest: 'absolute inset-0',
-  mapPush: 'absolute inset-y-0 left-[calc(50%-50vw)] w-screen',
   mapPanes: 'absolute inset-x-0 top-[calc(50%-50dvh)] h-dvh',
   clip: 'overflow-clip',
-  layer: 'will-change-transform',
-  table: 'w-screen',
-  chartClosing: 'w-[calc(100vw-22.5rem)]',
-  chartOpening: 'w-screen',
 } as const
 
 /**
@@ -3310,7 +3266,7 @@ export const FIELD =
   'focus:outline-none focus:border-mark placeholder-ink-soft'
 
 /**
- * The coordinates box under List search (#838, record
+ * The coordinates box for the reader's own rows (#838, record
  * [0265](../../docs/architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)):
  * a field whose lines are numbered in a gutter, with each line the parse
  * drops flagged there.
@@ -3357,6 +3313,58 @@ export const COORD_BOX = {
   area:
     'w-full min-w-0 bg-transparent p-2 font-mono resize-y whitespace-pre overflow-x-auto ' +
     'focus:outline-none placeholder-ink-soft',
+} as const
+
+/**
+ * The Destinations section's field (record 0306): every list, area and place
+ * the reader added, each a `CHIP.rest` with its ×, and under them the search
+ * by name, in one box with the field's look, so what the analysis covers and
+ * the way to add more read as one control.
+ *
+ * - `frame`: the field's fill, edge and radius, and its focus edge on
+ *   `focus-within` as `COORD_BOX` takes it, since the input inside has no
+ *   edge of its own. A column: the chips wrap above, the search keeps its own
+ *   line under them, so its results list spans the field's whole width.
+ * - `chips`: the wrapping row; 6px between chips, the gap the frame's inset is.
+ * - `search`: the search's line inside the field, the magnifier and the input,
+ *   at the field's tap height and the input's own inset.
+ * - `glyph`: a chip's kind, before its label, in the chip's ink.
+ */
+export const DESTINATION_FIELD = {
+  frame: `${FIELD_LOOK} flex flex-col gap-1.5 p-1.5 focus-within:border-mark`,
+  chips: 'flex flex-wrap gap-1.5',
+  search: `flex items-center gap-2 px-1.5 ${TAP.height}`,
+  glyph: 'mr-1.5 inline-block flex-shrink-0 align-[-1px]',
+  /** A chip's name that does nothing when pressed (a list): `CHIP.label` without the pointer and the ring. */
+  text: 'min-w-0 truncate py-1 pl-2',
+} as const
+
+/**
+ * The Destinations section's two add buttons (record 0306), `Search by list`,
+ * which opens the lists' menu (`MENU_TRIGGER.tile`), and `Search by area`,
+ * which starts an area: two halves of one row, wearing one look, so the pair
+ * reads as two ways to do one thing.
+ *
+ * With nothing added each carries a line under its name saying what it does
+ * (TJ's words, 2026-11-17), and once anything is added the lines go and each
+ * is its name alone, the tile at its control height. The face is
+ * `BUTTON_SECONDARY`'s fill, inset and type with a trigger's states rather
+ * than a button's hover fill, because one of the two is a menu trigger and a
+ * pair that lit two different ways would not read as a pair; the other never
+ * wears `aria-expanded`, so its open state never shows.
+ *
+ * - `title`: the name, with its glyph, in the face's ink, which the hover and
+ *   the open state move.
+ * - `line`: the lifted caption, the one measured on the raised fill (6.97:1
+ *   dark), and the label-on-fill ink while the menu is out, since the accent
+ *   fill under it would sink the caption's.
+ */
+const DESTINATION_ADD_FACE = `${TEXT.control} ${TAP.action} px-3 py-1.5 ${RADIUS.control} bg-raised group`
+export const DESTINATION_ADD = {
+  row: 'grid grid-cols-2 gap-2',
+  tile: `${DESTINATION_ADD_FACE} flex flex-col items-start gap-0.5 text-left ${TRIGGER_STATE}`,
+  title: 'flex items-center gap-1.5 font-semibold',
+  line: `${CAPTION_LIFTED} group-aria-expanded:text-on-fill`,
 } as const
 
 /**
@@ -3437,6 +3445,12 @@ export const MENU_TRIGGER = {
   chip: CHIP_FACE,
   field: TRIGGER_FIELD,
   /**
+   * `Search by list` in the Destinations section (record 0306): the add
+   * buttons' tile (`DESTINATION_ADD`), so it and `Search by area` beside it
+   * are one pair. It wears no chevron; its name says it opens something.
+   */
+  tile: DESTINATION_ADD.tile,
+  /**
    * A field's left segment inside `CHART_PICKER`'s group (#499): the field's
    * type and arrow room with no edge or radius of its own, because the group
    * wears them, and the one trigger's states (`TRIGGER_STATE`, record 0252).
@@ -3480,6 +3494,7 @@ export const MENU_TRIGGER = {
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
+  tile: '',
   bar: '-mr-0.5',
   field: ICON_ADORNMENT,
   segment: ICON_ADORNMENT,
@@ -3503,7 +3518,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   groups of rows inside its card, which is a different job.
  * - `divider`: a hairline between two runs of options inside a `list`, in
  *   the foot's rule colour and pulled out to the card's sides as the foot's
- *   rule runs. `Custom coordinates` stands under one in the Coordinate list
+ *   rule runs. `Custom coordinates` stands under one in the Search by list
  *   field, apart from the lists (#838, record 0263). A rule rather than a
  *   `heading`: one option set apart names itself. Hidden from a screen
  *   reader, because a listbox holds options and nothing else.
@@ -3549,7 +3564,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   needed.
  * - `description`: the sentence under a row's name that says what the row
  *   is: a model's summary in the model list, a list's description in the
- *   Coordinate list field's menu. Italic at the 11px step in the caption's
+ *   Search by list menu's menu. Italic at the 11px step in the caption's
  *   soft ink, in every menu, so a sentence never reads as a second name: the
  *   maintainer chose it in a lab over upright type and over a recessed, a
  *   tinted and a ruled ground (record
@@ -3612,14 +3627,14 @@ export const MENU_GROUP = {
  * A menu a reader searches and browses, where `MenuSelect`'s short list is
  * one they scan (#848, record
  * [0281](../../docs/architectural-decision-records/0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md)):
- * the Coordinate list field's, which holds well over a hundred lists under
+ * the Search by list menu's, which holds well over a hundred lists under
  * headings that stand inside one another (#892). A search box on top, then
  * the starred lists, then each heading, which opens in place to the headings
  * or the lists under it, on the one card at a desk and in a sheet on a phone.
  *
  * - `top`: the strip the search box stands in, over a hairline, so the box
  *   stays put while the rows scroll under it.
- * - `input`: the search box, the panel's field at the Coordinate list field's
+ * - `input`: the search box, the panel's field at the Search by list menu's
  *   own inset, so it stands 28px at a desk and 32 under a finger.
  * - `heading`: `MENU.heading` at a row's inset, over the starred rows and
  *   over each region's matches in a search. Read and never pressed.

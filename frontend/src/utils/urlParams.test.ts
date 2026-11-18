@@ -29,7 +29,7 @@ const LIMITS = { maxDestinations: MAX_ANALYZE_DESTINATIONS, maxPolygonPoints: MA
 // and a slash in a pin, a negative and a fractional bound, and a CSV that only
 // travels compressed.
 const full: ShareableState = {
-  polygon: {
+  areas: [{
     type: 'Polygon',
     coordinates: [
       [
@@ -39,7 +39,7 @@ const full: ShareableState = {
         [-121.760414, 46.852891],
       ],
     ],
-  },
+  }],
   destinationTypes: ['peak', 'lake'],
   includeUnnamedPeaks: true,
   selection: {
@@ -82,7 +82,7 @@ const full: ShareableState = {
   },
   limit: 50,
   customCsv: 'Name,Lat,Lon\nA peak,46.85,-121.76\n',
-  presetList: null,
+  presetLists: [],
   showWildfires: true,
   showAreaClosures: true,
   showTrailClosures: true,
@@ -111,7 +111,7 @@ const full: ShareableState = {
 // The Current arm with only the model and one bound.
 const nowOnly: ShareableState = {
   ...full,
-  polygon: null,
+  areas: [],
   destinationTypes: [],
   includeUnnamedPeaks: false,
   selection: { kind: 'now' },
@@ -343,7 +343,7 @@ describe('decodeLink', () => {
   it('reports nothing for a link that restores whole', () => {
     const out = decodeLink(`type=peak&model=gfs_hrrr&poly=${ring(4)}&${customz(rows(3))}`, LIMITS)
     expect(out.dropped).toEqual([])
-    expect(out.state?.polygon?.coordinates[0]).toHaveLength(5)
+    expect(out.state?.areas?.[0].coordinates[0]).toHaveLength(5)
     expect(out.state?.customCsv).toBe(rows(3))
     expect(out.state?.forecastModel).toBe('gfs_hrrr')
   })
@@ -351,7 +351,7 @@ describe('decodeLink', () => {
   it('reports a ring over the published cap, and keeps the rest of the link', () => {
     const out = decodeLink(`type=peak&poly=${ring(5)}`, LIMITS)
     expect(out.dropped).toEqual(['ring'])
-    expect(out.state?.polygon).toBeUndefined()
+    expect(out.state?.areas).toBeUndefined()
     expect(out.state?.destinationTypes).toEqual(['peak'])
   })
 
@@ -398,40 +398,39 @@ describe('decodeLink', () => {
   })
 })
 
-// A ready-made list by name (#864): the link names the list the box holds
-// rather than carrying its rows, and carries the reader's own rows as before.
+// Ready-made lists by name (#864): the link names each list rather than
+// carrying its rows, and carries the reader's own rows beside them (record
+// 0306).
 describe('the list param', () => {
   const list = PRESET_LISTS[0]
-  const picked: ShareableState = { ...nowOnly, customCsv: '46.85,-121.76,Mount Rainier', presetList: list.id }
+  const other = PRESET_LISTS[1]
+  const picked: ShareableState = { ...nowOnly, presetLists: [list.id, other.id] }
 
-  it('names a ready-made list in place of its rows', () => {
+  it('names every list added, in order, and no rows', () => {
     const query = encodeState(picked, DEFAULT_MODEL)
-    expect(query).toContain(`list=${list.id}`)
+    expect(new URLSearchParams(query).get('list')).toBe(`${list.id},${other.id}`)
     expect(query).not.toContain('customz=')
   })
 
-  it('carries rows of the reader\'s own as rows', () => {
-    const query = encodeState({ ...picked, presetList: null }, DEFAULT_MODEL)
+  it('carries the reader\'s own rows beside the lists', () => {
+    const query = encodeState({ ...picked, customCsv: '46.85,-121.76,Mount Rainier' }, DEFAULT_MODEL)
     expect(query).toContain('customz=')
-    expect(query).not.toContain('list=')
+    expect(query).toContain('list=')
   })
 
-  // A list a link named whose rows have not arrived: the box is still empty,
-  // and the address bar keeps naming the list.
-  it('makes a link by itself, before its rows are in the box', () => {
-    expect(
-      encodeState({ ...nowOnly, forecastModel: DEFAULT_MODEL, constraints: NO_CONSTRAINTS, presetList: list.id }, DEFAULT_MODEL),
-    ).toContain(`list=${list.id}`)
+  it('reads the ids of lists this build ships, once each', () => {
+    const out = decodeLink(`list=${list.id},${other.id},${list.id}`, LIMITS)
+    expect(out).toEqual({ state: { presetLists: [list.id, other.id] }, dropped: [] })
   })
 
-  it('reads the id of a list this build ships, and no rows', () => {
-    const out = decodeLink(`list=${list.id}`, LIMITS)
-    expect(out).toEqual({ state: { presetList: list.id }, dropped: [] })
+  // A link from before several lists named one, and opens the same.
+  it('reads a link that names one list', () => {
+    expect(decodeLink(`list=${list.id}`, LIMITS)).toEqual({ state: { presetLists: [list.id] }, dropped: [] })
   })
 
-  it('reports an id this build does not ship as a lost list', () => {
-    expect(decodeLink('type=peak&list=no-such-list', LIMITS)).toEqual({
-      state: { destinationTypes: ['peak'] },
+  it('reports an id this build does not ship as a lost list, and keeps the rest', () => {
+    expect(decodeLink(`type=peak&list=no-such-list,${list.id}`, LIMITS)).toEqual({
+      state: { destinationTypes: ['peak'], presetLists: [list.id] },
       dropped: ['list'],
     })
   })
@@ -440,11 +439,10 @@ describe('the list param', () => {
     expect(decodeLink('type=peak&list=', LIMITS).dropped).toEqual([])
   })
 
-  // Only a hand-edited link carries both. The rows are what it spelled out.
-  it('keeps the rows of a link that carries both', () => {
+  it('keeps the rows and the lists of a link that carries both', () => {
     const rows = '47.1,-121.1,Mine'
     const out = decodeLink(`customz=${compressToEncodedURIComponent(rows)}&list=${list.id}`, LIMITS)
-    expect(out.state).toEqual({ customCsv: rows })
+    expect(out.state).toEqual({ customCsv: rows, presetLists: [list.id] })
     expect(out.dropped).toEqual([])
   })
 
@@ -460,7 +458,7 @@ describe('a pasted list too long for a link', () => {
   // Rows that do not compress into each other: each name is its own digits.
   const rows = (n: number) =>
     Array.from({ length: n }, (_, i) => `${(40 + ((i * 7919) % 9973) / 1000).toFixed(5)},${(-120 - ((i * 104729) % 9949) / 1000).toFixed(5)},Peak ${(i * 2654435761) % 1000003}`).join('\n')
-  const state = (customCsv: string, presetList: string | null = null): ShareableState => ({ ...nowOnly, customCsv, presetList })
+  const state = (customCsv: string): ShareableState => ({ ...nowOnly, customCsv })
 
   it('writes a list whose compressed text is inside the cap', () => {
     const short = rows(100)
@@ -481,8 +479,7 @@ describe('a pasted list too long for a link', () => {
     expect(decodeLink(query, LIMITS).dropped).toEqual([])
   })
 
-  it('is never true of a ready-made list or an empty box', () => {
-    expect(customCsvTooLong(state(rows(1_400), PRESET_LISTS[0].id))).toBe(false)
+  it('is never true of an empty box', () => {
     expect(customCsvTooLong(state(''))).toBe(false)
     expect(customCsvTooLong(state('  \n'))).toBe(false)
   })
