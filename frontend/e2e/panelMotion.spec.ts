@@ -8,6 +8,11 @@ import type { Page } from '@playwright/test'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
+// A shut pane keeps its body, inert, so the next press opens a frame around a
+// body already drawn (record 0216).
+const shutChart = (page: Page) => page.locator('[data-tour="results"] [inert] .recharts-wrapper')
+const shutTable = (page: Page) => page.locator('[data-tour="results"] [inert] [data-results-table]')
+
 test('a press on Both opens the chart pane at the panel speed, holding the map still', async ({ page }) => {
   // Read once the press to Table has finished moving: the chart's pane is
   // inert from the press, so its shut body says nothing about where the map
