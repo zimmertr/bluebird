@@ -21,6 +21,7 @@ import type { ViewBounds } from '../utils/layerCoverage'
 import { viewBoxOf } from '../utils/viewBox'
 import type { BBox } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
+import type { DeckPoint } from '../utils/cloudSea'
 // The plain-data half of this component, which is where anything testable
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
 // (#383). The `map-view-wiring` check fails a new one that lands in this file.
@@ -168,6 +169,11 @@ interface Props {
   // The slope angle shading (#799), painted in the browser from the same
   // elevation tiles as the relief (`map/slope.ts`).
   showSlope: boolean
+  /**
+   * The cloud deck at the hour drawn, one point per destination, or null for
+   * no cloud sea (record 0309). Built once per hour and report in `App.tsx`.
+   */
+  cloudDeck?: readonly DeckPoint[] | null
   showSatellite: boolean
   // The four Base map rows' opacity levels, whole percents (record 0250).
   // One object that changes only when a level does, so the memo holds
@@ -301,6 +307,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       showContours,
       showRelief,
       showSlope,
+      cloudDeck = null,
       showTerrain,
       onTerrainChange,
       radarIndex,
@@ -936,6 +943,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.terrain.updateSlope(showSlope)
     }, [showSlope, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.cloud.update(cloudDeck)
+    }, [cloudDeck, mapReady])
 
     // The three elevation rows' levels, before or after their layers exist:
     // a layer added later is drawn at the level held.

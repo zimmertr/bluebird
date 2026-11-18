@@ -43,6 +43,7 @@ import { mountPoiPopups, type PoiPopups } from './poiPopup'
 import type { PopupBoard } from './popups'
 import { mountResultsLayer, type ResultsLayer } from './resultsLayer'
 import { mountTerrain, type TerrainLayers } from './terrain'
+import { mountCloudSea, type CloudSeaLayer } from './cloudSea'
 
 export interface MapFeatures {
   imagery: ImageryOverlay
@@ -59,6 +60,8 @@ export interface MapFeatures {
   results: ResultsLayer
   pois: PoiPopups
   terrain: TerrainLayers
+  /** The cloud sea (record 0309), on the terrain's one load of the elevation. */
+  cloud: CloudSeaLayer
 }
 
 /** The imagery's level from which the contours wear their ink for the photos: half. */
@@ -103,6 +106,7 @@ export function mountFeatures(
   // Adds nothing until a switch asks: no elevation tile and no contour code
   // on the cold load.
   const terrain = mountTerrain(map, { linkCamera: deps.linkCamera })
+  const cloud = mountCloudSea(map, () => terrain.demTiles())
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { popups: mapPopups })
   const wildfires = mountWildfires(map, { popups: mapPopups })
@@ -162,5 +166,6 @@ export function mountFeatures(
     results,
     pois,
     terrain,
+    cloud,
   }
 }

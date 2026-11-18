@@ -2,6 +2,7 @@ import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNo
 import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
+import type { DeckPoint } from '../utils/cloudSea'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
 import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
@@ -152,6 +153,8 @@ export interface MapStageProps {
   onCameraMove?: (view: CameraView, readerMove: boolean) => void
   /** At a desk with the bar, the document links the corner's credit line carries (`DocLinks`). */
   cornerLinks?: ReactNode
+  /** The cloud deck at the hour drawn (record 0309), built in `App.tsx`. */
+  cloudDeck?: readonly DeckPoint[] | null
 }
 
 /**
@@ -199,6 +202,7 @@ export default function MapStage({
   barCard,
   onCameraMove = urlSync.reportView,
   cornerLinks,
+  cloudDeck = null,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -379,6 +383,7 @@ export default function MapStage({
           showContours={overlays.showContours}
           showRelief={overlays.showRelief}
           showSlope={overlays.showSlope}
+          cloudDeck={cloudDeck}
           showSatellite={overlays.showSatellite}
           baseOpacity={overlays.baseOpacity}
           showTerrain={overlays.showTerrain}

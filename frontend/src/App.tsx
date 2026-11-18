@@ -16,6 +16,7 @@ import type { PanelSection } from './components/ControlPanel'
 import { useSearchArea } from './hooks/useSearchArea'
 import { forecastLabel, whenLabel, whereLabel } from './utils/sentenceBar'
 import { discoveryNoun } from './utils/clientAnalyze'
+import { deckPoints } from './utils/cloudSea'
 import { geoKey } from './utils/points'
 import type { CameraView } from './utils/mapView'
 import SkipLink from './components/SkipLink'
@@ -377,6 +378,16 @@ export default function App() {
     playbackIndex,
     movePlayheadTo,
   } = timeline
+
+  // ── The cloud sea (record 0309) ──────────────────────────────────────────
+  // The deck every destination in the held field carries, at the hour the
+  // player stands on, or the window's middle hour while it is off: the
+  // report's own numbers, so drawing it asks nothing of Open-Meteo.
+  const cloudHour = playbackIndex ?? (forecastTimes.length > 0 ? Math.floor(forecastTimes.length / 2) : null)
+  const cloudDeck = useMemo(
+    () => (cloudHour === null || shownUniverse === null || shownUniverse.length === 0 ? null : deckPoints(shownUniverse, cloudHour)),
+    [cloudHour, shownUniverse],
+  )
 
   // ── The forecast grid (#246) ──────────────────────────────────────────────
   const gridLayer = useGridLayer({
@@ -964,6 +975,7 @@ export default function App() {
           bar={barNode}
           barCard={barCardNode}
           cornerLinks={cornerLinks}
+          cloudDeck={cloudDeck}
           onCameraMove={onCameraMove}
         />
 

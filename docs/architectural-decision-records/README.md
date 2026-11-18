@@ -321,3 +321,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0306](0306-a-score-with-lenses-ranks-the-field.md) | A score with lenses ranks the field, and every metric stays a sortable column | 2026-11-17 | Proposed | `utils/score/` guide; `utils/` guide: `colors.ts` |
 | [0307](0307-alpenglow-is-the-forecast-button.md) | Alpenglow is the one button that spends a forecast | 2026-11-17 | Proposed | Root: Style through the design system; `STYLES.md`: Roles |
 | [0308](0308-the-view-is-the-search-area-under-a-sentence-bar.md) | The map's view is the search area, and a sentence bar holds what a Forecast spends | 2026-11-18 | Proposed | `utils/` guide: `searchArea.ts`, `sentenceBar.ts`; `components/` guide: `SentenceBar` |
+| [0309](0309-the-cloud-sea-is-drawn-from-the-report.md) | The cloud sea is drawn on the ground from the deck the report already holds | 2026-11-18 | Proposed | `utils/` guide: `cloudSea.ts`; `map/` guide: `cloudSea.ts` |
