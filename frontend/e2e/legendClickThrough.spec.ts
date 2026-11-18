@@ -1,4 +1,4 @@
-import { test, expect, message } from './fixtures'
+import { test, expect, message, inWhere } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // At a desk the legend is a card under its chip (#714; record 0174), as tall
@@ -36,7 +36,8 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
+  // In the Where card at a desk (record 0308), shut again once drawing.
+  await inWhere(page, () => page.getByRole('button', { name: 'Draw polygon' }).click())
   // The panel slides away rather than vanishing, so the point is read once
   // nothing but the map or the legend stands at it.
   await expect.poll(async () => (await probe(page)).hit).toBe('map')

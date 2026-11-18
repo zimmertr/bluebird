@@ -1,4 +1,4 @@
-import { test, expect, resultRows, isoDay } from './fixtures'
+import { test, expect, resultRows, isoDay, forecastButton } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A tap on the chart moves the map's playhead to the hour under it (#517).
@@ -19,7 +19,7 @@ async function openChart(page: Page) {
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   // The map's own Analyze: a phone opens on the map, with the panel's
   // drawer closed and inert (#696).
-  await page.getByRole('main').getByRole('button', { name: 'Analyze' }).tap()
+  await forecastButton(page.getByRole('main')).tap()
   await expect(resultRows(page).first()).toBeAttached()
   await page.getByRole('button', { name: 'Show chart only' }).tap()
   const surface = page.locator('svg.recharts-surface').first()
@@ -89,7 +89,7 @@ test.describe('on a 390 px phone', () => {
   async function analyzed(page: Page) {
     await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('main').getByRole('button', { name: 'Analyze' }).tap()
+    await forecastButton(page.getByRole('main')).tap()
     await expect(resultRows(page).first()).toBeAttached()
   }
   const sheetTop = async (page: Page) => (await page.locator('[data-tour="results"]').boundingBox())!.y

@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, isoDay } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, isoDay, forecastButton, openCard } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every menu at a desk is the one menu (#714, record 0201): a card 4px under
@@ -49,7 +49,7 @@ const edgeOf = (locator: Locator) => locator.evaluate((el) => getComputedStyle(e
 async function analyzed(page: Page, query = '') {
   await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55${query}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   // A row is removed and the results bar measured, so not before the
   // ranking lands.
   await expectRanked(page)
@@ -103,6 +103,7 @@ test('the Layers chip and the results bar open their menus under themselves, lit
 
 test('the model list takes its row and lines up with the field\'s right edge', async ({ page }) => {
   await analyzed(page)
+  await openCard(page, 'When')
   const field = page.getByRole('button', { name: /^Forecast model:/ })
   const rest = await edgeOf(field)
   await field.click()
@@ -205,7 +206,7 @@ test.describe('a long Removed count at 1024', () => {
       .join(';')
     await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&removed=${removed}`)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Analyze' }).click()
+    await forecastButton(page).click()
     const button = page.getByRole('button', { name: 'Removed (100)' })
     await expect(button).toBeVisible()
 

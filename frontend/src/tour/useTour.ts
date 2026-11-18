@@ -17,7 +17,19 @@ interface Args {
    * it asks no third party for anything.
    */
   tourLayer: { shown: boolean; show: (on: boolean) => void }
+  /**
+   * At a desk, opens the sentence bar's card a step's section stands in, or
+   * shuts it with null (record 0308): the sections are cards there, mounted
+   * only while open, so a step that lights one opens it first.
+   */
+  deskCard?: (section: DeskSection | null) => void
 }
+
+/** The panel sections a desk's sentence bar opens as cards, by their tour anchors. */
+type DeskSection = 'destinations' | 'forecast' | 'metrics'
+const DESK_SECTIONS: readonly string[] = ['destinations', 'forecast', 'metrics']
+const deskSectionOf = (anchor: string): DeskSection | null =>
+  DESK_SECTIONS.includes(anchor) ? (anchor as DeskSection) : null
 
 /**
  * What the tour hands the chart while the demonstration stands in (#850):
@@ -73,7 +85,7 @@ export function scrollParent(el: HTMLElement | null): HTMLElement | null {
  * their step is left, and the camera, the drawer and the panel's scroll
  * position are put back where the tour found them when it ends, by any route.
  */
-export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLayer }: Args) {
+export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLayer, deskCard }: Args) {
   const [steps, setSteps] = useState<readonly TourStep[]>(TOUR_STEPS)
   const [index, setIndex] = useState<number | null>(null)
   // What the reader had before the tour touched anything: the camera, the
@@ -100,7 +112,9 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     const present = TOUR_STEPS.filter(
       (s) =>
         (isDesktop || !s.deskOnly) &&
-        (s.reveal !== undefined || document.querySelector(anchorSelector(s.anchor)) !== null),
+        (s.reveal !== undefined ||
+          (isDesktop && deskCard !== undefined && deskSectionOf(s.anchor) !== null) ||
+          document.querySelector(anchorSelector(s.anchor)) !== null),
     )
     if (present.length === 0) return
     const scroller = scrollParent(document.querySelector<HTMLElement>(anchorSelector(TOUR_STEPS[0].anchor)))
@@ -127,7 +141,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
       window.history.pushState(null, '', TUTORIAL_PATH + window.location.search)
       pushed.current = true
     }
-  }, [mapRef, sidebarOpen, isDesktop])
+  }, [mapRef, sidebarOpen, isDesktop, deskCard])
   const end = useCallback(() => {
     setIndex(null)
     const saved = before.current
@@ -138,11 +152,12 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     } else if (window.location.pathname === TUTORIAL_PATH) {
       window.history.replaceState(null, '', '/' + window.location.search)
     }
+    deskCard?.(null)
     if (!saved) return
     setSidebarOpen(saved.sidebarOpen)
     if (saved.camera) mapRef.current?.setCamera(saved.camera)
     if (saved.scroller) saved.scroller.scrollTop = saved.scrollTop
-  }, [mapRef, setSidebarOpen])
+  }, [mapRef, setSidebarOpen, deskCard])
   // Back during the tour lands on the entry under the pushed one, whose path
   // is not the tour's, and ends it; the `back()` `end` itself makes finds
   // nothing left to end.
@@ -188,7 +203,8 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     if (step === null) return
     const { drawerOpen } = stepLayout(step, isDesktop)
     if (drawerOpen !== null) setSidebarOpen(drawerOpen)
-  }, [step, isDesktop, setSidebarOpen])
+    if (isDesktop) deskCard?.(deskSectionOf(step.anchor))
+  }, [step, isDesktop, setSidebarOpen, deskCard])
 
   // One report per run, built when the results step opens and kept through
   // the marker step that follows it, since that step points at one of its

@@ -5,8 +5,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
-  ACT,
   BUTTON_FORECAST,
+  BUTTON_FORECAST_BAR,
   ACCENT_RING,
   BADGE_ACCENT,
   BADGE_STEP,
@@ -5535,9 +5535,11 @@ describe('the alpenglow fill', () => {
   const tok = (recipe: string, utility: string) => token(recipe, utility)
 
   it('reads the label at AA on both fills and both hovers', () => {
-    expect(tok(ACT.fill, 'bg')).toBe('act')
-    expect(tok(ACT.fill, 'text')).toBe('on-act')
-    expect(tok(ACT.fillHover, 'hover:bg')).toBe('act-hover')
+    for (const button of [BUTTON_FORECAST, BUTTON_FORECAST_BAR]) {
+      expect(tok(button, 'bg')).toBe('act')
+      expect(tok(button, 'text')).toBe('on-act')
+      expect(tok(button, 'hover:bg')).toBe('act-hover')
+    }
     expect(ratio(dark('on-act'), dark('act'))).toBe(7.37)
     expect(ratio(dark('on-act'), dark('act-hover'))).toBe(8.88)
     expect(ratio(light('on-act'), light('act'))).toBe(4.71)

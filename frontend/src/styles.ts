@@ -738,7 +738,9 @@ const TRIGGER_STATE =
  * light hover lightens, gaining label contrast (5.33:1) and standing 2.98:1 on
  * the panel, the one state under 3:1. `styles.test.ts` pins every number.
  */
-export const ACT = {
+// Not exported: the two Forecast buttons below are its only callers, and a
+// role nothing outside this file imports is one the styles suite fails.
+const ACT = {
   fill: 'bg-act text-on-act',
   fillHover: 'hover:bg-act-hover',
 } as const
@@ -755,6 +757,14 @@ export const BUTTON_PRIMARY =
 export const BUTTON_FORECAST =
   `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
   `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING}`
+
+/**
+ * The same button in the map's sentence bar (record 0308): as tall as the
+ * chips beside it and as wide as its words, which name what it will forecast.
+ */
+export const BUTTON_FORECAST_BAR =
+  `${TEXT.cta} ${TAP.action} whitespace-nowrap px-4 py-1.5 ${RADIUS.control} transition-colors ` +
+  `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING} ${ELEVATION.raised}`
 
 /**
  * The secondary action standing next to something else: Clear under the
@@ -3065,6 +3075,26 @@ export const MOTION = {
 
 /** The duration `MOTION.slide`, `MOTION.push` and `MOTION.pane` share, in milliseconds. */
 export const PANEL_MS = 300
+
+/**
+ * The map's sentence bar at a desk (record 0308): the chips that say what a
+ * Forecast will search and over which hours, and the card each opens, which
+ * hangs under the bar the way the legend's card hangs under its chip, on the
+ * legend card's face, and scrolls inside what is left of the map below it.
+ */
+export const SENTENCE_BAR = {
+  row: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
+  group: 'flex min-w-0 items-center gap-1.5',
+  /** The product's name leading the bar, on a chip's face, which the panel's header carried. */
+  brand:
+    `pointer-events-auto flex h-8 flex-shrink-0 items-center gap-2 pl-1 pr-3 bg-floating/95 border border-edge ` +
+    `${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm`,
+  logo: 'h-6 w-6 flex-shrink-0 rounded-full object-cover',
+  name: `${TEXT.section} whitespace-nowrap leading-none`,
+  card: `${SURFACE_CHIP_CARD.key} pointer-events-auto flex w-90 flex-col overflow-hidden max-h-[calc(100cqh-7.5rem)]`,
+  head: `flex flex-shrink-0 items-center justify-between border-b ${PANEL_EDGE} pl-4 pr-1.5 py-1.5`,
+  body: `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS}`,
+} as const
 
 /**
  * The controls panel at a desk (#714; record 0202): a column in the page's

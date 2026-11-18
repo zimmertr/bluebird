@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, expectRanked, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, forecastButton } from './fixtures'
 
 // A sortable header has to be reached and operated with the keyboard alone
 // (WCAG 2.1.1). Axe cannot see this: a header cell with only a click handler
@@ -32,10 +32,9 @@ for (const viewport of [
     // The ring comes from the share link, so the phone needs no map clicks.
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    // The panel's Analyze at a desk; on a phone the drawer opens closed and
-    // inert, and the map's own Analyze is the one in reach (#696).
-    const where = viewport.width < 1024 ? page.getByRole('main') : page.locator('aside')
-    await where.getByRole('button', { name: 'Analyze' }).click()
+    // The sentence bar's button at a desk (record 0308), the map's own on a
+    // phone, whose drawer opens closed and inert (#696): both stand in main.
+    await forecastButton(page.getByRole('main')).click()
     // The first row is read after the sort, so the ranking lands before it.
     await expectRanked(page)
 

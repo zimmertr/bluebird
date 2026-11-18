@@ -1,10 +1,12 @@
-import { useLayoutEffect, useRef } from 'react'
+import { type ReactNode, useLayoutEffect, useRef } from 'react'
 import { MAP_CORNER } from '../styles'
 import type { CornerSlots } from '../map/controls'
 
 interface Props {
   /** Receives the corner's slots once it mounts, and null when it goes. */
   onSlots: (slots: CornerSlots | null) => void
+  /** The document links, which lead the credit line where the sentence bar took the panel's footer (record 0308). */
+  links?: ReactNode
 }
 
 /**
@@ -19,7 +21,7 @@ interface Props {
  * Reported together, once, because the six mount and go together, so the map
  * moves its controls in and out of the corner in one pass.
  */
-export default function MapCorner({ onSlots }: Props) {
+export default function MapCorner({ onSlots, links }: Props) {
   const compass = useRef<HTMLDivElement>(null)
   const terrain = useRef<HTMLDivElement>(null)
   const locate = useRef<HTMLDivElement>(null)
@@ -50,6 +52,7 @@ export default function MapCorner({ onSlots }: Props) {
         <div ref={zoom} className={MAP_CORNER.slot} />
       </div>
       <div data-map-overlay="" className={MAP_CORNER.credit}>
+        {links}
         <div ref={credit} className={MAP_CORNER.slot} />
         <div ref={scale} className={MAP_CORNER.scale} />
       </div>

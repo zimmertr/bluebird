@@ -31,6 +31,8 @@ interface Props {
   onStartDrawing: () => void
   onFinishDrawing: () => void
   drawPointCount: number
+  /** The map's view is the search area while no ring is drawn (record 0308). */
+  viewIsArea?: boolean
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
   onClearDrawing: () => void
@@ -114,13 +116,23 @@ interface Props {
   // or takes away (record 0290; `useChartMetrics`).
   charted: ChartMetrics
   onChart: (keys: readonly ChartMetric[], on: boolean) => void
+  /**
+   * One section alone, for the card a chip on the map's sentence bar opens
+   * at a desk (record 0308): no header, no footer, and no run-on-open, which
+   * the bar runs since it is always mounted where the card is not.
+   */
+  only?: PanelSection
 }
+
+/** The panel's three sections, as the sentence bar's cards name them. */
+export type PanelSection = 'destinations' | 'forecast' | 'metrics'
 
 export default function ControlPanel({
   drawing,
   onStartDrawing,
   onFinishDrawing,
   drawPointCount,
+  viewIsArea = false,
   polygonAreaKm2,
   onCancelDrawing,
   onClearDrawing,
@@ -168,6 +180,7 @@ export default function ControlPanel({
   phone = false,
   charted,
   onChart,
+  only,
 }: Props) {
   // A line pasted twice is one destination, and the count says so (#579).
   // Parsed once per change for the count; the gate reads App's parse.
@@ -180,6 +193,7 @@ export default function ControlPanel({
   // limits settle, run or dropped (#803, M3), never left armed for an edit.
   const autoFiredRef = useRef(false)
   useEffect(() => {
+    if (only) return
     const step = autoAnalyzeStep({
       requested: autoAnalyze,
       capabilitiesSettled,
@@ -193,7 +207,7 @@ export default function ControlPanel({
     // App render, and listing it would re-run this on every render for nothing.
     // The flags above are what can change the answer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoAnalyze, capabilitiesSettled, analyzeEnabled])
+  }, [autoAnalyze, capabilitiesSettled, analyzeEnabled, only])
 
   // The body's scroll shadows, for the browsers whose CSS cannot tell on its
   // own whether there is more above or below (#697).
@@ -220,7 +234,7 @@ export default function ControlPanel({
     // spilling over the map.
     <div data-menu-bound="" className="flex flex-col h-full">
       {/* Header, at a desk: a phone's sheet carries its own (`AppDrawer`). */}
-      {!phone && (
+      {!phone && !only && (
         <div className={`border-b ${PANEL_EDGE} flex`}>
           <img
             src={logoUrl}
@@ -248,6 +262,7 @@ export default function ControlPanel({
       >
         {/* Destinations — one list, defined via any of four methods
             that union into a single ranked report */}
+        {(!only || only === 'destinations') && (
         <DestinationsSection
           drawing={drawing}
           onStartDrawing={onStartDrawing}
@@ -255,6 +270,7 @@ export default function ControlPanel({
           onCancelDrawing={onCancelDrawing}
           onClearDrawing={onClearDrawing}
           drawPointCount={drawPointCount}
+          viewIsArea={viewIsArea}
           pointsNeeded={pointsNeeded}
           areaTooLarge={areaTooLarge}
           polygonAreaKm2={polygonAreaKm2}
@@ -272,11 +288,13 @@ export default function ControlPanel({
           onPresetListFailed={onPresetListFailed}
           phone={phone}
         />
+        )}
 
         {/* which model answers, and over which hours. One calendar,
             replacing the three mutually exclusive modes and their four
             date/time pairs (#166); the model above it bounds how far the
             calendar reaches. */}
+        {(!only || only === 'forecast') && (
         <ForecastSection
           forecastModel={forecastModel}
           setForecastModel={setForecastModel}
@@ -291,7 +309,9 @@ export default function ControlPanel({
           aqiForecastDays={aqiForecastDays}
           phone={phone}
         />
+        )}
 
+        {(!only || only === 'metrics') && (
         <MetricsTable
           sortBy={sortBy}
           setSortBy={setSortBy}
@@ -310,6 +330,7 @@ export default function ControlPanel({
           charted={charted}
           onChart={onChart}
         />
+        )}
 
         {/* A phone's footer is the document links, the last thing in the
             body, read only by a reader who scrolls to it: the sheet spends no
@@ -317,7 +338,7 @@ export default function ControlPanel({
         {phone && footer}
       </div>
 
-      {!phone && footer}
+      {!phone && !only && footer}
     </div>
   )
 }

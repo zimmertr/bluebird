@@ -87,6 +87,8 @@ interface Props {
   // Empties the ring and leaves the mode as it is.
   onClearDrawing: () => void
   drawPointCount: number
+  /** The map's view is the search area while no ring is drawn (record 0308), so the kinds are live without one. */
+  viewIsArea?: boolean
   // The two readings the Analyze gate also takes, handed down rather than
   // derived again here so the counter and the gate cannot disagree.
   pointsNeeded: number
@@ -134,6 +136,7 @@ export default function DestinationsSection({
   onCancelDrawing,
   onClearDrawing,
   drawPointCount,
+  viewIsArea = false,
   pointsNeeded,
   areaTooLarge,
   polygonAreaKm2,
@@ -249,7 +252,7 @@ export default function DestinationsSection({
   // tick with no ring was never sent anyway (`planAnalysis` sends no types
   // without one). Greyed rather than hidden, as the draw row's buttons are
   // (#687), so a ring arriving does not move the panel under the reader.
-  const typesLive = ringUsable(drawPointCount, areaTooLarge)
+  const typesLive = ringUsable(viewIsArea && drawPointCount === 0 ? 4 : drawPointCount, areaTooLarge)
 
   return (
     <section data-tour="destinations">

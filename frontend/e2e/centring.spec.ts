@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, forecastButton } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // A row centred while a desk's layout moves (#714; record 0202). The first
@@ -85,7 +85,7 @@ async function pressInsideTheMove(page: Page, { close = false } = {}) {
       }),
     { name: DESTINATION_NAMES[0], close },
   )
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   const atPress = await pressed
   expect(atPress, 'a press while the panes were opening').not.toBeNull()
   await expectRanked(page)

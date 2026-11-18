@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState, type ComponentProps, type RefObject } from 'react'
+import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
 import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
@@ -142,6 +142,16 @@ export interface MapStageProps {
    * how a tap on the map that opens a card gives it room, as a row's press does.
    */
   lowerSheetFirst: (then: () => void) => void
+  /** At a desk, the sentence bar and the card one of its chips opened (record 0308). */
+  bar?: ReactNode
+  barCard?: ReactNode
+  /**
+   * Every settled move of the camera: the link's, and the search area's
+   * view (`useSearchArea`). The link's alone where none is given.
+   */
+  onCameraMove?: (view: CameraView, readerMove: boolean) => void
+  /** At a desk with the bar, the document links the corner's credit line carries (`DocLinks`). */
+  cornerLinks?: ReactNode
 }
 
 /**
@@ -185,6 +195,10 @@ export default function MapStage({
   onBasemapFailed,
   maxPolygonPoints,
   lowerSheetFirst,
+  bar,
+  barCard,
+  onCameraMove = urlSync.reportView,
+  cornerLinks,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -383,7 +397,7 @@ export default function MapStage({
           onMoveAggregate={tableView.handleAggregateMove}
           cameraPadBottomPx={layout.cameraPadBottomPx}
           restoredView={restoredView}
-          onCameraMove={urlSync.reportView}
+          onCameraMove={onCameraMove}
           onBasemapFailed={onBasemapFailed}
           maxPolygonPoints={maxPolygonPoints}
           lowerSheetFirst={lowerSheetFirst}
@@ -408,10 +422,12 @@ export default function MapStage({
         layers={layers}
         legend={legendChip}
         covered={layout.overMapRows}
+        bar={bar}
+        barCard={barCard}
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
-      {isDesktop && <MapCorner onSlots={setCornerSlots} />}
+      {isDesktop && <MapCorner onSlots={setCornerSlots} links={cornerLinks} />}
       {/* The foot of a phone's map: the Analyze button (record 0135) with
           the message badge at its corner (record 0208). */}
       {!isDesktop && (

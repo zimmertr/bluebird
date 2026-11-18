@@ -1,4 +1,4 @@
-import { test, expect, redrawRing, message, DESTINATION_NAMES, resultRows, isoDay, peak, destinationsAnswer } from './fixtures'
+import { test, expect, redrawRing, message, DESTINATION_NAMES, resultRows, isoDay, peak, destinationsAnswer, forecastButton } from './fixtures'
 import type { Page, Route } from '@playwright/test'
 
 // #560: a run that does not finish changes nothing. Ring A is analyzed, the
@@ -97,7 +97,7 @@ test('a cancelled search of a new ring leaves the last report, and the next Anal
   const popup = page.locator('.maplibregl-popup')
   await page.getByRole('button', { name: /^Center map on / }).first().click()
   await expect(popup).toHaveCount(1)
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   // The run's Cancel: the panel's Polygon row keeps a greyed one of its own.
   await page.getByRole('button', { name: 'Cancel', disabled: false }).click()
   discovery.release()
@@ -107,7 +107,7 @@ test('a cancelled search of a new ring leaves the last report, and the next Anal
   await expect(message(page, 'A new search area requires a new analysis.')).toHaveCount(1)
   await expect(popup).toHaveCount(1)
 
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expect.poll(async () => onlyRing(await rowNames(page), ringBNames(3))).toBe(true)
   await expect(message(page, 'A new search area requires a new analysis.')).toHaveCount(0)
 })
@@ -133,7 +133,7 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
 
   await redrawRing(page, await ringBPixels(page))
   holdWeather = true
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expect(page.getByText(/so far/)).toBeVisible()
   // The first batch's 50 rows are ranked, and the ten still waiting on their
   // forecasts stand above them as pending rows (#782), each with the remove
@@ -154,6 +154,6 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
   await expect(message(page, 'A new search area requires a new analysis.')).toHaveCount(1)
   await expect(popup).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expect.poll(async () => onlyRing(await rowNames(page), ringBNames(60))).toBe(true)
 })

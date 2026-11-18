@@ -1,4 +1,4 @@
-import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, resultRows, DESTINATION_NAMES, forecastButton } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A desk's map corner (record 0174), laid out as Google Maps lays out its own
@@ -43,24 +43,18 @@ async function corner(page: Page) {
 const overlaps = (a: { left: number; top: number; right: number; bottom: number }, b: typeof a) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
-for (const [width, height, panel] of [
-  [1440, 900, 'shut'],
-  [1024, 768, 'open'],
+// No panel stands beside the map at a desk since the sentence bar (record
+// 0308), so the map has the whole row at both widths.
+for (const [width, height] of [
+  [1440, 900],
+  [1024, 768],
 ] as const) {
-  test(`a desk's map buttons stand over the credit line in the corner at ${width} px, panel ${panel}`, async ({ page }) => {
+  test(`a desk's map buttons stand over the credit line in the corner at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height })
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Analyze' }).click()
+    await forecastButton(page).click()
     await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
-    if (panel === 'shut') {
-      await page.getByRole('button', { name: 'Close controls' }).click()
-      // The panel takes 300ms to leave (record 0202), so the corner is read
-      // once the map has the whole row.
-      await expect
-        .poll(() => page.locator('.maplibregl-map').evaluate((el) => el.getBoundingClientRect().left))
-        .toBe(0)
-    }
 
     const at = await corner(page)
     test.info().annotations.push({ type: `desk corner ${width} px`, description: JSON.stringify(at) })

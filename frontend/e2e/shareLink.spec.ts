@@ -1,4 +1,4 @@
-import { test, expect, message, DESTINATION_NAMES, resultRows, isoDay } from './fixtures'
+import { test, expect, message, DESTINATION_NAMES, resultRows, isoDay, forecastButton, openCard, inWhere } from './fixtures'
 import type { Page } from '@playwright/test'
 
 test('a share link restores the ring, the types, the window and the model', async ({ page, request }) => {
@@ -15,13 +15,15 @@ test('a share link restores the ring, the types, the window and the model', asyn
   await page.goto(`/?mode=days&d1=${d1}&d2=${d2}&model=${model.id}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
 
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await openCard(page, 'Where')
   await expect(page.getByRole('button', { name: 'Edit polygon' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'Peaks', exact: true })).toBeChecked()
+  await openCard(page, 'When')
   await expect(page.getByRole('button', { name: `Forecast model: ${model.label}`, exact: true })).toBeVisible()
   await expect.poll(() => new URL(page.url()).searchParams.get('d1')).toBe(d1)
   await expect.poll(() => new URL(page.url()).searchParams.get('d2')).toBe(d2)
   await expect.poll(() => new URL(page.url()).searchParams.get('model')).toBe(model.id)
-  await expect(page.getByRole('button', { name: 'Analyze' })).toBeEnabled()
+  await expect(forecastButton(page)).toBeEnabled()
 })
 
 test('a link that runs on open fills the table and drops its flag', async ({ page }) => {
@@ -93,6 +95,7 @@ test('a model the deployment does not offer falls back to the default, in the pa
       '&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55',
   )
 
+  await openCard(page, 'When')
   await expect(page.getByRole('button', { name: `Forecast model: ${fallback.label} +1`, exact: true })).toBeVisible()
   await expect.poll(() => new URL(page.url()).searchParams.get('model')).toBe(fallback.id)
   await expect.poll(() => new URL(page.url()).searchParams.get('compare')).toBe(compared.id)
@@ -157,7 +160,8 @@ test('a link reopens at its camera, with its removals and its table order', asyn
 // handler is attached, so the first vertex the panel counts says the map has
 // loaded. Escape then cancels draw mode and leaves no ring behind.
 async function waitForMapLoad(page: Page) {
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
+  // In the Where card at a desk (record 0308), shut again once drawing.
+  await inWhere(page, () => page.getByRole('button', { name: 'Draw polygon' }).click())
   const counted = message(page, 'Add at least 2 more points')
   await expect(async () => {
     if ((await counted.count()) === 0) await page.locator('.maplibregl-canvas').click({ position: { x: 520, y: 260 } })
