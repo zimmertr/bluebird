@@ -3364,6 +3364,20 @@ export const DAY = {
 } as const
 
 /**
+ * A row's hour strip in its Score cell (record 0306): one bar per lit hour the
+ * score read, in the score's ramp, a wider gap where a night falls, and the
+ * best stretch drawn taller, so it marks itself by shape rather than by a
+ * second hue. A fixed width, so a long window's hours narrow rather than
+ * widening the column.
+ */
+export const HOUR_STRIP = {
+  strip: 'ml-2 inline-flex h-3.5 w-24 items-end gap-px align-middle',
+  hour: 'h-2 min-w-px flex-1',
+  best: 'h-3.5',
+  gap: 'ml-1',
+} as const
+
+/**
  * The day strip at a desk's map foot (record 0310): the days ahead as one row
  * of cells, the window's days lit as the calendar lights them (`DAY`), and the
  * forecast player under the row once a report spans hours. Placed where the

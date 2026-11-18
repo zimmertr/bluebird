@@ -78,6 +78,8 @@ type ClientOnly =
   | 'best_start_ms'
   | 'best_end_ms'
   | 'score_hours'
+  | 'score_lit'
+  | 'score_best'
 
 /**
  * A type as it travels on the wire: client-only fields dropped, and every

@@ -35,6 +35,9 @@ export interface RowScore {
   // answered; and which of those hours are the ones the score read.
   hours: (number | null)[]
   lit: boolean[]
+  // The best stretch as indexes on the grid, its first hour and the one past
+  // its last, or null.
+  best: [number, number] | null
 }
 
 function at<T>(arr: readonly T[] | null | undefined, i: number): T | null {
@@ -110,7 +113,7 @@ export function scoreRow(row: DestinationResult, times: readonly number[], lens:
   const lit = anyLit ? daylight : grid.map(() => true)
 
   const read = hours.filter((h, i): h is number => h != null && lit[i] === true)
-  if (read.length === 0) return { score: null, bestStartMs: null, bestEndMs: null, hours, lit }
+  if (read.length === 0) return { score: null, bestStartMs: null, bestEndMs: null, hours, lit, best: null }
   const mean = read.reduce((a, b) => a + b, 0) / read.length
   const best = bestRun(grid, hours, lit, row.longitude)
   const bestMean = best?.mean ?? mean
@@ -121,6 +124,7 @@ export function scoreRow(row: DestinationResult, times: readonly number[], lens:
     bestEndMs: best ? grid[best.end - 1] + HOUR_MS : null,
     hours,
     lit,
+    best: best ? [best.start, best.end] : null,
   }
 }
 
@@ -131,7 +135,15 @@ export function scoreRow(row: DestinationResult, times: readonly number[], lens:
  */
 export function scoreRows(rows: readonly DestinationResult[], times: readonly number[], lens: Lens): DestinationResult[] {
   return rows.map((row) => {
-    const { score, bestStartMs, bestEndMs, hours } = scoreRow(row, times, lens)
-    return { ...row, score, best_start_ms: bestStartMs, best_end_ms: bestEndMs, score_hours: hours }
+    const { score, bestStartMs, bestEndMs, hours, lit, best } = scoreRow(row, times, lens)
+    return {
+      ...row,
+      score,
+      best_start_ms: bestStartMs,
+      best_end_ms: bestEndMs,
+      score_hours: hours,
+      score_lit: lit,
+      score_best: best,
+    }
   })
 }

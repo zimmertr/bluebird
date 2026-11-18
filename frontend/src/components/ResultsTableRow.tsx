@@ -1,8 +1,10 @@
 import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import type { DestinationResult } from '../types'
+import HourStrip from './HourStrip'
 import {
   CLOSURE_KEY,
+  SCORE_KEY,
   ELEVATION_COL,
   MODEL_KEY,
   TERRAIN_HEIGHT_MARK,
@@ -454,6 +456,21 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
     return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
   }
   const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample)
+  // The score carries its hours beside it (record 0306).
+  if (key === SCORE_KEY) {
+    return (
+      <td className={cellClass} style={colorSty}>
+        {sized(
+          ctx.widths,
+          key,
+          <>
+            {display}
+            <HourStrip row={row} />
+          </>,
+        )}
+      </td>
+    )
+  }
   if (col.windyLayer) {
     return (
       <td className={cellClass} style={colorSty}>
