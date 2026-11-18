@@ -2557,6 +2557,14 @@ def test_aligned_cloud_maps_by_stamp_and_nulls_the_rest():
     assert ranking._aligned_cloud([1, 2, 3], series) == [None, 9000.0, None]
 
 
+def test_aligned_cloud_reads_the_top_by_key_and_none_when_absent():
+    series = {"times": [2, 3], "cloud_deck_ft": [9000.0, None], "cloud_top_ft": [12000.0, None]}
+    assert ranking._aligned_cloud([1, 2, 3], series, "cloud_top_ft") == [None, 12000.0, None]
+    # A held series from before the top existed aligns to no top at all.
+    held = {"times": [2, 3], "cloud_deck_ft": [9000.0, None]}
+    assert ranking._aligned_cloud([1, 2, 3], held, "cloud_top_ft") is None
+
+
 def _logger_names_in_code() -> set[str]:
     """Every name a module under `app/` passes to `logging.getLogger`: a string
     literal as written, and `__name__` as the module's dotted path."""

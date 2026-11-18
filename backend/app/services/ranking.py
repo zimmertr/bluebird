@@ -193,9 +193,10 @@ def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | Non
 
 
 def _aligned_cloud(
-    times_ms: list[int], cloud_series: dict | None
+    times_ms: list[int], cloud_series: dict | None, key: str = "cloud_deck_ft"
 ) -> list[float | None] | None:
-    """The cloud deck aligned onto the weather grid, null where absent.
+    """One cloud column (the deck, or the top of its layer) aligned onto the
+    weather grid, null where absent.
 
     The two requests ask for the same hours, so the grids agree whenever both
     answered; aligning by stamp rather than by index is what keeps a short or
@@ -203,10 +204,10 @@ def _aligned_cloud(
     is no arrays at all, which is what a row whose analysis never asked for
     the cloud fields carries: a column of nulls would be bytes that say less.
     """
-    if not cloud_series:
+    if not cloud_series or key not in cloud_series:
         return None
-    deck = dict(zip(cloud_series["times"], cloud_series["cloud_deck_ft"], strict=False))
-    return [deck.get(t) for t in times_ms]
+    lookup = dict(zip(cloud_series["times"], cloud_series[key], strict=False))
+    return [lookup.get(t) for t in times_ms]
 
 
 def _assemble(
@@ -254,6 +255,9 @@ def _assemble(
                 snowfall_in=wx_series["snowfall_in"],
                 aqi=_aligned_aqi(wx_series["times"], aqi.get("series")),
                 cloud_deck_ft=_aligned_cloud(wx_series["times"], cloud.get("series")),
+                cloud_top_ft=_aligned_cloud(
+                    wx_series["times"], cloud.get("series"), "cloud_top_ft"
+                ),
             )
         results.append(
             DestinationResult(
