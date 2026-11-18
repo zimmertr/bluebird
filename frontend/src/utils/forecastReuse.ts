@@ -55,6 +55,15 @@ export function reusableForecasts(
 }
 
 /**
+ * Whether a field fetched at `fetchedAtMs` may still stand in at `nowMs`, for
+ * the Forecast button's count: past it a run buys the whole field again, so
+ * `Forecast 31 new` would undercount what the press spends.
+ */
+export function heldStillYoung(fetchedAtMs: number | null, nowMs: number): boolean {
+  return fetchedAtMs !== null && nowMs - fetchedAtMs < FORECAST_REUSE_MS
+}
+
+/**
  * What to hold after a run. A run that reused a field keeps that field's clock,
  * so a field cannot be kept alive indefinitely by re-analyzing every fourteen
  * minutes.

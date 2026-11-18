@@ -95,6 +95,7 @@ import { actionWord, retryStands } from './utils/analyzeGate'
 import { usePanelMessages } from './hooks/usePanelMessages'
 import { glacierRowCount } from './utils/snowCeiling'
 import { useDemoMessages } from './tour/demoMessages'
+import { useHeldYoung } from './hooks/useHeldYoung'
 import { checkNoticeDue } from './utils/fireProximity'
 import {
   panelCommitCues,
@@ -868,7 +869,12 @@ export default function App() {
     [universe],
   )
   const ringField = destinationCount.counted()
-  const heldStillAnswers = !commitReasons.includes('window-changed') && !commitReasons.includes('model-changed')
+  // A run reuses the held forecasts only for the same window and model, and
+  // only while they are young (`forecastReuse.ts`); past either, it buys the
+  // whole field again, and the button counts it so.
+  const heldYoung = useHeldYoung(analysis.heldSinceMs)
+  const heldStillAnswers =
+    heldYoung && !commitReasons.includes('window-changed') && !commitReasons.includes('model-changed')
   const freshInRing = ringField
     ? ringField.found.candidates.filter((c) => !universeKeys.has(geoKey(c.latitude, c.longitude))).length
     : null
@@ -999,7 +1005,13 @@ export default function App() {
           cornerLinks={cornerLinks}
           cloudDeck={cloudDeck}
           scoreColouring={scoreColouring}
-          dayStrip={isDesktop ? { selection, onSelection: forecastSelection.changeSelection, band: forecastSelection.band } : null}
+          // The strip's days are the panel's, which the tour's demonstration
+          // does not use, so the tour plays its hours on the player alone.
+          dayStrip={
+            isDesktop && demo === null
+              ? { selection, onSelection: forecastSelection.changeSelection, band: forecastSelection.band }
+              : null
+          }
           onCameraMove={onCameraMove}
         />
 

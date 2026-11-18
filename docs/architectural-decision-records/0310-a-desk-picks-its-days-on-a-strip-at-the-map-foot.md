@@ -17,6 +17,8 @@ At a desk a strip stands where the forecast player stood, bottom centre over the
 
 Once a report spans hours, the forecast player stands under the days inside the strip, as it was, with its play button, scrubber and readout. Under a lens its axis reads `Score`. A phone keeps the player alone; its shell is still to come.
 
+The tour shows no strip. Its demonstration plays its own four days, which the panel's days on the strip do not describe, so the tour keeps the player alone, as before. The strip also slid with the results as the tour's marker step collapsed them, and a card opened while it was moving stepped clear of where it stood mid-slide rather than where it came to rest (the browser suite's tour walk, 2026-11-18).
+
 The strip looks ahead only. A window in the archive is still the When card's calendar, which pages back a year.
 
 ## Evidence

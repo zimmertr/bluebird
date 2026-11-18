@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FORECAST_REUSE_MS, holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
+import { FORECAST_REUSE_MS, heldStillYoung, holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
 import { resultRow } from '../testSupport/fixtures'
 
 const MIN = 60 * 1000
@@ -53,5 +53,14 @@ describe('holdForecasts', () => {
     expect(second.fetchedAtMs).toBe(T0)
     // Two minutes after that re-analysis, sixteen after the first fetch.
     expect(reusableForecasts(second, ASKED, T0 + 16 * MIN)).toBeNull()
+  })
+})
+
+describe('heldStillYoung', () => {
+  // The Forecast button counts on the held field only while a run could reuse it.
+  it('is young inside fifteen minutes of the first fetch, and not with nothing held', () => {
+    expect(heldStillYoung(T0, T0 + 14 * MIN)).toBe(true)
+    expect(heldStillYoung(T0, T0 + FORECAST_REUSE_MS)).toBe(false)
+    expect(heldStillYoung(null, T0)).toBe(false)
   })
 })
