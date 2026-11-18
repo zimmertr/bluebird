@@ -98,7 +98,7 @@ describe('usePanelMessages', () => {
   const BLOCKED: [string, Partial<PanelMessageState>, string][] = [
     ['an oversized ring', { areaCount: 1, largestAreaKm2: 200_000 }, 'blocker:area'],
     ['a ring short of points', { hasPins: false, drawPointCount: 2 }, 'blocker:polygon'],
-    ['a ring with no type', { hasPins: false, drawPointCount: 3, destinationTypes: [] }, 'blocker:types'],
+    ['a ring with no type', { hasPins: false, areaCount: 1, destinationTypes: [] }, 'blocker:types'],
     ['no day picked', { selection: { kind: 'days', startDate: null, endDate: null } }, 'blocker:dates'],
     ['a window nothing serves', { windowWarning: 'order' }, 'blocker:window'],
     ['air quality compared', { sortBy: DEFAULT_FAMILY_KEY.aqi, comparedModels: ['ecmwf_ifs025'] }, 'blocker:compare-aqi'],

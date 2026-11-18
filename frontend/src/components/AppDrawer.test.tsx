@@ -12,8 +12,18 @@ import type { PanelMessages } from '../hooks/usePanelMessages'
 import { DESK_PANEL, LAYOUT_HOLD } from '../styles'
 
 vi.mock('./ControlPanel', () => ({
-  default: (props: { pointSample: boolean; messages: PanelMessages; phone?: boolean }) => (
-    <div data-testid="panel" data-phone={String(props.phone)} data-messages={String(props.messages.count)}>
+  default: (props: {
+    pointSample: boolean
+    messages: PanelMessages
+    phone?: boolean
+    destinations: { onSearchSelect?: unknown }
+  }) => (
+    <div
+      data-testid="panel"
+      data-phone={String(props.phone)}
+      data-messages={String(props.messages.count)}
+      data-search={String(props.destinations.onSearchSelect !== undefined)}
+    >
       {props.pointSample ? 'point' : 'window'}
     </div>
   ),
@@ -107,9 +117,9 @@ describe('AppDrawer', () => {
   // phone's is the map's pill, so its Controls sheet holds none.
   it('puts the search in a desk\'s panel and not in a phone\'s', () => {
     const { rerender } = render(drawer(true))
-    expect(screen.getByPlaceholderText('Search by name')).toBeTruthy()
+    expect(screen.getByTestId('panel').dataset.search).toBe('true')
     rerender(drawer(true, NOOP, { isDesktop: false }))
-    expect(screen.queryByPlaceholderText('Search by name')).toBeNull()
+    expect(screen.getByTestId('panel').dataset.search).toBe('false')
   })
 
   // The theme menu at a desk (#843): in the header, beside the close button

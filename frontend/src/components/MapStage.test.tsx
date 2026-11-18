@@ -310,7 +310,7 @@ describe('MapStage', () => {
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
     const { user, rerender } = render(<MapStage {...props({ drawMode: drawing, isDesktop: false, sidebarOpen: false, timeline })} />)
     expect(screen.queryByTestId('transport')).toBeNull()
-    expect(screen.getByText('2 points placed, 1 more needed.')).toBeTruthy()
+    expect(screen.getByText('2 of 3 points placed')).toBeTruthy()
     const done = screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement
     expect(done.disabled).toBe(true)
     await user.click(screen.getByRole('button', { name: 'Cancel' }))

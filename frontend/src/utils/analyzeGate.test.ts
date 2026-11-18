@@ -231,6 +231,7 @@ describe('analyzeBlockers', () => {
       analyzeBlockers({
         ...READY_POLYGON,
         polygonReady: false,
+        hasAreas: false,
         drawPointCount: 0,
         refused: true,
         areaTooLarge: true,
@@ -262,7 +263,7 @@ describe('analyzeBlockers', () => {
       'bound-order',
     ])
     expect(
-      analyzeBlockers({ ...READY_POLYGON, polygonReady: false, drawPointCount: 0, boundOrder: true }),
+      analyzeBlockers({ ...READY_POLYGON, polygonReady: false, hasAreas: false, drawPointCount: 0, boundOrder: true }),
     ).toEqual(['bound-order', 'destinations'])
     expect(
       analyzeBlockers({
@@ -394,6 +395,7 @@ describe('a model selection the ranking cannot use', () => {
       analyzeBlockers({
         ...READY_POLYGON,
         polygonReady: false,
+        hasAreas: false,
         drawPointCount: 0,
         compareFreeze: true,
       }),
@@ -550,7 +552,7 @@ describe('analyzeGateFor', () => {
   it('holds a list over the cap, with the count, the noun and the cap its line quotes', () => {
     expect(gateOf({ customCount: 1500 }).overCap).toBeNull()
     expect(gateOf({ customCount: 1501 }).overCap).toEqual({ found: 1501, noun: 'destination', limit: 1500 })
-    const ring = { drawPointCount: 3, polygonAreaKm2: 10, destinationTypes: ['peak' as const] }
+    const ring = { areaCount: 1, largestAreaKm2: 10, destinationTypes: ['peak' as const] }
     expect(gateOf({ ...ring, customCount: 1501, maxDestinations: 1000 }).overCap).toEqual({
       found: 1501,
       noun: 'destination',
@@ -562,7 +564,7 @@ describe('analyzeGateFor', () => {
   // #803, D1: the ring's count ahead of Analyze joins the list's, because the
   // pod refuses the union, and a ring alone names its one kind.
   it("holds a ring whose count ahead of Analyze is over the cap, alone or with the list", () => {
-    const ring = { hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, destinationTypes: ['peak' as const] }
+    const ring = { hasPins: false, areaCount: 1, largestAreaKm2: 10, destinationTypes: ['peak' as const] }
     expect(gateOf({ ...ring, ringCount: 1500 }).overCap).toBeNull()
     expect(gateOf({ ...ring, ringCount: 2613 }).overCap).toEqual({ found: 2613, noun: 'peak', limit: 1500 })
     expect(gateOf({ ...ring, ringCount: 1400, customCount: 101 }).overCap).toEqual({
