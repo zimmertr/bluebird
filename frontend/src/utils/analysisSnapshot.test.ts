@@ -16,7 +16,7 @@ const REQUEST: AnalyzeRequest = {
   custom_destinations: [{ name: 'Probe', latitude: 47.1, longitude: -121.2 }],
 }
 const FACTS: RecordedFacts = {
-  discovery: discoveryKeys(REQUEST.polygon, REQUEST.destination_types, false),
+  discovery: discoveryKeys(REQUEST.polygon ? [REQUEST.polygon] : [], REQUEST.destination_types, false),
   compareModels: ['icon_seamless'],
 }
 const NOW = Date.parse('2026-07-20T12:00:00Z')
@@ -60,6 +60,6 @@ describe('analyzedView', () => {
     const refresh: AnalyzeRequest = { ...REQUEST, polygon: undefined, destination_types: [] }
     const out = analyzedView(refresh, 'days', FACTS, NOW, FALLBACK_WINDOW_LIMITS)
     expect(out.polygonKey).toBe(FACTS.discovery.polygonKey)
-    expect(out.polygonKey).not.toBe(discoveryKeys(null, [], false).polygonKey)
+    expect(out.polygonKey).not.toBe(discoveryKeys([], [], false).polygonKey)
   })
 })

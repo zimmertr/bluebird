@@ -64,7 +64,7 @@ test('the reported link is held before any press, and runs on the counted field 
   expect(asked).toEqual([true])
   await page.keyboard.press('Escape')
 
-  await page.getByRole('checkbox', { name: 'Include unnamed peaks' }).uncheck()
+  await page.getByRole('checkbox', { name: 'Unnamed peaks' }).uncheck()
   await expect(message(page, OVER_CAP)).toHaveCount(0)
   await expect(analyze).not.toHaveAttribute('aria-disabled')
   await expect.poll(() => asked).toEqual([true, false])

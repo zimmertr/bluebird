@@ -1,4 +1,4 @@
-import { test, expect, message, DESTINATION_NAMES, resultRows, isoDay, openSection } from './fixtures'
+import { test, expect, areaChip, pointsPlaced, DESTINATION_NAMES, resultRows, isoDay, openSection } from './fixtures'
 import type { Page } from '@playwright/test'
 
 test('a share link restores the ring, the types, the window and the model', async ({ page, request }) => {
@@ -15,7 +15,7 @@ test('a share link restores the ring, the types, the window and the model', asyn
   await page.goto(`/?mode=days&d1=${d1}&d2=${d2}&model=${model.id}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
 
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Edit polygon' })).toBeVisible()
+  await expect(areaChip(page)).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'Peaks', exact: true })).toBeChecked()
   await openSection(page, 'Forecast')
   await expect(page.getByRole('button', { name: `Forecast model: ${model.label}`, exact: true })).toBeVisible()
@@ -157,8 +157,8 @@ test('a link reopens at its camera, with its removals and its table order', asyn
 // handler is attached, so the first vertex the panel counts says the map has
 // loaded. Escape then cancels draw mode and leaves no ring behind.
 async function waitForMapLoad(page: Page) {
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
-  const counted = message(page, 'Add at least 2 more points')
+  await page.getByRole('button', { name: /^Search by area/ }).click()
+  const counted = pointsPlaced(page, 1)
   await expect(async () => {
     if ((await counted.count()) === 0) await page.locator('.maplibregl-canvas').click({ position: { x: 520, y: 260 } })
     await expect(counted).toBeAttached({ timeout: 1_500 })
@@ -227,13 +227,13 @@ test('a 3D link opens at the pitch its camera names, flat included', async ({ pa
 })
 
 // A ready-made list rides the link by name (#864). Its rows are not in the
-// link, so the page fetches them once it opens: the field reads the list's
-// name, the box holds its rows, and the address bar goes on naming the list
-// rather than writing the rows out.
-test('a link that names a ready-made list opens with the list in the box', async ({ page }) => {
+// link, so the page fetches them once it opens: the list stands as a chip,
+// and the address bar goes on naming the list rather than writing the rows
+// out (record 0306).
+test('a link that names a ready-made list opens with the list as a chip', async ({ page }) => {
   await page.goto('/?list=wa-bulger-list')
-  await expect(page.getByRole('button', { name: 'List search The Bulger List' })).toBeVisible()
-  await expect(page.getByRole('textbox', { name: /^Custom destination coordinates/ })).toHaveValue(/Mount Rainier/)
+  await expect(page.getByRole('button', { name: /^Remove The Bulger List · \d+$/ })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: /^Custom destination coordinates/ })).toHaveCount(0)
   const search = () => new URL(page.url()).searchParams
   await holdsPastDebounce(page, () => search().get('list'), 'wa-bulger-list')
   expect(search().has('customz')).toBe(false)

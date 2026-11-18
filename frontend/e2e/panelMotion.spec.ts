@@ -9,7 +9,6 @@ import type { Page } from '@playwright/test'
 
 const CARD_PX = 361
 const MAP_INSET_PX = 12
-const PILL_PX = 320
 
 // Every frame for `ms` after a press, read in the frame: the panel's right
 // edge, the map column's left edge and width, the results' top, and the
@@ -65,8 +64,8 @@ test('the controls card opens and closes over a map that keeps the window', asyn
   const card = page.locator('aside')
 
   // Open: the card stands one inset in from the map's top left, 361px wide,
-  // with the search field in it and the chip row under it, in its column,
-  // on a map this tall.
+  // with the search field in its Destinations section and the chip row under
+  // it, in its column, on a map this tall.
   await expect(card).toHaveJSProperty('offsetWidth', CARD_PX)
   const open = (await card.boundingBox())!
   expect({ x: open.x, y: open.y }).toEqual({ x: MAP_INSET_PX, y: MAP_INSET_PX })
@@ -75,18 +74,14 @@ test('the controls card opens and closes over a map that keeps the window', asyn
   expect(chips.x).toBeLessThan(open.x + open.width)
   expect(chips.y).toBe(open.y + open.height + 12)
 
-  // Shut: the search pill alone, and the chips under it with the way back.
+  // Shut: the card is gone whole, and the chips, with the way back, stand
+  // where it stood.
   const closing = await framesAfter(page, 'button[aria-label="Close controls"]', 400)
   for (const f of closing) expect({ left: f.mapLeft, width: f.mapWidth }).toEqual({ left: 0, width })
   expect(canvasSizes(closing)).toBe(1)
-  await expect(card).toHaveJSProperty('offsetHeight', 32)
-  await expect(card.getByRole('combobox')).toBeVisible()
-  await expect(card.getByRole('heading', { name: 'Bluebird Forecast' })).toBeHidden()
-  await expect(card.getByRole('button', { name: /^Analyze/ })).toBeHidden()
-  const pill = (await card.getByRole('combobox').boundingBox())!
-  expect(pill.x + pill.width).toBeLessThanOrEqual(MAP_INSET_PX + PILL_PX)
+  await expect(card).toBeHidden()
   const under = (await page.getByRole('button', { name: 'Layers' }).boundingBox())!
-  expect(under.y).toBeGreaterThanOrEqual(MAP_INSET_PX + 32 + 12)
+  expect(under.y).toBe(MAP_INSET_PX)
 
   const opening = await framesAfter(page, 'button[aria-label="Open controls"]', 400)
   for (const f of opening) expect({ left: f.mapLeft, width: f.mapWidth }).toEqual({ left: 0, width })
@@ -117,13 +112,13 @@ test('the card opens one section at a time, and the others say what they are set
   await expect(head('Destinations')).toHaveText('Destinations')
   await expect(head('Forecast')).toHaveText('Forecast Current · NOAA GFS')
   await expect(head('Metrics')).toHaveText(/^Metrics AQI · Lowest · \d+$/)
-  await expect(page.locator('aside').getByRole('button', { name: 'Draw polygon' })).toBeVisible()
+  await expect(page.locator('aside').getByRole('button', { name: /^Search by area/ })).toBeVisible()
 
   await head('Forecast').click()
   await expect(head('Forecast')).toHaveAttribute('aria-expanded', 'true')
   await expect(head('Destinations')).toHaveAttribute('aria-expanded', 'false')
   await expect(head('Destinations')).toHaveText('Destinations None yet')
-  await expect(page.locator('aside').getByRole('button', { name: 'Draw polygon' })).toBeHidden()
+  await expect(page.locator('aside').getByRole('button', { name: /^Search by area/ })).toBeHidden()
 
   // The card is never taller than the map less an inset over and under it.
   const card = (await page.locator('aside').boundingBox())!

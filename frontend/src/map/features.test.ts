@@ -83,6 +83,9 @@ describe('mountFeatures', () => {
       'landmark-trailheads',
       'landmark-crags-glow',
       'landmark-crags',
+      'areas-fill',
+      'areas-line',
+      'areas-label',
       'draw-fill',
       'draw-line',
       'draw-midpoints',
@@ -164,6 +167,7 @@ describe('mountFeatures', () => {
     expect(Object.keys(features).sort()).toEqual(
       [
         'areaClosures',
+        'areas',
         'drawRing',
         'fireActivity',
         'grid',

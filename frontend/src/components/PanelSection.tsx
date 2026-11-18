@@ -18,6 +18,8 @@ interface PanelSectionProps {
   fold?: SectionFold
   /** What the section is set to, in one line, which the card shows while it is collapsed. */
   summary: string
+  /** The pointer is over the section, or has left it: Destinations lights the map's features (record 0306). */
+  onHover?: (on: boolean) => void
   children: ReactNode
 }
 
@@ -29,19 +31,34 @@ interface PanelSectionProps {
  * The controls stay mounted while collapsed, hidden, so a field keeps what
  * was typed in it and a menu its state.
  */
-export default function PanelSection({ 'data-tour': anchor, heading, fold, summary, children }: PanelSectionProps) {
+export default function PanelSection({
+  'data-tour': anchor,
+  heading,
+  fold,
+  summary,
+  onHover,
+  children,
+}: PanelSectionProps) {
   const bodyId = useId()
+  const headingId = useId()
+  const section = {
+    'data-tour': anchor,
+    'aria-labelledby': headingId,
+    ...(onHover ? { onMouseEnter: () => onHover(true), onMouseLeave: () => onHover(false) } : {}),
+  }
   if (fold === undefined) {
     return (
-      <section data-tour={anchor}>
-        <h2 className={`${TEXT.section} mb-2.5`}>{heading}</h2>
+      <section {...section}>
+        <h2 id={headingId} className={`${TEXT.section} mb-2.5`}>
+          {heading}
+        </h2>
         {children}
       </section>
     )
   }
   return (
-    <section data-tour={anchor}>
-      <h2>
+    <section {...section}>
+      <h2 id={headingId}>
         <button
           type="button"
           aria-expanded={fold.open}

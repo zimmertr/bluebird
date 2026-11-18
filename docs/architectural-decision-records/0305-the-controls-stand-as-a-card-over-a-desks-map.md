@@ -1,6 +1,6 @@
 # 0305. The controls stand as a card over a desk's map, with one section open at a time
 
-- Status: Proposed. One of two rival layouts for #825; the other puts the controls behind an icon rail at every width. Supersedes the desk half of [0202](0202-panel-and-panes-move-at-one-speed.md) (the controls no longer push the map's edge) and the layers [0216](0216-desk-moves-paint-less.md) gave the panel's move
+- Status: Proposed. One of two rival layouts for #825; the other puts the controls behind an icon rail at every width. Supersedes the desk half of [0202](0202-panel-and-panes-move-at-one-speed.md) (the controls no longer push the map's edge) and the layers [0216](0216-desk-moves-paint-less.md) gave the panel's move. Amended by [0306](0306-destinations-are-chips-with-several-areas-and-lists.md) (the card holds no search, and the Destinations line counts areas and names every list)
 - Date: 2026-11-16
 - Decider: the maintainer (TJ), who kept this layout from #825's first lab on 2026-11-16 ("Keep the search and controls card. Legend and Layers go to the left under it. Results span the width as today, not floating. The phone stays as it is."), picked the card whose sections open and collapse under today's names from the third lab's mockups the same day, approved the summary lines, and chose that every section collapses when an analysis completes
 - Issues and PRs: #825

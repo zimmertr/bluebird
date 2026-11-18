@@ -1,6 +1,6 @@
 # 0286. The second Destinations subheading says List search
 
-- Status: Accepted. Amends [0156](0156-destination-subheadings-say-search.md) (the middle subheading's word) and [0263](0263-coordinate-search-loads-preset-lists.md) (the tour card's wording)
+- Status: Accepted. Amends [0156](0156-destination-subheadings-say-search.md) (the middle subheading's word) and [0263](0263-coordinate-search-loads-preset-lists.md) (the tour card's wording). Superseded by [0306](0306-destinations-are-chips-with-several-areas-and-lists.md) (every destination is a chip in one field, beside Search by list and Search by area)
 - Date: 2026-11-11
 - Decider: the maintainer (TJ), on pull request #903, 2026-11-11
 - Issues and PRs: #903, #864, #838, #848

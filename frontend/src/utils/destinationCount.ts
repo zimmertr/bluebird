@@ -1,6 +1,6 @@
 import type { DestinationsRequest, DestinationsResponse, GeoPolygon } from '../types'
 import type { DiscoverySource } from '../hooks/useCapabilities'
-import type { Discovered } from './analysisPipeline'
+import { type Discovered, mergeDiscovered } from './analysisPipeline'
 import { geoKey } from './points'
 import { discoveryKeys, unnamedApplies } from './present'
 
@@ -26,42 +26,57 @@ export const COUNT_DEBOUNCE_MS = 1_500
 export const COUNT_SPACING_MS = 2_000
 
 /**
- * What a polygon discovery asks the pod, as one string: the ring, the kinds
+ * What a polygon discovery asks the pod, as one string: the areas, the kinds
  * with the unnamed-peaks toggle (`discoveryKeys`), and the reader's list by
  * coordinate, which rides in the same call. A count asks with no list, so its
  * key equals a run's only when the run carries none either: the pod merges a
- * list into the ring's field (`candidates.discover`), and the browser has no
- * port of that union to apply to a ring counted alone.
+ * list into the first area's field (`candidates.discover`), and the browser
+ * has no port of that union to apply to areas counted alone.
  */
 export function fieldKey(
-  polygon: { coordinates: number[][][] } | null | undefined,
+  areas: readonly { coordinates: number[][][] }[],
   types: readonly string[] | undefined,
   includeUnnamed: boolean | undefined,
   custom: readonly { latitude: number; longitude: number }[] = [],
 ): string {
-  const { polygonKey, typesKey } = discoveryKeys(polygon, types, includeUnnamed)
+  const { polygonKey, typesKey } = discoveryKeys(areas, types, includeUnnamed)
   const list = custom.map((d) => geoKey(d.latitude, d.longitude)).sort()
   return JSON.stringify([polygonKey, typesKey, list])
 }
 
 /**
- * Whether the ring is worth counting: the pod answers rings from its places
- * table (`discovery_source`), the ring is finished and usable, and at least
- * one kind is ticked. Never on a deployment answering from Overpass, which is
- * donated: a count there would spend it on a ring the reader may never
- * analyze.
+ * Whether the areas are worth counting: the pod answers rings from its places
+ * table (`discovery_source`), the areas are usable, nothing is mid-draw, and
+ * at least one kind is ticked. Never on a deployment answering from Overpass,
+ * which is donated: a count there would spend it on areas the reader may
+ * never analyze.
  */
 export function countWanted(
   source: DiscoverySource,
-  polygon: GeoPolygon | null,
   usable: boolean,
   drawing: boolean,
   types: readonly string[],
 ): boolean {
-  return source === 'places' && polygon !== null && usable && !drawing && types.length > 0
+  return source === 'places' && usable && !drawing && types.length > 0
 }
 
-/** The count's request: the ring alone, as a run's discovery would send it with no list. */
+/**
+ * The areas' count from each area's answer (record 0306), or undefined while
+ * one has none yet. Every area found: their fields merged, one row for a
+ * destination two areas share. Any area over the cap: the areas together are
+ * too, and the count is what they found between them, with no field.
+ */
+export function mergedCount(answers: readonly (CountAnswer | undefined)[]): CountAnswer | undefined {
+  if (answers.length === 0 || answers.some((a) => a === undefined)) return undefined
+  const held = answers as readonly CountAnswer[]
+  const over = held.filter((a) => a.kind === 'over')
+  if (over.length > 0) {
+    return { kind: 'over', found: held.reduce((sum, a) => sum + countOf(a), 0), limit: over[0].limit }
+  }
+  return { kind: 'found', found: mergeDiscovered(held.map((a) => (a as Extract<CountAnswer, { kind: 'found' }>).found)) }
+}
+
+/** The count's request: one area alone, as a run's discovery would send it with no list. */
 export function countRequest(
   polygon: GeoPolygon,
   types: DestinationsRequest['destination_types'],

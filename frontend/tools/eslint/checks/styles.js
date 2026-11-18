@@ -897,16 +897,16 @@ export const STYLES = [
     ],
   },
   {
-    // The point count's four states, each coloured by STATUS: the other half
-    // of style-draw-counter's six.
+    // The point count's three states, each coloured by STATUS: the other half
+    // of style-draw-counter's five.
     name: 'style-draw-readout',
     files: ['src/components/DrawReadout.tsx'],
     ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in the draw readout.' }],
     require: [
       {
         selector: fromExport('DrawReadout', role('STATUS')),
-        count: 4,
-        message: 'The draw readout colours its four states by STATUS.',
+        count: 3,
+        message: 'The draw readout colours its three states by STATUS.',
       },
     ],
   },

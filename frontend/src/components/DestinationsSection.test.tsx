@@ -1,63 +1,67 @@
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
-import { fakeResponse } from '../testSupport/fixtures'
-import { PRESET_LISTS, PRESET_REGIONS, forgetPresetLists } from '../utils/presetLists'
+import { place } from '../testSupport/fixtures'
+import { PRESET_LISTS, PRESET_REGIONS } from '../utils/presetLists'
+import { MAX_AREAS } from '../utils/drawGeometry'
 import { STARRED_LISTS_KEY } from '../utils/viewPrefs'
-import type { DiscoveryType } from '../types'
+import type { DiscoveryType, GeoPolygon } from '../types'
 
-// The section's own behavior: the draw counter beside the polygon, the buttons
-// that enter and leave draw mode, the type set and the unnamed-peaks knob
-// that widens it, the Coordinate list field the coordinates box folds into, and
-// the box, which frames a paste but never a keystroke.
+// The section's own behavior (record 0306): the chips that name every
+// destination added, the search beside them at a desk, Search by list and
+// Search by area with their lines, the draw readout while an area is drawn,
+// the kinds the areas look for, and the coordinates box, which frames a paste
+// but never a keystroke.
 
 type Props = ComponentProps<typeof DestinationsSection>
 
 function props(over: Partial<Props> = {}): Props {
   const noop = () => {}
   return {
+    areas: [],
+    areaKm2s: [],
     drawing: false,
-    onStartDrawing: noop,
+    drawPointCount: 0,
+    onStartArea: noop,
+    onEditArea: noop,
+    onRemoveArea: noop,
     onFinishDrawing: noop,
     onCancelDrawing: noop,
-    onClearDrawing: noop,
-    drawPointCount: 0,
-    pointsNeeded: 3,
     areaTooLarge: false,
-    polygonAreaKm2: null,
+    areaCount: 0,
+    draftAreaKm2: null,
     maxAreaKm2: 100_000,
-    onPointAtSearch: noop,
     onPointAtMapPois: noop,
     destinationTypes: ['peak'],
     setDestinationTypes: noop,
     includeUnnamedPeaks: false,
     setIncludeUnnamedPeaks: noop,
+    presetLists: { ids: [], add: noop, remove: noop },
     customCsv: '',
     setCustomCsv: noop,
     parsedCount: 0,
     onCsvPasted: noop,
-    onPresetListFailed: noop,
+    places: [],
+    onRemovePlace: noop,
+    onFramePlace: noop,
     ...over,
   }
 }
 
-// A ring a search can use: the types and the unnamed-peaks knob are greyed
-// without one.
-const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
+const AREA: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+// One finished area a search can use: the kinds stand under it, live.
+const ONE_AREA = { areas: [AREA], areaKm2s: [453.2], areaCount: 1 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
 const noBox = () => screen.queryByRole('textbox', { name: /^Custom destination coordinates/ }) === null
-// The Coordinate list field, named by the List search heading over it and
-// what it reads (record 0288): Select a list at rest, a list's name or Custom
-// coordinates otherwise.
-const field = (reads?: string) =>
-  screen.getByRole('button', { name: `List search ${reads ?? 'Select a list'}` })
-// The box stands once Custom coordinates is picked (record 0263).
+const byList = () => screen.getByRole('button', { name: /^Search by list/ })
+const byArea = () => screen.getByRole('button', { name: /^Search by area/ }) as HTMLButtonElement
+// The box stands once Your own coordinates is picked.
 async function openBox(user: ReturnType<typeof render>['user']) {
-  await user.click(field())
-  await user.click(screen.getByRole('button', { name: 'Custom coordinates' }))
+  await user.click(byList())
+  await user.click(screen.getByRole('button', { name: 'Your own coordinates' }))
 }
 // A list's row in the menu, named by its name and its peak count, and its
 // region's heading, which opens the rows (#848). A heading stands under the
@@ -78,192 +82,274 @@ async function openRegion(user: ReturnType<typeof render>['user'], region: strin
     if (heading.getAttribute('aria-expanded') !== 'true') await user.click(heading)
   }
 }
-// The Polygon block's buttons, in order, apart from the box above it.
-const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon search' }).parentElement!
-const polygonButtons = () =>
-  within(polygonBlock())
-    .getAllByRole('button')
-    .map((b) => b.textContent)
-const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
 
 describe('DestinationsSection', () => {
-  describe('the draw counter', () => {
-    it('is absent before the first point', () => {
-      render(<DestinationsSection {...props()} />)
-      expect(screen.queryByText(/placed/)).toBeNull()
+  describe('the two ways to add', () => {
+    // Each says what it does while nothing is added (TJ, 2026-11-17), and
+    // the lines go once anything is, so the pair shrinks to its names.
+    it('offers Search by list and Search by area, each with its line until anything is added', () => {
+      const { rerender } = render(<DestinationsSection {...props()} />)
+      expect(byList().textContent).toBe('Search by listChoose a peak list or provide coordinates')
+      expect(byArea().textContent).toBe('Search by areaDraw a shape and search within it')
+      rerender(<DestinationsSection {...props(ONE_AREA)} />)
+      expect(byList().textContent).toBe('Search by list')
+      expect(byArea().textContent).toBe('Search by area')
     })
 
-    it('counts down the points a ring still needs while drawing', () => {
-      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 1, pointsNeeded: 2 })} />)
-      expect(screen.getByText(/1 point placed, 2 more needed\./)).toBeTruthy()
+    it('starts an area, and offers no new one at the cap', async () => {
+      const onStartArea = vi.fn()
+      const { user, rerender } = render(<DestinationsSection {...props({ onStartArea })} />)
+      await user.click(byArea())
+      expect(onStartArea).toHaveBeenCalledOnce()
+      const full = Array.from({ length: MAX_AREAS }, () => AREA)
+      rerender(<DestinationsSection {...props({ areas: full, areaKm2s: full.map(() => 1), areaCount: MAX_AREAS })} />)
+      expect(byArea().disabled).toBe(true)
     })
 
-    it('says when the ring is ready while drawing', () => {
-      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 4, pointsNeeded: 0 })} />)
+    it('adds a list from the menu, under its region', async () => {
+      const add = vi.fn()
+      const list = PRESET_LISTS[0]
+      const { user } = render(<DestinationsSection {...props({ presetLists: { ids: [], add, remove: vi.fn() } })} />)
+      expect(byList().getAttribute('aria-haspopup')).toBe('dialog')
+      await user.click(byList())
+      await openRegion(user, list.region)
+      await user.click(listRow(list))
+      expect(add).toHaveBeenCalledExactlyOnceWith(list.id)
+      expect(noBox()).toBe(true)
+    })
+
+    // The menu opens on the headings no heading stands over, A to Z, and a
+    // heading with no list under it is not drawn; Your own coordinates
+    // stands apart at its foot.
+    it('offers every list under its region, then Your own coordinates apart', async () => {
+      const { user } = render(<DestinationsSection {...props()} />)
+      await user.click(byList())
+      const under = (parent: string | null) =>
+        PRESET_REGIONS.filter((region) => region.parent === parent && holdsLists(region.name)).map((region) => region.name)
+      const top = under(null)
+      expect(screen.getAllByRole('button', { name: /\d+ lists?$/ }).map((b) => b.textContent!.replace(/ \d+ lists?$/, ''))).toEqual(
+        top.length === 1 ? [top[0], ...under(top[0])] : top,
+      )
+      const region = PRESET_LISTS[0].region
+      await openRegion(user, region)
+      const rows = within(screen.getByRole('group', { name: region })).getAllByRole('button', { name: /\d+ peaks?$/ })
+      expect(rows.map((b) => b.textContent)).toEqual(
+        PRESET_LISTS.filter((list) => list.region === region).map((list) => `${list.name} ${peaks(list.peaks)}`),
+      )
+      expect(screen.getByRole('button', { name: 'Your own coordinates' }).previousElementSibling!.getAttribute('aria-hidden')).toBe(
+        'true',
+      )
+    })
+
+    // A star is this browser's habit (#848): it is kept across a reload, and
+    // the starred list stands first under Starred.
+    it('keeps a starred list in this browser and shows it first', async () => {
+      const list = PRESET_LISTS[0]
+      const { user, unmount } = render(<DestinationsSection {...props()} />)
+      await user.click(byList())
+      await openRegion(user, list.region)
+      await user.click(screen.getByRole('button', { name: `Star ${list.name}` }))
+      expect(JSON.parse(localStorage.getItem(STARRED_LISTS_KEY)!)).toEqual([list.id])
+      unmount()
+      const again = render(<DestinationsSection {...props()} />)
+      await again.user.click(byList())
+      const starredGroup = screen.getByRole('group', { name: 'Starred' })
+      expect(within(starredGroup).getByRole('button', { name: `${list.name} ${peaks(list.peaks)}` })).toBeTruthy()
+      await again.user.click(within(starredGroup).getByRole('button', { name: `Star ${list.name}` }))
+      expect(localStorage.getItem(STARRED_LISTS_KEY)).toBeNull()
+    })
+  })
+
+  describe('the chips', () => {
+    const chipNames = () =>
+      screen.getAllByRole('button', { name: /^Remove / }).map((b) => b.getAttribute('aria-label')!.replace(/^Remove /, ''))
+
+    // Lists first, then the reader's own coordinates, the areas and the
+    // places, each with its ×.
+    it('names every list, area and place, each with its count or size', () => {
+      const list = PRESET_LISTS[0]
+      render(
+        <DestinationsSection
+          {...props({
+            ...ONE_AREA,
+            presetLists: { ids: [list.id], add: vi.fn(), remove: vi.fn() },
+            customCsv: '1,2',
+            parsedCount: 1,
+            places: [place()],
+          })}
+        />,
+      )
+      expect(chipNames()).toEqual([`${list.name} · ${list.peaks}`, 'Your own coordinates', 'Area 1 · ~453 km²', 'Mount Baker'])
+    })
+
+    it('removes each from its own ×', async () => {
+      const list = PRESET_LISTS[0]
+      const remove = vi.fn()
+      const onRemoveArea = vi.fn()
+      const onRemovePlace = vi.fn()
+      const setCustomCsv = vi.fn()
+      const baker = place()
+      const { user } = render(
+        <DestinationsSection
+          {...props({
+            areas: [AREA, AREA],
+            areaKm2s: [10, 20],
+            areaCount: 2,
+            presetLists: { ids: [list.id], add: vi.fn(), remove },
+            customCsv: '1,2',
+            setCustomCsv,
+            places: [baker],
+            onRemoveArea,
+            onRemovePlace,
+          })}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: `Remove ${list.name} · ${list.peaks}` }))
+      expect(remove).toHaveBeenCalledExactlyOnceWith(list.id)
+      await user.click(screen.getByRole('button', { name: 'Remove Area 2 · ~20 km²' }))
+      expect(onRemoveArea).toHaveBeenCalledExactlyOnceWith(1)
+      await user.click(screen.getByRole('button', { name: 'Remove Mount Baker' }))
+      expect(onRemovePlace).toHaveBeenCalledExactlyOnceWith(baker.lat, baker.lon)
+      await user.click(screen.getByRole('button', { name: 'Remove Your own coordinates' }))
+      expect(setCustomCsv).toHaveBeenCalledExactlyOnceWith('')
+    })
+
+    // Pressing an area's chip opens it for editing (TJ, 2026-11-17), and a
+    // place's goes to it on the map. Neither presses while an area is drawn.
+    it('edits an area and goes to a place from their chips', async () => {
+      const onEditArea = vi.fn()
+      const onFramePlace = vi.fn()
+      const baker = place()
+      const { user, rerender } = render(
+        <DestinationsSection {...props({ ...ONE_AREA, places: [baker], onEditArea, onFramePlace })} />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Area 1 · ~453 km²' }))
+      expect(onEditArea).toHaveBeenCalledExactlyOnceWith(0)
+      await user.click(screen.getByRole('button', { name: 'Mount Baker' }))
+      expect(onFramePlace).toHaveBeenCalledExactlyOnceWith(baker)
+      rerender(<DestinationsSection {...props({ ...ONE_AREA, drawing: true, onEditArea })} />)
+      expect(screen.queryByRole('button', { name: 'Area 1 · ~453 km²' })).toBeNull()
+    })
+
+    // A ×'s chip goes with the press, so the keyboard lands on the first add
+    // button rather than the body (#576).
+    it('hands the keyboard to Search by list when a chip goes', async () => {
+      const { user, rerender } = render(<DestinationsSection {...props({ places: [place()] })} />)
+      await user.click(screen.getByRole('button', { name: 'Remove Mount Baker' }))
+      rerender(<DestinationsSection {...props()} />)
+      expect(document.activeElement).toBe(byList())
+    })
+
+    // A desk's search stands in the field; a phone's is the map's pill, so
+    // its field stands only once there is a chip to hold.
+    it('holds the search at a desk, and shows a phone\'s field only with a chip in it', () => {
+      const { rerender } = render(<DestinationsSection {...props({ onSearchSelect: vi.fn() })} />)
+      expect(screen.getByPlaceholderText('Search by name')).toBeTruthy()
+      rerender(<DestinationsSection {...props({ phone: true })} />)
+      expect(screen.queryByPlaceholderText('Search by name')).toBeNull()
+      expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull()
+      rerender(<DestinationsSection {...props({ phone: true, places: [place()] })} />)
+      expect(screen.getByRole('button', { name: 'Remove Mount Baker' })).toBeTruthy()
+    })
+  })
+
+  describe('drawing an area', () => {
+    // The approved readout (record 0306): what to do, how far the ring is
+    // from an area, then both ways to finish.
+    it('says what to do, then counts to three, then names both ways to finish', () => {
+      const { rerender } = render(<DestinationsSection {...props({ drawing: true })} />)
+      expect(screen.getByText('Press the map to place points')).toBeTruthy()
+      rerender(<DestinationsSection {...props({ drawing: true, drawPointCount: 2 })} />)
+      expect(screen.getByText('2 of 3 points placed')).toBeTruthy()
+      rerender(<DestinationsSection {...props({ drawing: true, drawPointCount: 4, draftAreaKm2: 779 })} />)
       expect(screen.getByText('4 points placed. Press Done or Analyze.')).toBeTruthy()
     })
 
-    it('reads the area, and the cap beside it once the area is over it', () => {
-      render(
-        <DestinationsSection
-          {...props({ drawPointCount: 4, pointsNeeded: 0, polygonAreaKm2: 120_000, areaTooLarge: true })}
-        />,
+    // The count and the area share one line (#687), and neither breaks.
+    it("puts the area on the readout's line, with the cap once it is over it", () => {
+      const { rerender } = render(<DestinationsSection {...props({ drawing: true, drawPointCount: 3, draftAreaKm2: 779 })} />)
+      const counter = screen.getByText('3 points placed. Press Done or Analyze.')
+      const area = screen.getByText('~779 km²')
+      expect(area.parentElement).toBe(counter.parentElement)
+      expect(area.parentElement!.className).toContain('justify-between')
+      for (const el of [counter, area]) expect(el.className).toContain('whitespace-nowrap')
+      rerender(
+        <DestinationsSection {...props({ drawing: true, drawPointCount: 4, draftAreaKm2: 120_000, areaTooLarge: true })} />,
       )
       expect(screen.getByText(/~120,000 km² \(max 100,000 km²\)/)).toBeTruthy()
     })
 
-    // The counter and the area share the line under the subheading, the
-    // area right-justified (#687), and neither breaks inside itself.
-    it("puts the area on the counter's line", () => {
-      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 3, pointsNeeded: 0, polygonAreaKm2: 779 })} />)
-      const counter = screen.getByText('3 points placed. Press Done or Analyze.')
-      const area = screen.getByText('~779 km²')
-      expect(area.parentElement).toBe(counter.parentElement)
-      // Right-justified beside the counter by `justify-between`, which also
-      // puts it at the left when it has to take a line of its own.
-      expect(area.parentElement!.className).toContain('justify-between')
-      expect(area.parentElement!.className).toContain('flex-wrap')
-      expect(area.className).not.toContain('ml-auto')
-      for (const el of [counter, area]) expect(el.className).toContain('whitespace-nowrap')
-      expect(screen.getByRole('heading', { name: 'Polygon search' }).nextElementSibling!.contains(counter)).toBe(true)
-    })
-
     it('warns a large area that is still under the cap', () => {
-      render(<DestinationsSection {...props({ drawPointCount: 4, pointsNeeded: 0, polygonAreaKm2: 50_000 })} />)
+      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 4, draftAreaKm2: 50_000 })} />)
       expect(screen.getByText('Large polygon areas may be slow and hit limits.')).toBeTruthy()
     })
-  })
 
-  describe('the draw button', () => {
-    // The row is always the same three (#687), with a button that does
-    // nothing yet greyed rather than missing.
-    it('shows Draw polygon, Cancel and Clear before any ring, with only the first live', () => {
-      render(<DestinationsSection {...props()} />)
-      expect(polygonButtons()).toEqual(['Draw polygon', 'Cancel', 'Clear'])
-      expect(disabled('Draw polygon')).toBe(false)
-      expect(disabled('Cancel')).toBe(true)
-      expect(disabled('Clear')).toBe(true)
-    })
-
-    it('enters draw mode, and offers Edit and Clear once there is a ring', async () => {
-      const onStartDrawing = vi.fn()
-      const onClearDrawing = vi.fn()
-      const { user, rerender } = render(<DestinationsSection {...props({ onStartDrawing })} />)
-      await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
-      expect(onStartDrawing).toHaveBeenCalledOnce()
-      rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0, onClearDrawing })} />)
-      expect(polygonButtons()).toEqual(['Edit polygon', 'Cancel', 'Clear'])
-      expect(disabled('Cancel')).toBe(true)
-      await user.click(screen.getByRole('button', { name: 'Clear' }))
-      expect(onClearDrawing).toHaveBeenCalledOnce()
-    })
-
-    // A phone has no Escape key, so before the first point Cancel is its only
-    // way out of the mode.
-    it('offers Cancel beside a disabled Done and Clear before the first point', async () => {
+    // Done and Cancel stand where the two add buttons were, Done waiting for
+    // three points and Cancel the way out at any count, which a phone with
+    // no Escape key needs before the first point.
+    it('trades the add buttons for Done and Cancel, Done waiting for three points', async () => {
+      const onFinishDrawing = vi.fn()
       const onCancelDrawing = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ drawing: true, onCancelDrawing })} />)
+      const { user, rerender } = render(
+        <DestinationsSection {...props({ drawing: true, drawPointCount: 2, onFinishDrawing, onCancelDrawing })} />,
+      )
+      expect(screen.queryByRole('button', { name: /^Search by/ })).toBeNull()
       expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
-      expect((screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement).disabled).toBe(true)
-      expect(polygonButtons()).toEqual(['Done', 'Cancel', 'Clear'])
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(onCancelDrawing).toHaveBeenCalledOnce()
-    })
-
-    // A press that greys the button it landed on hands the keyboard to the
-    // first button that can still act, rather than the body (#576).
-    it('hands the keyboard to Cancel on entering the mode and back to Draw on leaving it', async () => {
-      const { user, rerender } = render(<DestinationsSection {...props()} />)
-      await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
-      rerender(<DestinationsSection {...props({ drawing: true })} />)
-      // Done is disabled before three points, so Cancel is the first that can take it.
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
-      await user.click(screen.getByRole('button', { name: 'Cancel' }))
-      rerender(<DestinationsSection {...props()} />)
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw polygon' }))
-    })
-
-    // Clear disables itself under the press that empties the ring, so the
-    // first control that can still act takes the keyboard (#576).
-    it('hands the keyboard on when Clear empties the ring', async () => {
-      const { user, rerender } = render(<DestinationsSection {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1 })} />)
-      await user.click(screen.getByRole('button', { name: 'Clear' }))
-      rerender(<DestinationsSection {...props({ drawing: true })} />)
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
-
-      rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0 })} />)
-      await user.click(screen.getByRole('button', { name: 'Clear' }))
-      rerender(<DestinationsSection {...props()} />)
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw polygon' }))
-    })
-
-    // Done turns back into Edit polygon on the same button, which is still
-    // live, so the keyboard stays where the press put it.
-    it('keeps the keyboard on the mode button when Done leaves the mode', async () => {
-      const { user, rerender } = render(
-        <DestinationsSection {...props({ drawing: true, drawPointCount: 3, pointsNeeded: 0 })} />,
-      )
-      await user.click(screen.getByRole('button', { name: 'Done' }))
-      rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0 })} />)
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit polygon' }))
-    })
-
-    // Clear starts the ring over; only Cancel leaves the mode.
-    it('clears inside draw mode without cancelling it', async () => {
-      const onCancelDrawing = vi.fn()
-      const onClearDrawing = vi.fn()
-      const { user } = render(
-        <DestinationsSection
-          {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1, onCancelDrawing, onClearDrawing })}
-        />,
-      )
-      await user.click(screen.getByRole('button', { name: 'Clear' }))
-      expect(onClearDrawing).toHaveBeenCalledOnce()
-      expect(onCancelDrawing).not.toHaveBeenCalled()
-    })
-
-    it('leaves draw mode on Done, which waits for three points', async () => {
-      const onFinishDrawing = vi.fn()
-      const { user, rerender } = render(
-        <DestinationsSection {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1, onFinishDrawing })} />,
-      )
-      expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
-      rerender(
-        <DestinationsSection {...props({ drawing: true, drawPointCount: 3, pointsNeeded: 0, onFinishDrawing })} />,
-      )
+      rerender(<DestinationsSection {...props({ drawing: true, drawPointCount: 3, onFinishDrawing, onCancelDrawing })} />)
       await user.click(screen.getByRole('button', { name: 'Done' }))
       expect(onFinishDrawing).toHaveBeenCalledOnce()
     })
+
+    // Search by area goes under the press that starts the mode, so Cancel,
+    // the first that can act, takes the keyboard (#576).
+    it('hands the keyboard to Cancel on starting an area', async () => {
+      const { user, rerender } = render(<DestinationsSection {...props()} />)
+      await user.click(byArea())
+      rerender(<DestinationsSection {...props({ drawing: true })} />)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
+    })
   })
 
-  describe('the destination types', () => {
-    it('adds and removes a type from the set', async () => {
+  describe('the kinds the areas find', () => {
+    const typeBoxes = () =>
+      ['Peaks', 'Crags', 'Lakes', 'Trailheads', 'Unnamed peaks'].map(
+        (name) => screen.getByRole('checkbox', { name }) as HTMLInputElement,
+      )
+
+    // With no area there is nothing for a kind to search, so the row stands
+    // only once there is one or one is being drawn.
+    it('stands under Find in areas once there is an area or one is drawn', () => {
+      const { rerender } = render(<DestinationsSection {...props()} />)
+      expect(screen.queryByText('Find in areas')).toBeNull()
+      expect(screen.queryByRole('checkbox', { name: 'Peaks' })).toBeNull()
+      rerender(<DestinationsSection {...props({ drawing: true })} />)
+      expect(screen.getByText('Find in areas')).toBeTruthy()
+      rerender(<DestinationsSection {...props(ONE_AREA)} />)
+      expect(screen.getByRole('checkbox', { name: 'Peaks' })).toBeTruthy()
+    })
+
+    it('adds and removes a kind from the set, Crags between Peaks and Lakes', async () => {
       const setDestinationTypes = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ ...RING, setDestinationTypes })} />)
+      const { user } = render(<DestinationsSection {...props({ ...ONE_AREA, setDestinationTypes })} />)
+      const labels = screen
+        .getAllByRole('checkbox')
+        .filter((box) => (box as HTMLInputElement).name === 'destination_types')
+        .map((box) => box.closest('label')?.textContent)
+      expect(labels).toEqual(['Peaks', 'Crags', 'Lakes', 'Trailheads'])
       await user.click(screen.getByRole('checkbox', { name: 'Lakes' }))
       expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'lake'])
       await user.click(screen.getByRole('checkbox', { name: 'Peaks' }))
       expect(setDestinationTypes).toHaveBeenLastCalledWith([])
     })
 
-    it('offers Crags between Peaks and Lakes, and ticks it into the set', async () => {
-      const setDestinationTypes = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ ...RING, setDestinationTypes })} />)
-      const labels = screen
-        .getAllByRole('checkbox')
-        .filter((box) => (box as HTMLInputElement).name === 'destination_types')
-        .map((box) => box.closest('label')?.textContent)
-      expect(labels).toEqual(['Peaks', 'Crags', 'Lakes', 'Trailheads'])
-      await user.click(screen.getByRole('checkbox', { name: 'Crags' }))
-      expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'crag'])
-    })
-
-    // A press with Shift held reaches every type from the last pressed to
-    // this one, as every checkbox group in the app does (record 0209, #801).
-    it('ticks every type between the last press and a Shift-click', () => {
+    // Shift reaches every kind from the last pressed to this one, as every
+    // checkbox group in the app does (record 0209, #801).
+    it('ticks and unticks every kind between the last press and a Shift-click', () => {
       const setDestinationTypes = vi.fn()
       const page = (types: DiscoveryType[]) => (
-        <DestinationsSection {...props({ ...RING, destinationTypes: types, setDestinationTypes })} />
+        <DestinationsSection {...props({ ...ONE_AREA, destinationTypes: types, setDestinationTypes })} />
       )
       const { rerender } = render(page([]))
       fireEvent.click(screen.getByRole('checkbox', { name: 'Peaks' }))
@@ -271,97 +357,70 @@ describe('DestinationsSection', () => {
       rerender(page(['peak']))
       fireEvent.click(screen.getByRole('checkbox', { name: 'Trailheads' }), { shiftKey: true })
       expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'crag', 'lake', 'trailhead'])
-    })
-
-    it('unticks every type between the last press and a Shift-click', () => {
-      const setDestinationTypes = vi.fn()
-      const page = (types: DiscoveryType[]) => (
-        <DestinationsSection {...props({ ...RING, destinationTypes: types, setDestinationTypes })} />
-      )
-      const { rerender } = render(page(['peak', 'crag', 'lake', 'trailhead']))
+      rerender(page(['peak', 'crag', 'lake', 'trailhead']))
       fireEvent.click(screen.getByRole('checkbox', { name: 'Trailheads' }))
-      expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'crag', 'lake'])
       rerender(page(['peak', 'crag', 'lake']))
       fireEvent.click(screen.getByRole('checkbox', { name: 'Crags' }), { shiftKey: true })
       expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak'])
     })
 
-    // A type with no usable ring discovers nothing, so the row is greyed until
-    // there is one and greyed again when it is cleared or grows past the cap;
-    // the ticks survive the grey (the maintainer, 2026-10-15).
-    const typeBoxes = () =>
-      ['Peaks', 'Crags', 'Lakes', 'Trailheads', 'Include unnamed peaks'].map(
-        (name) => screen.getByRole('checkbox', { name }) as HTMLInputElement,
-      )
-
-    it('greys the types and the knob until the ring is usable, keeping the ticks', () => {
-      const { rerender } = render(
-        <DestinationsSection {...props({ destinationTypes: ['peak', 'crag'], includeUnnamedPeaks: true })} />,
-      )
+    // A kind with no usable area discovers nothing, so the row greys while
+    // the area being drawn is not one yet or is past the cap; the ticks
+    // survive the grey (the maintainer, 2026-10-15).
+    it('greys the kinds until an area is usable, keeping the ticks', () => {
+      const ticked = { destinationTypes: ['peak', 'crag'] as DiscoveryType[], includeUnnamedPeaks: true }
+      const { rerender } = render(<DestinationsSection {...props({ drawing: true, drawPointCount: 2, ...ticked })} />)
       expect(typeBoxes().map((b) => b.disabled)).toEqual([true, true, true, true, true])
       expect(typeBoxes().map((b) => b.checked)).toEqual([true, true, false, false, true])
-
-      // Two points while drawing is not a ring yet.
-      rerender(
-        <DestinationsSection
-          {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1, destinationTypes: ['peak', 'crag'], includeUnnamedPeaks: true })}
-        />,
-      )
-      expect(typeBoxes().every((b) => b.disabled)).toBe(true)
-
-      rerender(<DestinationsSection {...props({ ...RING, destinationTypes: ['peak', 'crag'], includeUnnamedPeaks: true })} />)
+      rerender(<DestinationsSection {...props({ drawing: true, drawPointCount: 3, areaCount: 1, ...ticked })} />)
       expect(typeBoxes().some((b) => b.disabled)).toBe(false)
-    })
-
-    it('greys them again when the ring is cleared or grows past the cap', () => {
-      const ticked = { destinationTypes: ['peak'] as DiscoveryType[] }
-      const { rerender } = render(<DestinationsSection {...props({ ...RING, ...ticked })} />)
-      expect(typeBoxes().some((b) => b.disabled)).toBe(false)
-
-      rerender(
-        <DestinationsSection {...props({ ...RING, ...ticked, polygonAreaKm2: 120_000, areaTooLarge: true })} />,
-      )
+      rerender(<DestinationsSection {...props({ ...ONE_AREA, ...ticked, areaTooLarge: true })} />)
       expect(typeBoxes().every((b) => b.disabled)).toBe(true)
-
-      rerender(<DestinationsSection {...props(ticked)} />)
-      expect(typeBoxes().every((b) => b.disabled)).toBe(true)
-      expect(typeBoxes()[0].checked).toBe(true)
     })
 
-    // Unnamed peaks widens a peak search, so with no peak search there is
-    // nothing for it to widen and the row is not drawn (#687).
-    it('shows unnamed peaks only while Peaks is ticked', () => {
-      const { rerender } = render(<DestinationsSection {...props({ destinationTypes: ['lake'] })} />)
-      expect(screen.queryByRole('checkbox', { name: 'Include unnamed peaks' })).toBeNull()
-      rerender(<DestinationsSection {...props({ destinationTypes: ['lake', 'peak'] })} />)
-      expect(screen.getByRole('checkbox', { name: 'Include unnamed peaks' })).toBeTruthy()
-    })
-
-    // Hidden is not cleared: ticking Peaks again shows what the reader had.
-    it('keeps the knob ticked while Peaks is off and back', () => {
+    // Unnamed peaks widens a peak search, so it stands only while Peaks is
+    // ticked (#687), and hiding it keeps its value.
+    it('shows Unnamed peaks only while Peaks is ticked, and keeps its tick', () => {
       const { rerender } = render(
-        <DestinationsSection {...props({ destinationTypes: [], includeUnnamedPeaks: true })} />,
+        <DestinationsSection {...props({ ...ONE_AREA, destinationTypes: ['lake'], includeUnnamedPeaks: true })} />,
       )
-      expect(screen.queryByRole('checkbox', { name: 'Include unnamed peaks' })).toBeNull()
-      rerender(<DestinationsSection {...props({ destinationTypes: ['peak'], includeUnnamedPeaks: true })} />)
-      expect((screen.getByRole('checkbox', { name: 'Include unnamed peaks' }) as HTMLInputElement).checked).toBe(
-        true,
-      )
+      expect(screen.queryByRole('checkbox', { name: 'Unnamed peaks' })).toBeNull()
+      rerender(<DestinationsSection {...props({ ...ONE_AREA, destinationTypes: ['lake', 'peak'], includeUnnamedPeaks: true })} />)
+      expect((screen.getByRole('checkbox', { name: 'Unnamed peaks' }) as HTMLInputElement).checked).toBe(true)
     })
 
-    it('ticks unnamed peaks and leaves the type set alone', async () => {
+    it('ticks Unnamed peaks and leaves the kind set alone', async () => {
       const setDestinationTypes = vi.fn()
       const setIncludeUnnamedPeaks = vi.fn()
       const { user } = render(
-        <DestinationsSection {...props({ ...RING, setDestinationTypes, setIncludeUnnamedPeaks })} />,
+        <DestinationsSection {...props({ ...ONE_AREA, setDestinationTypes, setIncludeUnnamedPeaks })} />,
       )
-      await user.click(screen.getByRole('checkbox', { name: 'Include unnamed peaks' }))
+      await user.click(screen.getByRole('checkbox', { name: 'Unnamed peaks' }))
       expect(setIncludeUnnamedPeaks).toHaveBeenCalledWith(true)
       expect(setDestinationTypes).not.toHaveBeenCalled()
     })
   })
 
   describe('the coordinates box', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('opens an empty box on Your own coordinates, with its chip, and hands it the keyboard', async () => {
+      const setCustomCsv = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ setCustomCsv })} />)
+      expect(noBox()).toBe(true)
+      await openBox(user)
+      expect(document.activeElement).toBe(coordinates())
+      expect(screen.getByRole('button', { name: 'Remove Your own coordinates' })).toBeTruthy()
+      expect(setCustomCsv).not.toHaveBeenCalled()
+      expect(screen.queryByText(/parsed/)).toBeNull()
+    })
+
+    // A share link restores the reader's own rows, which stand in the box.
+    it('stands open over rows of the reader\'s own', () => {
+      render(<DestinationsSection {...props({ customCsv: '1,2,Mine', parsedCount: 1 })} />)
+      expect(coordinates()).toBeTruthy()
+    })
+
     it('frames a pasted list on the map', async () => {
       const onCsvPasted = vi.fn()
       const setCustomCsv = vi.fn()
@@ -386,9 +445,7 @@ describe('DestinationsSection', () => {
     })
 
     it('counts what the box parses to once it holds text', () => {
-      const { rerender } = render(<DestinationsSection {...props()} />)
-      expect(screen.queryByText(/parsed/)).toBeNull()
-      rerender(<DestinationsSection {...props({ customCsv: '1,2\n3,4', parsedCount: 2 })} />)
+      const { rerender } = render(<DestinationsSection {...props({ customCsv: '1,2\n3,4', parsedCount: 2 })} />)
       expect(screen.getByText('2 destinations parsed')).toBeTruthy()
       rerender(<DestinationsSection {...props({ customCsv: '1,2', parsedCount: 1 })} />)
       expect(screen.getByText('1 destination parsed')).toBeTruthy()
@@ -403,16 +460,10 @@ describe('DestinationsSection', () => {
       expect(screen.getByText('2 destinations parsed, 1 line not read')).toBeTruthy()
       rerender(<DestinationsSection {...props({ customCsv: '1,2\nnope\n95,0', parsedCount: 1 })} />)
       expect(screen.getByText('1 destination parsed, 2 lines not read')).toBeTruthy()
-    })
-
-    it('adds nothing to the count while every line reads, comments and blanks included', () => {
-      render(<DestinationsSection {...props({ customCsv: '# mine\n1,2\n\n3,4', parsedCount: 2 })} />)
-      expect(screen.getByText('2 destinations parsed')).toBeTruthy()
+      rerender(<DestinationsSection {...props({ customCsv: '# mine\n1,2\n\n3,4', parsedCount: 2 })} />)
       expect(screen.queryByText(/not read/)).toBeNull()
     })
 
-    // Two rows tall when it stands, so a reader sees that several rows go
-    // in, with the format and one row that follows it as the placeholder.
     it('stands two rows tall with the format and one example row', async () => {
       const { user } = render(<DestinationsSection {...props()} />)
       await openBox(user)
@@ -421,301 +472,26 @@ describe('DestinationsSection', () => {
         '# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier',
       )
     })
-  })
 
-  // Map, Coordinates, Polygon (#687, record 0137): the two full-width inputs
-  // together, the polygon's buttons and boxes last. Each subheading says its
-  // row searches (#710, record 0156).
-  it('orders the three ways in as Map search, List search, Polygon search', () => {
-    render(<DestinationsSection {...props()} />)
-    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
-    expect(headings).toEqual(['Map search', 'List search', 'Polygon search'])
-    expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
-  })
-
-  // The row under the subheading is the Polygon row's grid: the one menu
-  // over the preset lists and Custom coordinates across two cells and Clear in
-  // the third. The box stands only once something is in it or Custom
-  // coordinates was picked, and a preset pick replaces it at once, typed rows
-  // included (#838, record 0263). The menu holds the lists under their
-  // regions, with a search box and the starred lists first (#848, record 0281).
-  describe('the Coordinate list field', () => {
-    afterEach(() => {
-      vi.unstubAllGlobals()
-      vi.restoreAllMocks()
-      forgetPresetLists()
-    })
-    // Named with the subheading, since the Polygon row's Clear reads the same word.
-    const clear = () => screen.getByRole('button', { name: 'Clear List search' }) as HTMLButtonElement
-    const LIST = '46.8529,-121.7604,Mount Rainier\n48.7768,-121.8145,Mount Baker'
-    const arrives = () => vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: LIST })))
-    const pickList = async (user: ReturnType<typeof render>['user']) => {
-      await user.click(screen.getByRole('button', { name: /^List search/ }))
-      await openRegion(user, PRESET_LISTS[0].region)
-      await user.click(listRow(PRESET_LISTS[0]))
-    }
-
-    it('reads Select a list over a shut box and offers every list under its region, then Custom coordinates apart', async () => {
-      const { user } = render(<DestinationsSection {...props()} />)
-      expect(field().textContent).toContain('Select a list')
-      expect(field().getAttribute('aria-haspopup')).toBe('dialog')
-      expect(noBox()).toBe(true)
-      expect(screen.queryByText(/parsed/)).toBeNull()
-      await user.click(field())
-      // The menu opens on the headings no heading stands over, in the
-      // order PRESET_REGIONS sorts them in (A to Z), and a heading with no list under it is not drawn.
-      // One such heading alone opens itself, so the ones under it show too.
-      const under = (parent: string | null) =>
-        PRESET_REGIONS.filter((region) => region.parent === parent && holdsLists(region.name)).map((region) => region.name)
-      const top = under(null)
-      expect(screen.getAllByRole('button', { name: /\d+ lists?$/ }).map((b) => b.textContent!.replace(/ \d+ lists?$/, ''))).toEqual(
-        top.length === 1 ? [top[0], ...under(top[0])] : top,
-      )
-      // Every region that holds a list of its own, and under each its lists
-      // in the manifest's order.
-      const regions = PRESET_REGIONS.map((region) => region.name).filter((name) =>
-        PRESET_LISTS.some((list) => list.region === name),
-      )
-      for (const region of regions) {
-        await openRegion(user, region)
-        const rows = within(screen.getByRole('group', { name: region })).getAllByRole('button', { name: /\d+ peaks?$/ })
-        expect(rows.map((b) => b.textContent)).toEqual(
-          PRESET_LISTS.filter((list) => list.region === region).map((list) => `${list.name} ${peaks(list.peaks)}`),
-        )
-        // Shut it again: headings stay open side by side (record 0294), and
-        // every list open at once is a menu jsdom takes past the timeout to
-        // query.
-        await user.click(screen.getByRole('button', { name: new RegExp(`^${region} \\d+ lists?$`) }))
-      }
-      expect(screen.getByRole('button', { name: 'Custom coordinates' }).previousElementSibling!.getAttribute('aria-hidden')).toBe(
-        'true',
-      )
-    })
-
-    // The row stands alone at rest, with nothing under it to clear.
-    it('drops the row\'s gap while nothing stands under it', () => {
-      const { rerender } = render(<DestinationsSection {...props()} />)
-      const row = () => clear().parentElement!
-      expect(row().className).not.toMatch(/(^|\s)mb-1\.5(\s|$)/)
-      rerender(<DestinationsSection {...props({ customCsv: '1,2' })} />)
-      expect(row().className).toMatch(/(^|\s)mb-1\.5(\s|$)/)
-    })
-
-    it('opens an empty box on Custom coordinates, reads it, and hands the box the keyboard', async () => {
+    it('empties and shuts the box from its chip\'s ×', async () => {
       const setCustomCsv = vi.fn()
       const { user } = render(<DestinationsSection {...props({ setCustomCsv })} />)
       await openBox(user)
-      expect(document.activeElement).toBe(coordinates())
-      expect(field('Custom coordinates')).toBeTruthy()
-      expect(clear().disabled).toBe(false)
-      // Nothing was in the box, so nothing is emptied.
-      expect(setCustomCsv).not.toHaveBeenCalled()
-      expect(screen.queryByText(/parsed/)).toBeNull()
-    })
-
-    // A share link restores the rows and not which list they came from.
-    it('reads Custom coordinates over rows of the reader\'s own or a share link\'s', () => {
-      render(<DestinationsSection {...props({ customCsv: '1,2,Mine', parsedCount: 1 })} />)
-      expect(coordinates()).toBeTruthy()
-      expect(field('Custom coordinates')).toBeTruthy()
-    })
-
-    it('fills an empty box, frames the rows, says the list arrived and leaves the keyboard where it was', async () => {
-      arrives()
-      const setCustomCsv = vi.fn()
-      const onCsvPasted = vi.fn()
-      const onPresetListFailed = vi.fn()
-      const { user, rerender } = render(
-        <DestinationsSection {...props({ setCustomCsv, onCsvPasted, onPresetListFailed })} />,
-      )
-      await pickList(user)
-      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
-      expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual(['Mount Rainier', 'Mount Baker'])
-      expect(onPresetListFailed).toHaveBeenCalledWith(false)
-      // The box now holds the list, so it stands and the field names the list.
-      rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv, onCsvPasted, onPresetListFailed })} />)
-      expect(field(PRESET_LISTS[0].name)).toBeTruthy()
-      // A box that took the keyboard scrolled to its end and hid a line.
-      expect(document.activeElement).not.toBe(coordinates())
-    })
-
-    // A list abroad names its peaks in their own spelling (#892). The file is
-    // UTF-8 and arrives as bytes, so a name with a letter outside ASCII must
-    // reach the box, the parsed rows and the field exactly as the file spells
-    // it. The coordinates are placeholders; only the names are under test.
-    it('carries a name with an accent from the file to the box unchanged', async () => {
-      const ACCENTED = '47,12,Großglockner\n61,8,Galdhøpiggen\n45,6,Aiguille Verte d’Argentière'
-      vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: `${ACCENTED}\n` })))
-      const setCustomCsv = vi.fn()
-      const onCsvPasted = vi.fn()
-      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv, onCsvPasted })} />)
-      await pickList(user)
-      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(ACCENTED))
-      expect(onCsvPasted.mock.calls[0][0].map((d: { name: string }) => d.name)).toEqual([
-        'Großglockner',
-        'Galdhøpiggen',
-        'Aiguille Verte d’Argentière',
-      ])
-      rerender(<DestinationsSection {...props({ customCsv: ACCENTED, setCustomCsv, onCsvPasted })} />)
-      expect((coordinates() as HTMLTextAreaElement).value).toBe(ACCENTED)
-      expect(field(PRESET_LISTS[0].name)).toBeTruthy()
-    })
-
-    // A list's description is the menu's, behind its row's info button and
-    // under a search result (record 0283). The panel repeats it nowhere: the
-    // field names the list and the box holds its rows.
-    it('says what the loaded list is in the menu alone, never under the field', async () => {
-      arrives()
-      const setCustomCsv = vi.fn()
-      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
-      await pickList(user)
-      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
-      rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv })} />)
-      expect(field(PRESET_LISTS[0].name)).toBeTruthy()
-      expect(screen.queryByText(PRESET_LISTS[0].description)).toBeNull()
-    })
-
-    // A star is this browser's habit (record 0158's storage, #848): it is
-    // kept across a reload, and the starred list stands first under Starred.
-    it('keeps a starred list in this browser and shows it first', async () => {
-      const list = PRESET_LISTS[0]
-      const { user, unmount } = render(<DestinationsSection {...props()} />)
-      await user.click(field())
-      await openRegion(user, list.region)
-      await user.click(screen.getByRole('button', { name: `Star ${list.name}` }))
-      expect(JSON.parse(localStorage.getItem(STARRED_LISTS_KEY)!)).toEqual([list.id])
-      unmount()
-      const again = render(<DestinationsSection {...props()} />)
-      await again.user.click(field())
-      const starredGroup = screen.getByRole('group', { name: 'Starred' })
-      expect(within(starredGroup).getByRole('button', { name: `${list.name} ${peaks(list.peaks)}` })).toBeTruthy()
-      await again.user.click(within(starredGroup).getByRole('button', { name: `Star ${list.name}` }))
-      expect(localStorage.getItem(STARRED_LISTS_KEY)).toBeNull()
-    })
-
-    // A star on a list a later build no longer offers is not shown.
-    it('shows no star this build has no list for', async () => {
-      localStorage.setItem(STARRED_LISTS_KEY, JSON.stringify(['a-list-that-left']))
-      const { user } = render(<DestinationsSection {...props()} />)
-      await user.click(field())
-      expect(screen.queryByRole('group', { name: 'Starred' })).toBeNull()
-    })
-
-    // The pick is the press: nothing asks first, over the reader's own rows
-    // as over an empty box.
-    it('replaces typed rows at once', async () => {
-      arrives()
-      const setCustomCsv = vi.fn()
-      const onCsvPasted = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onCsvPasted })} />)
-      await pickList(user)
-      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
-      expect(setCustomCsv).toHaveBeenCalledOnce()
-      expect(onCsvPasted).toHaveBeenCalledOnce()
-      expect(screen.queryByRole('dialog')).toBeNull()
-    })
-
-    // Custom coordinates asks for rows of the reader's own, so a preset in
-    // the box goes; the reader's own rows would stay, and read Custom
-    // coordinates already.
-    it('empties a preset out of the box on Custom coordinates', async () => {
-      arrives()
-      const setCustomCsv = vi.fn()
-      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
-      await pickList(user)
-      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
-      rerender(<DestinationsSection {...props({ customCsv: LIST, setCustomCsv })} />)
-      await user.click(field(PRESET_LISTS[0].name))
-      await user.click(screen.getByRole('button', { name: 'Custom coordinates' }))
-      expect(setCustomCsv).toHaveBeenLastCalledWith('')
-      rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
-      expect(field('Custom coordinates')).toBeTruthy()
-      expect(document.activeElement).toBe(coordinates())
-    })
-
-    // A preset pick shuts what Custom coordinates opened: emptied again, the
-    // box goes and the field reads Select a list.
-    it('shuts the box a preset was picked over once the box is empty again', async () => {
-      arrives()
-      const setCustomCsv = vi.fn()
-      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
-      await openBox(user)
-      await pickList(user)
-      await waitFor(() => expect(setCustomCsv).toHaveBeenCalledWith(LIST))
-      rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
+      await user.click(screen.getByRole('button', { name: 'Remove Your own coordinates' }))
+      expect(setCustomCsv).toHaveBeenCalledWith('')
       expect(noBox()).toBe(true)
-      expect(field()).toBeTruthy()
-    })
-
-    // An edit keeps the box open, so a reader who deletes every row by hand
-    // keeps the box they are typing in.
-    it('keeps the box open under a reader who deletes every row', () => {
-      const setCustomCsv = vi.fn()
-      const { rerender } = render(<DestinationsSection {...props({ customCsv: '1,2', setCustomCsv })} />)
-      fireEvent.keyDown(coordinates())
-      fireEvent.change(coordinates(), { target: { value: '' } })
-      expect(setCustomCsv).toHaveBeenLastCalledWith('')
-      rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
-      expect(coordinates()).toBeTruthy()
-      expect(field('Custom coordinates')).toBeTruthy()
-    })
-
-    // Clear empties the box and shuts it, and greys while it is shut.
-    it('clears and shuts the box with Clear, and hands the keyboard to the field', async () => {
-      const setCustomCsv = vi.fn()
-      const onCsvPasted = vi.fn()
-      const onPresetListFailed = vi.fn()
-      const { user, rerender } = render(<DestinationsSection {...props({ setCustomCsv })} />)
-      expect(clear().disabled).toBe(true)
-      rerender(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onCsvPasted, onPresetListFailed })} />)
-      expect(clear().disabled).toBe(false)
-      await user.click(clear())
-      expect(setCustomCsv).toHaveBeenCalledExactlyOnceWith('')
-      expect(onCsvPasted).not.toHaveBeenCalled()
-      expect(onPresetListFailed).not.toHaveBeenCalled()
-      rerender(<DestinationsSection {...props({ customCsv: '', setCustomCsv })} />)
-      expect(noBox()).toBe(true)
-      expect(clear().disabled).toBe(true)
-      // The press greyed the button it landed on and took the box away, so
-      // the row's first live control takes the keyboard (#576).
-      expect(document.activeElement).toBe(field())
-    })
-
-    it('shuts a box Custom coordinates opened with Clear, though it held nothing', async () => {
-      const { user } = render(<DestinationsSection {...props()} />)
-      await openBox(user)
-      await user.click(clear())
-      expect(noBox()).toBe(true)
-      expect(field()).toBeTruthy()
-      expect(clear().disabled).toBe(true)
-      expect(document.activeElement).toBe(field())
-    })
-
-    // A stale tab asks for an old build's name and gets a 404: the box stays
-    // as it was and the Analyze button's list says so.
-    it('leaves the box alone and reports a list that did not arrive', async () => {
-      vi.spyOn(console, 'warn').mockImplementation(() => {})
-      vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ raw: 'Not Found' }, 404)))
-      const setCustomCsv = vi.fn()
-      const onPresetListFailed = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ customCsv: '1,2,Mine', setCustomCsv, onPresetListFailed })} />)
-      await pickList(user)
-      await waitFor(() => expect(onPresetListFailed).toHaveBeenCalledWith(true))
-      expect(setCustomCsv).not.toHaveBeenCalled()
-      expect(coordinates()).toBeTruthy()
     })
   })
 
-  it('points at the map while the Map group is hovered', () => {
-    const onPointAtSearch = vi.fn()
+  // The map is a way in with no control here, so hovering the section glows
+  // what a press on the map would add.
+  it('points at the map while the section is hovered', () => {
     const onPointAtMapPois = vi.fn()
-    render(<DestinationsSection {...props({ onPointAtSearch, onPointAtMapPois })} />)
-    const group = screen.getByRole('heading', { name: 'Map search' }).parentElement as HTMLElement
-    fireEvent.mouseEnter(group)
-    expect(onPointAtSearch).toHaveBeenLastCalledWith(true)
+    render(<DestinationsSection {...props({ onPointAtMapPois })} />)
+    const section = screen.getByRole('region', { name: 'Destinations' })
+    fireEvent.mouseEnter(section)
     expect(onPointAtMapPois).toHaveBeenLastCalledWith(true)
-    fireEvent.mouseLeave(group)
-    expect(onPointAtSearch).toHaveBeenLastCalledWith(false)
+    fireEvent.mouseLeave(section)
     expect(onPointAtMapPois).toHaveBeenLastCalledWith(false)
   })
 })

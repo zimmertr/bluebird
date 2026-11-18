@@ -48,8 +48,11 @@ export interface PanelMessageState {
   forecastModel: string
   comparedModels: readonly string[]
   forecastModels: readonly ForecastModelOption[]
-  polygonAreaKm2: number | null
+  /** The largest area drawn or being drawn (`useDestinationInputs`). */
+  largestAreaKm2: number | null
   maxAreaKm2: number
+  /** How many areas a run would search (`AnalyzeGateInputs.areaCount`). */
+  areaCount: number
   drawPointCount: number
   drawing: boolean
   destinationTypes: readonly DiscoveryType[]
@@ -224,7 +227,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
   // cap and with a kind ticked. Its count joins the list's; with no ring
   // searching, the list is the whole field.
   const ringSearches =
-    ringUsable(s.drawPointCount, s.polygonAreaKm2 !== null && s.polygonAreaKm2 > s.maxAreaKm2) &&
+    ringUsable(s.areaCount, s.largestAreaKm2 !== null && s.largestAreaKm2 > s.maxAreaKm2) &&
     s.destinationTypes.length > 0
   const known = knownCount(ringSearches, s.ringCount, s.customCount)
   const spend = spendVeto({
@@ -249,8 +252,9 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     selection: s.selection,
     hasWindowWarning: s.windowWarning !== null,
     loading: s.loading,
-    polygonAreaKm2: s.polygonAreaKm2,
+    largestAreaKm2: s.largestAreaKm2,
     maxAreaKm2: s.maxAreaKm2,
+    areaCount: s.areaCount,
     drawPointCount: s.drawPointCount,
     destinationTypes: s.destinationTypes,
     hasCustom: s.hasCustom,

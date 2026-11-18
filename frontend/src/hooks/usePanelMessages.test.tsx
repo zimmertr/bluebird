@@ -27,7 +27,8 @@ function state(over: Partial<PanelMessageState> = {}): PanelMessageState {
     forecastModel: 'gfs_seamless',
     comparedModels: [],
     forecastModels: MODELS,
-    polygonAreaKm2: null,
+    largestAreaKm2: null,
+    areaCount: 0,
     maxAreaKm2: 100_000,
     drawPointCount: 0,
     drawing: false,
@@ -95,9 +96,9 @@ describe('usePanelMessages', () => {
   // Every blocker the gate names holds the button up and reads red on the
   // badge (record 0210), whatever it is about.
   const BLOCKED: [string, Partial<PanelMessageState>, string][] = [
-    ['an oversized ring', { drawPointCount: 4, polygonAreaKm2: 200_000 }, 'blocker:area'],
+    ['an oversized ring', { areaCount: 1, largestAreaKm2: 200_000 }, 'blocker:area'],
     ['a ring short of points', { hasPins: false, drawPointCount: 2 }, 'blocker:polygon'],
-    ['a ring with no type', { hasPins: false, drawPointCount: 3, destinationTypes: [] }, 'blocker:types'],
+    ['a ring with no type', { hasPins: false, areaCount: 1, destinationTypes: [] }, 'blocker:types'],
     ['no day picked', { selection: { kind: 'days', startDate: null, endDate: null } }, 'blocker:dates'],
     ['a window nothing serves', { windowWarning: 'order' }, 'blocker:window'],
     ['air quality compared', { sortBy: DEFAULT_FAMILY_KEY.aqi, comparedModels: ['ecmwf_ifs025'] }, 'blocker:compare-aqi'],
@@ -116,7 +117,7 @@ describe('usePanelMessages', () => {
     const message = 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.'
     const refused = {
       refusal: { message },
-      failedView: analyzedSnapshot(discoveryKeys(null, [], false)),
+      failedView: analyzedSnapshot(discoveryKeys([], [], false)),
       failedPanel: refusalPanel(),
     }
     const { result, rerender } = hook(refused)
@@ -139,7 +140,7 @@ describe('usePanelMessages', () => {
 
   // #803, D1: the ring's count ahead of Analyze, joined to the list's.
   it("says the ring's count over the cap before any press, and only while the ring searches", () => {
-    const ring = { hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, ringCount: 2613 }
+    const ring = { hasPins: false, areaCount: 1, largestAreaKm2: 10, ringCount: 2613 }
     const { result } = hook(ring)
     expect(result.current.analyzeEnabled).toBe(false)
     expect(result.current.messages.map((m) => m.text)).toEqual([
@@ -166,7 +167,7 @@ describe('usePanelMessages', () => {
   })
 
   it('says nothing about the spend of a ring whose count is unknown', () => {
-    const { result } = hook({ hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, customCount: 0 })
+    const { result } = hook({ hasPins: false, areaCount: 1, largestAreaKm2: 10, customCount: 0 })
     expect(result.current.analyzeEnabled).toBe(true)
     expect(result.current.messages).toEqual([])
   })
@@ -183,7 +184,7 @@ describe('usePanelMessages', () => {
   })
 
   it('reads the area cap and the points still needed off the gate', () => {
-    const { result } = hook({ drawPointCount: 4, polygonAreaKm2: 200_000 })
+    const { result } = hook({ areaCount: 1, largestAreaKm2: 200_000 })
     expect(result.current.areaTooLarge).toBe(true)
     expect(result.current.worst).toBe('error')
     expect(hook({ drawPointCount: 2 }).result.current.pointsNeeded).toBe(1)

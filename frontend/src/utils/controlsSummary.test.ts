@@ -32,22 +32,25 @@ describe('controlsSummary', () => {
 // The lines a desk's card shows for a collapsed section (record 0305), in the
 // words the maintainer approved on 2026-11-16.
 describe('destinationsSummary', () => {
-  const NONE = { ringPoints: 0, kinds: [], listName: null, pointDestinations: 0 }
+  const NONE = { areas: 0, kinds: [], listNames: [], pointDestinations: 0 }
 
   it('says None yet until the reader has named anything', () => {
     expect(destinationsSummary(NONE)).toBe('None yet')
-    // Ticked kinds with no ring search nothing, so they name nothing.
+    // Ticked kinds with no area search nothing, so they name nothing.
     expect(destinationsSummary({ ...NONE, kinds: ['Peaks'] })).toBe('None yet')
   })
 
-  it('reads a ring as its point count and the kinds it looks for', () => {
-    expect(destinationsSummary({ ...NONE, ringPoints: 6, kinds: ['Peaks'] })).toBe('6 points · Peaks')
-    expect(destinationsSummary({ ...NONE, ringPoints: 4, kinds: ['Peaks', 'Lakes'] })).toBe('4 points · Peaks, Lakes')
-    expect(destinationsSummary({ ...NONE, ringPoints: 1, kinds: [] })).toBe('1 point')
+  it('reads the areas as their count and the kinds they look for', () => {
+    expect(destinationsSummary({ ...NONE, areas: 2, kinds: ['Peaks'] })).toBe('2 areas · Peaks')
+    expect(destinationsSummary({ ...NONE, areas: 1, kinds: ['Peaks', 'Lakes'] })).toBe('1 area · Peaks, Lakes')
+    expect(destinationsSummary({ ...NONE, areas: 1, kinds: [] })).toBe('1 area')
   })
 
-  it('reads a picked list as its own name', () => {
-    expect(destinationsSummary({ ...NONE, listName: 'Washington Bulgers' })).toBe('Washington Bulgers')
+  it('reads each list as its own name', () => {
+    expect(destinationsSummary({ ...NONE, listNames: ['The Bulger List'] })).toBe('The Bulger List')
+    expect(destinationsSummary({ ...NONE, listNames: ['The Bulger List', 'Colorado 14ers'] })).toBe(
+      'The Bulger List · Colorado 14ers',
+    )
   })
 
   it('counts every other point destination in one number', () => {
@@ -57,8 +60,8 @@ describe('destinationsSummary', () => {
 
   it('joins what the reader named with the middle dot', () => {
     expect(
-      destinationsSummary({ ringPoints: 6, kinds: ['Peaks'], listName: 'Washington Bulgers', pointDestinations: 2 }),
-    ).toBe('6 points · Peaks · Washington Bulgers · 2 destinations')
+      destinationsSummary({ areas: 2, kinds: ['Peaks'], listNames: ['The Bulger List'], pointDestinations: 2 }),
+    ).toBe('2 areas · Peaks · The Bulger List · 2 destinations')
   })
 })
 

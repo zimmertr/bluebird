@@ -98,8 +98,8 @@ export function presetListById(id: string): PresetList | undefined {
   return PRESET_LISTS.find((list) => list.id === id)
 }
 
-// Every list that has arrived this session, by URL, so the field can tell a
-// box that holds one from a box that holds the reader's own rows.
+// Every list that has arrived this session, by URL, so adding one again, or
+// opening a link that names one, asks the network once.
 const held = new Map<string, string>()
 
 /** The list's text, or null when it cannot be had. Never rejects. */
@@ -118,22 +118,6 @@ export async function fetchPresetList(list: PresetList): Promise<string | null> 
     console.warn('Coordinate list failed to load', err)
     return null
   }
-}
-
-/**
- * The list the box holds, when it holds exactly one that arrived this session
- * (a trailing newline aside), else null. What the Coordinate list field reads,
- * and what a share link names in place of the rows (`list=`, #864). A list a
- * link named arrives through `fetchPresetList` like a picked one, so a
- * reloaded page's field reads its name again.
- */
-export function presetListIn(box: string): PresetList | null {
-  const text = box.trimEnd()
-  for (const list of PRESET_LISTS) {
-    const kept = held.get(list.url)
-    if (kept !== undefined && kept.trimEnd() === text) return list
-  }
-  return null
 }
 
 /** Tests only: forget what arrived. */

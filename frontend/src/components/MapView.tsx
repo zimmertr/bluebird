@@ -67,8 +67,8 @@ export interface MapViewHandle {
   setCamera: (camera: MapCamera) => void
   framePolygon: () => void
   finishDrawing: () => GeoPolygon | null
-  // Replace the ring outright: null empties it (Clear), a polygon puts back
-  // the one draw mode started with (Cancel, #478).
+  // Replace the editable ring outright: null empties it (Cancel, Done, a new
+  // area), an area loads it for editing (record 0306).
   restoreRing: (ring: GeoPolygon | null) => void
   // `padBottomPx` frames the place for a sheet that is about to open rather
   // than the one on screen (#696); without it the camera pads for what is
@@ -109,11 +109,17 @@ interface Props {
   // click could add, so a destination method with no control in the panel
   // still has somewhere to point. Mirrors the ring the search box gets.
   pointedPois: boolean
-  polygon: GeoPolygon | null // initial ring (e.g. restored from the URL)
+  // Every finished area, drawn as its shape and its number (record 0306),
+  // and framed on load with the points below, so a link opens on its areas.
+  areas: readonly GeoPolygon[]
+  // The area the editable ring is, whose own shape is left out while it is
+  // edited, or null.
+  editingArea: number | null
   // Every point destination restored from the URL (CSV rows and searched
-  // places), built once at mount. Like a restored polygon they are framed on
+  // places), built once at mount. Like restored areas they are framed on
   // load, so a shared link opens on what it carries, not on the default view.
   restoredPoints: { latitude: number; longitude: number }[]
+  // The editable ring, reported at every edit (`useDestinationInputs.draft`).
   onPolygonChange: (polygon: GeoPolygon | null) => void
   // The count alone: the ring's area is derived from the polygon in `App.tsx`,
   // so that a link's ring has one before this component has loaded (#429).
@@ -277,7 +283,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
     {
       drawing,
       pointedPois,
-      polygon,
+      areas,
+      editingArea,
       restoredPoints,
       onPolygonChange,
       onDrawUpdate,
@@ -345,13 +352,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const corner = isDesktop ? cornerSlots : null
     const loadedRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
-    // The ring a `?poly=` link opened with. A ref rather than a mount-time
-    // snapshot because the load handler frames, hydrates and counts it long
-    // after mount — behind the welcome modal MapLibre can fire `load` late —
-    // and Clear may land first. `restoreRing` writes this, so the two paths
-    // read one value and a cleared ring cannot come back (#453), while a
-    // canceled one does.
-    const restoredPolygonRef = useRef(polygon)
+    // The editable ring as `restoreRing` last set it, for a load that comes
+    // after: behind the welcome modal MapLibre can fire `load` late, and an
+    // area's chip may load the ring first. Null at mount, since a link opens
+    // on finished areas and no ring under edit (record 0306).
+    const restoredPolygonRef = useRef<GeoPolygon | null>(null)
     const pendingSearchRef = useRef<Place | null>(null)
     // CSV list pasted before the map finished loading — folded into the load
     // handler's opening frame, mirroring pendingSearchRef.
@@ -395,6 +400,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       cameraPadLeftPx,
       onCameraMove,
       maxPolygonPoints,
+      areas,
       onTerrainChange,
       lowerSheetFirst,
     }
@@ -422,19 +428,21 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // Called by the load handler and nowhere else, so it reads the restored
     // ring as a Clear or a Cancel has left it.
     function frameOpening(map: maplibregl.Map) {
-      // One opening frame for everything the session starts with: a restored
-      // polygon ring, the restored CSV rows and searched places, and any list
-      // pasted while the map was still loading — their union, so a link
-      // carrying a polygon, a CSV and pins shows the whole analysis area.
+      // One opening frame for everything the session starts with: the
+      // restored areas, the restored CSV rows and searched places, and any
+      // list pasted while the map was still loading — their union, so a link
+      // carrying areas, a CSV and pins shows the whole analysis area.
       // When none of these exist, the default camera stands.
       //
       // A link's own camera wins over all of it but a list pasted while the map
       // was loading: that paste is the reader's own act, where the rest is the
       // app framing what the link carried.
       const corners: [number, number][] = []
-      if (restoredPolygonRef.current && !restoredView) {
-        const ring = restoredPolygonRef.current.coordinates[0] ?? []
-        if (ring.length >= 3) for (const [lng, lat] of ring) corners.push([lng, lat])
+      if (!restoredView) {
+        for (const area of controller.inputs.areas) {
+          const ring = area.coordinates[0] ?? []
+          if (ring.length >= 3) for (const [lng, lat] of ring) corners.push([lng, lat])
+        }
       }
       const pastedEarly = pendingFitPointsRef.current ?? []
       pendingFitPointsRef.current = null
@@ -731,10 +739,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
         loadedRef.current = true
         frameOpening(map)
 
-        // A restored polygon hydrates the same points array the draw handlers
-        // edit, so a shared link is adjustable the moment Edit polygon is
-        // pressed. It arrives with drawing off: a link opens on a finished
-        // area, not mid-gesture.
+        // A ring an area's chip loaded before the map did hydrates the points
+        // array the draw handlers edit.
         if (restoredPolygonRef.current) {
           ptsRef.current = ringToPts(restoredPolygonRef.current)
           onDrawUpdate(ptsRef.current.length)
@@ -882,6 +888,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
       if (map) map.getCanvas().style.cursor = drawing ? 'crosshair' : ''
       if (mapReady) featuresRef.current?.drawRing.setDrawing(drawing)
     }, [drawing, mapReady])
+
+    // The finished areas and their numbers, less the one under edit.
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.areas.set(areas, editingArea)
+    }, [areas, editingArea, mapReady])
 
     // Neutral blue dot per custom destination not yet in the displayed analysis.
     useEffect(() => {

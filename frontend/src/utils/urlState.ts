@@ -35,9 +35,11 @@ export type { LinkDrop } from './urlParams'
 // Fields that fully describe an analysis. Results are deliberately excluded —
 // they're re-fetched fresh so a shared link never replays stale forecasts.
 export interface ShareableState {
-  polygon: GeoPolygon | null
-  // A set, not a value: the polygon can look for several kinds at once, and
-  // an empty set means it looks for nothing.
+  // Every area the reader drew, each a closed ring (record 0306). Empty when
+  // none is drawn. The kinds below apply to all of them.
+  areas: GeoPolygon[]
+  // A set, not a value: the areas can look for several kinds at once, and
+  // an empty set means they look for nothing.
   destinationTypes: DiscoveryType[]
   includeUnnamedPeaks: boolean
   // What the analysis asks about: the current hour, or a day/day-range with an
@@ -68,12 +70,14 @@ export interface ShareableState {
   // whole shape, the panel clears the whole shape).
   constraints: Constraints
   limit: number
+  // The reader's own coordinates, as typed or pasted. Ready-made lists are not
+  // in here: they ride `presetLists` by id (record 0306).
   customCsv: string
-  // The ready-made list the box holds, by its `id` in the coordinate lists'
-  // manifest (#864), or null while the rows are the reader's own. A link names
-  // such a list (`list=`) rather than carrying its rows, and it is also the id
-  // of a list a link named whose rows have not arrived yet (`useLinkedList`).
-  presetList: string | null
+  // The ready-made lists added, by `id` in the coordinate lists' manifest
+  // (#864), in the order they were added. A link names them (`list=`) rather
+  // than carrying their rows, which the page fetches once it opens
+  // (`usePresetLists`).
+  presetLists: string[]
   // The twelve live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
   // drawn beside the ranking, never fed into it. That holds for the forecast

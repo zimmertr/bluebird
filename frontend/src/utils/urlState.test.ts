@@ -8,6 +8,7 @@ import {
   classifyAqiCoverage,
   clampLimit,
   decodeAutoAnalyze,
+  decodeLink,
   ShareableState,
 } from './urlState'
 import {
@@ -73,7 +74,7 @@ const LONG: BandLimits = {
 }
 
 const base: ShareableState = {
-  polygon,
+  areas: [polygon],
   destinationTypes: ['peak'],
   selection: DAYS,
   forecastModel: DEFAULT_MODEL,
@@ -84,7 +85,7 @@ const base: ShareableState = {
   constraints: NO_CONSTRAINTS,
   limit: 10,
   customCsv: '',
-  presetList: null,
+  presetLists: [],
   showWildfires: false,
   showAreaClosures: false,
   showTrailClosures: false,
@@ -112,7 +113,7 @@ const base: ShareableState = {
 // App defaults — including the When toggle's Current arm, which is the one
 // selection carrying no dates to write.
 const pristine: ShareableState = {
-  polygon: null,
+  areas: [],
   // Nothing checked is the default now, so a pristine session asks the
   // polygon to find nothing.
   destinationTypes: [],
@@ -125,7 +126,7 @@ const pristine: ShareableState = {
   constraints: NO_CONSTRAINTS,
   limit: 200,
   customCsv: '',
-  presetList: null,
+  presetLists: [],
   showWildfires: false,
   showAreaClosures: false,
   showTrailClosures: false,
@@ -165,9 +166,31 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out!.sortBy).toBeUndefined()
     expect(out!.limit).toBe(10)
     // Polygon ring is rebuilt closed with the same vertices.
-    const ring = out!.polygon!.coordinates[0]
+    const ring = out!.areas![0].coordinates[0]
     expect(ring).toHaveLength(4)
     expect(ring[0]).toEqual(ring[ring.length - 1])
+  })
+
+  // Record 0306: every area, in the order it was drawn, joined by `_`.
+  it('restores several areas in order', () => {
+    const second: GeoPolygon = {
+      type: 'Polygon',
+      coordinates: [[[-120.5, 47.1], [-120.2, 47.1], [-120.2, 47.4], [-120.5, 47.1]]],
+    }
+    const qs = encodeState({ ...base, areas: [polygon, second] }, DEFAULT_MODEL)
+    expect(new URLSearchParams(qs).get('poly')).toContain('_')
+    const out = decodeState(qs)
+    expect(out!.areas).toHaveLength(2)
+    expect(out!.areas![1].coordinates[0][0]).toEqual([-120.5, 47.1])
+  })
+
+  // One area a link garbled is said as a lost ring, and the others open.
+  it('keeps the areas it can read beside one it cannot', () => {
+    const qs = encodeState(base, DEFAULT_MODEL)
+    const poly = new URLSearchParams(qs).get('poly')!
+    const out = decodeLink(`type=peak&poly=${poly}_notcoords`, LIMITS)
+    expect(out.state?.areas).toHaveLength(1)
+    expect(out.dropped).toEqual(['ring'])
   })
 
   it('restores crags beside the other types', () => {
@@ -413,11 +436,11 @@ describe('encodeState / decodeState round-trip', () => {
     const csv = '46.8529,-121.7604\n46.2024,-121.4909'
     const out = roundTrip({
       ...base,
-      polygon: null,
+      areas: [],
       customCsv: csv,
     })
     expect(out!.customCsv).toBe(csv)
-    expect(out!.polygon).toBeUndefined()
+    expect(out!.areas).toBeUndefined()
   })
 
   it('restores a CSV alongside a polygon — the union analysis', () => {
@@ -425,7 +448,7 @@ describe('encodeState / decodeState round-trip', () => {
     const out = roundTrip({ ...base, customCsv: csv })
     expect(out!.customCsv).toBe(csv)
     expect(out!.destinationTypes).toEqual(['peak'])
-    expect(out!.polygon!.coordinates[0]).toHaveLength(4)
+    expect(out!.areas![0].coordinates[0]).toHaveLength(4)
   })
 
   it('round-trips a large multi-line custom CSV through compression', () => {
@@ -437,13 +460,13 @@ describe('encodeState / decodeState round-trip', () => {
         { length: 100 },
         (_, i) => `4${i % 9}.${i}00000, -12${i % 3}.${i}00000, ${i + 1}. Peak #${i + 1} (${i}00 ft)`,
       ).join('\n')
-    const out = roundTrip({ ...base, polygon: null, customCsv: csv })
+    const out = roundTrip({ ...base, areas: [], customCsv: csv })
     expect(out!.customCsv).toBe(csv)
   })
 
   it('writes the CSV compressed under `customz`, well below its raw length', () => {
     const csv = Array.from({ length: 100 }, (_, i) => `47.${i}, -121.${i}, Peak ${i}`).join('\n')
-    const qs = encodeState({ ...base, polygon: null, customCsv: csv }, DEFAULT_MODEL)
+    const qs = encodeState({ ...base, areas: [], customCsv: csv }, DEFAULT_MODEL)
     const params = new URLSearchParams(qs)
     const customz = params.get('customz')!
     expect(customz).toBeTruthy()
@@ -598,7 +621,7 @@ describe('encodeState', () => {
   it('rounds polygon coordinates to ~5 decimals', () => {
     const qs = encodeState({
       ...base,
-      polygon: {
+      areas: [{
         type: 'Polygon',
         coordinates: [
           [
@@ -608,7 +631,7 @@ describe('encodeState', () => {
             [-121.760419999, 46.852891234],
           ],
         ],
-      },
+      }],
     }, DEFAULT_MODEL)
     const poly = new URLSearchParams(qs).get('poly')!
     expect(poly.startsWith('-121.76042,46.85289')).toBe(true)
@@ -797,15 +820,15 @@ describe('a pin carries only an OSM id and a place kind', () => {
 // drawing and no overlays (#622). The same bounds `view` and `removed` hold.
 describe('a link coordinate off the globe', () => {
   it('drops a ring with a vertex past a pole', () => {
-    expect(decodeState('type=peak&poly=0,100;1,100;1,101')?.polygon).toBeUndefined()
+    expect(decodeState('type=peak&poly=0,100;1,100;1,101')?.areas).toBeUndefined()
   })
 
   it('drops a ring with a vertex past the antimeridian', () => {
-    expect(decodeState('type=peak&poly=-181,46.8;-121.4,46.2;-121.1,48.1')?.polygon).toBeUndefined()
+    expect(decodeState('type=peak&poly=-181,46.8;-121.4,46.2;-121.1,48.1')?.areas).toBeUndefined()
   })
 
   it('keeps a ring that reaches the poles and the antimeridian exactly', () => {
-    expect(decodeState('poly=-180,-90;180,90;0,0')?.polygon).toBeDefined()
+    expect(decodeState('poly=-180,-90;180,90;0,0')?.areas).toBeDefined()
   })
 
   it('drops a pin past a pole or the antimeridian and keeps the rest', () => {
@@ -910,7 +933,7 @@ describe('the compressed list', () => {
   const csv = Array.from({ length: 100 }, (_, i) => `4${i % 9}.${i}1234, -12${i % 3}.${i}5678, Peak ${i}`).join('\n')
 
   it('writes lz-string\'s own output, + included, and reads it back', () => {
-    const qs = encodeState({ ...base, polygon: null, customCsv: csv }, DEFAULT_MODEL)
+    const qs = encodeState({ ...base, areas: [], customCsv: csv }, DEFAULT_MODEL)
     const written = qs.split('&').find((part) => part.startsWith('customz='))!.slice('customz='.length)
     expect(written).toBe(compressToEncodedURIComponent(csv))
     // This list's compression carries a `+`, so the test is not vacuous.
@@ -972,7 +995,7 @@ describe('decodeState tolerance', () => {
 
   it('drops an invalid polygon but keeps valid fields', () => {
     const out = decodeState('type=peak&poly=notcoords')
-    expect(out!.polygon).toBeUndefined()
+    expect(out!.areas).toBeUndefined()
     expect(out!.destinationTypes).toEqual(['peak'])
   })
 
@@ -989,19 +1012,19 @@ describe('decodeState tolerance', () => {
 
   it('drops a ring one point over the cap and keeps the rest of the link', () => {
     const out = decodeState(polyOf(MAX_POLYGON_POINTS))
-    expect(out!.polygon).toBeUndefined()
+    expect(out!.areas).toBeUndefined()
     expect(out!.destinationTypes).toEqual(['peak'])
   })
 
   it('keeps a ring exactly at the cap', () => {
-    expect(decodeState(polyOf(MAX_POLYGON_POINTS - 1))!.polygon!.coordinates[0]).toHaveLength(
+    expect(decodeState(polyOf(MAX_POLYGON_POINTS - 1))!.areas![0].coordinates[0]).toHaveLength(
       MAX_POLYGON_POINTS,
     )
   })
 
   it('drops a ring over the cap the deployment published', () => {
-    expect(decodeState(polyOf(5), { ...LIMITS, maxPolygonPoints: 5 })!.polygon).toBeUndefined()
-    expect(decodeState(polyOf(4), { ...LIMITS, maxPolygonPoints: 5 })!.polygon!.coordinates[0]).toHaveLength(5)
+    expect(decodeState(polyOf(5), { ...LIMITS, maxPolygonPoints: 5 })!.areas).toBeUndefined()
+    expect(decodeState(polyOf(4), { ...LIMITS, maxPolygonPoints: 5 })!.areas![0].coordinates[0]).toHaveLength(5)
   })
 
   it('rejects an unknown destination type but keeps valid neighbors', () => {
@@ -1136,7 +1159,7 @@ describe('decodeState tolerance', () => {
 
   it('restores the CSV from a legacy type=custom&customz= link', () => {
     const csv = '46.8529,-121.7604,Mount Rainier'
-    const qs = encodeState({ ...base, polygon: null, customCsv: csv }, DEFAULT_MODEL)
+    const qs = encodeState({ ...base, areas: [], customCsv: csv }, DEFAULT_MODEL)
     const customz = new URLSearchParams(qs).get('customz')!
     const out = decodeState(`type=custom&customz=${customz}`)
     expect(out!.customCsv).toBe(csv)

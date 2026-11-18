@@ -475,7 +475,7 @@ export function refusalPanel(over: Partial<RefusalPanel> = {}): RefusalPanel {
     windowMs: snapshot.window,
     forecastModel: snapshot.forecastModel,
     comparedModels: [],
-    polygon: null,
+    areas: [],
     destinationTypes: [],
     includeUnnamedPeaks: false,
     pendingCount: 0,
@@ -530,6 +530,7 @@ export function snowIdentify({
 export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
   return {
     drawing: false,
+    areas: [],
     results: [],
     modelId: null,
     times: [],

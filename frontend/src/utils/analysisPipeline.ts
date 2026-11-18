@@ -6,8 +6,10 @@ import type {
   DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
+  GeoPolygon,
   RefusalFields,
 } from '../types'
+import { geoKey } from './points'
 import { AnalysisRefusalError, customRows, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
 import type { LatePatch } from './clientAnalyze'
 import { type IdentityMap, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
@@ -79,8 +81,44 @@ export interface Discovered {
   truncated: boolean
 }
 
-// A polygon run's one server call: what is in here? A run with no polygon
-// never comes this way. Its field is the list it was sent, and
+// One destination two overlapping areas both found is one row: by its OSM id,
+// or for a row the pod answered without one (a pasted coordinate), by where
+// it stands and what it is called.
+function discoveredKey(d: DiscoveredDestination): string {
+  return d.osm_id ?? `${geoKey(d.latitude, d.longitude)}|${d.name}`
+}
+
+/**
+ * Several areas' fields as one (record 0306), in the order the areas were
+ * drawn, each destination once. The pod answers each area on its own, so the
+ * union is the browser's: the first answer's row wins a tie. `totalFound` adds
+ * what each area reported, or each one's rows where it reported none, so it
+ * can overstate where areas overlap; it is only read beside `truncated`.
+ */
+export function mergeDiscovered(fields: readonly Discovered[]): Discovered {
+  if (fields.length === 1) return fields[0]
+  const seen = new Set<string>()
+  const candidates: DiscoveredDestination[] = []
+  for (const field of fields) {
+    for (const d of field.candidates) {
+      const key = discoveredKey(d)
+      if (seen.has(key)) continue
+      seen.add(key)
+      candidates.push(d)
+    }
+  }
+  const reported = fields.some((f) => f.totalFound !== null)
+  return {
+    candidates,
+    totalFound: reported ? fields.reduce((sum, f) => sum + (f.totalFound ?? f.candidates.length), 0) : null,
+    truncated: fields.some((f) => f.truncated),
+  }
+}
+
+// A polygon run's server calls: what is in each area? One call an area, one
+// after another, because the pod runs one discovery per address at a time
+// and a second would only wait (record 0306). A run with no area never comes
+// this way. Its field is the list it was sent, and
 // `runAnalysisPipeline` resolves that list beside the forecasts instead
 // (`resolveCustomOnly`, #643).
 //
@@ -92,14 +130,32 @@ export interface Discovered {
 // still unknown takes the lookup's answer when it lands (`placeHeld`). The
 // rows come back typed `custom` and without an OSM id, so what the lookup
 // learned is put back on them here.
+//
+// The reader's list rides the first area's call alone, so the pod resolves
+// each row once; the merge then keeps it beside every area's field.
 export async function discoverCandidates(
   request: AnalyzeRequest,
+  areas: readonly GeoPolygon[],
   signal: AbortSignal,
   known: IdentityMap = NO_IDENTITY,
 ): Promise<Discovered> {
-  const customList = request.custom_destinations ?? []
+  const fields: Discovered[] = []
+  for (const [i, polygon] of areas.entries()) {
+    fields.push(await discoverArea(request, polygon, i === 0, signal, known))
+  }
+  return mergeDiscovered(fields)
+}
+
+async function discoverArea(
+  request: AnalyzeRequest,
+  polygon: GeoPolygon,
+  withList: boolean,
+  signal: AbortSignal,
+  known: IdentityMap,
+): Promise<Discovered> {
+  const customList = withList ? (request.custom_destinations ?? []) : []
   const discoveryRequest: DestinationsRequest = {
-    polygon: request.polygon,
+    polygon,
     destination_types: request.destination_types,
     // The client path is the only one (#240), so a discovery knob missing here
     // is a knob that does nothing at all.
@@ -166,7 +222,10 @@ export interface PipelineOptions {
   // What the places the server answers as "custom" really are, by coordinate
   // (`knownTypes`, #545). Applied before anything reads a row's type.
   knownTypes?: Readonly<Record<string, string>>
-  // The field a failed run of this same ring found (#782). A polygon run
+  // The areas this run discovers in, in order (record 0306). Empty or absent
+  // for a run of the reader's list alone, which discovers nothing.
+  areas?: readonly GeoPolygon[]
+  // The field a failed run of these same areas found (#782). A polygon run
   // handed one forecasts it rather than asking the pod again: the reader is
   // retrying the forecasts, and the ring, its kinds and its list have not
   // moved since. The caller decides that it still matches.
@@ -207,14 +266,15 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   })
   let found: Discovered
   let resolving: Promise<readonly DiscoveredDestination[]> | undefined
-  if (request.polygon) {
+  const areas = options.areas ?? []
+  if (areas.length > 0) {
     const known = options.identity?.latest() ?? NO_IDENTITY
     // A held field takes what the lookup has learned since it was found, as
     // a fresh answer would.
     found = typed(
       options.found
         ? { ...options.found, candidates: withIdentity(options.found.candidates, known) }
-        : await discoverCandidates(request, signal, known),
+        : await discoverCandidates(request, areas, signal, known),
     )
   } else {
     // A run with no polygon discovers nothing: its field is the list it was

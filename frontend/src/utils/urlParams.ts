@@ -27,6 +27,7 @@ import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
 import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
 import { presetListById } from './presetLists'
+import { MAX_AREAS } from './drawGeometry'
 
 /**
  * One query parameter.
@@ -151,19 +152,28 @@ export function chartDiffers(state: ShareableState): boolean {
   return state.chart.length > 1 || state.chart[0] !== metricForSort(state.sortBy)
 }
 
-/** Whether the state holds a ring worth writing: three corners at least. */
-export function hasPolygon(state: ShareableState): boolean {
-  return state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
+/** Whether a ring is worth writing: three corners at least. */
+function ringWritable(polygon: GeoPolygon): boolean {
+  return (polygon.coordinates[0]?.length ?? 0) >= 3
 }
 
-/** Whether the state holds a list worth writing: rows in the box, or a ready-made list a link named. */
+/** Whether the state holds an area worth writing. */
+export function hasPolygon(state: ShareableState): boolean {
+  return state.areas.some(ringWritable)
+}
+
+/** Whether the state holds a list worth writing: rows in the box, or a ready-made list. */
 export function hasCustomCsv(state: ShareableState): boolean {
-  return state.customCsv.trim() !== '' || state.presetList !== null
+  return state.customCsv.trim() !== '' || state.presetLists.length > 0
 }
 
 // Encode a polygon's ring as "lng,lat;lng,lat;..." matching GeoJSON [lng,lat]
 // order. The closing vertex (equal to the first) is dropped and re-added on
-// decode, so it never bloats the URL.
+// decode, so it never bloats the URL. Several areas join with `_`
+// (`AREA_SEPARATOR`), which no coordinate holds and the query escape leaves
+// as it is.
+const AREA_SEPARATOR = '_'
+
 function encodePolygon(polygon: GeoPolygon): string {
   const ring = polygon.coordinates[0] ?? []
   const pts = ring.slice()
@@ -403,14 +413,10 @@ function compressCsv(text: string): string {
  * compressed text passes `MAX_CUSTOMZ_CHARS`, which the reader of a link
  * refuses. The writer leaves such a list out rather than write a link its own
  * reload would drop, and the panel says so. A ready-made list is never too
- * long, since the link names it (`list`).
+ * long, since the link names it (`list`) and its rows are never in the box.
  */
-export function customCsvTooLong(state: Pick<ShareableState, 'customCsv' | 'presetList'>): boolean {
-  return (
-    state.presetList === null &&
-    state.customCsv.trim() !== '' &&
-    compressCsv(state.customCsv).length > MAX_CUSTOMZ_CHARS
-  )
+export function customCsvTooLong(state: Pick<ShareableState, 'customCsv'>): boolean {
+  return state.customCsv.trim() !== '' && compressCsv(state.customCsv).length > MAX_CUSTOMZ_CHARS
 }
 
 /**
@@ -600,14 +606,23 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   bound('maxaqi', 'maxAqi'),
   bound('minclouddeck', 'minCloudDeckFt'),
   bound('maxclouddeck', 'maxCloudDeckFt'),
+  // Every area, in the order drawn, joined by `_` (record 0306); a link from
+  // before several areas carries one and opens the same. Each ring is read on
+  // its own, so a malformed one is dropped and said while the rest open, and
+  // rings past `MAX_AREAS` are dropped the same way.
   {
     key: 'poly',
-    encode: (state) => (hasPolygon(state) && state.polygon ? encodePolygon(state.polygon) : null),
+    encode: (state) =>
+      hasPolygon(state) ? state.areas.filter(ringWritable).map(encodePolygon).join(AREA_SEPARATOR) : null,
     decode: (raw, out, limits, drop) => {
       if (!raw) return
-      const decoded = decodePolygon(raw, limits.maxPolygonPoints)
-      if (decoded) out.polygon = decoded
-      else drop('ring')
+      const rings = raw.split(AREA_SEPARATOR)
+      const areas = rings
+        .slice(0, MAX_AREAS)
+        .map((ring) => decodePolygon(ring, limits.maxPolygonPoints))
+        .filter((area): area is GeoPolygon => area !== null)
+      if (areas.length > 0) out.areas = areas
+      if (areas.length < rings.length) drop('ring')
     },
   },
   // A 100-row CSV is ~13 KB raw; compressing keeps the shared link ~1-2 KB (and
@@ -630,15 +645,15 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   // before it decodes. Read through the ordinary unescape, so a link written
   // with `%2B` opens the same.
   //
-  // Left out while the box holds a ready-made list, which `list` below names
-  // instead, and while the compressed text is over the cap the reader above
-  // holds it to (#864): the app writes no link that drops its own list on a
-  // reload, and the panel says the list is too long (`customCsvTooLong`).
+  // Left out while the compressed text is over the cap the reader above holds
+  // it to (#864): the app writes no link that drops its own list on a reload,
+  // and the panel says the list is too long (`customCsvTooLong`). Ready-made
+  // lists are never in it: `list` below names them.
   {
     key: 'customz',
     escaped: true,
     encode: (state) =>
-      state.presetList === null && hasCustomCsv(state) && !customCsvTooLong(state) ? compressCsv(state.customCsv) : null,
+      state.customCsv.trim() !== '' && !customCsvTooLong(state) ? compressCsv(state.customCsv) : null,
     decode: (raw, out, { maxDestinations }, drop) => {
       if (!raw) return
       const text = unescapeQueryText(raw)
@@ -649,22 +664,23 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       out.customCsv = decoded
     },
   },
-  // A ready-made list by name (#864): `list=wa-bulger-list`, the list's `id`
-  // in `coordinate-lists/lists.json`, a slug that never changes once shipped.
-  // Written in place of `customz` while the box holds exactly that list's
-  // rows, which is about twenty readable bytes where the rows compressed to
-  // 2.5 KB. An edit to the box makes the rows the reader's own, and `customz`
-  // carries them again. The row only names the list: the page fetches its
-  // rows after it opens (`useLinkedList`). An id this build does not ship is
-  // a list the link carried and lost, said like a `customz` that could not be
-  // read. A link that carries both keeps the rows it spelled out.
+  // Ready-made lists by name (#864): `list=wa-bulger-list,co-14ers`, each
+  // the list's `id` in `coordinate-lists/lists.json`, a slug that never
+  // changes once shipped and holds no comma. About twenty readable bytes a
+  // list, where one list's rows compressed to 2.5 KB. The row only names the
+  // lists: the page fetches their rows after it opens (`usePresetLists`). An
+  // id this build does not ship is a list the link carried and lost, said
+  // like a `customz` that could not be read, while the rest open. A link from
+  // before several lists names one and opens the same (record 0306).
   {
     key: 'list',
-    encode: (state) => state.presetList,
+    encode: (state) => (state.presetLists.length > 0 ? state.presetLists.join(',') : null),
     decode: (raw, out, _limits, drop) => {
-      if (!raw || out.customCsv !== undefined) return
-      if (presetListById(raw)) out.presetList = raw
-      else drop('list')
+      if (!raw) return
+      const ids = raw.split(',')
+      const known = [...new Set(ids.filter((id) => presetListById(id) !== undefined))]
+      if (known.length > 0) out.presetLists = known
+      if (ids.some((id) => presetListById(id) === undefined)) drop('list')
     },
   },
   flag('wildfires', 'showWildfires'),
@@ -776,7 +792,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
 // non-empty, or `[]` would satisfy the type while claiming nothing. The
 // suite checks that each key named here is a row of the table.
 export const FIELD_PARAMS = {
-  polygon: ['poly'],
+  areas: ['poly'],
   destinationTypes: ['type'],
   includeUnnamedPeaks: ['unnamed'],
   // Read back together by `decodeSelection`.
@@ -793,7 +809,7 @@ export const FIELD_PARAMS = {
   ],
   limit: ['limit'],
   customCsv: ['customz'],
-  presetList: ['list'],
+  presetLists: ['list'],
   showWildfires: ['wildfires'],
   showAreaClosures: ['closedareas'],
   showTrailClosures: ['closedtrails'],

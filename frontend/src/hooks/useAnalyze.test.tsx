@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { AnalyzeRequest, DestinationResult, GeoPolygon } from '../types'
 import { useAnalyze } from './useAnalyze'
+import type { AnalyzeOptions } from './analyzeTypes'
 import { runClientAnalysis, type HeldColumns } from '../utils/clientAnalyze'
 import { discoveryKeys } from '../utils/present'
 import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
@@ -179,7 +180,7 @@ describe('one analysis', () => {
 
   it('records the discovery a refresh names', async () => {
     const { result } = renderHook(() => useAnalyze())
-    const discovery = discoveryKeys({ coordinates: [[[1, 2], [3, 4], [5, 6], [1, 2]]] }, ['peak'], false)
+    const discovery = discoveryKeys([{ coordinates: [[[1, 2], [3, 4], [5, 6], [1, 2]]] }], ['peak'], false)
     await act(() => result.current.analyze(REQUEST, 'days', { discovery, compareModels: ['icon_seamless'] }))
     expect(result.current.analyzed).toMatchObject({ ...discovery, compareModels: ['icon_seamless'] })
   })
@@ -190,7 +191,7 @@ describe('one analysis', () => {
     const { result } = renderHook(() => useAnalyze())
     await analyzeAt(result, T0)
     expect(result.current.failedView).toBeNull()
-    const discovery = discoveryKeys({ coordinates: [[[1, 2], [3, 4], [5, 6], [1, 2]]] }, ['peak'], false)
+    const discovery = discoveryKeys([{ coordinates: [[[1, 2], [3, 4], [5, 6], [1, 2]]] }], ['peak'], false)
     ranked.mockRejectedValueOnce(new Error('Broken.'))
     await act(() => result.current.analyze({ ...REQUEST, forecast_model: 'ecmwf_ifs025' }, 'days', { discovery }))
     expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
@@ -383,7 +384,7 @@ describe('what the reader sees', () => {
       const { result } = renderHook(() => useAnalyze())
       let done!: Promise<boolean>
       act(() => {
-        done = result.current.analyze(request)
+        done = result.current.analyze(request, 'days', { areas: request.polygon ? [request.polygon] : [] })
       })
       expect(result.current.statusMessage).toBe(seed)
       // The custom list is sent once the paste-time lookup has settled, which
@@ -433,6 +434,15 @@ describe('a ring\'s found field', () => {
     include_unnamed_peaks: false,
     custom_destinations: [PROBE],
   }
+
+  // The app hands a run its areas beside the request (record 0306), the ring
+  // the request names here.
+  const ringRun = (
+    analyze: ReturnType<typeof useAnalyze>['analyze'],
+    request: AnalyzeRequest,
+    kind: Parameters<ReturnType<typeof useAnalyze>['analyze']>[1] = 'days',
+    options: AnalyzeOptions = {},
+  ) => analyze(request, kind, { areas: request.polygon ? [request.polygon] : [], ...options })
   const FOUND = [
     discovered({ name: 'Found A', latitude: 47.45, longitude: -121.8, osm_id: 'node/10' }),
     discovered({ name: 'Found B', type: 'lake', latitude: 47.5, longitude: -121.75, osm_id: 'way/11' }),
@@ -464,7 +474,7 @@ describe('a ring\'s found field', () => {
     const { result } = renderHook(() => useAnalyze())
     let run!: Promise<boolean>
     act(() => {
-      run = result.current.analyze(RING_REQUEST)
+      run = ringRun(result.current.analyze, RING_REQUEST)
     })
     await vi.waitFor(() => expect(result.current.pendingField).toEqual(FOUND))
     await act(async () => {
@@ -481,7 +491,7 @@ describe('a ring\'s found field', () => {
     const { response, universe } = result.current
     stubDiscovery()
     failForecasts()
-    await act(() => result.current.analyze(RING_REQUEST))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST))
     expect(result.current.error).toMatchObject({ retry: true })
     expect(result.current.pendingField).toEqual(FOUND)
     expect(result.current.response).toBe(response)
@@ -493,10 +503,10 @@ describe('a ring\'s found field', () => {
     const fetch = stubDiscovery()
     const { result } = renderHook(() => useAnalyze())
     failForecasts()
-    await act(() => result.current.analyze(RING_REQUEST))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST))
     expect(fetch).toHaveBeenCalledOnce()
     // The kinds in another order, and the toggle spelled out, are the same question.
-    await act(() => result.current.analyze({ ...RING_REQUEST, destination_types: ['lake', 'peak'] }))
+    await act(() => ringRun(result.current.analyze, { ...RING_REQUEST, destination_types: ['lake', 'peak'] }))
     expect(fetch).toHaveBeenCalledOnce()
     expect(ranked.mock.calls[1][1]).toEqual(FOUND)
     expect(result.current).toMatchObject({ analysisSeq: 1, response: DATA, error: null, pendingField: null })
@@ -513,8 +523,8 @@ describe('a ring\'s found field', () => {
       const fetch = stubDiscovery()
       const { result } = renderHook(() => useAnalyze())
       failForecasts()
-      await act(() => result.current.analyze(RING_REQUEST))
-      await act(() => result.current.analyze(request))
+      await act(() => ringRun(result.current.analyze, RING_REQUEST))
+      await act(() => ringRun(result.current.analyze, request))
       expect(fetch).toHaveBeenCalledTimes(2)
     }
   })
@@ -525,7 +535,7 @@ describe('a ring\'s found field', () => {
     holdForecasts()
     let run!: Promise<boolean>
     act(() => {
-      run = result.current.analyze(RING_REQUEST)
+      run = ringRun(result.current.analyze, RING_REQUEST)
     })
     await vi.waitFor(() => expect(result.current.pendingField).toEqual(FOUND))
     await act(async () => {
@@ -533,7 +543,7 @@ describe('a ring\'s found field', () => {
       await run
     })
     expect(result.current.pendingField).toBeNull()
-    await act(() => result.current.analyze(RING_REQUEST))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST))
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
@@ -541,11 +551,11 @@ describe('a ring\'s found field', () => {
     stubDiscovery()
     const { result } = renderHook(() => useAnalyze())
     failForecasts()
-    await act(() => result.current.analyze(RING_REQUEST))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST))
     holdForecasts()
     let run!: Promise<boolean>
     act(() => {
-      run = result.current.analyze(RING_REQUEST)
+      run = ringRun(result.current.analyze, RING_REQUEST)
     })
     expect(result.current.pendingField).toEqual(FOUND)
     await act(async () => {
@@ -559,10 +569,10 @@ describe('a ring\'s found field', () => {
     const fetch = stubDiscovery()
     const { result } = renderHook(() => useAnalyze())
     failForecasts()
-    await act(() => result.current.analyze(RING_REQUEST))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST))
     act(() => result.current.reset())
     expect(result.current.pendingField).toBeNull()
-    await act(() => result.current.analyze(RING_REQUEST))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST))
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
@@ -574,23 +584,23 @@ describe('a ring\'s found field', () => {
     const alone = { ...RING_REQUEST, custom_destinations: undefined }
     const counted = {
       found: { candidates: FOUND, totalFound: null, truncated: false },
-      key: fieldKey(RING, ['lake', 'peak'], false),
+      key: fieldKey([RING], ['lake', 'peak'], false),
     }
-    await act(() => result.current.analyze(alone, 'days', { counted }))
+    await act(() => ringRun(result.current.analyze, alone, 'days', { counted }))
     expect(fetch).not.toHaveBeenCalled()
     expect(ranked.mock.calls[0][1]).toEqual(FOUND)
     expect(result.current.analysisSeq).toBe(1)
   })
 
   it('discovers for itself when the count answers a different question', async () => {
-    const counted = { found: { candidates: FOUND, totalFound: null, truncated: false }, key: fieldKey(RING, ['peak', 'lake'], false) }
+    const counted = { found: { candidates: FOUND, totalFound: null, truncated: false }, key: fieldKey([RING], ['peak', 'lake'], false) }
     // A list rides along, which the count never asked about.
     const withList = stubDiscovery()
     const { result } = renderHook(() => useAnalyze())
-    await act(() => result.current.analyze(RING_REQUEST, 'days', { counted }))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST, 'days', { counted }))
     expect(withList).toHaveBeenCalledOnce()
     // Another ring.
-    await act(() => result.current.analyze({ ...RING_REQUEST, polygon: OTHER_RING, custom_destinations: undefined }, 'days', { counted }))
+    await act(() => ringRun(result.current.analyze, { ...RING_REQUEST, polygon: OTHER_RING, custom_destinations: undefined }, 'days', { counted }))
     expect(withList).toHaveBeenCalledTimes(2)
   })
 
@@ -601,12 +611,12 @@ describe('a ring\'s found field', () => {
     await analyzeAt(result, T0)
     const { response } = result.current
     failForecasts()
-    await act(() => result.current.analyze(RING_REQUEST))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST))
     expect(result.current.pendingField).toEqual(FOUND)
     act(() => result.current.dropFound())
     expect(result.current.pendingField).toBeNull()
     expect(result.current.response).toBe(response)
-    await act(() => result.current.analyze(RING_REQUEST))
+    await act(() => ringRun(result.current.analyze, RING_REQUEST))
     expect(fetch).toHaveBeenCalledTimes(3)
   })
 

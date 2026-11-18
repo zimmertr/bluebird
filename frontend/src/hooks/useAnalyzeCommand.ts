@@ -1,5 +1,4 @@
-import { type RefObject, useRef } from 'react'
-import type { MapViewHandle } from '../components/MapView'
+import { useRef } from 'react'
 import type { AnalyzeRequest, GeoPolygon } from '../types'
 import type { AnalyzeOptions } from './analyzeTypes'
 import type { CountedField } from './useDestinationCount'
@@ -7,17 +6,17 @@ import { type AnalyzeInputs, planAnalysis } from '../utils/analyzeRequest'
 import { type ForecastSelection, type SelectionKind, selectionLocalWindow } from '../utils/calendar/calendarSelection'
 import type { DiscoveryRecord } from '../utils/clientAnalyze'
 
-export type AnalyzeCommandInputs = Omit<AnalyzeInputs, 'kind' | 'window' | 'polygon' | 'previous'> & {
+export type AnalyzeCommandInputs = Omit<AnalyzeInputs, 'kind' | 'window' | 'areas' | 'previous'> & {
   selection: ForecastSelection
-  /** The ring as the app holds it: what a click falls back to before the map loads. */
-  polygon: GeoPolygon | null
-  drawPointCount: number
-  mapRef: RefObject<MapViewHandle | null>
   /** Resolves true only when the run committed; a cancel or a failure changes nothing. */
   analyze: (request: AnalyzeRequest, kind: SelectionKind, options: AnalyzeOptions) => Promise<boolean>
   /** Drops the report on screen without fetching. */
   reset: () => void
-  finishDrawing: () => void
+  /**
+   * Leaves draw mode, keeping an area drawn far enough to be one (record
+   * 0306), and answers every finished area, the kept one included.
+   */
+  finishDrawing: () => GeoPolygon[]
   forgetPreClamp: () => void
   clearRemovalsForScope: (scope: string) => void
   setShowResults: (show: boolean) => void
@@ -52,8 +51,6 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
   async function handleAnalyze() {
     const {
       selection,
-      drawPointCount,
-      mapRef,
       analyze,
       reset,
       finishDrawing,
@@ -63,8 +60,10 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
     } = inputs
     // Analyzing is the end of drawing. Leaving the mode on would put the map
     // back in the state #118 describes: reading a result and panning around
-    // it while every click still adds a vertex.
-    finishDrawing()
+    // it while every click still adds a vertex. An area mid-draw with three
+    // points is kept as Done would keep it, and one with fewer is dropped, so
+    // a mid-draw Analyze never fires a bogus discovery.
+    const areas = finishDrawing()
     forgetPreClamp()
 
     // The one conversion from a local selection to the UTC instants the API
@@ -76,18 +75,13 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
     // the honest backstop: a dateless selection has nothing to fetch.
     if (local === null) return
 
-    // An incomplete ring is ignored so a mid-draw Analyze doesn't fire a bogus
-    // discovery. The map's finishDrawing snapshots its always-editable ring
-    // synchronously (and closes it), falling back to the app's polygon before
-    // the map has loaded.
-    const polygon = drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? inputs.polygon : null
     // Every field named, never the input bag spread: a spread skips the
     // excess-property check, and the planner must not receive the refs and
     // setters it has no business with. `satisfies` keeps the literal exact.
     const planned = {
       kind: selection.kind,
       window: { start: new Date(local.start).toISOString(), end: new Date(local.end).toISOString() },
-      polygon,
+      areas,
       destinationTypes: inputs.destinationTypes,
       includeUnnamedPeaks: inputs.includeUnnamedPeaks,
       csvRows: inputs.csvRows,

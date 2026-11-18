@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from 'react'
 import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
@@ -31,8 +30,8 @@ const NO_ROWS: DestinationResult[] = []
 // memoized table sees no change between renders where nothing waits.
 const NO_WAITING: ReadonlySet<string> = new Set()
 import { useTour } from './tour/useTour'
-import { presetListIn } from './utils/presetLists'
 import { customCsvTooLong } from './utils/urlParams'
+import type { Place } from './utils/geocode'
 import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
@@ -53,7 +52,6 @@ import { useLayoutMotion } from './hooks/useLayoutMotion'
 import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useLinkDrops } from './hooks/useLinkDrops'
-import { useLinkedList } from './hooks/useLinkedList'
 import { useUrlSync } from './hooks/useUrlSync'
 import { useChartMetrics } from './hooks/useChartMetrics'
 import { useFireProximity } from './hooks/useFireProximity'
@@ -126,9 +124,20 @@ export default function App() {
   // The camera a link names: stable for the session, like `restored`.
   const restoredView = restored?.view ?? null
 
-  const destinationInputs = useDestinationInputs(restored)
+  // The preset list last asked for did not arrive (#838), which the panel's
+  // messages say.
+  const [presetListFailed, setPresetListFailed] = useState(false)
+  const destinationInputs = useDestinationInputs(restored, {
+    // A list's rows arrived: the map frames them the way it frames a picked
+    // place, unless the link names its own camera, which wins over every fit
+    // the app makes on open (`initialCamera`).
+    onArrived: (points) => {
+      if (!restoredView) mapRef.current?.fitToPoints(points)
+    },
+    onFailed: setPresetListFailed,
+  })
   const {
-    polygon,
+    areas,
     destinationTypes,
     includeUnnamedPeaks,
     customCsv,
@@ -142,7 +151,7 @@ export default function App() {
   // The removal scope of the link's own ring and list, so the removals it
   // carried survive its first Analyze (`useRemovals`). Measured once: the
   // scope is the link's, not whatever the panel holds later.
-  const [restoredRemovalScope] = useState(() => removalScopeFor(polygon, destinationScope))
+  const [restoredRemovalScope] = useState(() => removalScopeFor(areas, destinationScope))
   const forecastSelection = useForecastSelection(restored, caps, linkDropped.includes('model'))
   const {
     selection,
@@ -186,36 +195,13 @@ export default function App() {
   // A phone's home indicator band, which the chrome on the map's foot stands
   // above (record 0145); 0 on a desk.
   const safeBottomPx = useSafeAreaBottom()
-  // The panel's Map group is hovered, so the map's search box — a control
-  // the panel names but does not contain — wears a ring.
-  const [searchPointed, setSearchPointed] = useState(false)
-  // The same hover glows every clickable feature on the map: the Map group
-  // covers both map-borne methods, so its cue lights both controls at once.
+  // The Destinations section is hovered, which glows every clickable
+  // feature on the map: a press on one adds it, and no control says so.
   const [poisPointed, setPoisPointed] = useState(false)
   // The basemap style is failing to load: the map reports it and the panel's
   // messages say so (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
-  // The preset list last picked beside List search did not arrive (#838).
-  const [presetListFailed, setPresetListFailed] = useState(false)
-  // A ready-made list the link named (`list=`, #864), fetched now and put in
-  // the box. The map frames it the way it frames a picked one, unless the
-  // link names its own camera, which wins over every fit the app makes on
-  // open (`initialCamera`).
-  const linkedList = useLinkedList({
-    id: restored?.presetList ?? null,
-    customCsv,
-    setCustomCsv: destinationInputs.setCustomCsv,
-    onArrived: (points) => {
-      if (!restoredView) mapRef.current?.fitToPoints(points)
-    },
-    onFailed: setPresetListFailed,
-  })
-  // The list a link carries by name: one still on its way, or the one the box
-  // holds exactly. Read each render rather than kept, because whether the box
-  // holds a list is the lists module's to say and no state here changes when
-  // a list arrives.
-  const presetList = linkedList.awaited ?? presetListIn(customCsv)?.id ?? null
-  const listTooLong = customCsvTooLong({ customCsv, presetList })
+  const listTooLong = customCsvTooLong({ customCsv })
   const overlays = useMapOverlays(restored, isDesktop, storedView)
   const {
     showWildfires,
@@ -235,8 +221,8 @@ export default function App() {
   } = overlays
   const drawMode = useDrawMode({
     mapRef,
-    polygon,
-    restoredPolygon: restored?.polygon,
+    areas,
+    setAreas: destinationInputs.setAreas,
     isDesktop,
     closeDrawer,
   })
@@ -245,6 +231,9 @@ export default function App() {
     drawPointCount,
     finishDrawing,
   } = drawMode
+  // How many areas a run would search: the finished ones, and a new one
+  // mid-draw with three points, which Analyze keeps (record 0306).
+  const areaCount = areas.length + (drawing && drawMode.editing === null && drawPointCount >= 3 ? 1 : 0)
 
   function dismissWelcome() {
     setWelcomed()
@@ -303,10 +292,9 @@ export default function App() {
   // forecasts the counted field without asking again. A cleared ring or no
   // kind left releases a failed run's found field.
   const destinationCount = useDestinationCount({
-    polygon,
-    drawPointCount,
+    areas,
     drawing,
-    polygonAreaKm2: destinationInputs.polygonAreaKm2,
+    largestAreaKm2: destinationInputs.largestAreaKm2,
     maxAreaKm2: caps.maxPolygonAreaKm2,
     destinationTypes,
     includeUnnamedPeaks,
@@ -445,7 +433,7 @@ export default function App() {
 
   // The address bar mirrors the panel and the map's layers (useUrlSync).
   const urlSync = useUrlSync({
-    polygon,
+    areas,
     destinationTypes,
     includeUnnamedPeaks,
     selection,
@@ -457,7 +445,7 @@ export default function App() {
     constraints,
     limit,
     customCsv,
-    presetList,
+    presetLists: destinationInputs.presetLists.ids,
     showWildfires,
     showAreaClosures,
     showTrailClosures,
@@ -509,7 +497,7 @@ export default function App() {
     windowMs: panelWindowMs,
     forecastModel,
     comparedModels,
-    polygon,
+    areas,
     destinationTypes,
     includeUnnamedPeaks,
     // The reader's own rows only: a ring's found rows are pending too, but
@@ -530,15 +518,15 @@ export default function App() {
   // Every point the analysis would forecast, which a regional model's
   // published grid is held against before Analyze (#803, W8).
   const domainPoints = useMemo(
-    () => analysisPoints(polygon, destinationTypes.length > 0, buildCustomList(csvRows, places)),
-    [polygon, destinationTypes, csvRows, places],
+    () => analysisPoints(areas, destinationTypes.length > 0, buildCustomList(csvRows, places)),
+    [areas, destinationTypes, csvRows, places],
   )
   const panelForRetry = {
     selectionKind: selection.kind,
     windowMs: panelWindowMs,
     forecastModel,
     comparedModels,
-    polygon,
+    areas,
     destinationTypes,
     includeUnnamedPeaks,
     pendingCount: failedView
@@ -552,9 +540,6 @@ export default function App() {
 
   const { handleAnalyze } = useAnalyzeCommand({
     selection,
-    polygon,
-    drawPointCount,
-    mapRef,
     destinationTypes,
     includeUnnamedPeaks,
     csvRows,
@@ -583,7 +568,7 @@ export default function App() {
   // What the link lost, until the reader supplies it (#803, M6).
   const linkLost = useLinkDrops({
     dropped: linkDropped,
-    ring: polygon !== null,
+    ring: areas.length > 0,
     list: csvRows.length > 0,
     modelLost: forecastSelection.modelLost,
   })
@@ -597,8 +582,9 @@ export default function App() {
     forecastModel,
     comparedModels,
     forecastModels: caps.forecastModels,
-    polygonAreaKm2: destinationInputs.polygonAreaKm2,
+    largestAreaKm2: destinationInputs.largestAreaKm2,
     maxAreaKm2: caps.maxPolygonAreaKm2,
+    areaCount,
     drawPointCount,
     drawing,
     destinationTypes,
@@ -651,7 +637,7 @@ export default function App() {
   // It waits for a list the link named as well as for the limits: the gate
   // is shut over a box the list has not reached yet (#864).
   const { autoAnalyze, capsApplied, runAutoAnalyze } = useRunOnOpen({
-    settled: caps.settled && !linkedList.arriving,
+    settled: caps.settled && !destinationInputs.presetLists.arriving,
     flushUrl: writeUrl.flush,
     analyze: handleAnalyze,
   })
@@ -745,6 +731,17 @@ export default function App() {
     collapsed: layout.resultsCollapsed,
   })
 
+  // A place searched in the panel, or a place's chip pressed: the camera goes
+  // to it, framed for the sheet the report opens on a phone (#696). A search
+  // also adds it.
+  function framePlace(place: Place) {
+    mapRef.current?.flyToPlace(place, layout.sheetPadBottomPx)
+  }
+  function handleSearchSelect(place: Place) {
+    framePlace(place)
+    removals.registerPlace(place)
+  }
+
   // The tour waits while a polygon is being drawn or a run is in flight: its
   // first card frames the Destinations section, which mid-draw shows Cancel
   // and Clear in place of its controls, and a run that lands under the tour
@@ -765,11 +762,10 @@ export default function App() {
   const cardSections = useCardSections({ analysisSeq, held: tour.panelSection })
 
   // The controls: on a phone the Controls sheet, drawn here over the whole
-  // column; at a desk a card in the map's own rows (#825; record 0305), which
-  // `MapStage` hands the search field it stands around. A function built in
-  // this render, which is sound here and nowhere else on `MapStage`: the
-  // rows call it and it never reaches the memoized `MapView`.
-  const drawer = (search?: ReactNode) => (
+  // column; at a desk a card in the map's own rows (#825; record 0305). An
+  // element built in this render, which is sound here and nowhere else on
+  // `MapStage`: the rows draw it and it never reaches the memoized `MapView`.
+  const drawer = (
     <AppDrawer
       open={sidebarOpen}
       isDesktop={isDesktop}
@@ -787,9 +783,10 @@ export default function App() {
       chartMetrics={chartMetrics}
       caps={caps}
       mapRef={mapRef}
-      onPointAtSearch={setSearchPointed}
       onPointAtMapPois={setPoisPointed}
-      onPresetListFailed={setPresetListFailed}
+      areaCount={areaCount}
+      onSearchSelect={handleSearchSelect}
+      onFramePlace={framePlace}
       messages={shownMessages}
       onAnalyze={handleAnalyze}
       autoAnalyze={autoAnalyze}
@@ -798,7 +795,6 @@ export default function App() {
       actionWord={word}
       onTutorial={tour.start}
       tutorialWaits={tourWaits}
-      search={search}
       section={cardSections.section}
       onSection={cardSections.toggle}
     />
@@ -828,7 +824,7 @@ export default function App() {
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
 
-      {!isDesktop && drawer()}
+      {!isDesktop && drawer}
 
       {/* Map + results column. On a phone the results leave the flow and stand
           on the map as a sheet, so the column is what positions them; on
@@ -872,7 +868,6 @@ export default function App() {
           actionWord={word}
           onAnalyze={handleAnalyze}
           layersForcedOpen={tour.layersOpen}
-          searchPointed={searchPointed}
           poisPointed={poisPointed}
           urlSync={urlSync}
           restoredView={restoredView}

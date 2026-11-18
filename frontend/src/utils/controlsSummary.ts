@@ -50,29 +50,30 @@ const counted = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 /**
  * The Destinations section's line while it is collapsed (the maintainer's
  * approved words, 2026-11-16): `None yet` until the reader has named
- * anything, then what they named, each part joined by the middle dot. A
- * ring reads as its point count and the kinds it looks for (`6 points ·
- * Peaks`), a picked list as its own name, and every other point destination,
- * pasted or picked on the map, in one count (`12 destinations`).
+ * anything, then what they named, each part joined by the middle dot. The
+ * areas read as their count and the kinds they look for (`2 areas · Peaks`),
+ * each list as its own name, and every other point destination, pasted or
+ * picked on the map, in one count (`12 destinations`). Areas replaced the
+ * one ring's point count when a search could hold several (record 0306).
  */
 export function destinationsSummary({
-  ringPoints,
+  areas,
   kinds,
-  listName,
+  listNames,
   pointDestinations,
 }: {
-  /** The ring's points, drawn or being drawn. */
-  ringPoints: number
-  /** The kinds ticked for the ring, by the word each box shows, in the row's order. */
+  /** The areas the search holds. */
+  areas: number
+  /** The kinds ticked for the areas, by the word each box shows, in the row's order. */
   kinds: readonly string[]
-  /** The list the coordinates box holds whole, or null. */
-  listName: string | null
+  /** The name of every list the search holds, in the order they were added. */
+  listNames: readonly string[]
   /** The point destinations no list accounts for: pasted rows and places picked on the map. */
   pointDestinations: number
 }): string {
   const parts: string[] = []
-  if (ringPoints > 0) parts.push(counted(ringPoints, 'point'), ...(kinds.length > 0 ? [kinds.join(', ')] : []))
-  if (listName !== null) parts.push(listName)
+  if (areas > 0) parts.push(counted(areas, 'area'), ...(kinds.length > 0 ? [kinds.join(', ')] : []))
+  parts.push(...listNames)
   if (pointDestinations > 0) parts.push(counted(pointDestinations, 'destination'))
   return parts.length === 0 ? 'None yet' : parts.join(` ${SEP} `)
 }

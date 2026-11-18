@@ -354,6 +354,13 @@ interface MenuBrowseProps {
   widthRef: React.RefObject<HTMLElement | null>
   /** A phone: the menu opens in a bottom sheet headed by `label` (record 0252). */
   sheet?: boolean
+  /**
+   * What the trigger shows in place of a field holding the pick: the
+   * Destinations section's `Search by list` (record 0306), a tile that adds a
+   * list rather than a field that holds one. It names the trigger, which
+   * wears the `tile` shape and no chevron.
+   */
+  face?: ReactNode
 }
 
 // The words on the menu itself, approved on 2026-11-05 (#848).
@@ -412,6 +419,7 @@ export function MenuBrowse({
   className,
   widthRef,
   sheet = false,
+  face,
 }: MenuBrowseProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -602,15 +610,18 @@ export function MenuBrowse({
     <>
       <MenuButton
         ref={triggerRef}
-        shape="field"
+        shape={face === undefined ? 'field' : 'tile'}
+        chevron={face === undefined}
         open={open}
         aria-haspopup="dialog"
         aria-labelledby={
-          labelledBy !== undefined
-            ? `${labelledBy} ${valueId}`
-            : showsPlaceholder && placeholder === label
-              ? nameId
-              : `${nameId} ${valueId}`
+          face !== undefined
+            ? undefined
+            : labelledBy !== undefined
+              ? `${labelledBy} ${valueId}`
+              : showsPlaceholder && placeholder === label
+                ? nameId
+                : `${nameId} ${valueId}`
         }
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={(e) => {
@@ -619,14 +630,18 @@ export function MenuBrowse({
             openMenu()
           }
         }}
-        className={`${className} text-center`}
+        className={face === undefined ? `${className} text-center` : className}
       >
-        <span id={nameId} className={SR_ONLY}>
-          {label}
-        </span>
-        <span id={valueId} className="block min-w-0 truncate">
-          {fieldText}
-        </span>
+        {face ?? (
+          <>
+            <span id={nameId} className={SR_ONLY}>
+              {label}
+            </span>
+            <span id={valueId} className="block min-w-0 truncate">
+              {fieldText}
+            </span>
+          </>
+        )}
       </MenuButton>
       {(box || (sheet && open)) && (
         <Menu

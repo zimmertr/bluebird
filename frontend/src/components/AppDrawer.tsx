@@ -1,4 +1,4 @@
-import { useRef, type ReactNode, type RefObject } from 'react'
+import { useRef, type RefObject } from 'react'
 import BottomSheet from './BottomSheet'
 import type { SheetHeight } from '../utils/sheetDrag'
 import ControlPanel from './ControlPanel'
@@ -15,17 +15,16 @@ import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ActionWord } from '../utils/analyzeGate'
-import { DESK_CARD, HEADER_BUTTON, MAP_ROWS, PANEL_HEADER } from '../styles'
+import { DESK_CARD, HEADER_BUTTON, PANEL_HEADER } from '../styles'
 import type { PanelSectionId } from '../utils/controlsSummary'
 import type { ThemeChoice } from '../utils/viewPrefs'
+import type { Place } from '../utils/geocode'
 
 interface AppDrawerProps {
   /** Whether the panel is open: the card over a desk's map, the Controls sheet on a phone. */
   open: boolean
   /** A desk, where the panel is a card over the map's top left; a phone raises it as a sheet. */
   isDesktop: boolean
-  /** A desk's search field, which the card holds and a shut card is (`MapRows`). */
-  search?: ReactNode
   /** The section a desk's card shows open, or null while every one is collapsed (`useCardSections`). */
   section?: PanelSectionId | null
   /** Opens a section of a desk's card, or collapses the open one. */
@@ -46,19 +45,23 @@ interface AppDrawerProps {
   /** Draw mode and its buttons (`useDrawMode`). */
   drawMode: Pick<
     DrawMode,
-    'drawing' | 'startDrawing' | 'finishDrawing' | 'drawPointCount' | 'handleCancelDrawing' | 'handleClearDrawing'
+    'drawing' | 'drawPointCount' | 'startArea' | 'editArea' | 'removeArea' | 'finishDrawing' | 'handleCancelDrawing'
   >
-  /** The discovery inputs: types and the coordinates box (`useDestinationInputs`). */
+  /** The discovery inputs: the areas, the lists, the places, the kinds and the coordinates box (`useDestinationInputs`). */
   destinationInputs: Pick<
     DestinationInputs,
-    | 'polygonAreaKm2'
+    | 'areas'
+    | 'areaKm2s'
+    | 'draftAreaKm2'
+    | 'presetLists'
+    | 'places'
+    | 'removePlace'
     | 'destinationTypes'
     | 'setDestinationTypes'
     | 'customCsv'
     | 'setCustomCsv'
     | 'includeUnnamedPeaks'
     | 'setIncludeUnnamedPeaks'
-    | 'places'
   >
   /** The window, the model and its comparisons (`useForecastSelection`). */
   forecastSelection: Pick<
@@ -91,11 +94,14 @@ interface AppDrawerProps {
   caps: LiveCapabilities
   /** The map, which a pasted list of coordinates fits to. */
   mapRef: RefObject<MapViewHandle | null>
-  /** The panel's Map group is hovered: the search box and the map's features wear a cue. */
-  onPointAtSearch: (on: boolean) => void
+  /** The Destinations section is hovered: the map's clickable features wear a cue. */
   onPointAtMapPois: (on: boolean) => void
-  /** Whether the preset list last picked beside List search arrived (#838). */
-  onPresetListFailed: (failed: boolean) => void
+  /** How many areas a run would search (`AnalyzeGateInputs.areaCount`). */
+  areaCount: number
+  /** A place picked in the panel's search, which stands there at a desk alone (record 0306). */
+  onSearchSelect: (place: Place) => void
+  /** A place's chip: the camera goes to it. */
+  onFramePlace: (place: Place) => void
   /** Every message the panel has to say, with the Analyze gate and the blockers by field (`usePanelMessages`). */
   messages: PanelMessages
   /** Analyze, and the one run a link may ask for on open. */
@@ -127,7 +133,6 @@ interface AppDrawerProps {
 export default function AppDrawer({
   open,
   isDesktop,
-  search,
   section = null,
   onSection,
   sheetHeld,
@@ -142,9 +147,10 @@ export default function AppDrawer({
   chartMetrics,
   caps,
   mapRef,
-  onPointAtSearch,
   onPointAtMapPois,
-  onPresetListFailed,
+  areaCount,
+  onSearchSelect,
+  onFramePlace,
   messages,
   onAnalyze,
   autoAnalyze,
@@ -156,17 +162,6 @@ export default function AppDrawer({
   themeChoice,
   onThemeChoice,
 }: AppDrawerProps) {
-  const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
-  const {
-    polygonAreaKm2,
-    destinationTypes,
-    setDestinationTypes,
-    customCsv,
-    setCustomCsv,
-    includeUnnamedPeaks,
-    setIncludeUnnamedPeaks,
-    places,
-  } = destinationInputs
   const {
     selection,
     changeSelection,
@@ -200,25 +195,37 @@ export default function AppDrawer({
   const panel = (
     <ControlPanel
       phone={!isDesktop}
-      drawing={drawing}
-      onStartDrawing={startDrawing}
-      onFinishDrawing={finishDrawing}
-      drawPointCount={drawPointCount}
-      polygonAreaKm2={polygonAreaKm2}
-      onCancelDrawing={handleCancelDrawing}
-      onClearDrawing={handleClearDrawing}
-      onPointAtSearch={onPointAtSearch}
-      onPointAtMapPois={onPointAtMapPois}
-      destinationTypes={destinationTypes}
-      setDestinationTypes={setDestinationTypes}
+      destinations={{
+        areas: destinationInputs.areas,
+        areaKm2s: destinationInputs.areaKm2s,
+        drawing: drawMode.drawing,
+        drawPointCount: drawMode.drawPointCount,
+        onStartArea: drawMode.startArea,
+        onEditArea: drawMode.editArea,
+        onRemoveArea: drawMode.removeArea,
+        onFinishDrawing: drawMode.finishDrawing,
+        onCancelDrawing: drawMode.handleCancelDrawing,
+        areaCount,
+        draftAreaKm2: destinationInputs.draftAreaKm2,
+        onPointAtMapPois,
+        destinationTypes: destinationInputs.destinationTypes,
+        setDestinationTypes: destinationInputs.setDestinationTypes,
+        includeUnnamedPeaks: destinationInputs.includeUnnamedPeaks,
+        setIncludeUnnamedPeaks: destinationInputs.setIncludeUnnamedPeaks,
+        presetLists: destinationInputs.presetLists,
+        customCsv: destinationInputs.customCsv,
+        setCustomCsv: destinationInputs.setCustomCsv,
+        onCsvPasted: (points) => mapRef.current?.fitToPoints(points),
+        places: destinationInputs.places,
+        onRemovePlace: destinationInputs.removePlace,
+        onFramePlace,
+        // A phone's search is the map's pill, so its panel holds none.
+        ...(isDesktop ? { onSearchSelect } : {}),
+      }}
       selection={selection}
       setSelection={changeSelection}
       limit={limit}
       setLimit={setLimit}
-      customCsv={customCsv}
-      setCustomCsv={setCustomCsv}
-      onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
-      onPresetListFailed={onPresetListFailed}
       messages={panelMessages}
       sortBy={sortBy}
       setSortBy={setSortBy}
@@ -229,8 +236,6 @@ export default function AppDrawer({
       constraints={constraints}
       setConstraints={setConstraints}
       onClearFilters={clearFilters}
-      includeUnnamedPeaks={includeUnnamedPeaks}
-      setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
       forecastModel={forecastModel}
       comparedModels={comparedModels}
       setComparedModels={setComparedModels}
@@ -250,8 +255,7 @@ export default function AppDrawer({
       tutorialWaits={tutorialWaits}
       charted={chartMetrics.metrics}
       onChart={chartMetrics.chart}
-      pickedCount={places.length}
-      card={isDesktop && onSection ? { open, search, section, onSection } : undefined}
+      card={isDesktop && onSection ? { open, section, onSection } : undefined}
     />
   )
 
@@ -279,14 +283,13 @@ export default function AppDrawer({
     )
   }
   return (
-    // The desk's card (record 0305), in the map's stack. Shut, it is the
-    // search pill's row and nothing else: the panel inside hides its header,
-    // its sections and its footer, which stay mounted so their state, and a
-    // link's run on open, outlive a close. Hidden parts take no Tab stop
+    // The desk's card (record 0305), in the map's stack. Shut, it is hidden
+    // whole, and the panel inside stays mounted so its state, and a link's
+    // run on open, outlive a close. Hidden parts take no Tab stop
     // (#576) and are read by no screen reader.
     // A popup keeps clear of it as it does of the map's rows, which it is
     // one of (`data-map-overlay`).
-    <aside data-map-overlay="" className={open ? DESK_CARD.card : MAP_ROWS.row}>
+    <aside data-map-overlay="" className={open ? DESK_CARD.card : 'hidden'}>
       {/* The header's buttons: the theme menu, then the close button, which
           shuts the card. */}
       <div inert={!open} className={open ? PANEL_HEADER.actions : 'hidden'}>

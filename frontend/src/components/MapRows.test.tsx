@@ -1,4 +1,4 @@
-import { createRef, type ReactNode } from 'react'
+import { createRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import MapRows from './MapRows'
@@ -31,7 +31,6 @@ function rows(over: Partial<Parameters<typeof MapRows>[0]> = {}) {
     <MapRows
       searchBoxRef={createRef<SearchBoxHandle>()}
       onSearchSelect={() => {}}
-      searchPointed={false}
       onLocateSlot={() => {}}
       onTerrainSlot={() => {}}
       onCompassSlot={() => {}}
@@ -93,6 +92,15 @@ describe('MapRows', () => {
     expect(chips.className).toBe('hidden')
     fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
     expect(chips.className).not.toBe('hidden')
+  })
+
+  // A desk's search stands in the panel's Destinations field (record 0306),
+  // so its map carries no pill.
+  it('carries the search on a phone and not at a desk', () => {
+    const { rerender } = render(rows())
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
+    rerender(rows({ desk: true }))
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
   })
 
   it('hands up the slot the map stands its locate button in', () => {
@@ -171,26 +179,22 @@ describe('MapRows at a desk', () => {
     expect(onOpenControls).toHaveBeenCalledOnce()
   })
 
-  // A desk's controls card stands in the rows around the search field
-  // (record 0305): open, the chip row stays while the field has the
-  // keyboard, since the field's list hangs over the card; shut, the rows are
-  // the pill over the chips, which step aside as they always did. Here the
-  // chips stand beside the card, where the legend has no room under it.
-  it('stands a desk\'s card around the search field, with the chips beside it where they have no room under it', () => {
-    const card = (search: ReactNode) => <aside data-testid="card">{search}</aside>
+  // A desk's controls card stands at the head of the rows (record 0305),
+  // with no search in or beside it, since a desk's search is the
+  // Destinations field's (record 0306). Here the chips stand beside the
+  // card, where the legend has no room under it.
+  it('stands a desk\'s card at the head of the rows, with the chips beside it where they have no room under it', () => {
+    const card = <aside data-testid="card" />
     const { container, rerender } = render(rows({ desk: true, sidebarOpen: true, card }))
     const stack = container.firstElementChild as HTMLElement
-    expect(screen.getByTestId('card').contains(screen.getByRole('button', { name: 'Search' }))).toBe(true)
     expect(stack.firstElementChild).toBe(screen.getByTestId('card'))
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
     expect(stack.className).toContain(DESK_CARD.stackOpen)
     // The rows publish where they end for the legend's card: the chip row
     // alone, and the wider map it clears the player on.
     expect(stack.style.getPropertyValue('--legend-rows')).toBe('44px')
     expect(stack.style.getPropertyValue('--legend-line')).toBe('1610px')
-    const pill = screen.getByRole('button', { name: 'Search' }).parentElement as HTMLElement
-    expect(pill.className).toBe(DESK_CARD.pill)
     const chips = screen.getByRole('button', { name: 'Legend' }).parentElement!
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     expect(chips.className).toBe(MAP_ROWS.chips)
     // The card and the chip row are each a surface a popup keeps clear of,
     // and the stack around them is none: the corner under the chips is the
@@ -201,13 +205,6 @@ describe('MapRows at a desk', () => {
     rerender(rows({ desk: true, sidebarOpen: false, card }))
     expect(stack.className).not.toContain(DESK_CARD.stackOpen)
     expect(stack.style.getPropertyValue('--legend-rows')).toBe('')
-    expect(pill.className).toBe(MAP_ROWS.pillWide)
-    expect(chips.className).toBe('hidden')
-    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
-    expect(pill.className).toBe(MAP_ROWS.pill)
-    expect(chips.className).toBe(MAP_ROWS.chips)
-    // The same field through an open and a close, so what was typed stays.
-    expect(screen.getByRole('button', { name: 'Search' }).parentElement).toBe(pill)
   })
 
   // Where the legend has room under the card, the chip row is the stack's
@@ -216,7 +213,7 @@ describe('MapRows at a desk', () => {
   it('stands the chips under an open card where the legend has room there', () => {
     side.chips = { side: 'under', cardPx: 335, menuPx: 420 }
     try {
-      const card = (search: ReactNode) => <aside data-testid="card">{search}</aside>
+      const card = <aside data-testid="card" />
       const { container } = render(rows({ desk: true, sidebarOpen: true, card }))
       const stack = container.firstElementChild as HTMLElement
       expect(stack.className).not.toContain(DESK_CARD.stackOpen)

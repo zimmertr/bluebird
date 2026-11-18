@@ -13,7 +13,7 @@ const OTHER: GeoPolygon = {
   type: 'Polygon',
   coordinates: [[[-121.9, 47.4], [-121.6, 47.4], [-121.6, 47.6], [-121.9, 47.4]]],
 }
-const FIVE = Array.from({ length: 5 }, (_, i) => discovered({ name: `P${i}`, latitude: 47.45 + i * 0.01 }))
+const FIVE = Array.from({ length: 5 }, (_, i) => discovered({ name: `P${i}`, latitude: 47.45 + i * 0.01, osm_id: `node/${i}` }))
 const FIELD = () => fakeResponse({ destinations: FIVE, total: 5, total_found: null, truncated: false })
 const OVER = () =>
   fakeResponse(
@@ -30,10 +30,9 @@ type Props = Parameters<typeof useDestinationCount>[0]
 const PEAKS: DiscoveryType[] = ['peak']
 function props(over: Partial<Props> = {}): Props {
   return {
-    polygon: RING,
-    drawPointCount: 3,
+    areas: [RING],
     drawing: false,
-    polygonAreaKm2: 10,
+    largestAreaKm2: 10,
     maxAreaKm2: 100_000,
     destinationTypes: PEAKS,
     includeUnnamedPeaks: false,
@@ -80,7 +79,7 @@ describe('useDestinationCount', () => {
     expect(result.current.ringCount).toBe(5)
     expect(result.current.counted()).toEqual({
       found: { candidates: FIVE, totalFound: null, truncated: false },
-      key: fieldKey(RING, PEAKS, false),
+      key: fieldKey([RING], PEAKS, false),
     })
   })
 
@@ -90,7 +89,7 @@ describe('useDestinationCount', () => {
     vi.stubGlobal('fetch', vi.fn(FIELD))
     const { result, rerender } = mount(props({ discoverySource: 'overpass' }))
     await still(COUNT_DEBOUNCE_MS * 4)
-    rerender(props({ discoverySource: 'overpass', polygon: OTHER }))
+    rerender(props({ discoverySource: 'overpass', areas: [OTHER]}))
     await still(COUNT_DEBOUNCE_MS * 4)
     rerender(props({ discoverySource: 'overpass', destinationTypes: ['peak', 'lake'] }))
     await still(COUNT_DEBOUNCE_MS * 4)
@@ -121,9 +120,9 @@ describe('useDestinationCount', () => {
     vi.stubGlobal('fetch', vi.fn(FIELD))
     const { rerender } = mount(props({ drawing: true }))
     await still(COUNT_DEBOUNCE_MS * 2)
-    rerender(props({ drawPointCount: 2 }))
+    rerender(props({ areas: [] }))
     await still(COUNT_DEBOUNCE_MS * 2)
-    rerender(props({ polygonAreaKm2: 200_000 }))
+    rerender(props({ largestAreaKm2: 200_000 }))
     await still(COUNT_DEBOUNCE_MS * 2)
     rerender(props({ destinationTypes: [] }))
     await still(COUNT_DEBOUNCE_MS * 2)
@@ -142,13 +141,13 @@ describe('useDestinationCount', () => {
     const { result, rerender } = mount()
     await still(COUNT_DEBOUNCE_MS)
     expect(signals).toHaveLength(1)
-    rerender(props({ polygon: OTHER }))
+    rerender(props({ areas: [OTHER]}))
     expect(signals[0].aborted).toBe(true)
     await still(COUNT_SPACING_MS)
     expect(signals).toHaveLength(2)
     expect((bodies()[1] as { polygon: GeoPolygon }).polygon).toEqual(OTHER)
     expect(result.current.ringCount).toBe(5)
-    expect(result.current.counted()?.key).toBe(fieldKey(OTHER, PEAKS, false))
+    expect(result.current.counted()?.key).toBe(fieldKey([OTHER], PEAKS, false))
   })
 
   // A vertex dragged for a while is one settled edit: nothing goes until the
@@ -160,15 +159,15 @@ describe('useDestinationCount', () => {
       type: 'Polygon',
       coordinates: [[[-121.9, 47.4], [-121.7 + i * 0.001, 47.4], [-121.7, 47.55], [-121.9, 47.4]]],
     }))
-    const { rerender } = mount(props({ polygon: rings[0] }))
+    const { rerender } = mount(props({ areas: [rings[0]]}))
     for (const ring of rings) {
-      rerender(props({ polygon: ring }))
+      rerender(props({ areas: [ring]}))
       await still(100)
     }
     expect(fetch).not.toHaveBeenCalled()
     await still(COUNT_DEBOUNCE_MS)
     expect(fetch).toHaveBeenCalledTimes(1)
-    rerender(props({ polygon: OTHER }))
+    rerender(props({ areas: [OTHER]}))
     await still(COUNT_DEBOUNCE_MS)
     // Under the spacing since the last count: still waiting.
     expect(fetch).toHaveBeenCalledTimes(1)
@@ -197,6 +196,28 @@ describe('useDestinationCount', () => {
     expect(result.current.counted()).toBeNull()
   })
 
+  // Record 0306: each area is counted on its own, one after another, and the
+  // count is every area's field as one, a destination two areas share once.
+  it('counts each area in turn and reads them as one field', async () => {
+    const theirs = [FIVE[0], discovered({ name: 'Q', latitude: 47.5, osm_id: 'node/q' })]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)) as { polygon: GeoPolygon }
+        const destinations = body.polygon === undefined || body.polygon.coordinates[0][1][0] === -121.7 ? FIVE : theirs
+        return Promise.resolve(fakeResponse({ destinations, total: destinations.length, total_found: null, truncated: false }))
+      }),
+    )
+    const { result } = mount(props({ areas: [RING, OTHER] }))
+    await still(COUNT_DEBOUNCE_MS)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(result.current.ringCount).toBeNull()
+    await still(COUNT_SPACING_MS)
+    expect(bodies().map((b) => b.polygon)).toEqual([RING, OTHER])
+    expect(result.current.ringCount).toBe(6)
+    expect(result.current.counted()?.key).toBe(fieldKey([RING, OTHER], PEAKS, false))
+  })
+
   // #803, M7: a failed run's found field goes with the ring that found it.
   it('says when the ring is cleared or every kind unticked', () => {
     vi.stubGlobal('fetch', vi.fn(FIELD))
@@ -206,7 +227,7 @@ describe('useDestinationCount', () => {
     rerender(props({ onRingGone, destinationTypes: [] }))
     expect(onRingGone).toHaveBeenCalledTimes(1)
     rerender(props({ onRingGone }))
-    rerender(props({ onRingGone, polygon: null, drawPointCount: 0 }))
+    rerender(props({ onRingGone, areas: [] }))
     expect(onRingGone).toHaveBeenCalledTimes(2)
   })
 })

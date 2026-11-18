@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchedPlaces } from './useSearchedPlaces'
+import { type PresetListsInputs, usePresetLists } from './usePresetLists'
 import type { DiscoveryType, GeoPolygon } from '../types'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { bboxAreaKm2, ringToPts } from '../utils/drawGeometry'
@@ -7,16 +8,26 @@ import { restoredFramePoints } from '../utils/mapFraming'
 import { authoredScope } from '../utils/removals'
 import type { ShareableState } from '../utils/urlState'
 
+/** The largest of these rings' areas, by the box around each, or null for none. */
+function largestKm2(rings: readonly GeoPolygon[]): number | null {
+  return rings.length === 0 ? null : Math.max(...rings.map((ring) => bboxAreaKm2(ringToPts(ring)) ?? 0))
+}
+
 /**
- * The three ways a reader names destinations: the polygon and the kinds it
- * looks for, the pasted coordinates, and the places searched by name.
+ * The ways a reader names destinations (record 0306): the areas drawn and the
+ * kinds they look for, the ready-made lists added, the reader's own
+ * coordinates, and the places searched by name or picked on the map.
  *
  * One hook because they are one question — what an analysis will rank — and
- * the two values read across them (`destinationScope`, `destinationNamed`)
- * need all three. Nothing here fetches: each input is held until the next
- * Analyze, which is where the spend boundary is.
+ * the values read across them (`destinationScope`, `destinationNamed`)
+ * need all of them. Nothing here fetches forecasts: each input is held until
+ * the next Analyze, which is where the spend boundary is. The lists' rows are
+ * fetched as they are added, which costs no upstream call.
  */
-export function useDestinationInputs(restored: Partial<ShareableState> | null) {
+export function useDestinationInputs(
+  restored: Partial<ShareableState> | null,
+  listEvents: Pick<PresetListsInputs, 'onArrived' | 'onFailed'>,
+) {
   // Every point destination the URL restores (CSV rows and searched places),
   // built once so the memoized MapView frames them on load beside the ring.
   const restoredPoints = useMemo(
@@ -24,18 +35,26 @@ export function useDestinationInputs(restored: Partial<ShareableState> | null) {
     [restored],
   )
 
-  const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
-  // Read off the ring rather than reported by the map, because the map can only
-  // report an area once it has loaded: a ring restored from a link printed its
-  // point count beside a blank area line until the reader edited it (#429). A
-  // derived value cannot lag the ring it describes.
-  const polygonAreaKm2 = useMemo(
-    () => (polygon ? bboxAreaKm2(ringToPts(polygon)) : null),
-    [polygon],
-  )
-  // Which kinds the polygon looks for, as a set — several are found in one
+  // Every finished area, in the order drawn. One changes only at Done, never
+  // mid-draw, so a count, a cue or the link never reads a half-drawn shape.
+  const [areas, setAreas] = useState<GeoPolygon[]>(() => restored?.areas ?? [])
+  // The ring on the map while an area is drawn or edited, as the map reports
+  // each edit, or null outside draw mode. Its own state rather than an area,
+  // so Cancel leaves `areas` as it was.
+  const [draft, setDraft] = useState<GeoPolygon | null>(null)
+  // Read off the rings rather than reported by the map, because the map can
+  // only report an area once it has loaded: a ring restored from a link
+  // printed its point count beside a blank area line until the reader edited
+  // it (#429). A derived value cannot lag the ring it describes.
+  const draftAreaKm2 = useMemo(() => largestKm2(draft ? [draft] : []), [draft])
+  // Each finished area's size, in order, which its chip prints.
+  const areaKm2s = useMemo(() => areas.map((area) => bboxAreaKm2(ringToPts(area)) ?? 0), [areas])
+  // What the area cap reads: the largest area drawn or being drawn, since the
+  // pod refuses each area on its own.
+  const largestAreaKm2 = useMemo(() => largestKm2(draft ? [...areas, draft] : areas), [areas, draft])
+  // Which kinds the areas look for, as a set — several are found in one
   // Overpass query. Nothing is checked by default: discovery is the input
-  // that needs a polygon and costs an upstream query, so a fresh session
+  // that needs an area and costs an upstream query, so a fresh session
   // asks for none of it until the user says so.
   const [destinationTypes, setDestinationTypes] = useState<DiscoveryType[]>(
     () => restored?.destinationTypes ?? [],
@@ -48,15 +67,23 @@ export function useDestinationInputs(restored: Partial<ShareableState> | null) {
   )
 
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
-  // Parsed once per edit and shared by the pending markers and the Analyze
-  // request, so what the map shows and what gets ranked can't drift apart.
-  const csvRows = useMemo(() => parseCustomCsv(customCsv), [customCsv])
+  // The ready-made lists, held apart from the box so several can stand.
+  const presetLists = usePresetLists({ initial: restored?.presetLists ?? [], ...listEvents })
+  // The box's own rows, parsed once per edit: what its count says.
+  const ownRows = useMemo(() => parseCustomCsv(customCsv), [customCsv])
+  // The box's rows and every arrived list's, shared by the pending markers
+  // and the Analyze request, so what the map shows and what gets ranked
+  // can't drift apart.
+  const csvRows = useMemo(
+    () => (presetLists.rows.length === 0 ? ownRows : [...presetLists.rows, ...ownRows]),
+    [ownRows, presetLists.rows],
+  )
   // The destination inputs the user authored, in one spelling: the removal
-  // reset reads it (folding the polygon ring in) and so does every removal
+  // reset reads it (folding the areas in) and so does every removal
   // recorded while these inputs stand, so the two cannot drift apart.
   const destinationScope = useMemo(
-    () => authoredScope(destinationTypes, customCsv),
-    [destinationTypes, customCsv],
+    () => authoredScope(destinationTypes, customCsv, presetLists.ids),
+    [destinationTypes, customCsv, presetLists.ids],
   )
 
   // Places searched by name — the third destination input. Searching registers
@@ -95,15 +122,21 @@ export function useDestinationInputs(restored: Partial<ShareableState> | null) {
 
   return {
     restoredPoints,
-    polygon,
-    setPolygon,
-    polygonAreaKm2,
+    areas,
+    setAreas,
+    draft,
+    setDraft,
+    draftAreaKm2,
+    areaKm2s,
+    largestAreaKm2,
     destinationTypes,
     setDestinationTypes,
     includeUnnamedPeaks,
     setIncludeUnnamedPeaks,
     customCsv,
     setCustomCsv,
+    ownRows,
+    presetLists,
     csvRows,
     destinationScope,
     places: searched.places,

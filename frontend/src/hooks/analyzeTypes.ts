@@ -3,6 +3,7 @@
 // Apart from the hook so a component or a pure module can name them without
 // reading the hook that produces them.
 
+import type { GeoPolygon } from '../types'
 import type { WindowSource } from '../utils/forecastWindow'
 import type { ElevationLookup } from './useElevationLookup'
 import type { CountedField } from './useDestinationCount'
@@ -132,6 +133,13 @@ export interface AnalyzeOptions {
    * because the run's commit, not the click, is when they apply.
    */
   onCommit?: () => void
+  /**
+   * The areas the run discovers in, in order (record 0306). The request
+   * carries the API's shape, which names one polygon, so the areas ride
+   * beside it and `discoverCandidates` sends one call an area. Absent for a
+   * run with no area.
+   */
+  areas?: readonly GeoPolygon[]
   /**
    * The ring's field as the count ahead of Analyze found it, with the
    * discovery it answers (#803, D1): the run forecasts it in place of its own
