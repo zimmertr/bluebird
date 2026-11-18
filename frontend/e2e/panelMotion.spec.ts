@@ -90,11 +90,12 @@ test('the controls card opens and closes over a map that keeps the window', asyn
 })
 
 // The search field is one field through an open and a close, never a second
-// one mounted in its place, so what the reader typed is still in it.
+// one mounted in its place, so what the reader typed is still in it. Shut,
+// the card is hidden, so the field is found among hidden elements too.
 test('the search field is the same field when the card closes and opens', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const field = page.locator('aside').getByRole('combobox')
+  const field = page.locator('aside').getByRole('combobox', { name: 'Search for a place', includeHidden: true })
   const kept = () => field.evaluate((el) => (el as HTMLElement & { kept?: boolean }).kept === true)
   await field.evaluate((el) => ((el as HTMLElement & { kept?: boolean }).kept = true))
   await page.getByRole('button', { name: 'Close controls' }).click()
@@ -130,6 +131,7 @@ test('the card opens one section at a time, and the others say what they are set
 // there, so the key shares the card's column and the map to its right stays
 // clear (the maintainer, 2026-11-17), and beside the card while it has not.
 test('the chips stand under the card where the legend has room, and beside it where it has not', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 760 })
   await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const card = page.locator('aside')
@@ -142,7 +144,7 @@ test('the chips stand under the card where the legend has room, and beside it wh
   }
 
   // Metrics is the tallest section: open, the card leaves the legend nothing
-  // under it on a 900px map, so the chips are the map's first row beside it.
+  // under it in a 760px window, so the chips are the map's first row beside it.
   await head('Metrics').click()
   await expect.poll(where).toBe('beside')
   expect((await layers.boundingBox())!.y).toBe(MAP_INSET_PX)
