@@ -328,6 +328,19 @@ describe('DestinationsSection', () => {
       expect(typeBoxes()[0].checked).toBe(true)
     })
 
+    // While the view is the area (record 0308) there is always a ring, and a
+    // view past the cap is the Forecast button's blocker, not the types'.
+    it('keeps them live while the view is the area, however far out it is', () => {
+      const view = { viewIsArea: true }
+      const { rerender } = render(<DestinationsSection {...props({ ...view, areaTooLarge: true, polygonAreaKm2: 400_000 })} />)
+      expect(typeBoxes().some((b) => b.disabled)).toBe(false)
+      // A drawn ring takes over from the view, cap and all.
+      rerender(
+        <DestinationsSection {...props({ ...view, ...RING, areaTooLarge: true, polygonAreaKm2: 120_000 })} />,
+      )
+      expect(typeBoxes().every((b) => b.disabled)).toBe(true)
+    })
+
     // Unnamed peaks widens a peak search, so with no peak search there is
     // nothing for it to widen and the row is not drawn (#687).
     it('shows unnamed peaks only while Peaks is ticked', () => {

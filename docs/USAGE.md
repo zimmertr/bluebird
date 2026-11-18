@@ -64,7 +64,7 @@ Under its band, every card on the map is a stack of sections: a marker's, a neut
 
 ### c. Polygon search
 
-Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon search** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
+Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon search** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three. At a desk, **Draw polygon** closes the **Where** card so the whole map is yours to draw on, and the point count, **Done** and **Cancel** hang under the bar instead. Open **Where** again for **Clear**.
 
 - You need at least 3 points before Analyze turns on.
 - The estimated bounding-box area is shown in km² at the right of the point count while you draw, or under it when the two do not fit on one line, and for a polygon a shared link brings in.

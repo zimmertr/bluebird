@@ -3098,10 +3098,18 @@ export const SENTENCE_BAR = {
     `pointer-events-auto flex h-8 flex-shrink-0 items-center gap-2 pl-1 pr-3 bg-floating/95 border border-edge ` +
     `${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm`,
   logo: 'h-6 w-6 flex-shrink-0 rounded-full object-cover',
+  /**
+   * The Forecast button's slot in the bar: the badge's anchor, on the chips'
+   * own face, so a blocked button's 40 percent greys against that face rather
+   * than letting the map's labels through it.
+   */
+  forecastSlot: `relative flex ${RADIUS.control} bg-floating`,
   name: `${TEXT.section} whitespace-nowrap leading-none`,
   card: `${SURFACE_CHIP_CARD.key} pointer-events-auto flex w-90 flex-col overflow-hidden max-h-[calc(100cqh-7.5rem)]`,
   head: `flex flex-shrink-0 items-center justify-between border-b ${PANEL_EDGE} pl-4 pr-1.5 py-1.5`,
   body: `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS}`,
+  /** The draw bar at a desk, hung where the cards hang and as wide as one. */
+  drawBar: `${SURFACE_FLOATING} pointer-events-auto flex w-90 items-center gap-2 px-3 py-1.5`,
 } as const
 
 /**

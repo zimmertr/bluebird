@@ -1,6 +1,6 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import DocLinks from './DocLinks'
-import { BLOCKED, BUTTON_FORECAST, BUTTON_FORECAST_BAR, DISABLED, MESSAGE_BADGE, PANEL_EDGE, TEXT } from '../styles'
+import { BLOCKED, BUTTON_FORECAST, BUTTON_FORECAST_BAR, DISABLED, MESSAGE_BADGE, PANEL_EDGE, SENTENCE_BAR, TEXT } from '../styles'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import { usePopover } from '../hooks/usePopover'
@@ -112,7 +112,7 @@ export default function PanelFooter({
     // draws the rule above it the way it rules off each section.
     <div className={phone || bar ? undefined : `px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour={phone ? undefined : 'analyze'}>
       {!phone && (
-        <div ref={slotRef} className={MESSAGE_BADGE.slot}>
+        <div ref={slotRef} className={bar ? SENTENCE_BAR.forecastSlot : MESSAGE_BADGE.slot}>
           {/* Disabled only while busy: a blocker greys the button and leaves
               it live, so a press anywhere on it opens the list that says
               why (the maintainer, 2026-10-21). */}

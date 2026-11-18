@@ -252,7 +252,11 @@ export default function DestinationsSection({
   // tick with no ring was never sent anyway (`planAnalysis` sends no types
   // without one). Greyed rather than hidden, as the draw row's buttons are
   // (#687), so a ring arriving does not move the panel under the reader.
-  const typesLive = ringUsable(viewIsArea && drawPointCount === 0 ? 4 : drawPointCount, areaTooLarge)
+  // While the view is the area (record 0308) there is always a ring, and the
+  // types stay live however far out the map is: a view past the cap is the
+  // Forecast button's blocker, and the reader picks what to find before
+  // zooming in to it.
+  const typesLive = (viewIsArea && drawPointCount === 0) || ringUsable(drawPointCount, areaTooLarge)
 
   return (
     <section data-tour="destinations">

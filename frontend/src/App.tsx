@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
+import MapDrawBar from './components/MapDrawBar'
 import SentenceBar from './components/SentenceBar'
 import DocLinks from './components/DocLinks'
 import ThemeMenu from './components/ThemeMenu'
@@ -248,12 +249,16 @@ export default function App() {
     showTerrain,
     playerShown,
   } = overlays
+  // The card a sentence-bar chip has open at a desk, or null.
+  const [barCard, setBarCard] = useState<PanelSection | null>(null)
+  // A ring is drawn on an uncovered map: the phone's drawer shuts, and so
+  // does a desk's Where card, whose Done and Cancel the draw bar carries.
+  const uncoverMap = useCallback(() => (isDesktop ? setBarCard(null) : closeDrawer()), [isDesktop, closeDrawer])
   const drawMode = useDrawMode({
     mapRef,
     polygon,
     restoredPolygon: restored?.polygon,
-    isDesktop,
-    closeDrawer,
+    uncoverMap,
   })
   const {
     drawing,
@@ -271,9 +276,6 @@ export default function App() {
     drawPointCount,
     listOnly: destinationTypes.length === 0,
   })
-  // The card a sentence-bar chip has open at a desk, or null.
-  const [barCard, setBarCard] = useState<PanelSection | null>(null)
-
   function dismissWelcome() {
     setWelcomed()
     setShowWelcome(false)
@@ -896,7 +898,18 @@ export default function App() {
   const cornerLinks = isDesktop ? (
     <DocLinks onTutorial={tour.start} tutorialWaits={tourWaits} className={TEXT.caption} />
   ) : null
-  const barCardNode = isDesktop ? renderDrawer({ card: barCard, onCardClose: closeBarCard }) : null
+  // While a ring is drawn at a desk the draw bar hangs where the cards do,
+  // until a chip opens a card again: the Where card carries Clear as well.
+  const barCardNode = !isDesktop ? null : drawing && barCard === null ? (
+    <MapDrawBar
+      inline
+      drawPointCount={drawPointCount}
+      onDone={finishDrawing}
+      onCancel={drawMode.handleCancelDrawing}
+    />
+  ) : (
+    renderDrawer({ card: barCard, onCardClose: closeBarCard })
+  )
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>

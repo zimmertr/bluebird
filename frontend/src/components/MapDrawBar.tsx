@@ -1,4 +1,4 @@
-import { BUTTON_ACCENT, BUTTON_SECONDARY, CONTROL_SIZE, DISABLED, DRAW_BAR, MAP_ROWS } from '../styles'
+import { BUTTON_ACCENT, BUTTON_SECONDARY, CONTROL_SIZE, DISABLED, DRAW_BAR, MAP_ROWS, SENTENCE_BAR } from '../styles'
 import DrawReadout from './DrawReadout'
 
 interface Props {
@@ -7,6 +7,11 @@ interface Props {
   onDone: () => void
   /** Puts back the ring the mode started with and leaves it: the panel's Cancel. */
   onCancel: () => void
+  /**
+   * A desk's bar (record 0308): in the slot under the chip row where the
+   * sentence bar's cards hang, rather than across the map.
+   */
+  inline?: boolean
 }
 
 /**
@@ -25,13 +30,16 @@ interface Props {
  * in reach while a ring is drawn and the map's foot keeps the panel's notices.
  * `MapStage` leaves the forecast player out while the bar is up: playback is
  * no use while points are being placed.
+ *
+ * A desk draws on an uncovered map too since the sentence bar (record 0308):
+ * Draw polygon shuts the Where card, and the bar hangs in the card's place.
  */
-export default function MapDrawBar({ drawPointCount, onDone, onCancel }: Props) {
+export default function MapDrawBar({ drawPointCount, onDone, onCancel, inline = false }: Props) {
   return (
     <div
       // A popup keeps clear of the bar, as it does of the player.
       data-map-overlay=""
-      className={`${DRAW_BAR} ${MAP_ROWS.drawBar}`}
+      className={inline ? SENTENCE_BAR.drawBar : `${DRAW_BAR} ${MAP_ROWS.drawBar}`}
     >
       <div className={`${CONTROL_SIZE} min-w-0 flex-1`}>
         {drawPointCount > 0 && (

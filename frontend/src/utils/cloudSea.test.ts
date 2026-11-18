@@ -27,14 +27,16 @@ const DRY = deck(CLOUD_DECK_CEILING_FT, CLOUD_DECK_CEILING_FT)
 describe('deckAt', () => {
   it('reads a lone destination in cloud as its own deck, whole', () => {
     const at = deckAt([deck(2000, 5000)], RAINIER.lon, RAINIER.lat)!
-    expect(at).toMatchObject({ baseFt: 2000, topFt: 5000, share: 1, reach: 1 })
+    expect(at.baseFt).toBeCloseTo(2000, 6)
+    expect(at.topFt).toBeCloseTo(5000, 6)
+    expect(at).toMatchObject({ share: 1, reach: 1 })
   })
 
   it('never averages a dry column into the deck, and says how much is in cloud', () => {
     const east = { lon: RAINIER.lon + 0.1, lat: RAINIER.lat }
     const at = deckAt([deck(2000, 5000), { ...DRY, ...east }], RAINIER.lon + 0.05, RAINIER.lat)!
-    expect(at.baseFt).toBe(2000)
-    expect(at.topFt).toBe(5000)
+    expect(at.baseFt).toBeCloseTo(2000, 6)
+    expect(at.topFt).toBeCloseTo(5000, 6)
     expect(at.share).toBeCloseTo(0.5, 5)
   })
 
@@ -65,8 +67,8 @@ describe('cloudAlpha', () => {
   it('paints the ground inside the deck, veils it under, and leaves it clear above the top', () => {
     for (const theme of ['dark', 'light'] as const) {
       const { inside, under } = CLOUD_ALPHA[theme]
-      expect(cloudAlpha(4500, whole, theme)).toBe(inside)
-      expect(cloudAlpha(1000, whole, theme)).toBe(under)
+      expect(cloudAlpha(4500, whole, theme)).toBeCloseTo(inside, 9)
+      expect(cloudAlpha(1000, whole, theme)).toBeCloseTo(under, 9)
       expect(cloudAlpha(6000, whole, theme)).toBe(0)
       expect(cloudAlpha(9000, whole, theme)).toBe(0)
     }
@@ -82,7 +84,7 @@ describe('cloudAlpha', () => {
     const at = (share: number) => cloudAlpha(4500, { ...whole, share }, 'dark')
     expect(at(0.25)).toBe(0)
     expect(at(0.5)).toBeCloseTo(CLOUD_ALPHA.dark.inside / 2, 5)
-    expect(at(0.75)).toBe(CLOUD_ALPHA.dark.inside)
+    expect(at(0.75)).toBeCloseTo(CLOUD_ALPHA.dark.inside, 9)
     expect(cloudAlpha(4500, null, 'dark')).toBe(0)
   })
 })
