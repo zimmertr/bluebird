@@ -256,6 +256,7 @@ describe('the codec table', () => {
       'type',
       'sort',
       'desc',
+      'lens',
       'aqi',
       'clouddeck',
       'freeze',
@@ -485,5 +486,21 @@ describe('a pasted list too long for a link', () => {
     expect(customCsvTooLong(state(rows(1_400), PRESET_LISTS[0].id))).toBe(false)
     expect(customCsvTooLong(state(''))).toBe(false)
     expect(customCsvTooLong(state('  \n'))).toBe(false)
+  })
+})
+
+describe('the lens param (record 0306)', () => {
+  const lensParam = URL_PARAMS.find((row) => row.key === 'lens')!
+  const base = { sortBy: 'aqi_avg', sortDesc: false } as const
+
+  it('writes a lens off the default, and metric for a ranking by sort', () => {
+    expect(lensParam.encode?.({ ...base, lens: 'calm' } as never)).toBe('calm')
+    expect(lensParam.encode?.({ ...base, lens: null } as never)).toBe('metric')
+    expect(lensParam.encode?.({ ...base, lens: 'bluebird' } as never)).toBeNull()
+  })
+
+  it('writes the default lens beside a written sort, and nothing for a state with no lens', () => {
+    expect(lensParam.encode?.({ sortBy: 'wind_avg_mph', sortDesc: false, lens: 'bluebird' } as never)).toBe('bluebird')
+    expect(lensParam.encode?.({ sortBy: 'wind_avg_mph', sortDesc: true } as never)).toBeNull()
   })
 })

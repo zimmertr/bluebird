@@ -25,6 +25,7 @@ import {
   unescapeQueryText,
 } from './urlParams'
 import { clamp } from './numbers'
+import { DEFAULT_LENS, type Lens } from './score/lenses'
 
 // The window classifiers read the calendar band and live beside it. The
 // air-quality one is re-exported here because the panel imports it by this
@@ -58,6 +59,10 @@ export interface ShareableState {
   compareModels: string[]
   sortBy: SortBy
   sortDesc: boolean // false = lowest first (the historical behavior)
+  // The lens the field is ranked by, or null for a ranking by `sortBy`
+  // (record 0306). Optional so a state built before the score existed still
+  // types; such a state encodes exactly as it did.
+  lens?: Lens | null
   // Which aggregate each metric's ranking-row dropdown holds (#291), active
   // row included — its entry always equals `sortBy`. Carried whole because the
   // three inactive rows are real state a reload must not lose, per TJ's call
@@ -188,6 +193,7 @@ export function encodeState(
     state.sortBy !== DEFAULT_SORT ||
     RANKED_FAMILIES.some((family) => state.rowKeys[family] !== DEFAULT_FAMILY_KEY[family]) ||
     state.sortDesc ||
+    (state.lens !== undefined && state.lens !== DEFAULT_LENS) ||
     state.limit !== DEFAULT_LIMIT ||
     state.destinationTypes.length !== DEFAULT_TYPES.length ||
     state.includeUnnamedPeaks ||
@@ -314,6 +320,10 @@ export function decodeLink(
   }
   const selection = decodeSelection(params)
   if (selection) out.selection = selection
+  // A link written before the score named its ranking with `sort` and `desc`
+  // alone, and opens on that ranking rather than on a lens (record 0306). A
+  // link that names neither opens on the default lens, which is the caller's.
+  if (out.lens === undefined && (params.has('sort') || params.has('desc'))) out.lens = null
 
   return { state: Object.keys(out).length > 0 ? out : null, dropped }
 }

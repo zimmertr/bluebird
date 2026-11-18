@@ -3,6 +3,7 @@ import { DEFAULT_FAMILY_KEY, type MetricFamily, familyOf } from '../metrics'
 import type { SortBy } from '../types'
 import { type Constraints, NO_CONSTRAINTS } from '../utils/clientAnalyze'
 import type { PresentationKnobs } from '../utils/present'
+import type { Lens } from '../utils/score/lenses'
 import { DEFAULT_LIMIT, DEFAULT_SORT, type ShareableState, clampLimit } from '../utils/urlState'
 
 /**
@@ -14,9 +15,21 @@ import { DEFAULT_LIMIT, DEFAULT_SORT, type ShareableState, clampLimit } from '..
  * side, and `liveKnobs` is the one value `present.ts` re-derives the table
  * from.
  */
-export function useRankingKnobs(restored: Partial<ShareableState> | null, maxLimit: number) {
+export function useRankingKnobs(
+  restored: Partial<ShareableState> | null,
+  maxLimit: number,
+  initialLens: Lens | null = null,
+) {
   const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? DEFAULT_SORT)
   const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
+  // The lens the field is ranked by, or null for a ranking by `sortBy`
+  // (record 0306). A link's lens is restored as it was written, an old link
+  // that named a `sort` reads as a metric ranking (`decodeLink`), and a
+  // session with neither opens on `initialLens`.
+  const [lens, setLens] = useState<Lens | null>(() => {
+    const given = restored?.lens
+    return given !== undefined ? given : initialLens
+  })
   // What each metric row's aggregate dropdown holds (#291), the active row's
   // entry always equal to sortBy. One state for every row because a
   // dropdown choice IS a ranking choice — picking an aggregate activates its
@@ -61,8 +74,8 @@ export function useRankingKnobs(restored: Partial<ShareableState> | null, maxLim
   // The knobs the displayed report is rendered under: markers, legend, results
   // header, and table column order all read from here.
   const liveKnobs: PresentationKnobs = useMemo(
-    () => ({ sortBy, sortDesc, limit, constraints }),
-    [sortBy, sortDesc, limit, constraints],
+    () => ({ sortBy, sortDesc, limit, constraints, lens }),
+    [sortBy, sortDesc, limit, constraints, lens],
   )
 
   return {
@@ -70,6 +83,8 @@ export function useRankingKnobs(restored: Partial<ShareableState> | null, maxLim
     setSortBy,
     sortDesc,
     setSortDesc,
+    lens,
+    setLens,
     rowKeys,
     constraints,
     setConstraints,

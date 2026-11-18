@@ -68,7 +68,15 @@ type Equal<A, B> =
  * and dropped wherever they appear, so the exemption is one list rather than
  * an `Omit` at each assertion that could quietly grow.
  */
-type ClientOnly = 'series_times' | 'wind_dir_deg' | 'terrain_ft' | 'snow_depth_in'
+type ClientOnly =
+  | 'series_times'
+  | 'wind_dir_deg'
+  | 'terrain_ft'
+  | 'snow_depth_in'
+  // The score and its best stretch, laid on the held field by `scoreRows`.
+  | 'score'
+  | 'best_start_ms'
+  | 'best_end_ms'
 
 /**
  * A type as it travels on the wire: client-only fields dropped, and every

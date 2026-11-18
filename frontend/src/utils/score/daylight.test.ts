@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daylightMinutes, isDaylightHour, solarDay, sunTimes } from './daylight'
+import { daylightMinutes, isDaylightHour, litHours, solarDay, sunTimes } from './daylight'
 
 // Seattle, whose almanac times are easy to check: the US Naval Observatory
 // gives 05:11 and 21:11 PDT on the June solstice and 07:55 and 16:20 PST on the
@@ -47,5 +47,12 @@ describe('daylightMinutes', () => {
     // 03:00 to 04:00 UTC ends before the 04:11 sunset.
     expect(isDaylightHour(SEA.lat, SEA.lon, Date.UTC(2026, 5, 22, 3))).toBe(true)
     expect(isDaylightHour(SEA.lat, SEA.lon, Date.UTC(2026, 5, 22, 5))).toBe(false)
+  })
+})
+
+describe('litHours', () => {
+  it('agrees with isDaylightHour hour by hour over two days', () => {
+    const times = Array.from({ length: 48 }, (_, i) => Date.UTC(2026, 5, 21) + i * 3_600_000)
+    expect(litHours(SEA.lat, SEA.lon, times)).toEqual(times.map((t) => isDaylightHour(SEA.lat, SEA.lon, t)))
   })
 })

@@ -27,6 +27,7 @@ import type { DecodeLimits, ShareableState } from './urlState'
 import { clamp, roundTo } from './numbers'
 import { MAX_CHART_PANELS, isChartMetric, metricForSort } from './chart/chartData'
 import { presetListById } from './presetLists'
+import { DEFAULT_LENS, isLens } from './score/lenses'
 
 /**
  * One query parameter.
@@ -466,6 +467,24 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     },
   },
   flag('desc', 'sortDesc'),
+  // The lens (record 0306): its name, or `metric` for a ranking by `sort`.
+  // Written whenever it is off the default, and with the default too whenever
+  // `sort` or `desc` is written, so a link from after the score is never read
+  // as one from before it, which named its metric ranking with those alone.
+  // A state with no lens at all writes none, as before.
+  {
+    key: 'lens',
+    encode: (state) => {
+      if (state.lens === undefined) return null
+      const named = state.lens ?? 'metric'
+      const ranked = state.sortBy !== DEFAULT_SORT || state.sortDesc
+      return named !== DEFAULT_LENS || ranked ? named : null
+    },
+    decode: (raw, out) => {
+      if (raw === 'metric') out.lens = null
+      else if (isLens(raw)) out.lens = raw
+    },
+  },
   ...RANKED_FAMILIES.map(aggregateRow),
   // Shape only, no ceiling: a link asking for more rows than this deployment
   // allows gets clamped down by the caller, never discarded. Dropping it here
@@ -785,6 +804,7 @@ export const FIELD_PARAMS = {
   compareModels: ['compare'],
   sortBy: ['sort'],
   sortDesc: ['desc'],
+  lens: ['lens'],
   rowKeys: ['sort', ...RANKED_FAMILIES.map(aggregateParam)],
   constraints: [
     'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',

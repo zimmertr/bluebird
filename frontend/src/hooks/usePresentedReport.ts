@@ -10,6 +10,7 @@ import { type PresentationKnobs, presentResults } from '../utils/present'
 import { isRankingOrder } from '../utils/sortResults'
 import type { SortDir, SortKey } from '../utils/tableColumns'
 import { grouped } from '../utils/numbers'
+import { scoreRows } from '../utils/score/windowScore'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
 // A module constant rather than an inline `new Set()`, which would be a fresh
@@ -131,9 +132,19 @@ export function usePresentedReport({
   // the remembered discovery identities by coordinate; genuine custom-CSV rows
   // simply have no match and pass through unchanged.
   const knobs = demoKnobs ?? liveKnobs
+  // Every row scored on the lens before the derivation ranks them, so the
+  // table, the markers and the count read one scored field (record 0306).
+  // Keyed on the lens and the field alone: a sort, cap or bound change
+  // re-presents the same scores.
+  const lens = knobs.lens ?? null
+  const times = response?.times
+  const scored = useMemo(
+    () => (universe !== null && lens !== null && times ? scoreRows(universe, times, lens) : universe),
+    [universe, lens, times],
+  )
   const presented = useMemo(
-    () => presentResults(universe, knobs, removedKeys),
-    [universe, knobs, removedKeys],
+    () => presentResults(scored, knobs, removedKeys),
+    [scored, knobs, removedKeys],
   )
   const results = useMemo(
     () =>

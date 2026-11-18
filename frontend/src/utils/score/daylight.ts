@@ -91,3 +91,30 @@ export function daylightMinutes(latDeg: number, lonDeg: number, hourMs: number):
 export function isDaylightHour(latDeg: number, lonDeg: number, hourMs: number): boolean {
   return daylightMinutes(latDeg, lonDeg, hourMs) >= 30
 }
+
+/**
+ * Which hours of a grid are daylight hours at one coordinate: `isDaylightHour`
+ * for each, with each solar day's sunrise and sunset worked out once. A
+ * sixteen-day window reads about fifty days' worth rather than three per hour,
+ * which is what lets a lens change rescore a 1,500-row field in one frame.
+ */
+export function litHours(latDeg: number, lonDeg: number, times: readonly number[]): boolean[] {
+  const days = new Map<number, SunTimes>()
+  const sun = (d: number) => {
+    let t = days.get(d)
+    if (t === undefined) {
+      t = sunTimes(latDeg, lonDeg, d)
+      days.set(d, t)
+    }
+    return t
+  }
+  return times.map((hourMs) => {
+    const day = solarDay(hourMs + HOUR_MS / 2, lonDeg)
+    let lit = 0
+    for (const d of [day - 1, day, day + 1]) {
+      const { riseMs, setMs } = sun(d)
+      lit += Math.max(0, Math.min(setMs, hourMs + HOUR_MS) - Math.max(riseMs, hourMs))
+    }
+    return lit >= 30 * 60_000
+  })
+}

@@ -266,6 +266,13 @@ export interface DestinationResult {
   // Null once a lookup has placed the row. Client-populated; the API never
   // sends it.
   terrain_ft?: number | null
+  // The row's score on the reader's lens, 0 to 100, and its best stretch of
+  // hours (record 0306). Client-populated over the held field by
+  // `scoreRows`; the API never sends them, and a row ranked by a metric
+  // carries none.
+  score?: number | null
+  best_start_ms?: number | null
+  best_end_ms?: number | null
   // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
   series?: HourlySeries | null
   // Timestamps for `series` when the row came from its own analyze response

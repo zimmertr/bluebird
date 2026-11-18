@@ -13,7 +13,7 @@
  * instead, so it still ranks.
  */
 import type { DestinationResult } from '../../types'
-import { isDaylightHour, solarDay } from './daylight'
+import { litHours, solarDay } from './daylight'
 import { AIR_CURVE, COMFORT_CURVE, DRY_CURVE, WARMTH_CURVE, WIND_CURVE, freshFactor, ramp, skyFactor } from './factors'
 import { hourScore } from './hourScore'
 import { LENS_WEIGHTS, type Factor, type Lens } from './lenses'
@@ -105,7 +105,7 @@ export function scoreRow(row: DestinationResult, times: readonly number[], lens:
   const grid = row.series_times ?? times
   const weights = LENS_WEIGHTS[lens]
   const hours = grid.map((_, i) => hourScore(hourFactors(row, i), weights))
-  const daylight = grid.map((t) => isDaylightHour(row.latitude, row.longitude, t))
+  const daylight = litHours(row.latitude, row.longitude, grid)
   const anyLit = daylight.some((d, i) => d && hours[i] != null)
   const lit = anyLit ? daylight : grid.map(() => true)
 
@@ -122,4 +122,16 @@ export function scoreRow(row: DestinationResult, times: readonly number[], lens:
     hours,
     lit,
   }
+}
+
+/**
+ * The field with each row's score, best stretch and their absence laid on it,
+ * for `presentResults` to rank by. A new array of new rows, since a row is
+ * shared with the held field and its score belongs to one lens.
+ */
+export function scoreRows(rows: readonly DestinationResult[], times: readonly number[], lens: Lens): DestinationResult[] {
+  return rows.map((row) => {
+    const { score, bestStartMs, bestEndMs } = scoreRow(row, times, lens)
+    return { ...row, score, best_start_ms: bestStartMs, best_end_ms: bestEndMs }
+  })
 }

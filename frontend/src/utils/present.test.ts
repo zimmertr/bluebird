@@ -539,3 +539,26 @@ describe('reportView', () => {
     expect(reportView(null, 'temp_avg_f', false, 'now', { startMs: hour, endMs: hour }).pointSample).toBe(true)
   })
 })
+
+describe('presentResults under a lens (record 0306)', () => {
+  const scored = (name: string, score: number | null, aqi: number) =>
+    resultRow({ name, latitude: 46 + aqi / 100, score, aqi_avg: aqi })
+
+  it('ranks by score, best first, whatever the sort says', () => {
+    const rows = [scored('A', 60, 10), scored('B', 90, 50), scored('C', 75, 30)]
+    const out = presentResults(rows, { ...KNOBS, sortBy: 'aqi_avg', sortDesc: false, lens: 'bluebird' }, new Set())
+    expect(out.rows.map((r) => r.name)).toEqual(['B', 'C', 'A'])
+  })
+
+  it('puts a row with no score last', () => {
+    const rows = [scored('A', null, 10), scored('B', 40, 50)]
+    const out = presentResults(rows, { ...KNOBS, lens: 'calm' }, new Set())
+    expect(out.rows.map((r) => r.name)).toEqual(['B', 'A'])
+  })
+
+  it('ranks by the metric with no lens, as before', () => {
+    const rows = [scored('A', 60, 10), scored('B', 90, 50)]
+    const out = presentResults(rows, { ...KNOBS, sortBy: 'aqi_avg', sortDesc: false, lens: null }, new Set())
+    expect(out.rows.map((r) => r.name)).toEqual(['A', 'B'])
+  })
+})
