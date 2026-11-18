@@ -10,7 +10,7 @@
 | [Mapterhorn](https://mapterhorn.com/attribution) | Elevation tiles for the contours, shaded relief and 3D terrain, worldwide | Free | None |
 | [USGS The National Map](https://www.usgs.gov/programs/national-geospatial-program/national-map) | Aerial imagery for the satellite layer, United States and its territories | Free (public domain) | None |
 | [EOX Sentinel-2 cloudless](https://s2maps.eu) | Aerial imagery for the satellite layer everywhere USGS has none | Free (non-commercial) | None |
-| [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
+| [Nominatim](https://nominatim.org) | Search by name place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NASA FIRMS](https://earthdata.nasa.gov/firms) | Satellite fire detections from VIIRS and MODIS, worldwide, the last 48 hours | Free (public files, no quota) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
@@ -57,7 +57,7 @@ A destination exists in Bluebird Forecast only if a volunteer mapped it and gave
 name. Unnamed summits are invisible to discovery, elevations come from the OSM
 `ele` tag and are absent or wrong wherever the tag is, and coverage is uneven
 by region in exactly the way volunteer mapping is uneven.
-[List search](USAGE.md#d-list-search) exists for that gap:
+[Search by list](USAGE.md#d-search-by-list) exists for that gap:
 whatever OSM does not know, you can paste.
 
 A drawn area is searched in Bluebird Forecast's own copy of OpenStreetMap

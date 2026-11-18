@@ -17,7 +17,7 @@
  *
  * Within a tier, roles separate by weight and color, not only by size: two
  * sizes cover the whole compact tier because `subheading` and `control` share
- * both a size and a color and let weight alone distinguish "Polygon search"
+ * both a size and a color and let weight alone distinguish "Find in areas"
  * from "Peaks". Roles that stand in that relationship are composed from
  * a shared constant below rather than spelled out twice, so the relationship
  * is something a test can assert instead of a comment that rots.
@@ -126,7 +126,7 @@ export const TEXT = {
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
   appTitle: 'text-lg font-bold text-ink-strong leading-tight',
-  /** Named sub-blocks: Map search, Polygon search, a calendar's month. */
+  /** Named sub-blocks: Find in areas, a calendar's month. */
   subheading: 'text-xs font-semibold text-ink',
   /**
    * Anything you read or type in a control (radio labels, inputs, pickers)
@@ -1725,7 +1725,7 @@ export const MAP_EDGE = {
 
 /**
  * The draw bar on a phone (#687): while a ring is being drawn, the panel's
- * readout and its Done and Cancel stand on the map, because Draw polygon
+ * readout and its Done and Cancel stand on the map, because Search by area
  * closes the drawer on a phone and left the map with no way to finish but
  * reopening Controls.
  *
@@ -3241,7 +3241,7 @@ export const FIELD =
   'focus:outline-none focus:border-mark placeholder-ink-soft'
 
 /**
- * The coordinates box under List search (#838, record
+ * The coordinates box for the reader's own rows (#838, record
  * [0265](../../docs/architectural-decision-records/0265-coordinate-box-numbers-and-flags-its-lines.md)):
  * a field whose lines are numbered in a gutter, with each line the parse
  * drops flagged there.
@@ -3493,7 +3493,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   groups of rows inside its card, which is a different job.
  * - `divider`: a hairline between two runs of options inside a `list`, in
  *   the foot's rule colour and pulled out to the card's sides as the foot's
- *   rule runs. `Custom coordinates` stands under one in the Coordinate list
+ *   rule runs. `Custom coordinates` stands under one in the Search by list
  *   field, apart from the lists (#838, record 0263). A rule rather than a
  *   `heading`: one option set apart names itself. Hidden from a screen
  *   reader, because a listbox holds options and nothing else.
@@ -3539,7 +3539,7 @@ const MENU_ROW = 'rounded px-1.5 py-0.5 whitespace-nowrap'
  *   needed.
  * - `description`: the sentence under a row's name that says what the row
  *   is: a model's summary in the model list, a list's description in the
- *   Coordinate list field's menu. Italic at the 11px step in the caption's
+ *   Search by list menu's menu. Italic at the 11px step in the caption's
  *   soft ink, in every menu, so a sentence never reads as a second name: the
  *   maintainer chose it in a lab over upright type and over a recessed, a
  *   tinted and a ruled ground (record
@@ -3602,14 +3602,14 @@ export const MENU_GROUP = {
  * A menu a reader searches and browses, where `MenuSelect`'s short list is
  * one they scan (#848, record
  * [0281](../../docs/architectural-decision-records/0281-coordinate-lists-in-a-manifest-and-a-browsing-menu.md)):
- * the Coordinate list field's, which holds well over a hundred lists under
+ * the Search by list menu's, which holds well over a hundred lists under
  * headings that stand inside one another (#892). A search box on top, then
  * the starred lists, then each heading, which opens in place to the headings
  * or the lists under it, on the one card at a desk and in a sheet on a phone.
  *
  * - `top`: the strip the search box stands in, over a hairline, so the box
  *   stays put while the rows scroll under it.
- * - `input`: the search box, the panel's field at the Coordinate list field's
+ * - `input`: the search box, the panel's field at the Search by list menu's
  *   own inset, so it stands 28px at a desk and 32 under a finger.
  * - `heading`: `MENU.heading` at a row's inset, over the starred rows and
  *   over each region's matches in a search. Read and never pressed.

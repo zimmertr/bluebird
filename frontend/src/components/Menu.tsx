@@ -252,7 +252,7 @@ export function MenuSelect<V extends string>({
         // Centred, as the model picker centres its label: every field in the
         // panel's control column reads the same way. It was `text-left` until
         // 2026-11-03, which the aggregate's and the chart's fields never showed,
-        // each being sized to its longest label, and the Coordinate list field,
+        // each being sized to its longest label, and the Search by list menu,
         // then a `MenuSelect` at the column's width, did (the maintainer).
         className={`${className} text-center`}
       >
@@ -372,7 +372,7 @@ const BROWSE_ITEMS = '[data-browse-item]'
 
 /**
  * A choice of one row from dozens, as the one menu (#848, record 0281): the
- * Coordinate list field's. `MenuSelect` is a short list a reader scans; this
+ * Search by list menu's. `MenuSelect` is a short list a reader scans; this
  * is one they search and browse. A search box on top, the starred rows under
  * `Starred` once there are any, then each group as a heading that opens in
  * place, and `other` last under a rule. A group can stand
