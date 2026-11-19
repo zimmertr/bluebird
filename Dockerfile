@@ -30,7 +30,7 @@ RUN npm run build
 # Stage 2: Python backend serving built frontend as static files.
 # Alpine over slim: Debian's base layer ships dozens of no-fix CVEs (perl-base,
 # libc6, …) that scanners flag forever; musl's ~10-package base scans clean.
-FROM python:3.15-alpine@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
+FROM python:3.15-alpine@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
 
 LABEL org.opencontainers.image.title="Bluebird Forecast" \
       org.opencontainers.image.description="Map-based weather window finder for hikers and mountaineers" \
