@@ -346,16 +346,21 @@ async function placeVertices(page: Page, vertices: readonly [number, number][]) 
   await page.getByRole('button', { name: 'Done' }).click()
 }
 
-// At a desk the panel's sections are cards the sentence bar's chips open, one
-// at a time (record 0309): Where, When and Limits. A phone keeps its Controls
-// sheet, where this does nothing.
+// At a desk the panel's sections are cards, one at a time (record 0309):
+// Where and When open from the sentence bar's chips, and Limits from the
+// results header's Limit pill (record 0319), so it needs a report. A phone
+// keeps its Controls sheet, where this does nothing.
 export async function openCard(page: Page, name: 'Where' | 'When' | 'Limits') {
   const bar = page.getByRole('group', { name: 'Forecast', exact: true })
   if (!(await bar.isVisible())) return
   const card = page.getByRole('region', { name })
   if (await card.isVisible()) return
-  const key = { Where: 'destinations', When: 'forecast', Limits: 'metrics' }[name]
-  await bar.locator(`[data-card="${key}"]`).first().click()
+  if (name === 'Limits') {
+    await page.getByRole('group', { name: 'Limits', exact: true }).getByRole('button', { name: 'Limit', exact: true }).click()
+  } else {
+    const key = { Where: 'destinations', When: 'forecast' }[name]
+    await bar.locator(`[data-card="${key}"]`).first().click()
+  }
   await expect(card).toBeVisible()
 }
 

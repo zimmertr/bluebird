@@ -11,7 +11,8 @@ import { isRankingOrder } from '../utils/sortResults'
 import { SCORE_KEY, type SortDir, type SortKey } from '../utils/tableColumns'
 import { grouped } from '../utils/numbers'
 import { scoreRows } from '../utils/score/windowScore'
-import { headline, headlineText, scoreRange } from '../utils/score/headline'
+import { BEST_HOURS_ROWS, bestHoursText, headline, headlineText, scoreRange } from '../utils/score/headline'
+import { BEST_RUN_HOURS } from '../utils/score/windowScore'
 import { filterConstraints } from '../utils/clientAnalyze'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
@@ -166,6 +167,16 @@ export function usePresentedReport({
   // headline counts, so the table, the strips, the markers and the legend
   // read one ramp (record 0307).
   const scoreSpan = useMemo(() => (keptScores === null ? null : scoreRange(keptScores)), [keptScores])
+  // When the top rows' best stretches mostly fall, beside the window under
+  // the headline (record 0319).
+  const bestHours = useMemo(() => {
+    if (lens === null) return null
+    const starts = presented.rows
+      .slice(0, BEST_HOURS_ROWS)
+      .map((r) => r.best_start_ms)
+      .filter((ms): ms is number => typeof ms === 'number')
+    return bestHoursText(starts, BEST_RUN_HOURS)
+  }, [lens, presented])
   const results = useMemo(
     () =>
       presented.rows.map((r) => {
@@ -364,6 +375,10 @@ export function usePresentedReport({
     lens,
     scoreHeadline,
     scoreRange: scoreSpan,
+    bestHours,
+    // How many analyzed rows the forecast bounds hide, which the limit chips
+    // count (record 0319).
+    hiddenByLimits: presented.excluded,
   }
 }
 

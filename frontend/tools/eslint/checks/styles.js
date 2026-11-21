@@ -186,8 +186,9 @@ const METRIC_BOX_USE = ':matches(TemplateLiteral, JSXExpressionContainer) > Iden
 // `<span className={`${ROLE} truncate`}>{windowTitle}</span>`: the role last in
 // a class list that is the tag's last attribute, and the title its first child.
 const titleCaption = (ref) =>
-  'JSXElement:matches([children.0.expression.name="windowTitle"], ' +
-  '[children.0.type="JSXText"][children.0.value=/^\\s*$/][children.1.expression.name="windowTitle"]) > ' +
+  // The window title, or the subtitle it leads (record 0319).
+  'JSXElement:matches([children.0.expression.name=/^(windowTitle|subtitle)$/], ' +
+  '[children.0.type="JSXText"][children.0.value=/^\\s*$/][children.1.expression.name=/^(windowTitle|subtitle)$/]) > ' +
   `JSXOpeningElement:matches(${upTo(0, 6)
     .map((i) => `[attributes.${i}.name.name="className"]:not([attributes.${i + 1}])`)
     .join(', ')}) > ` +

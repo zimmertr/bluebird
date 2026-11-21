@@ -95,11 +95,6 @@ export default function SentenceBar({
         <MenuButton shape="slot" data-card="forecast" open={card === 'forecast'} onClick={() => toggle('forecast')} className={SENTENCE_BAR.slot}>
           <span className={MAP_CHIP_SUMMARY_TEXT}>{when}</span>
         </MenuButton>
-        {/* Limits until they stand with the results, where the prototype
-            keeps everything free to change. */}
-        <MenuButton shape="slot" data-card="metrics" open={card === 'metrics'} onClick={() => toggle('metrics')}>
-          Limits
-        </MenuButton>
         <PanelFooter {...footer} bar={{ label, widthRef: groupRef, quiet: label === UP_TO_DATE }} />
       </div>
       {trail}

@@ -75,6 +75,7 @@ import {
   PANEL_MS,
   DESK_PANEL,
   RESULTS_COLUMN,
+  RESULTS_HEAD,
   RESULTS_PANE,
   LAYOUT_HOLD,
   PANEL_BODY,
@@ -5596,5 +5597,21 @@ describe('the alpenglow fill', () => {
     expect(ratio(light('act'), light('page'))).toBe(3.6)
     // The light hover lightens to gain label contrast, and pays for it here.
     expect(ratio(light('act-hover'), light('panel'))).toBe(2.98)
+  })
+})
+
+// The results header (record 0319): a lens lit or idle is the same box, so a
+// press recolours the pill and moves nothing beside it, and every pill in the
+// header stands at the one height.
+describe('RESULTS_HEAD', () => {
+  const box = (cls: string) => cls.split(' ').filter((c) => /^(h-|px-|border$|rounded-)/.test(c))
+  it('draws a lit lens in the idle one\'s box', () => {
+    expect(box(RESULTS_HEAD.lensOn)).toEqual(box(RESULTS_HEAD.lens))
+    expect(RESULTS_HEAD.lensOn).toContain(ACCENT.fill)
+  })
+  it('stands every pill at one height', () => {
+    for (const cls of [RESULTS_HEAD.lens, RESULTS_HEAD.lensOn, RESULTS_HEAD.limit, RESULTS_HEAD.add]) {
+      expect(cls.split(' ')).toContain('h-7')
+    }
   })
 })

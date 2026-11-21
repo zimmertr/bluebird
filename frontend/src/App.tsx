@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import type { Constraints } from './utils/constraints'
 import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
 import type { ScoreColouring } from './utils/resultFeatures'
@@ -833,6 +834,15 @@ export default function App() {
 
   // One set of props for the results' two halves at a desk: the column and
   // the chart under the map read the same report.
+  // The bounds as chips in the results header, and the pill that opens the
+  // Limits card there (record 0319), which no longer stands in the sentence.
+  // A phone has no cards: the pill opens the Controls sheet, where the
+  // Limits section stands with the rest.
+  const { setConstraints } = rankingKnobs
+  const removeLimit = useCallback((key: keyof Constraints) => setConstraints((c) => ({ ...c, [key]: null })), [setConstraints])
+  const openLimits = useCallback(() => (isDesktop ? setBarCard('metrics') : openDrawer()), [isDesktop, openDrawer])
+  const limits = useMemo(() => ({ constraints, onRemove: removeLimit, onAdd: openLimits }), [constraints, removeLimit, openLimits])
+
   const resultsSheetProps = {
     resultsView,
     showResults: showResults || demo !== null,
@@ -843,6 +853,7 @@ export default function App() {
     removals,
     analysisSeq,
     onLens: isDesktop || lens !== null ? rankingKnobs.setLens : undefined,
+    limits,
     sortBy: view.sortBy,
     sortDesc: view.sortDesc,
     forecastTimes,

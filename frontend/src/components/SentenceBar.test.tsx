@@ -47,8 +47,9 @@ describe('SentenceBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Peaks' }))
     fireEvent.click(screen.getByRole('button', { name: 'this view' }))
     fireEvent.click(screen.getByRole('button', { name: 'Sat 21 – Sun 22' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Limits' }))
-    expect(onCard.mock.calls.map((c) => c[0])).toEqual(['destinations', 'destinations', 'forecast', 'metrics'])
+    expect(onCard.mock.calls.map((c) => c[0])).toEqual(['destinations', 'destinations', 'forecast'])
+    // The limits stand with the results now (record 0319).
+    expect(screen.queryByRole('button', { name: 'Limits' })).toBeNull()
 
     onCard.mockClear()
     rerender(<SentenceBar {...props({ onCard, card: 'forecast' })} />)

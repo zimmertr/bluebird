@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import type { Constraints } from '../utils/constraints'
 import type { ChartCompare } from '../hooks/useChartCompare'
 import type { PresentedReport } from '../hooks/usePresentedReport'
 import type { Removals } from '../hooks/useRemovals'
@@ -46,7 +47,18 @@ interface ResultsSheetProps
   /** The displayed rows, the title's parts and the header sort (`usePresentedReport`). */
   report: Pick<
     PresentedReport,
-    'results' | 'windowTitle' | 'detailSort' | 'sortDetail' | 'pending' | 'rowCount' | 'emptyReason' | 'lens' | 'scoreHeadline' | 'scoreRange'
+    | 'results'
+    | 'windowTitle'
+    | 'detailSort'
+    | 'sortDetail'
+    | 'pending'
+    | 'rowCount'
+    | 'emptyReason'
+    | 'lens'
+    | 'scoreHeadline'
+    | 'scoreRange'
+    | 'bestHours'
+    | 'hiddenByLimits'
   >
   /** The removed rows and the ways back (`useRemovals`). */
   removals: Pick<Removals, 'removed' | 'removeResult' | 'restoreRemoved' | 'restoreAllRemoved'>
@@ -54,6 +66,12 @@ interface ResultsSheetProps
   analysisSeq: number
   /** Picks the lens the field ranks by, or none (record 0307). */
   onLens?: (lens: Lens | null) => void
+  /** The bounds as chips under the lenses, each with its ×, and the pill that opens the Limits card (record 0319). */
+  limits?: {
+    constraints: Constraints
+    onRemove: (key: keyof Constraints) => void
+    onAdd: () => void
+  }
 }
 
 /** What the sheet reads of `useResultsView`. */
@@ -196,13 +214,14 @@ export default function ResultsSheet(props: ResultsSheetProps) {
   removals,
   analysisSeq,
   onLens,
+  limits,
   sortBy,
   pointSample,
   layoutMotion = null,
   } = props
   const { showTable, layout, charts, tableView } = resultsView
   const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
-  const { results, windowTitle, pending, rowCount, lens, scoreHeadline } = report
+  const { results, windowTitle, pending, rowCount, lens, scoreHeadline, bestHours, hiddenByLimits } = report
   const { selectedModelRows, hiddenModels, toggleHiddenModel, showAllModels, compareWait, compareNotes } = charts
   const {
     allColumns,
@@ -346,6 +365,9 @@ export default function ResultsSheet(props: ResultsSheetProps) {
             lens={lens}
             onLens={onLens}
             scoreHeadline={scoreHeadline}
+            bestHours={bestHours}
+            modelLabel={tableView.analysisModelLabel}
+            limits={limits && { ...limits, hidden: hiddenByLimits }}
           />
           {/* A desk's column holds the table, or a lone chart's chips, and
               the chart stands under the map (`ResultsChartPane`); a phone's

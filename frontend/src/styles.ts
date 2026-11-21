@@ -3117,6 +3117,29 @@ export const MOTION = {
 export const PANEL_MS = 300
 
 /**
+ * The results header under the headline (record 0319): the lenses as pills,
+ * the forecast bounds as chips each with its ×, and the dashed pill that
+ * opens the Limits card, the prototype's look.
+ *
+ * A lens is a toggle that ranks the field: idle it is a ruled pill in the
+ * soft ink, lit it is the accent fill, the one open-or-on state every
+ * control here wears (record 0251), where the prototype tinted it. A limit
+ * is a recessed chip, the value in the strong ink, because it is a setting
+ * the reader made rather than a choice offered. The add pill is dashed so
+ * it reads as a slot for one more.
+ */
+export const RESULTS_HEAD = {
+  lenses: 'flex max-w-full gap-1.5 overflow-x-auto',
+  lens: `inline-flex h-7 flex-none items-center rounded-full border border-rule px-2.5 ${TEXT.control} font-semibold whitespace-nowrap text-ink-soft ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`,
+  lensOn: `inline-flex h-7 flex-none items-center rounded-full border border-transparent px-2.5 ${TEXT.control} font-semibold whitespace-nowrap ${ACCENT.fill} ${FOCUS_RING}`,
+  limits: 'flex flex-wrap items-center gap-1.5',
+  limit: `inline-flex h-7 items-center gap-1 ${RADIUS.control} bg-recessed pl-2.5 pr-1 ${TEXT.control} font-medium text-ink-strong`,
+  limitRemove: `inline-flex size-5 items-center justify-center ${RADIUS.control} text-ink-soft ${ACCENT.hoverText} ${FOCUS_RING}`,
+  add: `inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-rule px-2.5 ${TEXT.control} font-semibold text-ink-soft ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`,
+  hidden: `${TEXT.control} text-ink-soft`,
+} as const
+
+/**
  * The map's sentence bar at a desk (record 0309): the chips that say what a
  * Forecast will search and over which hours, and the card each opens, which
  * hangs under the bar the way the legend's card hangs under its chip, on the

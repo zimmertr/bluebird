@@ -1,10 +1,11 @@
-import { Fragment, type RefObject } from 'react'
+import { type ComponentProps, Fragment, type RefObject } from 'react'
 import type { CompareNote } from '../hooks/useChartCompare'
-import { resultsHeading } from '../metrics'
+import { resultsHeading, SEP } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
 import type { SortBy } from '../types'
 import { MenuButton } from './Menu'
 import LensChips from './LensChips'
+import LimitChips from './LimitChips'
 import type { Lens } from '../utils/score/lenses'
 import {
   IconChart,
@@ -89,6 +90,11 @@ interface ResultsBarProps {
   onLens?: (lens: Lens | null) => void
   /** The headline that stands for the title while a lens ranks the field. */
   scoreHeadline?: string | null
+  /** When the best hours mostly fall, and the model, beside the window (record 0319). */
+  bestHours?: string | null
+  modelLabel?: string | null
+  /** The bounds as chips under the lenses, and the pill that adds one (record 0319). Absent: no row. */
+  limits?: ComponentProps<typeof LimitChips>
 }
 
 /**
@@ -134,7 +140,13 @@ export default function ResultsBar({
   lens = null,
   onLens,
   scoreHeadline = null,
+  bestHours = null,
+  modelLabel = null,
+  limits,
 }: ResultsBarProps) {
+  // The line under the headline: the best hours, the window and the model,
+  // the prototype's subtitle (record 0319).
+  const subtitle = windowTitle === null ? null : [bestHours, windowTitle, modelLabel].filter((p) => p !== null).join(` ${SEP} `)
   // The bar's buttons, in order, each present under its own condition, so the
   // group can put one divider between each two that stand.
   //
@@ -256,9 +268,9 @@ export default function ResultsBar({
               ? scoreHeadline
               : resultsHeading(sortBy, sortDesc, pointSample, rowCount, pendingCount)}
           </span>
-          {windowTitle !== null && (
+          {subtitle !== null && (
             <span className={`${CAPTION_LIFTED} truncate`}>
-              {windowTitle}
+              {subtitle}
             </span>
           )}
           {/* The chevron rides the title row when the bar is folded so
@@ -363,6 +375,11 @@ export default function ResultsBar({
       {onLens && showResults && (
         <div className="mt-1.5 flex">
           <LensChips lens={lens} onLens={onLens} />
+        </div>
+      )}
+      {limits && showResults && (
+        <div className="mt-1.5">
+          <LimitChips {...limits} />
         </div>
       )}
       {/* One line under the bar, never beside a control in it: the

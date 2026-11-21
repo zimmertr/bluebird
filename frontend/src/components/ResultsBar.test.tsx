@@ -3,6 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
+import { NO_CONSTRAINTS } from '../utils/constraints'
 import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER, PANEL_EDGE } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
@@ -58,6 +59,25 @@ describe('ResultsBar', () => {
     render(<ResultsBar {...props({ sortDesc: true, rowCount: '5 of 5', windowTitle: 'Fri, Sep 25' })} />)
     expect(screen.getByText(/\(5 of 5\)$/).textContent).toMatch(/^Highest /)
     expect(screen.getByText('Fri, Sep 25')).toBeTruthy()
+  })
+
+  // The prototype's subtitle (record 0319): the best hours, the window and
+  // the model on one line.
+  it('runs the best hours, the window and the model together under the title', () => {
+    render(
+      <ResultsBar
+        {...props({ rowCount: '5 of 5', windowTitle: 'Fri, Sep 25', bestHours: 'Best hours mostly Fri, 1p–5p', modelLabel: 'GFS' })}
+      />,
+    )
+    expect(screen.getByText('Best hours mostly Fri, 1p–5p · Fri, Sep 25 · GFS')).toBeTruthy()
+  })
+
+  it('draws the limits row with the results, and none without them', () => {
+    const limits = { constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 }, onRemove: NOOP, onAdd: NOOP, hidden: 3 }
+    const { rerender } = render(<ResultsBar {...props({ limits })} />)
+    expect(screen.getByRole('group', { name: 'Limits' })).toBeTruthy()
+    rerender(<ResultsBar {...props({ limits, showResults: false })} />)
+    expect(screen.queryByRole('group', { name: 'Limits' })).toBeNull()
   })
 
   // Disabled rather than removed, so the two beside it do not move.

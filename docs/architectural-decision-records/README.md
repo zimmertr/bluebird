@@ -331,3 +331,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0316](0316-a-loop-is-drawn-in-one-stroke.md) | A loop is drawn in one stroke | 2026-11-21 | Proposed | `map/` guide: `drawRing.ts`; `utils/` guide: `drawGeometry.ts` |
 | [0317](0317-the-relief-leads-the-map.md) | The relief leads the map, in a look for each theme | 2026-11-21 | Proposed; supersedes part of 0243 | `map/` guide: `ground.ts`, `layerOrder.ts` |
 | [0318](0318-markers-are-dots-pills-and-one-label.md) | A marker is a dot, the top five are pills, and one name shows | 2026-11-21 | Proposed | `map/` guide: `resultsLayer.ts`, `mapStyles.ts`, `mapPopups.ts`; `hooks/` guide: `useHoverLink.ts` |
+| [0319](0319-results-header-carries-lenses-and-limits.md) | The results header carries the lenses and the limits | 2026-11-21 | Proposed | `components/` guide: `ResultsBar.tsx`, `LensChips.tsx`, `LimitChips.tsx`; `utils/` guide: `limitChips.ts`; `score/` guide: `headline.ts` |
