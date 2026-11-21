@@ -26,7 +26,8 @@ import type { ResultsLayout } from '../hooks/useResultsLayout'
 import type { TableView } from '../hooks/useTableView'
 import type { Timeline } from '../hooks/useTimeline'
 import type { SortBy } from '../types'
-import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
+import { LAYOUT_HOLD, MAP_EDGE, MAP_TOOL } from '../styles'
+import { IconLoop } from './icons'
 import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { NOUN, familyOf } from '../metrics'
 import { hourlyScale, rankedScale, scoreScale } from '../utils/colors'
@@ -55,7 +56,7 @@ export interface MapStageProps {
    */
   drawMode: Pick<
     DrawMode,
-    'drawing' | 'handleDrawUpdate' | 'drawPointCount' | 'finishDrawing' | 'handleCancelDrawing'
+    'drawing' | 'handleDrawUpdate' | 'drawPointCount' | 'finishDrawing' | 'handleCancelDrawing' | 'startDrawing'
   >
   /** A desk keeps Done and Cancel in the docked panel; a phone gets them on the map. */
   isDesktop: boolean
@@ -345,8 +346,25 @@ export default function MapStage({
       coverage={coverage}
       forcedOpen={layersForcedOpen}
       sheet={!isDesktop}
+      tool={isDesktop}
     />
   )
+  // A desk's tool column (record 0314): Layers, and drawing a ring, whose
+  // button reads pressed while one is drawn and a second press lets it go.
+  const tools = isDesktop ? (
+    <>
+      {layers}
+      <button
+        type="button"
+        aria-label="Draw polygon"
+        aria-pressed={drawMode.drawing}
+        onClick={drawMode.drawing ? drawMode.handleCancelDrawing : drawMode.startDrawing}
+        className={MAP_TOOL.draw}
+      >
+        <IconLoop />
+      </button>
+    </>
+  ) : null
   const legendChip = (
     <MapLegend
       sections={legend}
@@ -493,7 +511,7 @@ export default function MapStage({
         onOpenControls={onOpenControls}
         onCloseControls={onCloseControls}
         controlsSummary={controlsSummary}
-        layers={layers}
+        layers={isDesktop ? null : layers}
         legend={legendChip}
         covered={layout.overMapRows}
         bar={bar}
@@ -501,7 +519,7 @@ export default function MapStage({
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
-      {isDesktop && <MapCorner onSlots={setCornerSlots} links={cornerLinks} />}
+      {isDesktop && <MapCorner onSlots={setCornerSlots} links={cornerLinks} tools={tools} />}
       {/* The foot of a phone's map: the Analyze button (record 0135) with
           the message badge at its corner (record 0208). */}
       {!isDesktop && (

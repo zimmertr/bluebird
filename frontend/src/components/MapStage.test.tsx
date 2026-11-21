@@ -27,7 +27,9 @@ vi.mock('./MapLegend', async (original) => ({
   ),
 }))
 vi.mock('./LayersPopover', () => ({
-  default: (props: { sheet: boolean }) => <div data-testid="layers" data-sheet={String(props.sheet)} />,
+  default: (props: { sheet: boolean; tool?: boolean }) => (
+    <div data-testid="layers" data-sheet={String(props.sheet)} data-tool={String(Boolean(props.tool))} />
+  ),
 }))
 vi.mock('./TimelineTransport', () => ({
   default: (props: { liftPx: number }) => <div data-testid="transport" data-lift={String(props.liftPx)} />,
@@ -162,6 +164,7 @@ const DRAW: MapStageProps['drawMode'] = {
   drawPointCount: 0,
   finishDrawing: NOOP,
   handleCancelDrawing: NOOP,
+  startDrawing: NOOP,
 }
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP, removeResult: NOOP }
 const MESSAGES = panelMessages()
@@ -280,16 +283,31 @@ describe('MapStage', () => {
     }
   })
 
-  it('hands the rows the Legend and Layers chips at both widths', () => {
-    const { rerender } = render(<MapStage {...props()} />)
-    for (const desk of [true, false]) {
-      rerender(<MapStage {...props({ isDesktop: desk, sidebarOpen: desk })} />)
-      const rows = screen.getByTestId('rows')
-      expect(rows.dataset.desk).toBe(String(desk))
-      const layers = screen.getByTestId('layers')
-      const legend = screen.getByTestId('legend')
-      expect(rows.contains(layers) && rows.contains(legend)).toBe(true)
-    }
+  // A phone's rows carry Legend and Layers; a desk's carry Legend, and its
+  // Layers stands in the map's tool column with the draw button (record 0314).
+  it('hands the rows the Legend chip at both widths, and Layers to a desk\'s tool column', () => {
+    const { container, rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
+    const rows = () => screen.getByTestId('rows')
+    expect(rows().contains(screen.getByTestId('layers')) && rows().contains(screen.getByTestId('legend'))).toBe(true)
+    rerender(<MapStage {...props()} />)
+    expect(rows().contains(screen.getByTestId('legend'))).toBe(true)
+    const corner = container.querySelector('.map-corner')!
+    expect(corner.contains(screen.getByTestId('layers'))).toBe(true)
+    expect(screen.getByTestId('layers').dataset.tool).toBe('true')
+  })
+
+  it('draws a ring from the desk\'s tool column, and a second press lets it go', async () => {
+    const startDrawing = vi.fn()
+    const handleCancelDrawing = vi.fn()
+    const { user, rerender } = render(<MapStage {...props({ drawMode: { ...DRAW, startDrawing, handleCancelDrawing } })} />)
+    const draw = screen.getByRole('button', { name: 'Draw polygon' })
+    expect(draw.getAttribute('aria-pressed')).toBe('false')
+    await user.click(draw)
+    expect(startDrawing).toHaveBeenCalledTimes(1)
+    rerender(<MapStage {...props({ drawMode: { ...DRAW, drawing: true, startDrawing, handleCancelDrawing } })} />)
+    expect(screen.getByRole('button', { name: 'Draw polygon' }).getAttribute('aria-pressed')).toBe('true')
+    await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
+    expect(handleCancelDrawing).toHaveBeenCalledTimes(1)
   })
 
   it('draws the player only while something spans time', () => {

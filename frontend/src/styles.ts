@@ -1998,6 +1998,26 @@ export const MAP_SLOT = {
  * draw (`SCALE_MAX_WIDTH_PX`), the bar flush at its right, so the credits
  * stay put while the bar grows and shrinks with the zoom.
  */
+/**
+ * A desk's map tools (record 0314): the column down the map's right edge
+ * that the prototype draws, Layers and drawing a ring over the compass, the
+ * 3D button, the locate button and the zoom pair. `menu` is the Layers card,
+ * opened to the column's left and growing up from the button, since the
+ * column stands at the map's foot; it scrolls inside the map's height.
+ * `draw` is the drawing button, a map button that wears the accent fill
+ * while a ring is being drawn, as the 3D button does while it is on.
+ */
+export const MAP_TOOL = {
+  tools: 'pointer-events-auto flex flex-col items-end gap-1.5 touch:gap-3',
+  // Laid over `MAP_CHIP_MENU`'s place under a chip, which the menu still
+  // wears, so the chip's offsets are cleared here rather than forked.
+  menu: 'left-auto! top-auto! mt-0! right-full bottom-0 mr-2 max-h-[calc(100cqh_-_6rem)] overflow-y-auto overscroll-contain',
+  draw:
+    `size-8 flex items-center justify-center bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} ` +
+    `backdrop-blur-sm text-ink-strong transition-colors ${ACCENT.hoverText} ${FOCUS_RING} ` +
+    'aria-pressed:bg-accent aria-pressed:text-on-fill aria-pressed:border-accent',
+} as const
+
 export const MAP_CORNER = {
   box: `absolute right-0 bottom-[var(--map-corner-lift,0px)] flex flex-col items-end gap-2.5 pointer-events-none ${LAYER.base}`,
   stack: 'map-corner mr-6 flex flex-col items-end gap-1.5 touch:gap-3',
@@ -3589,6 +3609,14 @@ const TRIGGER_FIELD = `${FIELD_LOOK} ${TAP.height} appearance-none pr-6 relative
 export const MENU_TRIGGER = {
   chip: CHIP_FACE,
   /**
+   * A button of a desk's map tool column (record 0314), Layers among them:
+   * the map buttons' round face around a glyph, with the one trigger's
+   * states, so it lights while its menu is out as a chip does.
+   */
+  tool:
+    `size-8 flex flex-shrink-0 items-center justify-center bg-floating/95 border border-edge ${RADIUS.pill} ` +
+    `${ELEVATION.raised} backdrop-blur-sm text-ink-strong ${TRIGGER_STATE}`,
+  /**
    * A phrase of the map's sentence bar (record 0313): its words in the strong
    * ink, underlined in the rule so they read as choices inside a sentence,
    * on no face of their own because the bar is the face, and the one
@@ -3642,6 +3670,7 @@ export const MENU_TRIGGER = {
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
+  tool: '',
   slot: '-mr-0.5',
   bar: '-mr-0.5',
   field: ICON_ADORNMENT,

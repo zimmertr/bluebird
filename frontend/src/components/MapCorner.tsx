@@ -1,5 +1,5 @@
 import { type ReactNode, useLayoutEffect, useRef } from 'react'
-import { MAP_CORNER } from '../styles'
+import { MAP_CORNER, MAP_TOOL } from '../styles'
 import type { CornerSlots } from '../map/controls'
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   onSlots: (slots: CornerSlots | null) => void
   /** The document links, which lead the credit line where the sentence bar took the panel's footer (record 0308). */
   links?: ReactNode
+  /** The map tools over the library's buttons: Layers and drawing a ring (record 0314). */
+  tools?: ReactNode
 }
 
 /**
@@ -21,7 +23,7 @@ interface Props {
  * Reported together, once, because the six mount and go together, so the map
  * moves its controls in and out of the corner in one pass.
  */
-export default function MapCorner({ onSlots, links }: Props) {
+export default function MapCorner({ onSlots, links, tools }: Props) {
   const compass = useRef<HTMLDivElement>(null)
   const terrain = useRef<HTMLDivElement>(null)
   const locate = useRef<HTMLDivElement>(null)
@@ -46,6 +48,7 @@ export default function MapCorner({ onSlots, links }: Props) {
       {/* A popup keeps clear of the column and the line, as it does of the
           rows, rather than of the box, which is mostly map. */}
       <div data-map-overlay="" className={MAP_CORNER.stack}>
+        {tools && <div className={MAP_TOOL.tools}>{tools}</div>}
         <div ref={compass} className={MAP_CORNER.slot} />
         <div ref={terrain} className={MAP_CORNER.slot} />
         <div ref={locate} className={MAP_CORNER.slot} />

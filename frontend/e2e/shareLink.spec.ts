@@ -161,7 +161,7 @@ test('a link reopens at its camera, with its removals and its table order', asyn
 // loaded. Escape then cancels draw mode and leaves no ring behind.
 async function waitForMapLoad(page: Page) {
   // In the Where card at a desk (record 0308), shut again once drawing.
-  await inWhere(page, () => page.getByRole('button', { name: 'Draw polygon' }).click())
+  await inWhere(page, () => page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click())
   const counted = message(page, 'Add at least 2 more points')
   await expect(async () => {
     if ((await counted.count()) === 0) await page.locator('.maplibregl-canvas').click({ position: { x: 520, y: 260 } })

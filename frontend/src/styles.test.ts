@@ -4696,9 +4696,10 @@ describe('the one menu', () => {
   // results bar's group. Everything else is the one menu. The segment and the
   // square came with the chart's picker (#499), and the header's round button
   // with the theme menu (#843), each the look of what it stands beside, and
-  // the sentence bar's phrase with the bar (record 0313).
+  // the sentence bar's phrase with the bar (record 0313), and the map tool
+  // column's round button with that column (record 0314).
   it('keeps the trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'slot', 'square'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'slot', 'square', 'tool'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())

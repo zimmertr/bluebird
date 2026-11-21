@@ -459,6 +459,44 @@ export function IconSearch({ className }: IconProps): ReactNode {
   )
 }
 
+/** Layers, the map tool column's menu of overlays (record 0314): two stacked sheets, as the prototype draws it. */
+export function IconLayers({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <path d="M12 3l9 5-9 5-9-5 9-5z" />
+      <path d="M3 13l9 5 9-5" />
+    </svg>
+  )
+}
+
+/** Drawing a ring on the map, from the tool column (record 0314): a loop of line with its starting point. */
+export function IconLoop({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <path d="M6.5 16.5c-3-3.5-1.5-10 5-10.5s9 3.5 7.5 7.5-6.5 5.5-9.5 4.5" />
+      <circle cx="7" cy="18" r="1.6" />
+    </svg>
+  )
+}
+
 /**
  * The mark on a link that leaves the app, in the results table.
  *

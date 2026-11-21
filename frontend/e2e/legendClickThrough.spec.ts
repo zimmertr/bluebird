@@ -37,7 +37,7 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
   await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   // In the Where card at a desk (record 0308), shut again once drawing.
-  await inWhere(page, () => page.getByRole('button', { name: 'Draw polygon' }).click())
+  await inWhere(page, () => page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click())
   // The panel slides away rather than vanishing, so the point is read once
   // nothing but the map or the legend stands at it.
   await expect.poll(async () => (await probe(page)).hit).toBe('map')

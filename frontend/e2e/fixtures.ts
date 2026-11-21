@@ -370,7 +370,7 @@ export async function inWhere(page: Page, act: () => Promise<void>) {
 
 export async function drawRing(page: Page) {
   await inWhere(page, async () => {
-    await page.getByRole('button', { name: 'Draw polygon' }).click()
+    await page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click()
     await placeVertices(page, [
       [520, 260],
       [760, 300],
@@ -385,7 +385,7 @@ export async function drawRing(page: Page) {
 export async function redrawRing(page: Page, vertices: readonly [number, number][]) {
   await inWhere(page, async () => {
     await page.getByRole('button', { name: 'Clear', exact: true }).last().click()
-    await page.getByRole('button', { name: 'Draw polygon' }).click()
+    await page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click()
     await placeVertices(page, vertices)
   })
 }

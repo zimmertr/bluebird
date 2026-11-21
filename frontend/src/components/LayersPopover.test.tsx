@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { ACCENT, CHOICE_INPUT, LAYER_ROW, MAP_CHIP_MENU, MENU, MENU_CHEVRON, MENU_GROUP, SHEET_ASIDE } from '../styles'
+import { ACCENT, CHOICE_INPUT, LAYER_ROW, MAP_CHIP_MENU, MAP_TOOL, MENU, MENU_CHEVRON, MENU_GROUP, MENU_TRIGGER, SHEET_ASIDE } from '../styles'
 import { IconChevron } from './icons'
 import { DEFAULT_BASE_OPACITY } from '../utils/baseMapOpacity'
 import type { ViewBounds } from '../utils/layerCoverage'
@@ -116,6 +116,17 @@ describe('LayersPopover', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Layers' }))
+  })
+
+  // In a desk's tool column it is a round button named Layers, and its card
+  // opens to the button's left (record 0314).
+  it('is a round named button in the tool column, with its card to the left', async () => {
+    const { user } = render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered tool />)
+    const button = screen.getByRole('button', { name: 'Layers' })
+    expect(button.className).toBe(MENU_TRIGGER.tool)
+    expect(button.textContent).toBe('')
+    await user.click(button)
+    expect(document.querySelector('[data-tour="layers-menu"]')!.className).toContain(MAP_TOOL.menu)
   })
 
   it('opens on the button and closes on Escape and on a press outside', () => {

@@ -55,7 +55,7 @@ async function analyzed(page: Page, query = '') {
   await expectRanked(page)
 }
 
-test('the Layers chip and the results bar open their menus under themselves, lit', async ({ page }) => {
+test('the Layers tool and the results bar open their menus beside and under themselves, lit', async ({ page }) => {
   await analyzed(page)
 
   const layers = page.getByRole('button', { name: 'Layers', exact: true })
@@ -63,8 +63,12 @@ test('the Layers chip and the results bar open their menus under themselves, lit
   await layers.click()
   await expect(layers).toHaveAttribute('aria-expanded', 'true')
   const layersMenu = page.locator('[data-tour="layers-menu"]')
+  // In the map's tool column the card opens to the button's left, its foot
+  // on the button's, because the column stands at the map's foot (record 0314).
   const chip = await rect(layers)
-  expect(await standsOff(chip, await rect(layersMenu), 'below')).toBe('left')
+  const menuBox = await rect(layersMenu)
+  near(chip.left - menuBox.right, 8)
+  near(menuBox.bottom - chip.bottom, 0)
   await expect.poll(() => fillOf(layers)).not.toBe(shutFill)
   const litFill = await fillOf(layers)
   await layers.click()

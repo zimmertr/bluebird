@@ -5,6 +5,7 @@ import { useShiftRange } from '../hooks/useShiftRange'
 import { shiftHeld } from '../utils/rangeSelect'
 import BottomSheet from './BottomSheet'
 import { MenuButton } from './Menu'
+import { IconLayers } from './icons'
 import {
   ACCENT,
   CHIP_CARD_W,
@@ -13,6 +14,7 @@ import {
   LAYER_GRID,
   LAYER_ROW,
   MAP_CHIP_MENU,
+  MAP_TOOL,
   MENU,
   MENU_GROUP,
   SHEET_ASIDE,
@@ -134,6 +136,8 @@ interface LayersPopoverProps {
    * stands under the chip (#714). The chip is the same at both.
    */
   sheet?: boolean
+  /** A desk's tool column (record 0314): a round button with its card opened to the left. */
+  tool?: boolean
 }
 
 /**
@@ -150,6 +154,7 @@ export default function LayersPopover({
   coverage,
   forcedOpen = false,
   sheet = false,
+  tool = false,
 }: LayersPopoverProps) {
   const {
     showWildfires,
@@ -542,7 +547,20 @@ export default function LayersPopover({
   // card is absolute, so the chip's box is the row member's. The tutorial
   // does not hold the sheet open: a modal sheet would take the keyboard from
   // the tour's own card, so on a phone its Layers step points at the chip.
-  const button = (
+  // In a desk's tool column it is a round button named by its glyph (record 0314).
+  const button = tool ? (
+    <MenuButton
+      ref={buttonRef}
+      shape="tool"
+      open={open}
+      chevron={false}
+      onClick={() => setLayersOpen((o) => !o)}
+      data-tour="layers"
+      aria-label="Layers"
+    >
+      <IconLayers />
+    </MenuButton>
+  ) : (
     <MenuButton
       ref={buttonRef}
       shape="chip"
@@ -584,7 +602,7 @@ export default function LayersPopover({
         <div
           ref={cardRef}
           data-state={closing ? 'closing' : 'open'}
-          className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}`}
+          className={`${SURFACE_CHIP_CARD.menu} ${MAP_CHIP_MENU} ${CHIP_CARD_W.menu}${tool ? ` ${MAP_TOOL.menu}` : ''}`}
           data-tour="layers-menu"
         >
           {rows}
