@@ -44,9 +44,10 @@ from psycopg import AsyncConnection
 from app import db
 from app.db import refresh
 from app.limits import ARCHIVE_DATA_DAYS
-from app.services import places, snodas
+# `osm` before `places`: the places module's own imports run the osm package,
+# which imports places back, so places loaded first is half built when it does.
+from app.services import osm, places, snodas
 from app.services.http import HEADERS
-from app.services.osm.enrich import CUSTOM_MATCH_RADIUS_M
 
 log = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ PUBLISH_GRACE_DAYS = 2
 # is 5 m from OSM's node and Mount Deception's 28 m, each across a cell edge
 # from it. The reach a pasted point is matched to its summit by, so a row the
 # app names after a peak reads that peak's snow.
-NEAR_PLACE_M = CUSTOM_MATCH_RADIUS_M
+NEAR_PLACE_M = osm.CUSTOM_MATCH_RADIUS_M
 
 _SAMPLE = struct.Struct(">h")
 
