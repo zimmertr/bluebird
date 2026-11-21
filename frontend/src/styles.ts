@@ -3155,6 +3155,21 @@ export const RESULTS_PANE = {
 } as const
 
 /**
+ * A desk's results as a column down the map's right edge (the from-scratch
+ * shell): the results bar on top and the table under it, the full height of
+ * the window, edged on its left by the panel's rule. The chart stands under
+ * the map instead, where it keeps the map's width. While a chart stands
+ * alone the column's body holds its series chips (`chips`), which then fill
+ * the column rather than scrolling in two rows. `expand` is the round button
+ * on the map's right edge that brings a collapsed column back.
+ */
+export const RESULTS_COLUMN = {
+  column: `flex w-[clamp(26rem,34vw,36rem)] flex-shrink-0 flex-col border-l ${PANEL_EDGE} bg-panel`,
+  chips: `${SCROLL_BARS} flex min-h-0 flex-1 flex-wrap content-start gap-1.5 overflow-y-auto px-3 py-2`,
+  expand: `${MAP_ROUND_BUTTON} pointer-events-auto absolute right-3 top-3 ${LAYER.base} flex items-center justify-center`,
+} as const
+
+/**
  * The chart-only legend: one chip per charted line, under the plot in Chart
  * alone. At a desk it is a results pane of its own between the chart's and
  * the table's, held to the foot like the table, so Chart to Both shuts it

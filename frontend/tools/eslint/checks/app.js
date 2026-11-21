@@ -619,14 +619,17 @@ export const APP = [
     ],
   },
   {
-    // The phone sheet is a second branch beside the desktop panel rather than
-    // an edit to it. Both grips that resize against the map take the drag
-    // floor; the chart and table divider keeps the pair's sum and takes none.
-    // The camera reads the default heights, so it does not move under a drag.
+    // The phone sheet is a second branch beside the desk's results rather
+    // than an edit to them. A desk's are the column down the map's right edge
+    // (the from-scratch shell), drawn by its one role, so its width and edge
+    // are decided in styles.ts and not at the call site.
     name: 'app-docked-panels',
     files: ['src/components/ResultsSheet.tsx'],
     require: [
-      { selector: 'Literal[value="flex flex-shrink-0 flex-col bg-panel"]', message: 'Keep the desktop results panel classes verbatim.' },
+      {
+        selector: 'MemberExpression[object.name="RESULTS_COLUMN"][property.name="column"]',
+        message: 'Draw the desk results as the column, RESULTS_COLUMN.column.',
+      },
     ],
   },
   {

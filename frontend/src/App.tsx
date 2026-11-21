@@ -23,7 +23,7 @@ import { geoKey } from './utils/points'
 import type { CameraView } from './utils/mapView'
 import SkipLink from './components/SkipLink'
 import MapStage from './components/MapStage'
-import ResultsSheet from './components/ResultsSheet'
+import ResultsSheet, { ResultsChartPane, ResultsExpand } from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
 
 // The tutorial's overlay is a chunk of its own, fetched on the first press
@@ -831,6 +831,31 @@ export default function App() {
   }, [startTour, tourWaits])
 
 
+  // One set of props for the results' two halves at a desk: the column and
+  // the chart under the map read the same report.
+  const resultsSheetProps = {
+    resultsView,
+    showResults: showResults || demo !== null,
+    chartTooltipIndex: tour.chartTooltipIndex,
+    chartTour: tour.chartTour,
+    isDesktop,
+    report,
+    removals,
+    analysisSeq,
+    onLens: isDesktop || lens !== null ? rankingKnobs.setLens : undefined,
+    sortBy: view.sortBy,
+    sortDesc: view.sortDesc,
+    forecastTimes,
+    playbackIndex,
+    timelineAxes,
+    movePlayheadTo,
+    fire,
+    closure,
+    pendingHeights: waitingHeights,
+    modelId: analyzed?.forecastModel ?? forecastModel,
+    layoutMotion,
+  }
+
   const renderDrawer = (bar?: { card: PanelSection | null; onCardClose: () => void }) => (
     <AppDrawer
       open={sidebarOpen}
@@ -969,8 +994,11 @@ export default function App() {
         // Focusable by script alone, for the skip link, and drawing no ring:
         // the landmark is where the keyboard lands, not a control.
         tabIndex={-1}
-        className={`flex-1 flex flex-col overflow-hidden min-w-0 focus:outline-none${isDesktop ? '' : ' relative'}`}
+        // A desk is a row: the map and its chart down the left, the results'
+        // column down the right (the from-scratch shell).
+        className={`flex-1 flex overflow-hidden min-w-0 focus:outline-none ${isDesktop ? 'flex-row' : 'flex-col relative'}`}
       >
+        <div className={isDesktop ? 'relative flex min-w-0 flex-1 flex-col' : 'contents'}>
         <MapStage
           mapRef={mapRef}
           drawMode={drawMode}
@@ -1021,29 +1049,11 @@ export default function App() {
           onCameraMove={onCameraMove}
         />
 
-        <ResultsSheet
-          resultsView={resultsView}
-          showResults={showResults || demo !== null}
-          chartTooltipIndex={tour.chartTooltipIndex}
-          chartTour={tour.chartTour}
-          isDesktop={isDesktop}
-          report={report}
-          removals={removals}
-          analysisSeq={analysisSeq}
-          onLens={isDesktop || lens !== null ? rankingKnobs.setLens : undefined}
-          sortBy={view.sortBy}
-          sortDesc={view.sortDesc}
-          pointSample={pointSample}
-          forecastTimes={forecastTimes}
-          playbackIndex={playbackIndex}
-          timelineAxes={timelineAxes}
-          movePlayheadTo={movePlayheadTo}
-          fire={fire}
-          closure={closure}
-          pendingHeights={waitingHeights}
-          modelId={analyzed?.forecastModel ?? forecastModel}
-          layoutMotion={layoutMotion}
-        />
+        <ResultsChartPane {...resultsSheetProps} pointSample={pointSample} />
+        <ResultsExpand isDesktop={isDesktop} layout={layout} />
+        </div>
+
+        <ResultsSheet {...resultsSheetProps} pointSample={pointSample} />
       </main>
       </div>
     </div>

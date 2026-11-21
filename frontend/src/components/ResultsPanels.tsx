@@ -21,6 +21,7 @@ import {
   MOTION,
   MUTED,
   RADIUS,
+  RESULTS_COLUMN,
   RESULTS_PANE,
   SCROLL_BARS,
   SCROLL_SHADOW,
@@ -125,6 +126,13 @@ export interface ResultsPanelsProps {
    */
   panesMove?: boolean
   /**
+   * Which panes this element draws. A phone draws them all in its sheet; a
+   * desk splits them, the chart under the map (`chart`) and the table, or a
+   * lone chart's series chips, in the column down its right edge (`column`),
+   * where the table fills the column rather than taking a height of its own.
+   */
+  part?: 'all' | 'chart' | 'column'
+  /**
    * Whether the results are collapsed to their bar, which shuts both panes.
    * A phone does not render the panels at all while collapsed.
    */
@@ -178,6 +186,7 @@ export default function ResultsPanels({
   sortDesc,
   chartPhone,
   panesMove = false,
+  part = 'all',
   collapsed = false,
   layoutMotion = null,
   pointSample,
@@ -251,13 +260,7 @@ export default function ResultsPanels({
   // (#850). In the chart's box it would take its height from the plot, and
   // every press that brought it or took it away would redraw the chart once
   // the move had ended.
-  const legendStrip =
-    legend.length > 0 ? (
-      // Measured at a desk (`legendRef`), whose Chart takes it out of the
-      // room a press hands the chart (#850).
-      <div ref={legendRef} className={CHART_LEGEND.strip}>
-        <div className={CHART_LEGEND.chips}>
-          {legend.map(({ key, row, suffix }) => {
+  const legendChips = legend.map(({ key, row, suffix }) => {
             const plotted = chart.isSelected(row)
             return (
               <span
@@ -292,11 +295,25 @@ export default function ResultsPanels({
                 </button>
               </span>
             )
-          })}
-        </div>
+          })
+  const legendStrip =
+    legend.length > 0 ? (
+      // Measured at a desk (`legendRef`), whose Chart takes it out of the
+      // room a press hands the chart (#850).
+      <div ref={legendRef} className={CHART_LEGEND.strip}>
+        <div className={CHART_LEGEND.chips}>{legendChips}</div>
       </div>
     ) : null
   const legendShown = !collapsed && resultsMode === 'chart' && legendStrip !== null
+  const column = part === 'column'
+  // In the column a lone chart's chips take the table's room, so they fill
+  // the column's height rather than scrolling in their two rows.
+  const columnChips =
+    column && legend.length > 0 ? (
+      <div ref={legendRef} className={RESULTS_COLUMN.chips}>
+        {legendChips}
+      </div>
+    ) : null
   const legendPane = usePaneMotion(legendShown, 0, panesMove)
   // The comparison's controls, which the chart draws under its plot. An
   // element is a prop like any other, and one built in the render would be a
@@ -311,6 +328,7 @@ export default function ResultsPanels({
   )
   return (
     <>
+      {!column && (
       <div className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
         <div inert={!chartShown} className={`${RESULTS_PANE.top} ${chartHold}`}>
           {chartPane.mounted && (
@@ -377,30 +395,38 @@ export default function ResultsPanels({
           )}
         </div>
       </div>
-      {panesMove && (
+      )}
+      {panesMove && part === 'all' && (
         <div className={`${RESULTS_PANE.frame} ${legendPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
           <div inert={!legendShown} className={`${RESULTS_PANE.foot} ${chartHold}`}>
             {legendPane.mounted && <Held holding={!legendShown}>{legendStrip}</Held>}
           </div>
         </div>
       )}
+      {/* The column's body in a lone chart: its series chips, in the
+          table's place. */}
+      {column && legendShown && columnChips}
       {/* At a desk the table's frame stands at the results' foot, so while a
           press holds their height and the chart's pane opens over it, the
           room between them closes from above (#850). */}
+      {part !== 'chart' && (
       <div
         className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion} ${
-          panesMove ? 'mt-auto' : ''
+          column ? 'min-h-0 flex-1' : panesMove ? 'mt-auto' : ''
         }`}
       >
         <div inert={!tableShown} className={`${RESULTS_PANE.foot} ${tableHold}`}>
           {tablePane.mounted && (
             <>
-              <ResizeGrip
-                onReset={tableGrip.onReset}
-                onDragStart={tableGrip.onDragStart}
-                onDrag={tableGrip.onDrag}
-                onDragEnd={tableGrip.onDragEnd}
-              />
+              {/* The column's table takes the column's height: nothing to drag. */}
+              {!column && (
+                <ResizeGrip
+                  onReset={tableGrip.onReset}
+                  onDragStart={tableGrip.onDragStart}
+                  onDrag={tableGrip.onDrag}
+                  onDragEnd={tableGrip.onDragEnd}
+                />
+              )}
               {/* `relative` so this box is the containing block of the rows'
                   screen-reader notes: `SR_ONLY` positions them absolutely, and
                   with no positioned ancestor nearer than the app's root they
@@ -411,8 +437,11 @@ export default function ResultsPanels({
                   2026-10-06). */}
               <div
                 ref={tableScrollRef}
-                className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} flex-shrink-0 ${layer}`}
-                style={{ height: `${tablePane.px}px` }}
+                className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} ${
+                  column ? 'flex-1' : 'flex-shrink-0'
+                } ${layer}`}
+                // The column's table fills it; elsewhere a table takes its pane's height.
+                style={column ? undefined : { height: `${tablePane.px}px` }}
               >
                 <Held holding={!tableShown}>
                   <ResultsTable
@@ -455,6 +484,7 @@ export default function ResultsPanels({
           )}
         </div>
       </div>
+      )}
     </>
   )
 }

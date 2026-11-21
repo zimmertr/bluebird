@@ -8,11 +8,12 @@ import ColumnsPicker from './ColumnsPicker'
 import ModelsPicker from './ModelsPicker'
 import RemovedPicker from './RemovedPicker'
 import ResultsBar from './ResultsBar'
+import { IconChevron } from './icons'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
 import type { Lens } from '../utils/score/lenses'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, LAYOUT_HOLD, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
+import { LAYER, LAYOUT_HOLD, RESULTS_COLUMN, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
   extends Omit<
@@ -103,6 +104,73 @@ interface ResultsSheetView {
 }
 
 /**
+ * What the panels are handed, wherever they stand: the sheet's own element
+ * and a desk's chart pane under the map read it alike, so the two halves of
+ * one report cannot be handed two different reports.
+ */
+function panelsProps(p: ResultsSheetProps): Omit<ResultsPanelsProps, 'part'> {
+  const { resultsView, report, removals, isDesktop } = p
+  return {
+    layout: resultsView.layout,
+    charts: resultsView.charts,
+    chartTooltipIndex: p.chartTooltipIndex ?? null,
+    chartTour: p.chartTour,
+    tableView: resultsView.tableView,
+    report,
+    pending: report.pending,
+    removeResult: removals.removeResult,
+    sortBy: p.sortBy,
+    sortDesc: p.sortDesc,
+    chartPhone: !isDesktop,
+    panesMove: isDesktop,
+    collapsed: resultsView.layout.resultsCollapsed,
+    layoutMotion: p.layoutMotion ?? null,
+    pointSample: p.pointSample,
+    forecastTimes: p.forecastTimes,
+    playbackIndex: p.playbackIndex,
+    timelineAxes: p.timelineAxes,
+    movePlayheadTo: p.movePlayheadTo,
+    fire: p.fire,
+    closure: p.closure,
+    pendingHeights: p.pendingHeights,
+    modelId: p.modelId,
+    onRemovePending: resultsView.onRemovePending,
+    onFocusResult: resultsView.onFocusResult,
+    onFocusPending: resultsView.onFocusPending,
+  }
+}
+
+/**
+ * A desk's chart under the map (the from-scratch shell): the chart's pane of
+ * the panels, while the table stands in the column down the map's right edge
+ * (`ResultsSheet`). Nothing on a phone, whose sheet draws every pane.
+ */
+export function ResultsChartPane(props: ResultsSheetProps) {
+  if (!props.isDesktop || !props.resultsView.showTable) return null
+  return <ResultsPanels {...panelsProps(props)} part="chart" />
+}
+
+/**
+ * The round button on the map's right edge that brings a desk's collapsed
+ * column back: the bar's own chevron, pointing at where the column comes in
+ * from, under the bar chevron's own name.
+ */
+export function ResultsExpand({
+  isDesktop,
+  layout,
+}: {
+  isDesktop: boolean
+  layout: Pick<ResultsLayout, 'resultsCollapsed' | 'toggleCollapsed'>
+}) {
+  if (!isDesktop || !layout.resultsCollapsed) return null
+  return (
+    <button type="button" aria-label="Expand results" onClick={layout.toggleCollapsed} className={RESULTS_COLUMN.expand}>
+      <IconChevron up className="-rotate-90" />
+    </button>
+  )
+}
+
+/**
  * The results: the bar, the chart and table panels, and the three popovers
  * the bar opens (#409 cut them out of `App.tsx`).
  *
@@ -114,9 +182,8 @@ interface ResultsSheetView {
  * The popovers render whether the sheet does or not, as they did beside it:
  * each is closed until its trigger, which only the sheet draws, opens it.
  */
-export default function ResultsSheet({
-  chartTooltipIndex = null,
-  chartTour,
+export default function ResultsSheet(props: ResultsSheetProps) {
+  const {
   resultsView,
   showResults,
   isDesktop,
@@ -127,17 +194,9 @@ export default function ResultsSheet({
   onLens,
   sortBy,
   pointSample,
-  forecastTimes,
-  playbackIndex,
-  timelineAxes,
-  movePlayheadTo,
-  fire,
-  closure,
-  pendingHeights,
-  modelId,
   layoutMotion = null,
-}: ResultsSheetProps) {
-  const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
+  } = props
+  const { showTable, layout, charts, tableView } = resultsView
   const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
   const { results, windowTitle, pending, rowCount, lens, scoreHeadline } = report
   const { selectedModelRows, hiddenModels, toggleHiddenModel, showAllModels, compareWait, compareNotes } = charts
@@ -150,7 +209,7 @@ export default function ResultsSheet({
     handleColumnMove,
     handleDownloadCsv,
   } = tableView
-  const { removed, removeResult, restoreRemoved, restoreAllRemoved } = removals
+  const { removed, restoreRemoved, restoreAllRemoved } = removals
 
   // Each popover's open flag and its trigger. Nothing outside the sheet opens
   // one, so nothing outside it holds them.
@@ -207,19 +266,18 @@ export default function ResultsSheet({
       <div role="status" className={SR_ONLY}>
         {announced.text}
       </div>
-      {showTable && (
+      {/* A desk's column goes with the chevron, and the round button on
+          the map's edge brings it back (`ResultsExpand`). */}
+      {showTable && !(isDesktop && resultsCollapsed) && (
         <div
           ref={sheetRef}
           data-tour="results"
-          style={isDesktop && layout.roomHoldPx !== null ? { height: `${layout.roomHoldPx}px` } : undefined}
           className={
             isDesktop
-              ? // On a layer of its own while a desk's panel moves (record 0216).
-                'flex flex-shrink-0 flex-col bg-panel' +
-                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '') +
-                // A press's panes move inside the height the results stood
-                // at, so the map holds still (#850).
-                (layout.roomHoldPx !== null ? ' overflow-hidden' : '')
+              ? // The column down the map's right edge, on a layer of its own
+                // while it moves (record 0216).
+                RESULTS_COLUMN.column +
+                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '')
               : // The sheet's surface runs under a phone's home indicator and
                 // its grip and header stand above it (record 0145). Never
                 // taller than the map: at full screen (#837) its panels are
@@ -265,38 +323,11 @@ export default function ResultsSheet({
             onLens={onLens}
             scoreHeadline={scoreHeadline}
           />
-          {/* A desk keeps the panels while collapsed, so the chevron shuts
-              and opens their frames at the panel's speed (record 0202); a
-              phone's sheet drops them. */}
+          {/* A desk's column holds the table, or a lone chart's chips, and
+              the chart stands under the map (`ResultsChartPane`); a phone's
+              sheet holds every pane, and drops them while collapsed. */}
           {(isDesktop || !resultsCollapsed) && (
-            <ResultsPanels
-              layout={layout}
-              charts={charts}
-              chartTooltipIndex={chartTooltipIndex}
-              chartTour={chartTour}
-              tableView={tableView}
-              report={report}
-              pending={pending}
-              removeResult={removeResult}
-              sortBy={sortBy}
-              sortDesc={sortDesc}
-              chartPhone={!isDesktop}
-              panesMove={isDesktop}
-              collapsed={resultsCollapsed}
-              layoutMotion={layoutMotion}
-              pointSample={pointSample}
-              forecastTimes={forecastTimes}
-              playbackIndex={playbackIndex}
-              timelineAxes={timelineAxes}
-              movePlayheadTo={movePlayheadTo}
-              fire={fire}
-              closure={closure}
-              pendingHeights={pendingHeights}
-              modelId={modelId}
-              onRemovePending={onRemovePending}
-              onFocusResult={onFocusResult}
-              onFocusPending={onFocusPending}
-            />
+            <ResultsPanels {...panelsProps(props)} part={isDesktop ? 'column' : 'all'} />
           )}
         </div>
       )}
