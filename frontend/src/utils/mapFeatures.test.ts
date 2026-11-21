@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { geoKey } from './points'
 import { featureRow, pendingFC } from './mapFeatures'
 
 describe('featureRow', () => {
@@ -51,14 +52,15 @@ describe('featureRow', () => {
 })
 
 describe('pendingFC', () => {
-  it('places each pending destination in GeoJSON order, with its name and exact point', () => {
+  it('places each pending destination in GeoJSON order, with its name, exact point and key', () => {
     const fc = pendingFC([
       { name: 'Ingalls', latitude: 47.43, longitude: -120.94, source: 'csv' },
       { name: 'Stuart', latitude: 47.47, longitude: -120.9, source: 'search' },
     ])
     expect(fc.features).toHaveLength(2)
     expect(fc.features[0].geometry).toEqual({ type: 'Point', coordinates: [-120.94, 47.43] })
-    expect(fc.features[0].properties).toEqual({ name: 'Ingalls', lat: 47.43, lon: -120.94 })
+    // The key is its row's `data-key`, which the hover ring finds it by (record 0318).
+    expect(fc.features[0].properties).toEqual({ name: 'Ingalls', lat: 47.43, lon: -120.94, key: geoKey(47.43, -120.94) })
   })
 
   it('answers an empty collection for nothing pending', () => {
