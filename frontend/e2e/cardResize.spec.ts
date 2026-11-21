@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { test, expect, expectRanked, DESTINATION_NAMES, FIRE_DETECTION, forecastButton } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, FIRE_DETECTION, forecastButton, resultsOpened } from './fixtures'
 
 // A card on the map is sized by the handle in its bottom-right corner (TJ,
 // 2026-11-03, record 0270). The unit suites pin the bounds and the drag's
@@ -39,20 +39,6 @@ async function centredCard(page: Page, name: string): Promise<Locator> {
   return card
 }
 
-// At a desk the report's panes open over the foot of the map about half a
-// second after the ranking lands (record 0202), and a row centred before then
-// aims at the taller canvas. Wait until the canvas stands on the results.
-async function resultsOpened(page: Page) {
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const canvas = document.querySelector('.maplibregl-canvas')?.getBoundingClientRect()
-        const results = document.querySelector('[data-tour="results"]')?.getBoundingClientRect()
-        return canvas !== undefined && results !== undefined && Math.round(canvas.bottom) === Math.round(results.top)
-      }),
-    )
-    .toBe(true)
-}
 
 // The card's box (MapLibre's content box, which the tip stands outside), its
 // body, its tip and the map's canvas, in the page's pixels; whether the body

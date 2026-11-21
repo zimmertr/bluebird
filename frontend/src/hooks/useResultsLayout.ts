@@ -235,7 +235,10 @@ export function useResultsLayout({
   const roomHoldFromRef = useRef<number | null>(null)
   const keepRoom = useCallback((to: ResultsMode) => {
     const shown = shownRef.current
-    if (!shown || !shown.desk || shown.collapsed || shown.mode === to) return
+    // A desk's table stands in the column beside the map (the from-scratch
+    // shell) and shares no height with the chart, so there is no room to
+    // keep; this is a stacked desk's, kept for the record it answers.
+    if (!shown || shown.desk || shown.collapsed || shown.mode === to) return
     const room = deskRoomPx(shown.mode, shown, DOCKED_GRIP_PX)
     if (shown.mode === 'both') bothSplitRef.current = { chart: shown.chart, table: shown.table }
     if (to === 'both') {
@@ -309,19 +312,11 @@ export function useResultsLayout({
   // are docked, where the number means nothing.
   const [sheetMeasuredPx, setSheetMeasuredPx] = useState<number | null>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
-  // The docked bar's own height, which the map's floor counts
-  // (`dockedMapFloorPx`), measured for the sheet's reason: it depends on the
-  // width and on what the bar carries. One line where the bar is 896px wide or
-  // more, the title over the actions under that, and a third line where a
-  // three-digit Removed count wraps the button group (#714). `null` on a
-  // phone, where the sheet is measured whole, and before the bar is laid out.
-  const [barMeasuredPx, setBarMeasuredPx] = useState<number | null>(null)
+  // The bar and a lone chart's chips, which a stacked desk measured for the
+  // map's floor (#714, #850). Since the column (the from-scratch shell) both
+  // stand beside the map and nothing measures them; the refs stay where the
+  // markup hands them.
   const barRef = useRef<HTMLDivElement>(null)
-  // A desk's chart legend as laid out (#850), which comes out of the room a
-  // press hands Chart: its chips wrap to one row or two by the names and the
-  // width, so nothing can derive it. Measured on the strip, whose height
-  // holds while its pane's frame opens round it. `null` until it is laid out.
-  const [legendMeasuredPx, setLegendMeasuredPx] = useState<number | null>(null)
   const legendRef = useRef<HTMLDivElement>(null)
   // The results' height while a press's panes move at a desk (#850): the
   // height they stood at before it, which the panes move inside, clipped, so
@@ -470,12 +465,16 @@ export function useResultsLayout({
   // inside the room the chart was handed (#850): the panel budget leaves it
   // out, so the map keeps its floor, and a press's room leaves it out of the
   // chart, so the results keep their height.
+  // Since the column (the from-scratch shell) a desk's lone-chart chips stand
+  // in the column rather than under the chart, so they take none of its room.
   const deskChart = isDesktop && resultsMode === 'chart'
-  const legendPx = deskChart && chartShowing ? legendMeasuredPx ?? 0 : 0
+  const legendPx = 0
   // The floor the sheet rests on before any drag, which is the one a double
   // press puts a panel back under.
+  // A desk's bar and table stand in the column beside the map, so the map's
+  // column holds the chart and its one grip alone.
   const restFloorPx = isDesktop
-    ? dockedMapFloorPx(gripCount, barMeasuredPx ?? undefined)
+    ? dockedMapFloorPx(chartShowing ? 1 : 0, 0)
     : heldFull
       ? dragFloorPx
       : restingMapFloorPx(gripCount)
@@ -494,7 +493,8 @@ export function useResultsLayout({
         : restFloorPx
   const panelOptions = {
     chartShown: chartShowing,
-    tableShown: tableShowing && showTable,
+    // A desk's table fills the column and takes nothing from the map's.
+    tableShown: tableShowing && showTable && !isDesktop,
     availPx: usableH - legendPx,
   }
   // The chart a desk's Chart asks for: the room a press handed it less the
@@ -607,15 +607,6 @@ export function useResultsLayout({
     const el = sheetRef.current
     const next = !el || isDesktop ? null : el.getBoundingClientRect().height
     setSheetMeasuredPx((prev) => (prev === next ? prev : next))
-    // The docked bar, on the same path: a mode switch or a Removed count that
-    // changes its lines re-renders the app. Nothing it moves changes the bar's
-    // own width, so this settles at once too.
-    const bar = isDesktop ? laidOutHeight(barRef.current) : null
-    setBarMeasuredPx((prev) => (prev === bar ? prev : bar))
-    // And Chart's legend at a desk: its chips change with the rows, which
-    // re-render the app too, and the chart's height does not move them.
-    const legend = isDesktop ? laidOutHeight(legendRef.current) : null
-    setLegendMeasuredPx((prev) => (prev === legend ? prev : legend))
   })
 
   // And the second path: a resize that no render caused. On a phone that is a
@@ -625,16 +616,8 @@ export function useResultsLayout({
   // observer for whichever of the two this width measures: the sheet on a
   // phone, the bar on a desk.
   useEffect(() => {
-    if (isDesktop) {
-      const bar = barRef.current
-      if (!bar) return
-      const observer = new ResizeObserver(() => {
-        const next = laidOutHeight(bar)
-        setBarMeasuredPx((prev) => (prev === next ? prev : next))
-      })
-      observer.observe(bar)
-      return () => observer.disconnect()
-    }
+    // A desk measures nothing: its bar stands in the column beside the map.
+    if (isDesktop) return
     const el = sheetRef.current
     if (!el) return
     const observer = new ResizeObserver((entries) => {

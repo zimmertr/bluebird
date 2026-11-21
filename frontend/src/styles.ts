@@ -3397,12 +3397,14 @@ export const HOUR_STRIP = {
  * of cells, the window's days lit as the calendar lights them (`DAY`), and the
  * forecast player under the row once a report spans hours. Placed where the
  * player stood alone, bottom centre over the credit line (`transportBottomPx`),
- * and wider, because sixteen days want room a scrubber did not.
+ * and wider, because sixteen days want room a scrubber did not. It keeps 4rem
+ * clear on each side, so on a narrow map beside the results' column it stops
+ * short of the corner's zoom and locate buttons.
  */
 export const DAY_STRIP = {
   card:
     `${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex ` +
-    'w-[min(40rem,calc(100%-4rem))] flex-col gap-1.5 px-2 py-1.5',
+    'w-[min(40rem,calc(100%-8rem))] flex-col gap-1.5 px-2 py-1.5',
   row: 'flex select-none',
   day: `relative flex min-w-0 flex-1 flex-col items-center py-0.5 ${TEXT.control} ${FIGURES} cursor-pointer transition-colors ${FOCUS_RING}`,
   weekday: `${TEXT.micro} leading-none`,

@@ -388,3 +388,29 @@ export async function redrawRing(page: Page, vertices: readonly [number, number]
     await placeVertices(page, vertices)
   })
 }
+
+// At a desk the results stand in a column beside the map (the from-scratch
+// shell), and the first report's chart opens under the map about half a
+// second after the ranking lands (record 0202), so the map's canvas takes its
+// final size only then. A row centred before that aims at a canvas that is
+// still changing. This waits until the canvas stands against the column and
+// has held one size between two reads.
+export async function resultsOpened(page: Page) {
+  let last = ''
+  await expect
+    .poll(
+      async () => {
+        const now = await page.evaluate(() => {
+          const canvas = document.querySelector('.maplibregl-canvas')?.getBoundingClientRect()
+          const results = document.querySelector('[data-tour="results"]')?.getBoundingClientRect()
+          if (canvas === undefined || results === undefined || Math.round(canvas.right) !== Math.round(results.left)) return ''
+          return [canvas.width, canvas.height].map(Math.round).join('x')
+        })
+        const settled = now !== '' && now === last
+        last = now
+        return settled
+      },
+      { intervals: [300] },
+    )
+    .toBe(true)
+}

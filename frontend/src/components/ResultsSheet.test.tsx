@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
-import ResultsSheet from './ResultsSheet'
+import ResultsSheet, { ResultsChartPane, ResultsExpand } from './ResultsSheet'
 import { render } from '../testSupport/render'
 import { DEFAULT_FAMILY_KEY, resultsHeading } from '../metrics'
 import { LAYOUT_HOLD } from '../styles'
@@ -159,16 +159,58 @@ describe('ResultsSheet', () => {
     expect(sheets()).toEqual(['true', 'true', 'true'])
   })
 
-  // A desk keeps the panels, collapsed, so their frames can shut at the
-  // panel's speed (record 0202); a phone's sheet drops them.
-  it('folds the panels away and keeps the bar', () => {
-    seen.panels.length = 0
+  // A desk's column goes with the chevron, bar and all, and the round button
+  // on the map's edge brings it back (the from-scratch shell); a phone's
+  // sheet keeps its bar and drops the panels.
+  it('takes a desk\'s column away on the chevron, and folds a phone\'s sheet to its bar', () => {
     const { rerender } = render(<ResultsSheet {...props({ resultsCollapsed: true })} />)
-    expect(screen.getByTestId('bar')).toBeTruthy()
-    expect(seen.panels[seen.panels.length - 1].collapsed).toBe(true)
+    expect(screen.queryByTestId('bar')).toBeNull()
+    expect(screen.queryByTestId('panels')).toBeNull()
     rerender(<ResultsSheet {...props({ resultsCollapsed: true, isDesktop: false })} />)
     expect(screen.getByTestId('bar')).toBeTruthy()
     expect(screen.queryByTestId('panels')).toBeNull()
+  })
+
+  // The column holds the table, or a lone chart's chips, and the chart stands
+  // under the map: one report, handed to both halves alike.
+  it('splits a desk\'s panes between the column and the chart under the map', () => {
+    seen.panels.length = 0
+    render(
+      <>
+        <ResultsSheet {...props()} />
+        <ResultsChartPane {...props()} />
+      </>,
+    )
+    const parts = seen.panels.map((p) => p.part)
+    expect(parts).toEqual(expect.arrayContaining(['column', 'chart']))
+    const [column, chart] = ['column', 'chart'].map((part) => [...seen.panels].reverse().find((p) => p.part === part)!)
+    expect(column.report).toBe(chart.report)
+    expect(column.layout).toBe(chart.layout)
+  })
+
+  // A phone's sheet draws every pane, and draws no chart under the map.
+  it('draws every pane in a phone\'s sheet', () => {
+    seen.panels.length = 0
+    render(
+      <>
+        <ResultsSheet {...props({ isDesktop: false })} />
+        <ResultsChartPane {...props({ isDesktop: false })} />
+      </>,
+    )
+    expect(seen.panels.map((p) => p.part)).toEqual(seen.panels.map(() => 'all'))
+  })
+
+  // The button on the map's edge stands only while a desk's column is away,
+  // and brings it back under the bar chevron's own name.
+  it('brings a desk\'s collapsed column back from the map\'s edge', () => {
+    const toggleCollapsed = vi.fn()
+    const { rerender } = render(<ResultsExpand isDesktop layout={{ resultsCollapsed: false, toggleCollapsed }} />)
+    expect(screen.queryByRole('button', { name: 'Expand results' })).toBeNull()
+    rerender(<ResultsExpand isDesktop={false} layout={{ resultsCollapsed: true, toggleCollapsed }} />)
+    expect(screen.queryByRole('button', { name: 'Expand results' })).toBeNull()
+    rerender(<ResultsExpand isDesktop layout={{ resultsCollapsed: true, toggleCollapsed }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Expand results' }))
+    expect(toggleCollapsed).toHaveBeenCalledTimes(1)
   })
 
   // The sheet takes the results view as one object and hands its members on

@@ -412,7 +412,7 @@ export default function ResultsPanels({
       {part !== 'chart' && (
       <div
         className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion} ${
-          column ? 'min-h-0 flex-1' : panesMove ? 'mt-auto' : ''
+          column ? (tableShown ? 'min-h-0 flex-1' : '') : panesMove ? 'mt-auto' : ''
         }`}
       >
         <div inert={!tableShown} className={`${RESULTS_PANE.foot} ${tableHold}`}>

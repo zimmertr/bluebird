@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, forecastButton } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, forecastButton, resultsOpened } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every map popup opens on a click, never on a hover, and the smaller target
@@ -61,24 +61,6 @@ async function markerUnder(card: Locator) {
   return JSON.parse(last) as { x: number; y: number }
 }
 
-// At a desk the first report's panes open over the foot of the map, and the
-// map's canvas takes its shorter height only once they have, about half a
-// second after the ranking lands (record 0202). A row centred before then
-// aims its marker at the middle of the taller canvas, which the shorter one
-// leaves under the results bar, and a hover beside the marker lands on the
-// bar rather than the fire. So a centring waits for the canvas to stand on
-// the results' top.
-async function resultsOpened(page: Page) {
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const canvas = document.querySelector('.maplibregl-canvas')?.getBoundingClientRect()
-        const results = document.querySelector('[data-tour="results"]')?.getBoundingClientRect()
-        return canvas !== undefined && results !== undefined && Math.round(canvas.bottom) === Math.round(results.top)
-      }),
-    )
-    .toBe(true)
-}
 
 // Whether the page's own element at a point is the map's canvas: a marker
 // drawn there, or the fire.
