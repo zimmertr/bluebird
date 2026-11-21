@@ -3164,7 +3164,7 @@ export const RESULTS_PANE = {
  * on the map's right edge that brings a collapsed column back.
  */
 export const RESULTS_COLUMN = {
-  column: `flex w-[clamp(26rem,34vw,36rem)] flex-shrink-0 flex-col border-l ${PANEL_EDGE} bg-panel`,
+  column: `relative flex w-[clamp(26rem,34vw,36rem)] flex-shrink-0 flex-col border-l ${PANEL_EDGE} bg-panel`,
   chips: `${SCROLL_BARS} flex min-h-0 flex-1 flex-wrap content-start gap-1.5 overflow-y-auto px-3 py-2`,
   expand: `${MAP_ROUND_BUTTON} pointer-events-auto absolute right-3 top-3 ${LAYER.base} flex items-center justify-center`,
 } as const

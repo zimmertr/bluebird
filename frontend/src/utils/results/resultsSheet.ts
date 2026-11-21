@@ -18,6 +18,7 @@
 
 import { resolvePanelHeights } from '../layout'
 import { SHEET_SNAP_PX } from '../sheetDrag'
+import { clamp } from '../numbers'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
 export const MAP_ROWS_PX = 88
@@ -576,4 +577,18 @@ export function transportBottomPx(liftPx: number): number {
  */
 export function mapCornerLiftPx(liftPx: number): number {
   return liftPx
+}
+
+/**
+ * A desk's results column dragged by its left edge (record 0311): no
+ * narrower than `RESULTS_COLUMN.column`'s own floor, 26rem, where the
+ * compact table's columns fit, and never so wide that the map keeps less
+ * than `COLUMN_MAP_MIN_PX`, which holds the sentence bar and the corner
+ * buttons on one row. On a window too narrow for both the column's floor
+ * wins, as the class's clamp does.
+ */
+export const COLUMN_MIN_PX = 416
+export const COLUMN_MAP_MIN_PX = 480
+export function columnWidthPx(wantPx: number, viewportPx: number): number {
+  return Math.round(clamp(wantPx, COLUMN_MIN_PX, viewportPx - COLUMN_MAP_MIN_PX))
 }

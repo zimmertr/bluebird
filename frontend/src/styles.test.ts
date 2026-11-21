@@ -152,7 +152,7 @@ import { CHEVRON_PX, EXTERNAL_LINK_PX, GRIP_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX } from './utils/results/resultsSheet'
+import { CHIP_MENU_GAP_PX, COLUMN_MIN_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
@@ -4959,6 +4959,10 @@ describe('the panel frame', () => {
   it('stands a desk\'s results in a column of bounded width', () => {
     const cols = RESULTS_COLUMN.column.split(' ')
     expect(cols).toContain('w-[clamp(26rem,34vw,36rem)]')
+    // A drag on its left edge stops at the class's own floor (`columnWidthPx`),
+    // and the grip stands in the column's box.
+    expect(COLUMN_MIN_PX).toBe(26 * 16)
+    expect(cols).toContain('relative')
     expect(cols).toEqual(expect.arrayContaining(['flex-col', 'flex-shrink-0', 'border-l', PANEL_EDGE, 'bg-panel']))
     expect(RESULTS_COLUMN.chips).not.toMatch(/max-h-/)
     expect(RESULTS_COLUMN.chips.split(' ')).toEqual(expect.arrayContaining(['flex-1', 'min-h-0', 'overflow-y-auto']))

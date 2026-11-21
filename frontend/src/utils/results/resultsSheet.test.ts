@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { clampPanelHeight, resolvePanelHeights } from '../layout'
 import {
+  COLUMN_MAP_MIN_PX,
+  COLUMN_MIN_PX,
+  columnWidthPx,
   DEFAULT_PANEL_HEIGHT,
   DRAGGED_MAP_PX,
   FAB_GAP_PX,
@@ -549,5 +552,17 @@ describe('resolveSheetLift and the safe area', () => {
     expect(resolveSheetLift({ docked: true, measuredPx: null, estimatePx: 84, footPx: 34 })).toBe(34)
     expect(resolveSheetLift({ docked: true, measuredPx: null, estimatePx: 84 })).toBe(0)
     expect(resolveSheetLift({ docked: false, measuredPx: 118, estimatePx: 84, footPx: 34 })).toBe(118)
+  })
+})
+
+describe('columnWidthPx', () => {
+  it('follows the drag between the column floor and the map floor', () => {
+    expect(columnWidthPx(500, 1400)).toBe(500)
+    expect(columnWidthPx(300, 1400)).toBe(COLUMN_MIN_PX)
+    expect(columnWidthPx(1200, 1400)).toBe(1400 - COLUMN_MAP_MIN_PX)
+  })
+
+  it('keeps the column floor on a window too narrow for both', () => {
+    expect(columnWidthPx(600, 800)).toBe(COLUMN_MIN_PX)
   })
 })

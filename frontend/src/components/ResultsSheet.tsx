@@ -8,11 +8,13 @@ import ColumnsPicker from './ColumnsPicker'
 import ModelsPicker from './ModelsPicker'
 import RemovedPicker from './RemovedPicker'
 import ResultsBar from './ResultsBar'
+import { GridGutter } from './ResizeGrip'
 import { IconChevron } from './icons'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
 import type { Lens } from '../utils/score/lenses'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { columnWidthPx } from '../utils/results/resultsSheet'
 import { LAYER, LAYOUT_HOLD, RESULTS_COLUMN, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
@@ -181,6 +183,9 @@ export function ResultsExpand({
  * The popovers render whether the sheet does or not, as they did beside it:
  * each is closed until its trigger, which only the sheet draws, opens it.
  */
+// The width grip stands over the column's left rule, half on the map.
+const COLUMN_GUTTER_PLACE = { top: 0, bottom: 0, left: '-0.25rem' } as const
+
 export default function ResultsSheet(props: ResultsSheetProps) {
   const {
   resultsView,
@@ -258,6 +263,12 @@ export default function ResultsSheet(props: ResultsSheetProps) {
   const [announced, setAnnounced] = useState({ seq: analysisSeq, text: '' })
   if (announced.seq !== analysisSeq) setAnnounced({ seq: analysisSeq, text: heading })
 
+  // A desk's column width, dragged by its left edge, or null for the
+  // class's own clamp, which a double press puts back. Measured from the
+  // width the drag began at, as every grip's drag is (`dragFrom`).
+  const [columnPx, setColumnPx] = useState<number | null>(null)
+  const widthFrom = useRef(0)
+
   return (
     <>
       {/* Mounted for good, empty until the first report: a region that
@@ -271,6 +282,7 @@ export default function ResultsSheet(props: ResultsSheetProps) {
         <div
           ref={sheetRef}
           data-tour="results"
+          style={isDesktop && columnPx !== null ? { width: columnPx } : undefined}
           className={
             isDesktop
               ? // The column down the map's right edge, on a layer of its own
@@ -288,6 +300,19 @@ export default function ResultsSheet(props: ResultsSheetProps) {
                 }`
           }
         >
+          {isDesktop && (
+            <GridGutter
+              axis="col"
+              label="Resize results"
+              place={COLUMN_GUTTER_PLACE}
+              onReset={() => setColumnPx(null)}
+              onDragStart={() => {
+                widthFrom.current = sheetRef.current?.getBoundingClientRect().width ?? 0
+              }}
+              onDrag={(rightPx) => setColumnPx(columnWidthPx(widthFrom.current - rightPx, window.innerWidth))}
+              onDragEnd={() => {}}
+            />
+          )}
           <ResultsBar
             barRef={barRef}
             sortBy={sortBy}

@@ -214,6 +214,31 @@ describe('ResultsSheet', () => {
     expect(toggleCollapsed).toHaveBeenCalledTimes(1)
   })
 
+  // A desk's column takes its width from a drag on its left edge, held
+  // between its own floor and the map's, and a double press gives the
+  // class's width back (record 0311). A phone's sheet has no such edge.
+  it('widens a desk\'s column by its left edge and puts it back on a double press', () => {
+    vi.stubGlobal('innerWidth', 1400)
+    render(<ResultsSheet {...props()} />)
+    const column = document.querySelector('[data-tour="results"]') as HTMLElement
+    column.getBoundingClientRect = () => ({ width: 450 }) as DOMRect
+    const grip = screen.getByRole('separator', { name: 'Resize results' })
+    fireEvent.pointerDown(grip, { clientX: 900, clientY: 300, pointerType: 'mouse' })
+    fireEvent.pointerMove(document, { clientX: 850, clientY: 300, pointerType: 'mouse' })
+    expect(column.style.width).toBe('500px')
+    fireEvent.pointerMove(document, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
+    expect(column.style.width).toBe('416px')
+    fireEvent.pointerUp(document, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
+    fireEvent.pointerDown(grip, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
+    expect(column.style.width).toBe('')
+    vi.unstubAllGlobals()
+  })
+
+  it('draws no width grip on a phone', () => {
+    render(<ResultsSheet {...props({ isDesktop: false })} />)
+    expect(screen.queryByRole('separator', { name: 'Resize results' })).toBeNull()
+  })
+
   // The sheet takes the results view as one object and hands its members on
   // as they are: the table and the chart under the panels are memoized.
   // The desk's results stand on a layer of their own while the panel moves
