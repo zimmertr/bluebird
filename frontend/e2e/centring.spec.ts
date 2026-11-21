@@ -2,7 +2,7 @@ import { test, expect, expectRanked, DESTINATION_NAMES, forecastButton } from '.
 import type { Locator, Page } from '@playwright/test'
 
 // A row centred while a desk's layout moves (#714; record 0202). The first
-// report opens its panes over the foot of the map, and through that move the
+// report opens the chart's pane under the map (record 0311), and through that move the
 // map's canvas holds the window's height, centred on the map's column; where
 // the move ends it takes the column's height. A centring flight fixes its
 // target in the canvas's pixels when it starts, so one pressed inside the
@@ -55,7 +55,7 @@ async function settledMarker(card: Locator) {
 
 // Analyze, and press the first row's "Center map on" from inside the page,
 // in the first frame where the row is ranked and the canvas still runs on
-// under the results: a press sent from the test waits on a round trip and can
+// under the opening chart pane: a press sent from the test waits on a round trip and can
 // land after the move. With `close`, the card the press opens is closed by its
 // own button in the same frame, before the resize comes.
 async function pressInsideTheMove(page: Page, { close = false } = {}) {
@@ -68,7 +68,7 @@ async function pressInsideTheMove(page: Page, { close = false } = {}) {
         const frame = () => {
           if (performance.now() > deadline) return resolve(null)
           const canvas = document.querySelector('.maplibregl-canvas')?.getBoundingClientRect()
-          const results = document.querySelector('[data-tour="results"]')?.getBoundingClientRect()
+          const results = document.querySelector('[data-chart-pane]')?.getBoundingClientRect()
           const button = document.querySelector<HTMLButtonElement>(`[aria-label="Center map on ${name}"]`)
           // A ranked row's rank is the first cell that holds no input, as
           // `expectRanked` reads it; a pending row's is a dash.
@@ -89,12 +89,12 @@ async function pressInsideTheMove(page: Page, { close = false } = {}) {
   const atPress = await pressed
   expect(atPress, 'a press while the panes were opening').not.toBeNull()
   await expectRanked(page)
-  // The move is over once the canvas stands on the results' top.
+  // The move is over once the canvas stands on the chart pane's top.
   await expect
     .poll(async () => {
       const canvas = await canvasBox(page)
-      const results = await page.locator('[data-tour="results"]').boundingBox()
-      return Math.round(canvas.bottom) === Math.round(results!.y)
+      const results = await page.locator('[data-chart-pane]').boundingBox()
+      return results !== null && results.height > 0 && Math.round(canvas.bottom) === Math.round(results.y)
     })
     .toBe(true)
   return atPress!

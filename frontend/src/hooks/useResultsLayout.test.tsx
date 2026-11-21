@@ -562,7 +562,7 @@ describe('useResultsLayout', () => {
   // A phone's Both alone stacks the two; a desk's table stands in the column.
   it('keeps the pair its sum when the divider moves', () => {
     setDesktopQuery(false)
-    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both' }))
+    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both', response: {} }))
     const sum = result.current.chartPanelPx + result.current.tablePanelPx
     act(() => result.current.tableGrip.onDragStart())
     act(() => result.current.tableGrip.onDrag(40))

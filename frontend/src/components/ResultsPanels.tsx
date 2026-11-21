@@ -329,7 +329,11 @@ export default function ResultsPanels({
   return (
     <>
       {!column && (
-      <div className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
+      <div
+        // The pane under a desk's map, which the browser suite finds by name.
+        data-chart-pane={part === 'chart' ? '' : undefined}
+        className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}
+      >
         <div inert={!chartShown} className={`${RESULTS_PANE.top} ${chartHold}`}>
           {chartPane.mounted && (
             <>
