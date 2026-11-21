@@ -14,7 +14,7 @@
 # digest says which build of it, so a rebuild cannot pull a different image
 # than the one last reviewed. Renovate moves both, and opens a PR when the
 # image under an unchanged tag is rebuilt.
-FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 # Cache mount keeps npm's download cache out of the layer but warm across
@@ -30,7 +30,7 @@ RUN npm run build
 # Stage 2: Python backend serving built frontend as static files.
 # Alpine over slim: Debian's base layer ships dozens of no-fix CVEs (perl-base,
 # libc6, …) that scanners flag forever; musl's ~10-package base scans clean.
-FROM python:3.15-alpine@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
+FROM python:3.15-alpine@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
 
 LABEL org.opencontainers.image.title="Bluebird Forecast" \
       org.opencontainers.image.description="Map-based weather window finder for hikers and mountaineers" \
