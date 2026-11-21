@@ -1874,13 +1874,15 @@ export const MAP_ROWS = {
   pill: 'absolute inset-y-0 left-0 right-22 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
   /**
-   * A desk's sentence bar beside the pill, and the card one of its chips
-   * opened under the chip row, both at the pill's 320px and the 12px the rows
-   * stand apart (record 0308). No wider than the map less the pill, its gap
-   * and the map's two edge insets, so a narrow desk truncates the chips'
-   * words rather than running the bar off the map.
+   * A desk's sentence bar, and the card one of its phrases opened under the
+   * chip row, from the map's left edge now that the search is in the Where
+   * card (record 0312). No wider than the map less its two edge insets, so a
+   * narrow desk cuts the phrases' words rather than running the bar over
+   * the results column.
    */
-  barSlot: 'ml-83 w-max max-w-[calc(100cqw_-_20.75rem_-_2_*_var(--map-edge-inset))]',
+  barSlot: 'w-max max-w-[calc(100cqw_-_2_*_var(--map-edge-inset))]',
+  /** The bar's own row, as tall as the card rather than a chip (record 0313). */
+  barRow: `relative ${YIELD_EMPTY}`,
   /**
    * The second row: one line of chips, 6px apart, never wrapping. The rows
    * stand 12px apart, and 3D 12px left of locate (`MAP_SLOT`), because a
@@ -3107,13 +3109,13 @@ export const SENTENCE_BAR = {
    * each, so it reads as one line to say rather than five controls.
    */
   row:
-    `pointer-events-auto flex min-w-0 items-center gap-1 bg-floating/95 border border-edge ${RADIUS.surface} ` +
+    `pointer-events-auto flex min-w-0 max-w-full items-center gap-1 bg-floating/95 border border-edge ${RADIUS.surface} ` +
     `${ELEVATION.raised} backdrop-blur-sm py-1.5 pl-3 pr-1.5`,
   group: 'flex min-w-0 items-center gap-0.5',
   /** The product's name leading the bar, set off from the sentence by a rule. */
   brand: `flex h-7 flex-shrink-0 items-center gap-2 pr-2.5 mr-1 border-r border-rule`,
   /** The words between the phrases, `in` and `on`, in the quiet ink. */
-  word: `${TEXT.control} text-ink-soft whitespace-nowrap px-0.5`,
+  word: 'text-sm text-ink-soft whitespace-nowrap px-0.5',
 
   logo: 'h-6 w-6 flex-shrink-0 rounded-full object-cover',
   /**
@@ -3593,7 +3595,7 @@ export const MENU_TRIGGER = {
    * trigger's states, so an open phrase lights as an open chip does.
    */
   slot:
-    `${TEXT.control} font-semibold text-ink-strong h-8 flex items-center gap-1 px-2 border border-transparent ` +
+    `text-sm font-semibold text-ink-strong h-8 flex items-center gap-1 px-2 border border-transparent ` +
     `${RADIUS.control} whitespace-nowrap underline decoration-rule decoration-2 underline-offset-4 ${TRIGGER_STATE}`,
   field: TRIGGER_FIELD,
   /**
@@ -3640,7 +3642,7 @@ export const MENU_TRIGGER = {
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
-  slot: '-mr-0.5 text-ink-faint',
+  slot: '-mr-0.5',
   bar: '-mr-0.5',
   field: ICON_ADORNMENT,
   segment: ICON_ADORNMENT,

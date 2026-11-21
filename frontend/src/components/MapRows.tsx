@@ -94,7 +94,8 @@ export default function MapRows({
     // A popup keeps clear of the rows (`resultsLayer.ts` finds every
     // `data-map-overlay`), which stand over the top of every map.
     <div data-map-overlay="" className={`${MAP_ROWS.stack} ${LAYER.mapControls}`} inert={covered}>
-      <div className={MAP_ROWS.row}>
+      {/* A desk's bar is a card taller than a chip, on a row of its own height (record 0313). */}
+      <div className={desk && bar ? MAP_ROWS.barRow : MAP_ROWS.row}>
         {/* A desk's search is in the Where card (record 0312). */}
         {!(desk && bar) && (
           <div className={searching ? MAP_ROWS.pillWide : MAP_ROWS.pill}>
