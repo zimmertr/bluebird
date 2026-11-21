@@ -84,7 +84,8 @@ test('the collapse chevron takes the column away and the map edge chevron brings
   await analyzedAt(page, 'Show both chart and table')
   await page.getByRole('button', { name: 'Collapse results' }).click()
   await expect(column(page)).toHaveCount(0)
-  await expect(pane(page)).toHaveCount(0)
+  // The chart's pane shuts to nothing and keeps its chart for the way back.
+  await expect.poll(() => pane(page).evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(1)
   await page.getByRole('button', { name: 'Expand results' }).click()
   await expect(column(page)).toBeVisible()
   await expect(pane(page).locator('.recharts-wrapper')).toHaveCount(1)
