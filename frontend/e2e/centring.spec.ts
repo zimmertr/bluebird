@@ -61,6 +61,9 @@ async function settledMarker(card: Locator) {
 async function pressInsideTheMove(page: Page, { close = false } = {}) {
   await page.goto(`/?type=peak&poly=${RING}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  // The ground's first tiles drawn (record 0317), so a cold worker's first
+  // frames of shading do not swallow the 300ms move this presses inside.
+  await page.waitForLoadState('networkidle')
   const pressed = page.evaluate(
     ({ name, close }) =>
       new Promise<{ canvasHeight: number; closed: boolean } | null>((resolve) => {
