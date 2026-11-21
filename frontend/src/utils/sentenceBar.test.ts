@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { forecastLabel, kindsPhrase, whereLabel } from './sentenceBar'
+import { forecastLabel, kindsPhrase, whenWord, whereLabel, wherePhrases } from './sentenceBar'
 
 describe('kindsPhrase', () => {
   it('names the kinds in one order, joined the way a sentence is', () => {
@@ -18,6 +18,22 @@ describe('whereLabel', () => {
   it('names a list, and asks for a kind with nothing to find', () => {
     expect(whereLabel(['peak'], 'list', 12)).toBe('Your list')
     expect(whereLabel([], 'view', 0)).toBe('Choose what to find')
+  })
+})
+
+describe('wherePhrases', () => {
+  it('splits the kinds from the place, and keeps a list whole', () => {
+    expect(wherePhrases(['peak'], 'view', 0)).toEqual({ what: 'Peaks', area: 'this view' })
+    expect(wherePhrases(['peak', 'lake'], 'drawn', 0)).toEqual({ what: 'Peaks and lakes', area: 'your area' })
+    expect(wherePhrases(['peak'], 'list', 12)).toEqual({ what: 'Your list', area: null })
+    expect(wherePhrases([], 'view', 0)).toEqual({ what: 'Choose what to find', area: null })
+  })
+})
+
+describe('whenWord', () => {
+  it('says on before days and nothing before Current', () => {
+    expect(whenWord({ kind: 'now' })).toBeNull()
+    expect(whenWord({ kind: 'days', startDate: '2026-11-21', endDate: '2026-11-22' })).toBe('on')
   })
 })
 

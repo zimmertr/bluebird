@@ -1,6 +1,6 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import DocLinks from './DocLinks'
-import { BLOCKED, BUTTON_FORECAST, BUTTON_FORECAST_BAR, DISABLED, MESSAGE_BADGE, PANEL_EDGE, SENTENCE_BAR, TEXT } from '../styles'
+import { BLOCKED, BUTTON_FORECAST, BUTTON_FORECAST_BAR, BUTTON_FORECAST_QUIET, DISABLED, MESSAGE_BADGE, PANEL_EDGE, SENTENCE_BAR, TEXT } from '../styles'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import { usePopover } from '../hooks/usePopover'
@@ -39,7 +39,7 @@ interface Props {
    * list takes `widthRef`'s width, the bar's chips and button, where the
    * button alone would wrap every line.
    */
-  bar?: { label: string; widthRef?: RefObject<HTMLElement | null> }
+  bar?: { label: string; widthRef?: RefObject<HTMLElement | null>; quiet?: boolean }
 }
 
 /**
@@ -121,7 +121,9 @@ export default function PanelFooter({
             onClick={blocked ? toggle : onAnalyze}
             disabled={!analyzeEnabled && !blocked}
             aria-disabled={blocked || undefined}
-            className={`${bar ? BUTTON_FORECAST_BAR : BUTTON_FORECAST} ${DISABLED} ${BLOCKED}`}
+            // The bar draws an outline while a press would fetch nothing new
+            // and the button is not saying anything else (record 0313).
+            className={`${bar ? (bar.quiet && word === 'Analyze' ? BUTTON_FORECAST_QUIET : BUTTON_FORECAST_BAR) : BUTTON_FORECAST} ${DISABLED} ${BLOCKED}`}
           >
             {bar && word === 'Analyze' ? bar.label : word}
           </button>

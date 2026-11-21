@@ -7,6 +7,7 @@ import {
   ACCENT,
   BUTTON_FORECAST,
   BUTTON_FORECAST_BAR,
+  BUTTON_FORECAST_QUIET,
   ACCENT_RING,
   BADGE_ACCENT,
   BADGE_STEP,
@@ -4694,9 +4695,10 @@ describe('the one menu', () => {
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu. The segment and the
   // square came with the chart's picker (#499), and the header's round button
-  // with the theme menu (#843), each the look of what it stands beside.
+  // with the theme menu (#843), each the look of what it stands beside, and
+  // the sentence bar's phrase with the bar (record 0313).
   it('keeps the trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'slot', 'square'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())
@@ -5566,6 +5568,16 @@ describe('the alpenglow fill', () => {
     expect(ratio(dark('on-act'), dark('act-hover'))).toBe(8.88)
     expect(ratio(light('on-act'), light('act'))).toBe(4.71)
     expect(ratio(light('on-act'), light('act-hover'))).toBe(5.33)
+  })
+
+  // Up to date wears no fill (record 0313): its words carry it, so they owe
+  // 4.5:1 on the bar's face in both themes.
+  it('draws Up to date as quiet words in an outline, readable on the bar', () => {
+    expect(BUTTON_FORECAST_QUIET).not.toMatch(/(^|\s)bg-/)
+    expect(tok(BUTTON_FORECAST_QUIET, 'text')).toBe('ink-soft')
+    expect(tok(BUTTON_FORECAST_QUIET, 'ring')).toBe('rule')
+    expect(ratio(dark('ink-soft'), dark('floating'))).toBeGreaterThanOrEqual(4.5)
+    expect(ratio(light('ink-soft'), light('floating'))).toBeGreaterThanOrEqual(4.5)
   })
 
   it('is the fill the Forecast button wears', () => {

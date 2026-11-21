@@ -354,7 +354,8 @@ export async function openCard(page: Page, name: 'Where' | 'When' | 'Limits') {
   if (!(await bar.isVisible())) return
   const card = page.getByRole('region', { name })
   if (await card.isVisible()) return
-  await bar.getByRole('button').nth(['Where', 'When', 'Limits'].indexOf(name)).click()
+  const key = { Where: 'destinations', When: 'forecast', Limits: 'metrics' }[name]
+  await bar.locator(`[data-card="${key}"]`).first().click()
   await expect(card).toBeVisible()
 }
 

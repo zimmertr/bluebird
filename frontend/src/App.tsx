@@ -17,7 +17,7 @@ import DocLinks from './components/DocLinks'
 import ThemeMenu from './components/ThemeMenu'
 import type { PanelSection } from './components/ControlPanel'
 import { useSearchArea } from './hooks/useSearchArea'
-import { forecastLabel, whenLabel, whereLabel } from './utils/sentenceBar'
+import { forecastLabel, whenLabel, whenWord, wherePhrases } from './utils/sentenceBar'
 import { discoveryNoun } from './utils/clientAnalyze'
 import { deckPoints } from './utils/cloudSea'
 import { geoKey } from './utils/points'
@@ -923,8 +923,9 @@ export default function App() {
   const closeBarCard = () => setBarCard(null)
   const barNode = isDesktop ? (
     <SentenceBar
-      where={whereLabel(destinationTypes, searchArea.source, customCount)}
+      {...wherePhrases(destinationTypes, searchArea.source, customCount)}
       when={whenLabel(selection, new Date())}
+      whenWord={whenWord(selection)}
       card={barCard}
       onCard={setBarCard}
       label={barLabel}

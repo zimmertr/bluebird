@@ -31,9 +31,31 @@ export function kindsPhrase(types: readonly DiscoveryType[]): string {
 
 /** The Where chip: what a Forecast will look for, and where. */
 export function whereLabel(types: readonly DiscoveryType[], source: AreaSource, listed: number): string {
-  if (source === 'list' || types.length === 0) return listed > 0 ? 'Your list' : 'Choose what to find'
-  return `${kindsPhrase(types)} ${source === 'view' ? 'in this view' : 'in your area'}`
+  const { what, area } = wherePhrases(types, source, listed)
+  return area === null ? what : `${what} in ${area}`
 }
+
+/**
+ * The sentence's what and where as the bar draws them, two phrases with
+ * `in` between (record 0313): `Peaks` in `this view`. A list, or no kind
+ * ticked, is one phrase with no place after it.
+ */
+export function wherePhrases(
+  types: readonly DiscoveryType[],
+  source: AreaSource,
+  listed: number,
+): { what: string; area: string | null } {
+  if (source === 'list' || types.length === 0) return { what: listed > 0 ? 'Your list' : 'Choose what to find', area: null }
+  return { what: kindsPhrase(types), area: source === 'view' ? 'this view' : 'your area' }
+}
+
+/** The word before the When phrase: `on` before days, nothing before `Current`. */
+export function whenWord(selection: ForecastSelection): string | null {
+  return selection.kind === 'now' ? null : 'on'
+}
+
+/** The button's words when a press would fetch nothing new, which it draws as an outline. */
+export const UP_TO_DATE = 'Up to date'
 
 function plural(noun: string, n: number): string {
   return n === 1 ? noun : `${noun}s`
@@ -55,7 +77,7 @@ export interface ForecastLabelInputs {
  */
 export function forecastLabel({ count, fresh, noun }: ForecastLabelInputs): string {
   if (fresh !== null) {
-    if (fresh === 0) return 'Up to date'
+    if (fresh === 0) return UP_TO_DATE
     return `Forecast ${grouped(fresh)} new`
   }
   if (count === null) return 'Forecast'

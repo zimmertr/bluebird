@@ -763,8 +763,18 @@ export const BUTTON_FORECAST =
  * chips beside it and as wide as its words, which name what it will forecast.
  */
 export const BUTTON_FORECAST_BAR =
-  `${TEXT.cta} ${TAP.action} whitespace-nowrap px-4 py-1.5 ${RADIUS.control} transition-colors ` +
-  `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING} ${ELEVATION.raised}`
+  `${TEXT.cta} ${TAP.action} whitespace-nowrap h-10 px-4 ${RADIUS.control} transition-colors ` +
+  `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING}`
+
+/**
+ * The bar's button when a press would fetch nothing new (`Up to date`,
+ * record 0313): an outline in the quiet ink, so the one warm fill on the
+ * screen means a forecast will be spent. It still takes a press, which
+ * re-ranks what is held.
+ */
+export const BUTTON_FORECAST_QUIET =
+  `${TEXT.cta} ${TAP.action} whitespace-nowrap h-10 px-4 ${RADIUS.control} transition-colors ` +
+  `text-ink-soft ring-[1.5px] ring-inset ring-rule ${ACCENT.hoverText} ${FOCUS_RING}`
 
 /**
  * The secondary action standing next to something else: Clear under the
@@ -3091,19 +3101,27 @@ export const PANEL_MS = 300
  * legend card's face, and scrolls inside what is left of the map below it.
  */
 export const SENTENCE_BAR = {
-  row: `flex h-8 min-w-0 items-center gap-1.5 ${YIELD_EMPTY}`,
-  group: 'flex min-w-0 items-center gap-1.5',
-  /** The product's name leading the bar, on a chip's face, which the panel's header carried. */
-  brand:
-    `pointer-events-auto flex h-8 flex-shrink-0 items-center gap-2 pl-1 pr-3 bg-floating/95 border border-edge ` +
-    `${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm`,
+  /**
+   * The bar is one card (record 0313), as the prototype draws it: the name,
+   * the sentence and the button on one floating face, rather than a chip
+   * each, so it reads as one line to say rather than five controls.
+   */
+  row:
+    `pointer-events-auto flex min-w-0 items-center gap-1 bg-floating/95 border border-edge ${RADIUS.surface} ` +
+    `${ELEVATION.raised} backdrop-blur-sm py-1.5 pl-3 pr-1.5`,
+  group: 'flex min-w-0 items-center gap-0.5',
+  /** The product's name leading the bar, set off from the sentence by a rule. */
+  brand: `flex h-7 flex-shrink-0 items-center gap-2 pr-2.5 mr-1 border-r border-rule`,
+  /** The words between the phrases, `in` and `on`, in the quiet ink. */
+  word: `${TEXT.control} text-ink-soft whitespace-nowrap px-0.5`,
+
   logo: 'h-6 w-6 flex-shrink-0 rounded-full object-cover',
   /**
    * The Forecast button's slot in the bar: the badge's anchor, on the chips'
    * own face, so a blocked button's 40 percent greys against that face rather
    * than letting the map's labels through it.
    */
-  forecastSlot: `relative flex ${RADIUS.control} bg-floating`,
+  forecastSlot: `relative flex ml-1.5 ${RADIUS.control} bg-floating`,
   // A narrow map keeps the logo and the page's heading for a screen reader,
   // and gives the name's width to the sentence.
   name: `${TEXT.section} whitespace-nowrap leading-none @max-[52rem]:sr-only`,
@@ -3121,7 +3139,7 @@ export const SENTENCE_BAR = {
    * else in the bar gives, and never below the first few letters, so a
    * narrow map shows a clipped phrase rather than an empty chip.
    */
-  slot: 'min-w-20',
+  slot: 'min-w-14',
   /** The draw bar at a desk, hung where the cards hang and as wide as one. */
   drawBar: `${SURFACE_FLOATING} pointer-events-auto flex w-90 items-center gap-2 px-3 py-1.5`,
 } as const
@@ -3568,6 +3586,15 @@ const TRIGGER_FIELD = `${FIELD_LOOK} ${TAP.height} appearance-none pr-6 relative
  */
 export const MENU_TRIGGER = {
   chip: CHIP_FACE,
+  /**
+   * A phrase of the map's sentence bar (record 0313): its words in the strong
+   * ink, underlined in the rule so they read as choices inside a sentence,
+   * on no face of their own because the bar is the face, and the one
+   * trigger's states, so an open phrase lights as an open chip does.
+   */
+  slot:
+    `${TEXT.control} font-semibold text-ink-strong h-8 flex items-center gap-1 px-2 border border-transparent ` +
+    `${RADIUS.control} whitespace-nowrap underline decoration-rule decoration-2 underline-offset-4 ${TRIGGER_STATE}`,
   field: TRIGGER_FIELD,
   /**
    * A field's left segment inside `CHART_PICKER`'s group (#499): the field's
@@ -3613,6 +3640,7 @@ export const MENU_TRIGGER = {
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
+  slot: '-mr-0.5 text-ink-faint',
   bar: '-mr-0.5',
   field: ICON_ADORNMENT,
   segment: ICON_ADORNMENT,
