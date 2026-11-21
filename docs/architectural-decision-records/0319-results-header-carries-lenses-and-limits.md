@@ -15,7 +15,7 @@ The forecast bounds lived in the Metrics table behind the sentence bar's **Limit
 
 - **The headline counts the field.** `headlineText` reads `{n} of {N} score {bar} or more`, N being every row with a score.
 - **One subtitle line.** `bestHoursText` names the day most of the top twenty rows' best four hours fall on and that day's middle start, as `Best hours mostly Sat, 1p–5p`; the window and the model follow it, joined with ` · `. The best hours show only while a lens ranks.
-- **Lenses are pills.** `LensChips` draws each lens as a pill, idle ruled in the soft ink and lit in the accent fill, both in one box so a press moves nothing (`RESULTS_HEAD`).
+- **Lenses are pills.** `LensChips` draws each lens as a pill, idle ruled in the lifted caption's ink (the soft ink reads 3.93:1 on the bar's raised fill) and lit in the accent fill, both in one box so a press moves nothing (`RESULTS_HEAD`).
 - **Limits are chips.** `LimitChips` draws a chip per bound (`limitChips`: `{Metric} under {value}` for a ceiling, `{Metric} above {value}` for a floor, `Nothing falling` for a precipitation ceiling of 0), each with a × that clears that bound alone, then the **Limit** pill, then `{n} hidden by limits`. The pill opens the Limits card at a desk and the Controls sheet on a phone.
 - **Limits leaves the sentence.** The sentence bar no longer carries a **Limits** chip: it says what a Forecast searches and over which hours, and the bounds are no part of that, since they re-read held rows and never spend (record 0003).
 
