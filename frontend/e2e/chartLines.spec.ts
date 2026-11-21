@@ -1,4 +1,4 @@
-import { test, expect, resultRows, isoDay, forecastButton } from './fixtures'
+import { test, expect, resultRows, isoDay, forecastButton, everyColumn } from './fixtures'
 
 // Up to twenty lines, every chart line is a ColorBrewer Set1 colour of its
 // own, with nothing drawn round it (#801): in light each clears 3:1 against
@@ -35,6 +35,8 @@ test('draws each chart line in a colour of its own, at 3:1 in light, under no fi
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await forecastButton(page).click()
   await expect(resultRows(page).first()).toBeAttached()
+  // The chart stands in the widened column at a desk (record 0321).
+  await everyColumn(page)
 
   const strokes = () =>
     page.locator('[data-tour="chart"] canvas').first().evaluate((c: HTMLCanvasElement) => {

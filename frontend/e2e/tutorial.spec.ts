@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { test, expect, resultRows, forecastButton } from './fixtures'
+import { test, expect, resultRows, forecastButton, everyColumn } from './fixtures'
 
 // The guided tutorial (#536), walked the way a reader walks it. The unit
 // suites pin the steps, the placement arithmetic and the source anchors; this
@@ -268,6 +268,12 @@ const SEGMENT = { table: 'Show table only', chart: 'Show chart only', both: 'Sho
 type Mode = keyof typeof SEGMENT
 
 async function expectMode(page: Page, mode: Mode) {
+  // A desk's compact column is the table, with the segment behind its expand
+  // button (record 0321).
+  if (mode === 'table' && (await page.getByRole('button', { name: SEGMENT.table }).count()) === 0) {
+    await expect(page.locator('[data-tour="chart"]')).toHaveCount(0)
+    return
+  }
   for (const [m, name] of Object.entries(SEGMENT)) {
     await expect(page.getByRole('button', { name }).first()).toHaveAttribute('aria-pressed', m === mode ? 'true' : 'false')
   }
@@ -334,6 +340,7 @@ test('at a desk a reader who never analyzed sees the table on Results and the ch
   await walkDeskViews(page)
   expect(await storedMode(page)).toBeUndefined()
   await forecastButton(page).click()
+  await everyColumn(page)
   await expectMode(page, 'chart')
 })
 
@@ -346,6 +353,7 @@ test('at a desk the Results and Chart cards switch a pressed Both to their view 
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await forecastButton(page).click()
   await expect(resultRows(page)).toHaveCount(5)
+  await everyColumn(page)
   await page.getByRole('button', { name: SEGMENT.both }).first().click()
   await expectMode(page, 'both')
   expect(await storedMode(page)).toBe('both')

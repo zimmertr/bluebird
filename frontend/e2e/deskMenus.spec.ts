@@ -77,6 +77,7 @@ test('the Layers tool and the results bar open their menus beside and under them
   // The bar's buttons: each card under its own button rather than under the
   // group, and the button lit in the chip's own accent fill. They stand in
   // the widened column (record 0321).
+  await page.getByRole('button', { name: `Remove ${DESTINATION_NAMES[0]}` }).click()
   await everyColumn(page)
   for (const name of ['Choose which columns to display', 'Models']) {
     const button = page.getByRole('button', { name, exact: true })
@@ -99,8 +100,8 @@ test('the Layers tool and the results bar open their menus beside and under them
     await expect(button).toHaveAttribute('aria-expanded', 'false')
   }
 
-  // Removed opens the same way once a row is gone.
-  await page.getByRole('button', { name: `Remove ${DESTINATION_NAMES[0]}` }).click()
+  // Removed opens the same way once a row is gone, the row removed in the
+  // compact column before it widened.
   const removed = page.getByRole('button', { name: 'Removed (1)' })
   await removed.click()
   const box = await rect(card(page))
