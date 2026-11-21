@@ -329,3 +329,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0314](0314-the-sentence-bar-is-one-card.md) | The sentence bar is one card that reads as a sentence | 2026-11-21 | Proposed | `components/` guide: `SentenceBar.tsx`, `PanelFooter.tsx`; `utils/` guide: `sentenceBar.ts` |
 | [0315](0315-a-desk-keeps-its-map-tools-in-one-column.md) | A desk keeps its map tools in one column on the right | 2026-11-21 | Proposed | `components/` guide: `MapCorner.tsx`, `LayersPopover.tsx`, `MapStage.tsx` |
 | [0316](0316-a-loop-is-drawn-in-one-stroke.md) | A loop is drawn in one stroke | 2026-11-21 | Proposed | `map/` guide: `drawRing.ts`; `utils/` guide: `drawGeometry.ts` |
+| [0317](0317-the-relief-leads-the-map.md) | The relief leads the map, in a look for each theme | 2026-11-21 | Proposed; supersedes part of 0243 | `map/` guide: `ground.ts`, `layerOrder.ts` |

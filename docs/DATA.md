@@ -883,12 +883,14 @@ a gap in a map that otherwise drew, and says nothing.
 
 ### Elevation and imagery
 
-The Topographic, Shaded relief, Slope angle and Satellite rows, and the 3D
+The map's ground, a tint by height and a hillshade under the street map, reads
+Mapterhorn's elevation tiles for the view on every load (record 0317). The
+Topographic, Shaded relief, Slope angle and Satellite rows, and the 3D
 terrain, read tiles the browser fetches itself from three more keyless hosts
 (#799). None of the five asks for anything until it is switched on, or,
 for the elevation, until a card reads the ground under its point (#832).
 
-**Elevation is Mapterhorn's**, one model behind the contours, the relief, the
+**Elevation is Mapterhorn's**, one model behind the ground, the contours, the relief, the
 slope angle and the 3D terrain. It is Copernicus GLO-30 at 30 m everywhere,
 with finer national surveys stitched in where a country publishes one. 30 m is
 enough for a ridge and a valley, and too coarse for a

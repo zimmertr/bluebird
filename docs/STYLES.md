@@ -368,9 +368,11 @@ repaints it without re-rendering it (record
 follows the tokens: axis `ink-soft`, grid `rule`, surface `panel` and playhead
 `accent-ink`.
 
-**What does not change.** The map's ground does not follow the theme: it is
-Liberty's light terrain unless the Satellite row puts imagery under it, which is
-dark. The basemap, the markers, the ring, the labels and their halo, and every
+**The map's ground follows the theme** (record
+[0317](architectural-decision-records/0317-the-relief-leads-the-map.md)): a tint
+by height and a hillshade under Liberty's faint roads, towns and water, slate
+before dawn in dark and green to pale summits in light, from `map/ground.ts`.
+**What does not change.** The markers, the ring, the labels and their halo, and every
 overlay's fill and edge keep their values in `mapStyles.ts` and the overlay
 modules, and the markers, their labels and the scale bar are built to read on
 either ground: a marker wears a dark ring outside its white stroke, and the
