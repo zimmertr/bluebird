@@ -3515,6 +3515,19 @@ export const DAY_STRIP = {
   row: 'flex select-none',
   day: `relative flex min-w-0 flex-1 flex-col items-center py-0.5 ${TEXT.control} ${FIGURES} cursor-pointer transition-colors ${FOCUS_RING}`,
   weekday: `${TEXT.micro} leading-none`,
+  /**
+   * After a forecast (record 0323): each day's sky, eight blocks of three
+   * hours in the score's ramp on the recessed ground, the playhead a line in
+   * the strong ink through it with the hour on a tag over the row, and the
+   * meta row under the days, the play button, the hour and the model.
+   */
+  sky: 'relative mt-1 flex h-[18px] w-full gap-px',
+  skyCell: 'h-full min-w-0 flex-1 bg-recessed first:rounded-l-sm last:rounded-r-sm',
+  head: 'pointer-events-none absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-ink-strong',
+  headTag: `pointer-events-none absolute bottom-[calc(100%+1.75rem)] -translate-x-1/2 ${RADIUS.control} bg-ink-strong px-1.5 py-0.5 ${MICRO_SIZE} font-semibold whitespace-nowrap text-panel`,
+  meta: `flex items-center gap-2 ${TEXT.control}`,
+  metaHour: `relative ${RADIUS.control} px-1 ${CAPTION} ${FIGURES} focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-ink`,
+  model: `ml-auto ${CONTROL_SIZE} font-semibold text-ink-mid ${ACCENT.hoverText} ${FOCUS_RING}`,
 } as const
 
 /**

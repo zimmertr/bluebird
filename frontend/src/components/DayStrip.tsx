@@ -1,5 +1,12 @@
 import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { DAY, DAY_STRIP, RADIUS, SR_ONLY } from '../styles'
+import { ACCENT, DAY, DAY_STRIP, RADIUS, SCRUBBER, SR_ONLY, TRANSPORT_PLAY } from '../styles'
+import { IconPlay } from './icons'
+import { scoreColor } from '../utils/colors'
+import { dayKey } from '../utils/calendar/calendarDates'
+import { DAY_MS } from '../utils/forecastWindow'
+import { hourShort } from '../utils/score/headline'
+import { SKY_BLOCKS } from '../utils/score/daySky'
+import { clamp } from '../utils/numbers'
 import {
   type BandLimits,
   type ForecastSelection,
@@ -24,6 +31,39 @@ interface Props {
   liftPx: number
   /** The clock, for a test. */
   now?: () => Date
+  /**
+   * After a forecast whose window the strip still shows (record 0323): each
+   * day's sky (`daySky`) in the score's ramp, the window's days widened, the
+   * forecast player as a playhead the window's days scrub, and the meta row
+   * with play, the hour and the model in place of `transport`.
+   */
+  zoom?: StripZoom | null
+}
+
+export interface StripZoom {
+  sky: ReadonlyMap<string, readonly (number | null)[]>
+  range: { lo: number; hi: number } | null
+  times: readonly number[]
+  index: number
+  onIndex: (index: number) => void
+  playing: boolean
+  onPlaying: (playing: boolean) => void
+  /** The hour drawn, as the player reads it. */
+  readout: string
+  /** The slider's name, the player's own. */
+  label: string
+  /** The model the forecast came from, which opens the When card. */
+  model: string
+  onModel: () => void
+}
+
+const NO_SKY: readonly (number | null)[] = Array.from({ length: SKY_BLOCKS }, () => null)
+
+/** The playhead's day and how far through it, from the hour drawn. */
+function headAt(ms: number | undefined): { date: string; frac: number } | null {
+  if (ms === undefined) return null
+  const date = dayKey(new Date(ms))
+  return { date, frac: (ms - dayDate(date).getTime()) / DAY_MS }
 }
 
 const systemClock = () => new Date()
@@ -44,7 +84,7 @@ const dayName = (key: string) =>
  * The days are one tab stop, and the arrows walk them, as the calendar's grid
  * does. It names itself as the calendar's grid does, so no new words.
  */
-export default function DayStrip({ selection, onSelection, band, transport, liftPx, now = systemClock }: Props) {
+export default function DayStrip({ selection, onSelection, band, transport, liftPx, now = systemClock, zoom = null }: Props) {
   // The day changes under a tab left open overnight: read the clock with the
   // band, and once a minute is plenty for a row of days.
   const [clock, setClock] = useState(now)
@@ -74,6 +114,45 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
   }, [drag, onSelection, selection])
 
   const chosen = selectedDays(selection)
+  const inWindow = (date: string) => chosen !== null && date >= chosen.startDate && date <= chosen.endDate
+  // The window's days widen to about half the strip, the prototype's share,
+  // so an hour is a few pixels wide and easy to find.
+  const windowCount = zoom === null ? 0 : days.filter((d) => inWindow(d.date)).length
+  const share = Math.min(0.6, 0.22 + 0.17 * windowCount)
+  const grow = windowCount === 0 ? 1 : (share * (days.length - windowCount)) / (windowCount * (1 - share))
+  const head = zoom === null ? null : headAt(zoom.times[zoom.index])
+
+  // A drag across the window's days moves the hour, as the prototype's does.
+  const [scrubbing, setScrubbing] = useState(false)
+  const zoomRef = useRef(zoom)
+  zoomRef.current = zoom
+  function indexAt(clientX: number): number | null {
+    const z = zoomRef.current
+    const skies = [...(rowRef.current?.querySelectorAll<HTMLElement>('[data-sky]') ?? [])]
+    if (z === null || skies.length === 0 || z.times.length === 0) return null
+    const sky =
+      skies.find((el) => clientX <= el.getBoundingClientRect().right) ?? skies[skies.length - 1]
+    const box = sky.getBoundingClientRect()
+    const frac = clamp((clientX - box.left) / box.width, 0, 0.999)
+    const ms = dayDate(sky.dataset.sky!).getTime() + frac * DAY_MS
+    let best = 0
+    for (let i = 1; i < z.times.length; i++) if (Math.abs(z.times[i] - ms) < Math.abs(z.times[best] - ms)) best = i
+    return best
+  }
+  useEffect(() => {
+    if (!scrubbing) return
+    const move = (e: PointerEvent) => {
+      const i = indexAt(e.clientX)
+      if (i !== null) zoomRef.current?.onIndex(i)
+    }
+    const end = () => setScrubbing(false)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+    }
+  }, [scrubbing])
   const drawn = drag === null ? chosen : drag.to === drag.from ? orderDays(drag.from, drag.from) : orderDays(drag.anchor, drag.to)
 
   // The roving stop: the window's first day on the strip, or today.
@@ -119,9 +198,18 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
               data-day={d.date}
               aria-pressed={mark !== null}
               tabIndex={d.date === stop ? 0 : -1}
+              style={zoom !== null && inWindow(d.date) ? { flexGrow: grow } : undefined}
               onPointerDown={(e) => {
                 // The main button alone; a Shift press is the click's below.
                 if (e.button > 0 || e.shiftKey) return
+                // Inside a forecast window a drag scrubs the hours.
+                if (zoom !== null && inWindow(d.date)) {
+                  zoom.onPlaying(false)
+                  const i = indexAt(e.clientX)
+                  if (i !== null) zoom.onIndex(i)
+                  setScrubbing(true)
+                  return
+                }
                 setDrag({ from: d.date, anchor: dragAnchor(selection, d.date), to: d.date })
               }}
               onPointerEnter={() => setDrag((was) => (was ? { ...was, to: d.date } : was))}
@@ -139,6 +227,25 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
                 {d.weekday}
               </span>
               <span aria-hidden="true">{d.day}</span>
+              {zoom !== null && (
+                <span aria-hidden="true" data-sky={inWindow(d.date) ? d.date : undefined} className={DAY_STRIP.sky}>
+                  {(zoom.sky.get(d.date) ?? NO_SKY).map((v, i) => (
+                    <span
+                      key={i}
+                      className={DAY_STRIP.skyCell}
+                      style={v === null ? undefined : { backgroundColor: scoreColor(v, zoom.range) }}
+                    />
+                  ))}
+                  {head !== null && head.date === d.date && (
+                    <>
+                      <span className={DAY_STRIP.head} style={{ left: `${head.frac * 100}%` }} />
+                      <span className={DAY_STRIP.headTag} style={{ left: `${head.frac * 100}%` }}>
+                        {hourShort(zoom.times[zoom.index])}
+                      </span>
+                    </>
+                  )}
+                </span>
+              )}
               {/* The day's full name is the button's, read where the cell
                   shows an initial and a number. Hidden text rather than a
                   label, so the name never disagrees with the visible letters. */}
@@ -147,7 +254,41 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
           )
         })}
       </div>
-      {transport}
+      {zoom !== null ? (
+        <div className={DAY_STRIP.meta}>
+          <button
+            type="button"
+            onClick={() => zoom.onPlaying(!zoom.playing)}
+            aria-label={zoom.playing ? 'Pause the timeline' : 'Play the timeline'}
+            aria-keyshortcuts="Space"
+            className={`${ACCENT.fill} ${ACCENT.fillHover} ${TRANSPORT_PLAY} ${RADIUS.control} transition-colors`}
+          >
+            <IconPlay playing={zoom.playing} />
+          </button>
+          {/* The keyboard's way along the hours, the player's own slider,
+              whose value a screen reader hears as the hour; the hour it
+              shows wears its focus ring. */}
+          <label className={DAY_STRIP.metaHour}>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(0, zoom.times.length - 1)}
+              step={1}
+              value={zoom.index}
+              onChange={(e) => zoom.onIndex(Number(e.target.value))}
+              aria-label={zoom.label}
+              aria-valuetext={zoom.readout}
+              className={`${SCRUBBER} ${SR_ONLY}`}
+            />
+            <span aria-hidden="true">{zoom.readout}</span>
+          </label>
+          <button type="button" onClick={zoom.onModel} className={DAY_STRIP.model}>
+            {zoom.model}
+          </button>
+        </div>
+      ) : (
+        transport
+      )}
     </div>
   )
 }

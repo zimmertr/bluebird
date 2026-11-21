@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
-import DayStrip from './DayStrip'
+import DayStrip, { type StripZoom } from './DayStrip'
 import { render } from '../testSupport/render'
 import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
 
@@ -63,4 +63,59 @@ describe('DayStrip', () => {
     fireEvent.keyDown(day('2026-07-18'), { key: 'Home' })
     expect(document.activeElement).toBe(day('2026-07-15'))
   })
+
+  // After a forecast (record 0323): each day's sky, the window widened, a
+  // playhead the window's days scrub, and the meta row in the player's place.
+  describe('after a forecast', () => {
+    const sel: ForecastSelection = { kind: 'days', startDate: '2026-07-17', endDate: '2026-07-17' }
+    const times = Array.from({ length: 24 }, (_, h) => new Date(2026, 6, 17, h).getTime())
+    function zoomed(over: Partial<StripZoom> = {}) {
+      const zoom: StripZoom = {
+        sky: new Map([['2026-07-17', [10, 20, 30, 40, 50, 60, 70, 80]]]),
+        range: { lo: 0, hi: 100 },
+        times,
+        index: 12,
+        onIndex: vi.fn(),
+        playing: false,
+        onPlaying: vi.fn(),
+        readout: 'Fri 12 PM',
+        label: 'Score time',
+        model: 'GFS',
+        onModel: vi.fn(),
+        ...over,
+      }
+      render(
+        <DayStrip selection={sel} onSelection={vi.fn()} band={BAND} transport={<div data-testid="transport" />} liftPx={0} now={NOW} zoom={zoom} />,
+      )
+      return zoom
+    }
+
+    it('paints the window\'s sky, widens its day and sets the playhead and its hour on it', () => {
+      zoomed()
+      const sky = day('2026-07-17').querySelector<HTMLElement>('[data-sky]')!
+      expect([...sky.children].filter((c) => (c as HTMLElement).style.backgroundColor !== '')).toHaveLength(8)
+      expect(Number(day('2026-07-17').style.flexGrow)).toBeGreaterThan(1)
+      expect(day('2026-07-16').style.flexGrow).toBe('')
+      expect(sky.textContent).toBe('12p')
+    })
+
+    it('draws the meta row in the player\'s place: play, the hour and the model', () => {
+      const zoom = zoomed()
+      expect(screen.queryByTestId('transport')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Play the timeline' }))
+      expect(zoom.onPlaying).toHaveBeenCalledWith(true)
+      fireEvent.change(screen.getByRole('slider', { name: 'Score time' }), { target: { value: '15' } })
+      expect(zoom.onIndex).toHaveBeenCalledWith(15)
+      fireEvent.click(screen.getByRole('button', { name: 'GFS' }))
+      expect(zoom.onModel).toHaveBeenCalledTimes(1)
+    })
+
+    it('scrubs on a press in the window, and picks days outside it', () => {
+      const zoom = zoomed()
+      fireEvent.pointerDown(day('2026-07-17'), { button: 0, clientX: 0 })
+      expect(zoom.onPlaying).toHaveBeenCalledWith(false)
+      expect(zoom.onIndex).toHaveBeenCalled()
+    })
+  })
 })
+

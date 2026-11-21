@@ -990,6 +990,7 @@ export default function App() {
       renderDrawer({ card: barCard, onCardClose: closeBarCard, search })
     )
   const openWhere = useCallback(() => setBarCard('destinations'), [])
+  const openWhen = useCallback(() => setBarCard('forecast'), [])
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
@@ -1080,7 +1081,13 @@ export default function App() {
           // does not use, so the tour plays its hours on the player alone.
           dayStrip={
             isDesktop && demo === null
-              ? { selection, onSelection: forecastSelection.changeSelection, band: forecastSelection.band }
+              ? {
+                  selection,
+                  onSelection: forecastSelection.changeSelection,
+                  band: forecastSelection.band,
+                  fresh: analyzed !== null && !commitReasons.includes('window-changed'),
+                  onModel: openWhen,
+                }
               : null
           }
           onCameraMove={onCameraMove}

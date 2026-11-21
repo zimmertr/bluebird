@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
+import { useCallback, useId, useMemo, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useHoverLink } from '../hooks/useHoverLink'
 import type { Theme } from '../utils/viewPrefs'
@@ -8,7 +8,8 @@ import { useSlashToSearch } from '../hooks/useSlashToSearch'
 import TimelineTransport from './TimelineTransport'
 import type { DeckPoint } from '../utils/cloudSea'
 import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
-import DayStrip from './DayStrip'
+import DayStrip, { type StripZoom } from './DayStrip'
+import { daySky } from '../utils/score/daySky'
 import type { TimelineAxis } from '../utils/timeline'
 import type { ScoreColouring } from '../utils/resultFeatures'
 import AnalysisOverlay from './AnalysisOverlay'
@@ -181,7 +182,15 @@ export interface MapStageProps {
   /** The markers' score colouring while a lens ranks the field (record 0307), memoized in `App.tsx`. */
   scoreColouring?: ScoreColouring | null
   /** At a desk, the window the day strip picks and the band it is drawn over (record 0311). */
-  dayStrip?: { selection: ForecastSelection; onSelection: (s: ForecastSelection) => void; band: BandLimits } | null
+  dayStrip?: {
+    selection: ForecastSelection
+    onSelection: (s: ForecastSelection) => void
+    band: BandLimits
+    /** The strip shows the window the report was fetched for (record 0323). */
+    fresh?: boolean
+    /** Opens the When card from the strip's model button. */
+    onModel?: () => void
+  } | null
 }
 
 /**
@@ -422,6 +431,31 @@ export default function MapStage({
     />
   )
 
+  // After a forecast the strip draws each day's sky and hosts the hours
+  // itself (record 0323), while a lens ranks the field and the strip still
+  // shows the window the report was fetched for.
+  const skyShown = isDesktop && scored && dayStrip?.fresh === true && timelineShown && timelineAxis === 'forecast'
+  const sky = useMemo(
+    () => (skyShown ? daySky(report.results, timeline.forecastTimes) : null),
+    [skyShown, report.results, timeline.forecastTimes],
+  )
+  const stripZoom: StripZoom | null =
+    sky !== null && scoreColouring !== null && dayStrip?.onModel
+      ? {
+          sky,
+          range: scoreColouring.range,
+          times: timeline.forecastTimes,
+          index: timeline.frameIndex,
+          onIndex: timeline.setFrameIndex,
+          playing: timeline.playing,
+          onPlaying: timeline.setPlaying,
+          readout: timeline.timelineReadout,
+          label: 'Score time',
+          model: tableView.analysisModelLabel ?? '',
+          onModel: dayStrip.onModel,
+        }
+      : null
+
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
     // how far MapLibre's own bottom controls rise off the container's
@@ -575,6 +609,7 @@ export default function MapStage({
           band={dayStrip.band}
           liftPx={layout.sheetLiftPx}
           transport={timelineShown && timelineAxis !== null ? transport(timelineAxis, true) : null}
+          zoom={stripZoom}
         />
       ) : (
         timelineShown && timelineAxis !== null && transport(timelineAxis, false)
