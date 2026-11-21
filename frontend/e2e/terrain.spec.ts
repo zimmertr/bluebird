@@ -177,7 +177,9 @@ test('the relief and the 3D terrain fall back to the zoom-12 elevation past zoom
   await page.goto('/?view=-121.76,46.853,14&relief=1&terrain=1')
   await expect.poll(() => demRequests(traffic)).toBeGreaterThan(0)
   await expect.poll(() => dem.zooms()).toContain(12)
-  expect(dem.zooms()).toContain(14)
+  // The ground's own zoom-12 tiles (record 0317) can answer the first poll
+  // before the relief has asked for its own zoom.
+  await expect.poll(() => dem.zooms()).toContain(14)
   expect(Math.max(...dem.zooms())).toBeLessThanOrEqual(16)
 })
 

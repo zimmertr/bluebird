@@ -58,12 +58,20 @@ for (const [width, height] of [
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await forecastButton(page).click()
     await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
-    // The results pane opens under the map in 300ms, and while it moves the
-    // map is held at the window's height, centred on its column (record
-    // 0202), so the corner is read once the map stands at the top again.
+    // Where the window is tall enough for Both, the chart pane opens under
+    // the map in 300ms (record 0312), so the corner is read once the map's
+    // height has held still for longer than that.
     await expect
-      .poll(() => page.locator('.maplibregl-map').evaluate((el) => el.getBoundingClientRect().top))
-      .toBe(0)
+      .poll(() =>
+        page.locator('.maplibregl-map').evaluate(
+          (el) =>
+            new Promise<boolean>((done) => {
+              const h = el.getBoundingClientRect().height
+              setTimeout(() => done(el.getBoundingClientRect().height === h), 400)
+            }),
+        ),
+      )
+      .toBe(true)
 
     const at = await corner(page)
     test.info().annotations.push({ type: `desk corner ${width} px`, description: JSON.stringify(at) })

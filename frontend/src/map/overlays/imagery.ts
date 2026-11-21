@@ -34,7 +34,7 @@
 import type * as maplibregl from 'maplibre-gl'
 import { EOX_IMAGERY_TILES, USGS_IMAGERY_TILES } from '../../utils/terrainSources'
 import { TRAIL_CASING_LAYER } from '../basemap'
-import { addLayerAt, basemapGround, imageryIndex, type FadeProperty, type StyleLayerRef } from '../layerOrder'
+import { addLayerAt, basemapGround, imageryIndex, slotOf, type FadeProperty, type StyleLayerRef } from '../layerOrder'
 import { overlayRecovery } from './recovery'
 
 export const IMAGERY_EOX = 'imagery-eox'
@@ -94,7 +94,11 @@ const EOX_ATTRIBUTION =
  * over its roads.
  */
 export function groundAbove(layers: readonly StyleLayerRef[]): StyleLayerRef[] {
-  return layers.slice(imageryIndex(layers)).filter((layer) => basemapGround(layer) !== null)
+  // Read over the basemap's own layers, as `slotsOf` splits them: the app's
+  // ground tint stands under Liberty's (record 0317), and a layer that is not
+  // Liberty's at the bottom of the stack would put the split there.
+  const basemap = layers.filter((layer) => slotOf(layer.id) === undefined)
+  return basemap.slice(imageryIndex(basemap)).filter((layer) => basemapGround(layer) !== null)
 }
 
 /**
