@@ -225,7 +225,6 @@ test('every trigger lights the one way while open and rests as it was after', as
   // The map's and the cards' triggers first, then the widened column's
   // (record 0321), which stands over the map.
   const triggers: [string, Locator, (() => Promise<void>) | null, ('When' | 'Limits')?][] = [
-    ['Legend', page.getByRole('button', { name: 'Legend', exact: true }), null],
     ['Layers', page.getByRole('button', { name: 'Layers', exact: true }), null],
     ['model picker', page.getByRole('button', { name: /^Forecast model:/ }), null, 'When'],
     ['calendar', page.getByRole('button', { name: /^When\b/ }), null, 'When'],

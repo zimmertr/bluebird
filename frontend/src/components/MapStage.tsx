@@ -1,4 +1,5 @@
 import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { useHoverLink } from '../hooks/useHoverLink'
 import type { Theme } from '../utils/viewPrefs'
 import MapView, { type MapViewHandle } from './MapView'
@@ -12,7 +13,7 @@ import type { TimelineAxis } from '../utils/timeline'
 import type { ScoreColouring } from '../utils/resultFeatures'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
-import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
+import MapLegend, { LegendSections, legendSections, type LegendInputs } from './MapLegend'
 import MapDrawBar from './MapDrawBar'
 import MapRows from './MapRows'
 import MapCorner from './MapCorner'
@@ -169,6 +170,12 @@ export interface MapStageProps {
   onCameraMove?: (view: CameraView, readerMove: boolean) => void
   /** At a desk with the bar, the document links the corner's credit line carries (`DocLinks`). */
   cornerLinks?: ReactNode
+  /**
+   * The desk column's foot, where the legend stands while the column does
+   * (record 0322), or null while there is no column, when the Legend chip
+   * keeps it on the map.
+   */
+  legendHost?: HTMLElement | null
   /** The cloud deck at the hour drawn (record 0310), built in `App.tsx`. */
   cloudDeck?: readonly DeckPoint[] | null
   /** The markers' score colouring while a lens ranks the field (record 0307), memoized in `App.tsx`. */
@@ -224,6 +231,7 @@ export default function MapStage({
   onOpenWhere,
   onCameraMove = urlSync.reportView,
   cornerLinks,
+  legendHost = null,
   cloudDeck = null,
   scoreColouring = null,
   dayStrip = null,
@@ -372,7 +380,10 @@ export default function MapStage({
       </button>
     </>
   ) : null
-  const legendChip = (
+  // At a desk the key stands at the results column's foot while the column
+  // does, as the prototype keeps its scale (record 0322).
+  const legendInColumn = isDesktop && legendHost !== null
+  const legendChip = legendInColumn ? null : (
     <MapLegend
       sections={legend}
       sheet={!isDesktop}
@@ -529,6 +540,7 @@ export default function MapStage({
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
+      {legendInColumn && legend.length > 0 && createPortal(<LegendSections sections={legend} />, legendHost)}
       {isDesktop && <MapCorner onSlots={setCornerSlots} links={cornerLinks} tools={tools} />}
       {/* The foot of a phone's map: the Analyze button (record 0135) with
           the message badge at its corner (record 0208). */}

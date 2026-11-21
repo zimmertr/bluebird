@@ -78,6 +78,8 @@ interface ResultsSheetProps
    */
   wide?: boolean
   onWide?: () => void
+  /** A desk's column foot, which the map's legend draws into (record 0322). */
+  legendFootRef?: (el: HTMLDivElement | null) => void
 }
 
 /** What the sheet reads of `useResultsView`. */
@@ -213,6 +215,7 @@ export default function ResultsSheet(props: ResultsSheetProps) {
   limits,
   wide = false,
   onWide,
+  legendFootRef,
   sortBy,
   pointSample,
   layoutMotion = null,
@@ -376,6 +379,7 @@ export default function ResultsSheet(props: ResultsSheetProps) {
           {(isDesktop || !resultsCollapsed) && (
             <ResultsPanels {...panelsProps(props)} part={isDesktop && !wide ? 'column' : 'all'} />
           )}
+          {isDesktop && <div ref={legendFootRef} data-legend-foot="" className={RESULTS_COLUMN.foot} />}
         </div>
       )}
 

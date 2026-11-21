@@ -3249,6 +3249,13 @@ export const RESULTS_COLUMN = {
    */
   wide: `absolute inset-y-0 right-0 ${LAYER.overlay} flex w-[min(1100px,96%)] flex-col border-l ${PANEL_EDGE} bg-panel ${ELEVATION.overlay}`,
   chips: `${SCROLL_BARS} flex min-h-0 flex-1 flex-wrap content-start gap-1.5 overflow-y-auto px-3 py-2`,
+  /**
+   * The column's foot, where the map's key stands (record 0322), the
+   * prototype's scale under its table: ruled off the rows, a fifth of the
+   * column at most before it scrolls, and drawing nothing while it keys
+   * nothing.
+   */
+  foot: `${SCROLL_BARS} flex max-h-[20%] flex-shrink-0 flex-col gap-1 overflow-y-auto border-t border-rule px-3 py-2 empty:hidden`,
   expand: `${MAP_ROUND_BUTTON} pointer-events-auto absolute right-3 top-3 ${LAYER.base} flex items-center justify-center`,
 } as const
 

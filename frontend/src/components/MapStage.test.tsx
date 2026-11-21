@@ -400,6 +400,19 @@ describe('MapStage', () => {
     expect(legend().sheet).toBe('true')
   })
 
+  // At a desk the key stands at the results column's foot while the column
+  // does (record 0322), and the chip leaves the map; a phone keeps its chip.
+  it('draws the key into the desk column\'s foot, and no chip while it stands', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const { rerender } = render(<MapStage {...props({ legendHost: host })} />)
+    expect(screen.queryByTestId('legend')).toBeNull()
+    expect(host.childElementCount).toBeGreaterThan(0)
+    rerender(<MapStage {...props({ legendHost: host, isDesktop: false, sidebarOpen: false })} />)
+    expect(screen.getByTestId('legend')).toBeTruthy()
+    host.remove()
+  })
+
   // Whatever slot the rows hand up reaches the map, which stands its own
   // button in it (record 0147). Which width has slots is the rows' to say
   // (`MapRows.test.tsx`): a phone's, and none at a desk (record 0174).

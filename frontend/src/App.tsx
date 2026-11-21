@@ -841,6 +841,9 @@ export default function App() {
   // A desk's column widened over the map by its expand button (record 0321),
   // and held wide while the tour's chart cards point at the chart in it.
   const [resultsWide, setResultsWide] = useState(false)
+  // The desk column's foot, where the map's legend stands while the column
+  // does (record 0322).
+  const [legendHost, setLegendHost] = useState<HTMLDivElement | null>(null)
   const toggleWide = useCallback(() => setResultsWide((w) => !w), [])
   const deskWide = isDesktop && (resultsWide || tour.sheetView === 'chart')
   const { setConstraints } = rankingKnobs
@@ -869,6 +872,7 @@ export default function App() {
     limits: isDesktop ? limits : undefined,
     wide: deskWide,
     onWide: toggleWide,
+    legendFootRef: setLegendHost,
     sortBy: view.sortBy,
     sortDesc: view.sortDesc,
     forecastTimes,
@@ -1069,6 +1073,7 @@ export default function App() {
           barCard={barCardNode}
           onOpenWhere={openWhere}
           cornerLinks={cornerLinks}
+          legendHost={legendHost}
           cloudDeck={cloudDeck}
           scoreColouring={scoreColouring}
           // The strip's days are the panel's, which the tour's demonstration
