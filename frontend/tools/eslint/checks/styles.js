@@ -554,13 +554,7 @@ export const STYLES = [
     name: 'style-map-layers-chip',
     files: ['src/components/LayersPopover.tsx'],
     require: [
-      // One button either way (record 0315): a desk's tool column takes the
-      // same element in the tool shape, so the chip may be one arm of a choice.
-      {
-        selector: 'JSXOpeningElement[name.name="MenuButton"] > JSXAttribute[name.name="shape"] Literal[value="chip"]',
-        count: 1,
-        message: 'The Layers chip is a MenuButton in the chip shape.',
-      },
+      { selector: MENU_BUTTON('chip'), count: 1, message: 'The Layers chip is a MenuButton in the chip shape.' },
       { selector: interp('MAP_CHIP_MENU'), count: 1, message: 'The Layers menu wears MAP_CHIP_MENU.' },
       { selector: role('CHIP_CARD_W') + '[property.name="menu"]', count: 1, message: 'The Layers menu is CHIP_CARD_W.menu wide.' },
       { selector: role('SURFACE_CHIP_CARD') + '[property.name="menu"]', count: 1, message: 'The Layers menu stands on SURFACE_CHIP_CARD.menu.' },

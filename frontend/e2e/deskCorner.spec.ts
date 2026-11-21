@@ -3,9 +3,11 @@ import type { Page } from '@playwright/test'
 
 // A desk's map corner (record 0174), laid out as Google Maps lays out its own
 // (TJ, 2026-10-20): the credit line flush in the map's bottom-right corner on
-// the results' edge, with the scale at its end, and over it the compass, the
-// 3D button (#799), the locate button and the zoom pair, 24px in from the
-// map's right edge, 6px apart and 10px above the line. Measured on the live controls, since jsdom
+// the results' edge, with the scale at its end, and over it the map's tools
+// (Layers and the draw button, record 0315), the 3D button (#799), the locate
+// button and the zoom pair, 24px in from the map's right edge, 6px apart and
+// 10px above the line. The compass stands among them only while the map is
+// turned. Measured on the live controls, since jsdom
 // lays nothing out.
 
 async function corner(page: Page) {
@@ -21,6 +23,8 @@ async function corner(page: Page) {
     return {
       map: box(q('.maplibregl-map')),
       compass: box(compass),
+      layers: box(q('button[aria-label="Layers"]')),
+      draw: box(column.querySelector('button[aria-label="Draw polygon"]')),
       terrain: box(q('button[aria-label="3D terrain"]')),
       locate: box(q('.maplibregl-ctrl-geolocate')),
       zoomIn: box(q('.maplibregl-ctrl-zoom-in')),
@@ -29,8 +33,7 @@ async function corner(page: Page) {
       credits: box(q('.maplibregl-ctrl-attrib')),
       scale: box(q('.maplibregl-ctrl-scale')),
       scaleLabel: q('.maplibregl-ctrl-scale')!.textContent,
-      compassDisabled: compass.disabled,
-      compassOpacity: getComputedStyle(compass).opacity,
+      compassDisplay: getComputedStyle(compass).display,
       // The library's corners hold nothing once the corner has every control.
       libraryCorners: [...document.querySelectorAll('.maplibregl-ctrl-top-right, .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right')]
         .map((el) => el.childElementCount),
@@ -76,22 +79,22 @@ for (const [width, height] of [
     near(at.line.height, 27)
     // The column: 32px buttons 24px in, 6px apart, the zoom pair joined, and
     // 10px above the line.
-    for (const button of [at.compass, at.terrain, at.locate, at.zoomIn, at.zoomOut]) {
+    for (const button of [at.layers, at.draw, at.terrain, at.locate, at.zoomIn, at.zoomOut]) {
       near(button.width, 32)
       near(button.right, at.map.right - 24)
     }
-    near(at.terrain.top - at.compass.bottom, 6)
+    near(at.draw.top - at.layers.bottom, 6)
+    near(at.terrain.top - at.draw.bottom, 6)
     near(at.locate.top - at.terrain.bottom, 6)
     near(at.zoomIn.top - at.locate.bottom, 6)
     near(at.zoomOut.top, at.zoomIn.bottom)
     near(at.line.top - at.zoomOut.bottom, 10)
-    // North up: the compass is there, greyed.
-    expect(at.compassDisabled).toBe(true)
-    expect(at.compassOpacity).toBe('0.4')
+    // North up: no compass.
+    expect(at.compassDisplay).toBe('none')
     expect(at.libraryCorners).toEqual([0, 0, 0])
     for (const other of at.others) {
       expect(overlaps(other, at.line)).toBe(false)
-      expect(overlaps(other, { ...at.compass, bottom: at.zoomOut.bottom })).toBe(false)
+      expect(overlaps(other, { ...at.layers, bottom: at.zoomOut.bottom })).toBe(false)
     }
 
     // + zooms, and the credits keep their place while the scale changes.

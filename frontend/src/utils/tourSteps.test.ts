@@ -62,7 +62,15 @@ describe('the tutorial steps', () => {
         expect(panelFooterSource).toContain(`${TOUR_ATTR}={phone ? undefined : 'analyze'}`)
         continue
       }
-      expect(occurrences(step.anchor), step.anchor).toHaveLength(1)
+      // The Layers button is one of two elements by width, the chip on the
+      // map's rows or the round tool in a desk's column (record 0315), so its
+      // anchor is written on each arm of the one choice.
+      if (step.anchor === 'layers') {
+        expect(occurrences('layers')).toEqual(['LayersPopover.tsx', 'LayersPopover.tsx'])
+        expect(layersPopoverSource).toMatch(/const button = tool \? \(/)
+      } else {
+        expect(occurrences(step.anchor), step.anchor).toHaveLength(1)
+      }
       for (const frame of step.frames ?? []) expect(occurrences(frame), frame).toHaveLength(1)
       if (step.keepClear) expect(occurrences(step.keepClear), step.keepClear).toHaveLength(1)
     }
