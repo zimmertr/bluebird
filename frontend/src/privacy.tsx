@@ -2,6 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import PrivacyPage from './components/PrivacyPage'
 import ErrorBoundary from './components/ErrorBoundary'
+// The app's face, imported here rather than from index.css (record 0324).
+import '@fontsource-variable/archivo/wdth.css'
 import './index.css'
 
 // A separate Vite entry rather than a route inside App: this page is text, and

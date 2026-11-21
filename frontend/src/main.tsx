@@ -4,6 +4,8 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { reloadOnStaleChunk } from './staleChunk'
 import { keepForecastsAcrossReload } from './utils/forecastStore'
+// The app's face, imported here rather than from index.css (record 0324).
+import '@fontsource-variable/archivo/wdth.css'
 import './index.css'
 
 reloadOnStaleChunk({
