@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, resultRows, typeCell, DESTINATION_NAMES, forecastButton } from './fixtures'
+import { test, expect, expectRanked, resultRows, typeCell, DESTINATION_NAMES, forecastButton, everyColumn } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A press on a results row opens that destination's marker popup (#696;
@@ -18,6 +18,8 @@ test('a click on a row opens its popup, and its chart box does not, at 1280 px',
   await page.setViewportSize({ width: 1280, height: 800 })
   await analyze(page)
   const popups = page.locator('.maplibregl-popup')
+  // The chart boxes stand in the widened column (record 0321).
+  await everyColumn(page)
   const row = resultRows(page).nth(1)
   await row.getByRole('checkbox').click()
   await expect(popups).toHaveCount(0)

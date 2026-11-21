@@ -80,6 +80,22 @@ describe('ResultsBar', () => {
     expect(screen.queryByRole('group', { name: 'Limits' })).toBeNull()
   })
 
+  // A desk's compact column keeps the toolbar behind its expand button, and
+  // widened it shows it (record 0321); a phone has no expand button.
+  it('hides the toolbar behind the expand button in a desk\'s compact column', () => {
+    const onWide = vi.fn()
+    const { rerender } = render(<ResultsBar {...props({ wide: false, onWide })} />)
+    expect(screen.queryByRole('button', { name: 'Show chart only' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Choose which columns to display' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Every column' }))
+    expect(onWide).toHaveBeenCalledTimes(1)
+    rerender(<ResultsBar {...props({ wide: true, onWide })} />)
+    expect(screen.getByRole('button', { name: 'Show chart only' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Narrow the table' }).getAttribute('aria-pressed')).toBe('true')
+    rerender(<ResultsBar {...props({ sheet: true })} />)
+    expect(screen.queryByRole('button', { name: 'Every column' })).toBeNull()
+  })
+
   // Disabled rather than removed, so the two beside it do not move.
   it('keeps Both in the segment and disables it without the room', () => {
     const chooseResultsMode = vi.fn()

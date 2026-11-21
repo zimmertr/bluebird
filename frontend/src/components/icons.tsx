@@ -390,6 +390,31 @@ export function IconColumns({ className }: IconProps): ReactNode {
   )
 }
 
+/**
+ * The results column's expand button (record 0321): two corners pointing out
+ * while it widens the column over the map, and in while it narrows it.
+ */
+export function IconWiden({ wide, className }: IconProps & { wide: boolean }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      {wide ? (
+        <path d="M14 2 9.5 6.5M9.5 3v3.5H13M2 14l4.5-4.5M3 9.5h3.5V13" />
+      ) : (
+        <path d="M9.5 6.5 14 2M10 2h4v4M6.5 9.5 2 14M2 10v4h4" />
+      )}
+    </svg>
+  )
+}
+
 /** The results bar's Models button: one sheet over another, more than one forecast. */
 export function IconModels({ className }: IconProps): ReactNode {
   return (

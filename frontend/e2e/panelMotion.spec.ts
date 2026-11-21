@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, resultRows, DESTINATION_NAMES, forecastButton } from './fixtures'
+import { test, expect, expectRanked, resultRows, DESTINATION_NAMES, forecastButton, everyColumn } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A desk's results stand in a column right of the map and the chart in a
@@ -17,6 +17,8 @@ async function analyzedAt(page: Page, mode: 'Show both chart and table' | 'Show 
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await forecastButton(page).click()
   await expectRanked(page)
+  // The panes stand in the widened column (record 0321).
+  await everyColumn(page)
   await page.getByRole('button', { name: mode }).click()
   await page.waitForTimeout(600)
 }

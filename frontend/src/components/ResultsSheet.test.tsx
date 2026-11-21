@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
-import ResultsSheet, { ResultsChartPane, ResultsExpand } from './ResultsSheet'
+import ResultsSheet, { ResultsExpand } from './ResultsSheet'
 import { render } from '../testSupport/render'
 import { DEFAULT_FAMILY_KEY, resultsHeading } from '../metrics'
 import { LAYOUT_HOLD } from '../styles'
@@ -171,33 +171,19 @@ describe('ResultsSheet', () => {
     expect(screen.queryByTestId('panels')).toBeNull()
   })
 
-  // The column holds the table, or a lone chart's chips, and the chart stands
-  // under the map: one report, handed to both halves alike.
-  it('splits a desk\'s panes between the column and the chart under the map', () => {
+  // The column holds the compact table, and widened over the map it holds
+  // every pane, as a phone's sheet does (record 0321).
+  it('draws a desk\'s compact column, and every pane once it is widened', () => {
     seen.panels.length = 0
-    const shared = props()
-    render(
-      <>
-        <ResultsSheet {...shared} />
-        <ResultsChartPane {...shared} />
-      </>,
-    )
-    const parts = seen.panels.map((p) => p.part)
-    expect(parts).toEqual(expect.arrayContaining(['column', 'chart']))
-    const [column, chart] = ['column', 'chart'].map((part) => [...seen.panels].reverse().find((p) => p.part === part)!)
-    expect(column.report).toBe(chart.report)
-    expect(column.layout).toBe(chart.layout)
+    const { rerender } = render(<ResultsSheet {...props()} />)
+    expect(seen.panels[seen.panels.length - 1].part).toBe('column')
+    rerender(<ResultsSheet {...props()} wide />)
+    expect(seen.panels[seen.panels.length - 1].part).toBe('all')
   })
 
-  // A phone's sheet draws every pane, and draws no chart under the map.
   it('draws every pane in a phone\'s sheet', () => {
     seen.panels.length = 0
-    render(
-      <>
-        <ResultsSheet {...props({ isDesktop: false })} />
-        <ResultsChartPane {...props({ isDesktop: false })} />
-      </>,
-    )
+    render(<ResultsSheet {...props({ isDesktop: false })} />)
     expect(seen.panels.map((p) => p.part)).toEqual(seen.panels.map(() => 'all'))
   })
 

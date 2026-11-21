@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, isoDay, forecastButton, openCard } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, isoDay, forecastButton, openCard, everyColumn } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every menu at a desk is the one menu (#714, record 0201): a card 4px under
@@ -75,7 +75,9 @@ test('the Layers tool and the results bar open their menus beside and under them
   await expect(layers).toHaveAttribute('aria-expanded', 'false')
 
   // The bar's buttons: each card under its own button rather than under the
-  // group, and the button lit in the chip's own accent fill.
+  // group, and the button lit in the chip's own accent fill. They stand in
+  // the widened column (record 0321).
+  await everyColumn(page)
   for (const name of ['Choose which columns to display', 'Models']) {
     const button = page.getByRole('button', { name, exact: true })
     const rest = await fillOf(button)
@@ -143,6 +145,9 @@ test('the calendar stands 4px under its field at the field\'s width', async ({ p
 test('the chart metric and an aggregate pick from the one menu', async ({ page }) => {
   // A window of days, because a single hour has no aggregate to choose.
   await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+  // The chart stands in the widened column (record 0321).
+  await everyColumn(page)
+  await page.getByRole('button', { name: 'Show both chart and table' }).click()
 
   const metric = page.getByRole('button', { name: /^Chart metric / })
   await metric.click()
@@ -199,7 +204,6 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
 // to one ink for all; open, one fill for all.
 test('every trigger lights the one way while open and rests as it was after', async ({ page }) => {
   await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
-  await page.getByRole('button', { name: 'Show both chart and table' }).click()
   const away = () => page.mouse.move(1, 1)
   const look = (l: Locator) =>
     l.evaluate((el) => {
@@ -218,19 +222,28 @@ test('every trigger lights the one way while open and rests as it was after', as
   }
   // The model picker and the calendar are in the When card at a desk, and
   // the aggregate in the Limits card (record 0309): each opens its card first.
+  // The map's and the cards' triggers first, then the widened column's
+  // (record 0321), which stands over the map.
   const triggers: [string, Locator, (() => Promise<void>) | null, ('When' | 'Limits')?][] = [
     ['Legend', page.getByRole('button', { name: 'Legend', exact: true }), null],
     ['Layers', page.getByRole('button', { name: 'Layers', exact: true }), null],
-    ['Columns', page.getByRole('button', { name: 'Choose which columns to display', exact: true }), null],
-    ['Models', page.getByRole('button', { name: 'Models', exact: true }), null],
     ['model picker', page.getByRole('button', { name: /^Forecast model:/ }), null, 'When'],
     ['calendar', page.getByRole('button', { name: /^When\b/ }), null, 'When'],
     ['aggregate', page.getByRole('button', { name: /^Temperature aggregate / }), pick('Temperature aggregate'), 'Limits'],
+    ['Columns', page.getByRole('button', { name: 'Choose which columns to display', exact: true }), null],
+    ['Models', page.getByRole('button', { name: 'Models', exact: true }), null],
     ['chart metric', page.getByRole('button', { name: /^Chart metric / }), pick('Chart metric')],
   ]
   const lit = new Set<string>()
   const lifted = new Set<string>()
   for (const [name, trigger, close, inCard] of triggers) {
+    if (name === 'Columns') {
+      // The Limits card stands open under the sentence bar; the column
+      // widens over it.
+      await page.keyboard.press('Escape')
+      await everyColumn(page)
+      await page.getByRole('button', { name: 'Show both chart and table' }).click()
+    }
     if (inCard) await openCard(page, inCard)
     // The legend's card stands open on a desk until it is shut.
     if ((await trigger.getAttribute('aria-expanded')) === 'true') await trigger.click()

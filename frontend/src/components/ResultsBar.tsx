@@ -16,6 +16,7 @@ import {
   IconModels,
   IconRestore,
   IconTable,
+  IconWiden,
 } from './icons'
 import {
   ACCENT,
@@ -95,6 +96,15 @@ interface ResultsBarProps {
   modelLabel?: string | null
   /** The bounds as chips under the lenses, and the pill that adds one (record 0319). Absent: no row. */
   limits?: ComponentProps<typeof LimitChips>
+  /**
+   * A desk's column (record 0321): false while it draws the compact table,
+   * when the bar keeps its title, lenses and limits and hides the toolbar
+   * behind the expand button; true while it is widened over the map with
+   * every column, the toolbar and the chart. Absent on a phone, which has no
+   * expand button.
+   */
+  wide?: boolean
+  onWide?: () => void
 }
 
 /**
@@ -143,7 +153,11 @@ export default function ResultsBar({
   bestHours = null,
   modelLabel = null,
   limits,
+  wide,
+  onWide,
 }: ResultsBarProps) {
+  // The toolbar stands unless a desk's column is compact (record 0321).
+  const toolbar = wide !== false
   // The line under the headline: the best hours, the window and the model,
   // the prototype's subtitle (record 0319).
   const subtitle = windowTitle === null ? null : [bestHours, windowTitle, modelLabel].filter((p) => p !== null).join(` ${SEP} `)
@@ -273,13 +287,25 @@ export default function ResultsBar({
               {subtitle}
             </span>
           )}
+          {/* The expand button, at the title row's end before the chevron
+              (record 0321). */}
+          {wide !== undefined && onWide && showResults && (
+            <button
+              onClick={onWide}
+              aria-label={wide ? 'Narrow the table' : 'Every column'}
+              aria-pressed={wide}
+              className={`${ICON_BUTTON} ml-auto flex-shrink-0`}
+            >
+              <IconWiden wide={wide} />
+            </button>
+          )}
           {/* The chevron rides the title row when the bar is folded so
               collapsing never needs the second row; its wide twin sits
               at the end of the actions row below. */}
           <button
             onClick={toggleCollapsed}
             aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-            className={`${ICON_BUTTON} ml-auto @4xl:hidden`}
+            className={`${ICON_BUTTON} ${wide !== undefined && onWide && showResults ? '' : 'ml-auto'} ${toolbar ? '@4xl:hidden' : ''}`}
           >
             <IconChevron up={resultsCollapsed} className={sideways} />
           </button>
@@ -291,6 +317,7 @@ export default function ResultsBar({
             spans the bar and the groups stand at its two ends, at least 16px
             apart (gap-x-4): at 360px the two glyph groups leave the line 19px,
             which 24 would have wrapped. */}
+        {toolbar && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 @4xl:gap-x-6">
           {/* Mode switch: table, chart, or both — fluid width, since
               three icon-plus-label halves cannot fit the panel's
@@ -369,6 +396,7 @@ export default function ResultsBar({
             </button>
           </div>
         </div>
+        )}
       </div>
       {/* The lenses, a row of their own under the title and the buttons:
           they rank the field, which is the bar's whole subject. */}

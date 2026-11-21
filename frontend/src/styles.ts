@@ -3242,6 +3242,12 @@ export const RESULTS_PANE = {
  */
 export const RESULTS_COLUMN = {
   column: `relative flex w-[clamp(26rem,34vw,36rem)] flex-shrink-0 flex-col border-l ${PANEL_EDGE} bg-panel`,
+  /**
+   * The column widened over the map by its expand button (record 0321), the
+   * prototype's: from the right edge across most of the window, every column,
+   * the toolbar and the chart, over the map on the overlay step.
+   */
+  wide: `absolute inset-y-0 right-0 ${LAYER.overlay} flex w-[min(1100px,96%)] flex-col border-l ${PANEL_EDGE} bg-panel ${ELEVATION.overlay}`,
   chips: `${SCROLL_BARS} flex min-h-0 flex-1 flex-wrap content-start gap-1.5 overflow-y-auto px-3 py-2`,
   expand: `${MAP_ROUND_BUTTON} pointer-events-auto absolute right-3 top-3 ${LAYER.base} flex items-center justify-center`,
 } as const

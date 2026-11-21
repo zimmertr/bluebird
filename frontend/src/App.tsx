@@ -25,7 +25,7 @@ import { geoKey } from './utils/points'
 import type { CameraView } from './utils/mapView'
 import SkipLink from './components/SkipLink'
 import MapStage from './components/MapStage'
-import ResultsSheet, { ResultsChartPane, ResultsExpand } from './components/ResultsSheet'
+import ResultsSheet, { ResultsExpand } from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
 
 // The tutorial's overlay is a chunk of its own, fetched on the first press
@@ -838,9 +838,20 @@ export default function App() {
   // Limits card there (record 0319), which no longer stands in the sentence.
   // A phone has no cards: the pill opens the Controls sheet, where the
   // Limits section stands with the rest.
+  // A desk's column widened over the map by its expand button (record 0321),
+  // and held wide while the tour's chart cards point at the chart in it.
+  const [resultsWide, setResultsWide] = useState(false)
+  const toggleWide = useCallback(() => setResultsWide((w) => !w), [])
+  const deskWide = isDesktop && (resultsWide || tour.sheetView === 'chart')
   const { setConstraints } = rankingKnobs
   const removeLimit = useCallback((key: keyof Constraints) => setConstraints((c) => ({ ...c, [key]: null })), [setConstraints])
-  const openLimits = useCallback(() => (isDesktop ? setBarCard('metrics') : openDrawer()), [isDesktop, openDrawer])
+  // The Limits card hangs under the sentence bar, which the widened column
+  // stands over, so the pill narrows it first.
+  const openLimits = useCallback(() => {
+    if (!isDesktop) return openDrawer()
+    setResultsWide(false)
+    setBarCard('metrics')
+  }, [isDesktop, openDrawer])
   const limits = useMemo(() => ({ constraints, onRemove: removeLimit, onAdd: openLimits }), [constraints, removeLimit, openLimits])
 
   const resultsSheetProps = {
@@ -854,6 +865,8 @@ export default function App() {
     analysisSeq,
     onLens: isDesktop || lens !== null ? rankingKnobs.setLens : undefined,
     limits,
+    wide: deskWide,
+    onWide: toggleWide,
     sortBy: view.sortBy,
     sortDesc: view.sortDesc,
     forecastTimes,
@@ -1011,7 +1024,7 @@ export default function App() {
         tabIndex={-1}
         // A desk is a row: the map and its chart down the left, the results'
         // column down the right (record 0312).
-        className={`flex-1 flex overflow-hidden min-w-0 focus:outline-none ${isDesktop ? 'flex-row' : 'flex-col relative'}`}
+        className={`relative flex-1 flex overflow-hidden min-w-0 focus:outline-none ${isDesktop ? 'flex-row' : 'flex-col'}`}
       >
         <div className={isDesktop ? 'relative flex min-w-0 flex-1 flex-col' : 'contents'}>
         <MapStage
@@ -1066,7 +1079,6 @@ export default function App() {
           onCameraMove={onCameraMove}
         />
 
-        <ResultsChartPane {...resultsSheetProps} pointSample={pointSample} />
         <ResultsExpand isDesktop={isDesktop} layout={layout} />
         </div>
 

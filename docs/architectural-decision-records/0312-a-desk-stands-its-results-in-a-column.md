@@ -1,6 +1,6 @@
 # 0312. A desk stands its results in a column down the map's right edge
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
+- Status: Proposed, in the from-scratch UI PR; the chart's pane under the map superseded by [0321](0321-the-column-widens-over-the-map-for-every-column.md)
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, choosing "Pane under the map" for the chart
 - Issues and PRs: #825

@@ -420,3 +420,13 @@ export async function resultsOpened(page: Page) {
     )
     .toBe(true)
 }
+
+// A desk's column draws the compact table, and keeps every column, the
+// toolbar (Table/Chart/Both, Columns, Models, Removed, Download CSV) and the
+// chart behind its expand button (record 0321). A phone has no expand
+// button, where this does nothing.
+export async function everyColumn(page: Page) {
+  const button = page.getByRole('button', { name: 'Every column', exact: true })
+  if (await button.isVisible()) await button.click()
+  await expect(page.getByRole('button', { name: 'Every column', exact: true })).toHaveCount(0)
+}

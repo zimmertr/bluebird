@@ -209,7 +209,9 @@ export default function ResultsPanels({
   // the press at the height the mode pressed gives it, and at a desk kept
   // while its frame closes, at the height it had (record 0202).
   const chartShown = !collapsed && resultsMode !== 'table'
-  const tableShown = !collapsed && resultsMode !== 'chart'
+  // A desk's compact column is the table whatever the mode, which shapes
+  // the widened column's panes (record 0321).
+  const tableShown = !collapsed && (part === 'column' || resultsMode !== 'chart')
   const chartPane = usePaneMotion(chartShown, chartPanelPx, panesMove)
   const tablePane = usePaneMotion(tableShown, tablePanelPx, panesMove)
   const paneMotion = panesMove ? MOTION.pane : ''
@@ -306,7 +308,7 @@ export default function ResultsPanels({
         <div className={CHART_LEGEND.chips}>{legendChips}</div>
       </div>
     ) : null
-  const legendShown = !collapsed && resultsMode === 'chart' && legendStrip !== null
+  const legendShown = !collapsed && part !== 'column' && resultsMode === 'chart' && legendStrip !== null
   const column = part === 'column'
   // In the column a lone chart's chips take the table's room, so they fill
   // the column's height rather than scrolling in their two rows.

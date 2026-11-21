@@ -24,8 +24,8 @@ test('a popup clears the forecast player, and the next analysis closes it', asyn
   await analyze.click()
   // A pending row's centring opens no card, so not before the row is ranked.
   await expectRanked(page)
-  // Table alone, which leaves the map the height a desktop reader works at.
-  await page.getByRole('button', { name: 'Show table only' }).click()
+  // The compact column is the table alone (record 0321), which leaves the
+  // map the height a desktop reader works at.
 
   // The player is on by default at a desktop width; its root holds the play
   // button, found through the button so the test follows the bar rather

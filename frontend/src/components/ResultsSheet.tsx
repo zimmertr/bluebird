@@ -72,6 +72,12 @@ interface ResultsSheetProps
     onRemove: (key: keyof Constraints) => void
     onAdd: () => void
   }
+  /**
+   * A desk's column widened over the map, with every column, the toolbar and
+   * the chart (record 0321), and the expand button's press.
+   */
+  wide?: boolean
+  onWide?: () => void
 }
 
 /** What the sheet reads of `useResultsView`. */
@@ -160,16 +166,6 @@ function panelsProps(p: ResultsSheetProps): Omit<ResultsPanelsProps, 'part'> {
 }
 
 /**
- * A desk's chart under the map (record 0312): the chart's pane of
- * the panels, while the table stands in the column down the map's right edge
- * (`ResultsSheet`). Nothing on a phone, whose sheet draws every pane.
- */
-export function ResultsChartPane(props: ResultsSheetProps) {
-  if (!props.isDesktop || !props.resultsView.showTable) return null
-  return <ResultsPanels {...panelsProps(props)} part="chart" />
-}
-
-/**
  * The round button on the map's right edge that brings a desk's collapsed
  * column back: the bar's own chevron, pointing at where the column comes in
  * from, under the bar chevron's own name.
@@ -215,6 +211,8 @@ export default function ResultsSheet(props: ResultsSheetProps) {
   analysisSeq,
   onLens,
   limits,
+  wide = false,
+  onWide,
   sortBy,
   pointSample,
   layoutMotion = null,
@@ -301,12 +299,13 @@ export default function ResultsSheet(props: ResultsSheetProps) {
         <div
           ref={sheetRef}
           data-tour="results"
-          style={isDesktop && columnPx !== null ? { width: columnPx } : undefined}
+          style={isDesktop && !wide && columnPx !== null ? { width: columnPx } : undefined}
           className={
             isDesktop
               ? // The column down the map's right edge, on a layer of its own
-                // while it moves (record 0216).
-                RESULTS_COLUMN.column +
+                // while it moves (record 0216), or widened over the map
+                // (record 0321).
+                (wide ? RESULTS_COLUMN.wide : RESULTS_COLUMN.column) +
                 (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '')
               : // The sheet's surface runs under a phone's home indicator and
                 // its grip and header stand above it (record 0145). Never
@@ -319,7 +318,7 @@ export default function ResultsSheet(props: ResultsSheetProps) {
                 }`
           }
         >
-          {isDesktop && (
+          {isDesktop && !wide && (
             <GridGutter
               axis="col"
               label="Resize results"
@@ -368,12 +367,14 @@ export default function ResultsSheet(props: ResultsSheetProps) {
             bestHours={bestHours}
             modelLabel={tableView.analysisModelLabel}
             limits={limits && { ...limits, hidden: hiddenByLimits }}
+            wide={isDesktop ? wide : undefined}
+            onWide={onWide}
           />
-          {/* A desk's column holds the table, or a lone chart's chips, and
-              the chart stands under the map (`ResultsChartPane`); a phone's
-              sheet holds every pane, and drops them while collapsed. */}
+          {/* A desk's column holds the compact table, and widened it holds
+              every pane, as a phone's sheet does, which drops them while
+              collapsed (record 0321). */}
           {(isDesktop || !resultsCollapsed) && (
-            <ResultsPanels {...panelsProps(props)} part={isDesktop ? 'column' : 'all'} />
+            <ResultsPanels {...panelsProps(props)} part={isDesktop && !wide ? 'column' : 'all'} />
           )}
         </div>
       )}

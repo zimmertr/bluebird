@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, forecastButton } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, forecastButton, everyColumn } from './fixtures'
 
 // Where the keyboard goes in a real browser (#575, #576). The unit suites hold
 // each rule in jsdom, which implements neither `inert` nor a hidden element's
@@ -90,6 +90,7 @@ test('the first Tab offers the skip link, which shows and lands on the main land
 test('a results bar popover takes the keyboard in and gives it back', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
   await analyzeFromTheKeyboard(page)
+  await everyColumn(page)
   const columns = page.getByRole('button', { name: 'Choose which columns to display' })
   await columns.focus()
   await page.keyboard.press('Enter')
