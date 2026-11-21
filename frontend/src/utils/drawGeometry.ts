@@ -158,3 +158,70 @@ export function insertOnSegment(
 ): [number, number][] {
   return [...pts.slice(0, segment + 1), pt, ...pts.slice(segment + 1)]
 }
+
+/** How far a hand's stroke may stray from the loop drawn for it, in screen pixels, before a point is kept. */
+export const LOOP_TOLERANCE_PX = 3
+
+/** The smallest stroke that is a loop rather than a slip: its box, in screen pixels, on its longer side. */
+export const LOOP_MIN_SPAN_PX = 12
+
+function offLine(p: [number, number], a: [number, number], b: [number, number]): number {
+  const dx = b[0] - a[0]
+  const dy = b[1] - a[1]
+  const len = Math.hypot(dx, dy)
+  if (len === 0) return Math.hypot(p[0] - a[0], p[1] - a[1])
+  return Math.abs(dy * p[0] - dx * p[1] + b[0] * a[1] - b[1] * a[0]) / len
+}
+
+// Douglas-Peucker: keep a point only where the stroke strays past `tol` from
+// the straight line its neighbours would draw. A stack rather than recursion,
+// so a long stroke cannot run out of frames.
+function douglasPeucker(pts: [number, number][], tol: number): [number, number][] {
+  const keep = new Array<boolean>(pts.length).fill(false)
+  keep[0] = true
+  keep[pts.length - 1] = true
+  const stack: [number, number][] = [[0, pts.length - 1]]
+  while (stack.length > 0) {
+    const [i, j] = stack.pop()!
+    let far = -1
+    let farDist = tol
+    for (let k = i + 1; k < j; k++) {
+      const d = offLine(pts[k], pts[i], pts[j])
+      if (d > farDist) {
+        far = k
+        farDist = d
+      }
+    }
+    if (far === -1) continue
+    keep[far] = true
+    stack.push([i, far], [far, j])
+  }
+  return pts.filter((_, k) => keep[k])
+}
+
+/**
+ * A hand's one stroke, in screen pixels, as the loop's points (record 0316):
+ * the corners the stroke turned, closed from its last point back to its first,
+ * at most as many as a ring under `maxPoints` may carry. Empty for a stroke too
+ * small to be a loop, or one that turned fewer than three corners.
+ *
+ * The tolerance starts at what an eye cannot tell from the stroke and widens
+ * until the loop fits under the cap, so an ordinary loop keeps its shape and
+ * only a stroke that wanders for minutes is drawn coarser.
+ */
+export function simplifyLoop(stroke: [number, number][], maxPoints: number): [number, number][] {
+  if (stroke.length < 3) return []
+  const xs = stroke.map((p) => p[0])
+  const ys = stroke.map((p) => p[1])
+  const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
+  if (span < LOOP_MIN_SPAN_PX) return []
+  // The stroke ends where the hand let go, which is near its start but rarely
+  // on it: the loop closes the gap, so the last point is a corner like any.
+  let tol = LOOP_TOLERANCE_PX
+  let loop = douglasPeucker(stroke, tol)
+  while (loop.length + 1 > maxPoints) {
+    tol *= 1.5
+    loop = douglasPeucker(stroke, tol)
+  }
+  return loop.length >= 3 ? loop : []
+}

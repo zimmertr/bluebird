@@ -9,6 +9,8 @@ import {
   removeVertex,
   ringPolygon,
   ringToPts,
+  simplifyLoop,
+  MAX_POLYGON_POINTS,
 } from './drawGeometry'
 
 type Feature = { type: string; properties?: Record<string, unknown>; geometry: { type: string; coordinates: unknown } }
@@ -316,5 +318,49 @@ describe('the ring edits', () => {
     removeVertex(tri, 0)
     insertOnSegment(tri, 0, [9, 9])
     expect(tri).toEqual(copy)
+  })
+})
+
+describe('simplifyLoop', () => {
+  // A circle of radius 100 px traced at one point a degree, as a hand would.
+  const circle: [number, number][] = Array.from({ length: 360 }, (_, d) => [
+    200 + 100 * Math.cos((d * Math.PI) / 180),
+    200 + 100 * Math.sin((d * Math.PI) / 180),
+  ])
+
+  it('keeps the corners a stroke turned and drops the points along its straight runs', () => {
+    const square: [number, number][] = []
+    for (let x = 0; x <= 100; x += 5) square.push([x, 0])
+    for (let y = 5; y <= 100; y += 5) square.push([100, y])
+    for (let x = 95; x >= 0; x -= 5) square.push([x, 100])
+    for (let y = 95; y >= 10; y -= 5) square.push([0, y])
+    expect(simplifyLoop(square, MAX_POLYGON_POINTS)).toEqual([
+      [0, 0],
+      [100, 0],
+      [100, 100],
+      [0, 100],
+      [0, 10],
+    ])
+  })
+
+  it('draws a round stroke close to its line and well under the stroke\'s own count', () => {
+    const loop = simplifyLoop(circle, MAX_POLYGON_POINTS)
+    expect(loop.length).toBeGreaterThan(8)
+    expect(loop.length).toBeLessThan(60)
+    for (const [x, y] of loop) expect(Math.abs(Math.hypot(x - 200, y - 200) - 100)).toBeLessThan(0.001)
+  })
+
+  it('widens until the loop fits under the cap, closing repeat counted', () => {
+    for (const cap of [12, 8, 5]) {
+      const loop = simplifyLoop(circle, cap)
+      expect(loop.length + 1).toBeLessThanOrEqual(cap)
+      expect(loop.length).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('answers nothing for a slip, a line, or a stroke too small to be a loop', () => {
+    expect(simplifyLoop([[0, 0], [50, 50]], MAX_POLYGON_POINTS)).toEqual([])
+    expect(simplifyLoop([[0, 0], [25, 0], [50, 0], [75, 0]], MAX_POLYGON_POINTS)).toEqual([])
+    expect(simplifyLoop([[0, 0], [5, 0], [5, 5], [0, 5]], MAX_POLYGON_POINTS)).toEqual([])
   })
 })

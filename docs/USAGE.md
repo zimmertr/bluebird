@@ -66,8 +66,9 @@ Under its band, every card on the map is a stack of sections: a marker's, a neut
 
 ### c. Polygon search
 
-Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon search** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three. At a desk, **Draw polygon** closes the **Where** card so the whole map is yours to draw on, and the point count, **Done** and **Cancel** hang under the bar instead. Open **Where** again for **Clear**.
+Press **Draw polygon** to start, then press on the map and trace the shape you want in one stroke. When you let go, the stroke becomes the polygon and drawing ends, so the next press is **Forecast**. You can also build a polygon a point at a time: while drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon search** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three. At a desk, **Draw polygon** closes the **Where** card so the whole map is yours to draw on, and the point count, **Done** and **Cancel** hang under the bar instead. Open **Where** again for **Clear**.
 
+- While you are drawing, the map does not pan under your hand. The scroll wheel still zooms.
 - You need at least 3 points before Analyze turns on.
 - The estimated bounding-box area is shown in km² at the right of the point count while you draw, or under it when the two do not fit on one line, and for a polygon a shared link brings in.
 - Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it.

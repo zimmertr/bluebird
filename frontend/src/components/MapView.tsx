@@ -124,6 +124,8 @@ interface Props {
   // The count alone: the ring's area is derived from the polygon in `App.tsx`,
   // so that a link's ring has one before this component has loaded (#429).
   onDrawUpdate: (count: number) => void
+  /** A freehand stroke became the ring, which ends the draw mode it was drawn in (record 0316). */
+  onLoopDrawn: () => void
   results: DestinationResult[]
   sortBy: SortBy
   /** The markers' score colouring while a lens ranks the field, or null (record 0307). */
@@ -290,6 +292,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       restoredPoints,
       onPolygonChange,
       onDrawUpdate,
+      onLoopDrawn,
       results,
       sortBy,
       modelId,
@@ -758,6 +761,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           ring: ptsRef,
           onPolygonChange,
           onDrawUpdate,
+          onLoopDrawn,
           linkCamera: restoredView !== null,
         })
 

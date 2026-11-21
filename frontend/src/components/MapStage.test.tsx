@@ -240,6 +240,7 @@ describe('MapStage', () => {
     expect(got.times).toBe(TIMELINE.forecastTimes)
     expect(got.onPolygonChange).toBe(INPUTS.setPolygon)
     expect(got.onDrawUpdate).toBe(DRAW.handleDrawUpdate)
+    expect(got.onLoopDrawn).toBe(DRAW.finishDrawing)
     expect(got.searchedPlaces).toBe(INPUTS.places)
     expect(got.popupColumns).toBe(TABLE_VIEW.tableColumns)
     expect(got.analyzedAtMs).toBe(ANALYSIS.analyzedAtMs)

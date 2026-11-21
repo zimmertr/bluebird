@@ -8,6 +8,11 @@
  * and Done read it). This module is handed that holder and edits it through
  * the pure edits in `utils/drawGeometry.ts`; every edit it makes is committed
  * to React the same way, through `commitRing`.
+ *
+ * In draw mode a press and drag on open map is one freehand stroke (record
+ * 0316): the stroke is drawn as it goes, and on letting go it becomes the ring,
+ * simplified under the point cap, and the mode ends. A click that does not
+ * move still places one point, and the handles still drag.
  */
 import type { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
@@ -24,6 +29,7 @@ import {
   removeVertex,
   ringHasRoom,
   ringPolygon,
+  simplifyLoop,
 } from '../utils/drawGeometry'
 import { addVertex } from '../utils/polygonEdit'
 import { popupButton } from '../utils/popup/popupChrome'
@@ -57,6 +63,8 @@ export function mountDrawRing(
     restCursor: () => void
     onPolygonChange: (polygon: GeoPolygon | null) => void
     onDrawUpdate: (count: number) => void
+    /** A stroke became the ring: the mode it was drawn in is over. */
+    onLoopDrawn: () => void
   },
 ): DrawRing {
   const { ring } = deps
@@ -246,6 +254,76 @@ export function mountDrawRing(
     popup?.remove()
     popup = null
   }
+
+  // The freehand stroke. It starts on a press over open map in draw mode: a
+  // press a handle took has been claimed already (`defaultPrevented`), and is
+  // a drag of that handle instead. Claiming the press keeps the map from
+  // panning under the hand, the way a handle's drag does.
+  function startStroke(e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent) {
+    if (!deps.controller.inputs.drawing || e.defaultPrevented) return
+    if ('points' in e && e.points.length !== 1) return
+    e.preventDefault()
+    closePopup()
+    const canvas = map.getCanvas()
+    const stroke: [number, number][] = [[e.point.x, e.point.y]]
+
+    function moveTo(clientX: number, clientY: number) {
+      const rect = canvas.getBoundingClientRect()
+      const pt: [number, number] = [clientX - rect.left, clientY - rect.top]
+      const last = stroke[stroke.length - 1]
+      // A point a pixel from the last adds nothing the simplifier keeps.
+      if (Math.hypot(pt[0] - last[0], pt[1] - last[1]) < 2) return
+      stroke.push(pt)
+      setSource(map, 'draw', {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: { kind: 'stroke' },
+            geometry: { type: 'LineString', coordinates: stroke.map((p) => unproject(p)) },
+          },
+        ],
+      })
+    }
+    function onMouseMove(me: MouseEvent) {
+      moveTo(me.clientX, me.clientY)
+    }
+    function onTouchMove(te: TouchEvent) {
+      if (te.touches.length !== 1) return
+      te.preventDefault()
+      moveTo(te.touches[0].clientX, te.touches[0].clientY)
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', onUp)
+      document.removeEventListener('touchcancel', onUp)
+      const loop = simplifyLoop(stroke, deps.controller.inputs.maxPolygonPoints)
+      // A press that hardly moved is a click, which places its point through
+      // the map's click; a stroke too small to be a loop leaves the ring as
+      // it was.
+      if (loop.length === 0) {
+        redraw()
+        return
+      }
+      edit(loop.map(unproject))
+      deps.onLoopDrawn()
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onUp)
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', onUp)
+    document.addEventListener('touchcancel', onUp)
+  }
+  function unproject(p: [number, number]): [number, number] {
+    const lngLat = map.unproject(p)
+    return [lngLat.lng, lngLat.lat]
+  }
+  // Registered after the handles' own presses, so each of those has claimed
+  // its press before this one reads it.
+  map.on('mousedown', startStroke)
+  map.on('touchstart', startStroke)
 
   return {
     addPoint(pt) {

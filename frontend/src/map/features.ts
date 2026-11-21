@@ -77,6 +77,7 @@ export function mountFeatures(
     ring: { current: [number, number][] }
     onPolygonChange: (polygon: GeoPolygon | null) => void
     onDrawUpdate: (count: number) => void
+    onLoopDrawn: () => void
     /** The map opened on a camera a share link named, which the 3D terrain keeps the pitch of (#864). */
     linkCamera?: boolean
   },
@@ -122,6 +123,7 @@ export function mountFeatures(
     restCursor,
     onPolygonChange: deps.onPolygonChange,
     onDrawUpdate: deps.onDrawUpdate,
+    onLoopDrawn: deps.onLoopDrawn,
   })
   // Every card that describes a place, with one reading of the ground per
   // point off the terrain rows' one elevation source (#832). A click on a

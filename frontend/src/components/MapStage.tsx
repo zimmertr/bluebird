@@ -452,6 +452,7 @@ export default function MapStage({
           restoredPoints={destinationInputs.restoredPoints}
           onPolygonChange={destinationInputs.setPolygon}
           onDrawUpdate={drawMode.handleDrawUpdate}
+          onLoopDrawn={drawMode.finishDrawing}
           results={results}
           sortBy={sortBy}
           modelId={modelId}

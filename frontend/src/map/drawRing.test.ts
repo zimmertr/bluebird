@@ -93,6 +93,7 @@ function setup(points: Pts = TRI, drawing = true, maxPolygonPoints = MAX_POLYGON
     restCursor: vi.fn(),
     onPolygonChange: vi.fn(),
     onDrawUpdate: vi.fn(),
+    onLoopDrawn: vi.fn(),
   }
   const drawRing = mountDrawRing(stub.map, deps)
   // A click on a handle, as the map's popup system resolves it.
@@ -254,4 +255,83 @@ describe('mountDrawRing', () => {
     stub.fire('mousemove', undefined, { point: { x: 0, y: 0 } })
     expect(stub.canvas.style.cursor).toBe('grabbing')
   })
+
+  // The freehand loop (record 0316): one press and drag over open map.
+  describe('a freehand stroke', () => {
+    const press = (x: number, y: number, extra: Record<string, unknown> = {}) => ({
+      point: { x, y },
+      defaultPrevented: false,
+      preventDefault: vi.fn(),
+      ...extra,
+    })
+    // A square traced 100 px on a side, a point every 5 px.
+    const trace = (move: (x: number, y: number) => void) => {
+      for (let x = 5; x <= 100; x += 5) move(x, 0)
+      for (let y = 5; y <= 100; y += 5) move(100, y)
+      for (let x = 95; x >= 0; x -= 5) move(x, 100)
+      for (let y = 95; y >= 10; y -= 5) move(0, y)
+    }
+
+    it('becomes the ring on letting go, simplified to its corners, and ends the mode', () => {
+      const { stub, ring, deps } = setup()
+      const down = press(0, 0)
+      stub.fire('mousedown', undefined, down)
+      expect(down.preventDefault).toHaveBeenCalled()
+      trace((x, y) => listeners.get('mousemove')!({ clientX: x, clientY: y }))
+      // Drawn as it goes, and committed only when let go.
+      expect(stub.sources.draw.data).toMatchObject({ features: [{ properties: { kind: 'stroke' } }] })
+      expect(deps.onPolygonChange).not.toHaveBeenCalled()
+      listeners.get('mouseup')!({})
+      expect(ring.current).toEqual([[0, 0], [100, 0], [100, 100], [0, 100], [0, 10]])
+      expect(deps.onPolygonChange).toHaveBeenCalledTimes(1)
+      expect(deps.onDrawUpdate).toHaveBeenLastCalledWith(5)
+      expect(deps.onLoopDrawn).toHaveBeenCalledTimes(1)
+      expect(listeners.size).toBe(0)
+    })
+
+    it('draws with one finger', () => {
+      const { stub, ring, deps } = setup([])
+      stub.fire('touchstart', undefined, press(0, 0, { points: [{ x: 0, y: 0 }] }))
+      trace((x, y) => listeners.get('touchmove')!({ touches: [{ clientX: x, clientY: y }], preventDefault: vi.fn() }))
+      listeners.get('touchend')!({})
+      expect(ring.current).toHaveLength(5)
+      expect(deps.onLoopDrawn).toHaveBeenCalledTimes(1)
+    })
+
+    it('leaves the ring alone for a press that hardly moved, which the click places', () => {
+      const { stub, ring, deps } = setup()
+      stub.fire('mousedown', undefined, press(0, 0))
+      listeners.get('mousemove')!({ clientX: 3, clientY: 2 })
+      listeners.get('mouseup')!({})
+      expect(ring.current).toBe(TRI)
+      expect(stub.sources.draw.data).toEqual(makeDrawData(TRI))
+      expect(deps.onLoopDrawn).not.toHaveBeenCalled()
+    })
+
+    it('starts nothing outside draw mode, on a press a handle claimed, or under two fingers', () => {
+      for (const [drawing, extra] of [
+        [false, {}],
+        [true, { defaultPrevented: true }],
+        [true, { points: [{}, {}] }],
+      ] as const) {
+        const { stub } = setup(TRI, drawing)
+        const down = press(0, 0, extra)
+        stub.fire('points' in extra ? 'touchstart' : 'mousedown', undefined, down)
+        expect(down.preventDefault).not.toHaveBeenCalled()
+        expect(listeners.size).toBe(0)
+      }
+    })
+
+    it('keeps the loop under the published cap', () => {
+      const { stub, ring } = setup([], true, 5)
+      stub.fire('mousedown', undefined, press(100, 0))
+      for (let d = 1; d < 360; d += 2) {
+        const r = (d * Math.PI) / 180
+        listeners.get('mousemove')!({ clientX: 100 * Math.cos(r), clientY: 100 * Math.sin(r) })
+      }
+      listeners.get('mouseup')!({})
+      expect(ring.current.length + 1).toBeLessThanOrEqual(5)
+    })
+  })
+
 })

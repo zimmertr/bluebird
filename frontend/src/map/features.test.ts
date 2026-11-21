@@ -40,6 +40,7 @@ function setup(drawing = false) {
     ring: { current: [] },
     onPolygonChange: vi.fn(),
     onDrawUpdate: vi.fn(),
+    onLoopDrawn: vi.fn(),
   })
   return { stub, features }
 }
