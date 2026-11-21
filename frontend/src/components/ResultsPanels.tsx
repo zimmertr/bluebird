@@ -340,8 +340,9 @@ export default function ResultsPanels({
     <>
       {!column && (
       <div
-        // The pane under a desk's map, which the browser suite finds by name.
-        data-chart-pane={part === 'chart' ? '' : undefined}
+        // The chart's pane in a desk's widened column, which the browser
+        // suite finds by name.
+        data-chart-pane={part === 'wide' ? '' : undefined}
         className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}
       >
         <div inert={!chartShown} className={`${RESULTS_PANE.top} ${chartHold}`}>

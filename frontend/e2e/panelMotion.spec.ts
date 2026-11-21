@@ -1,11 +1,12 @@
 import { test, expect, expectRanked, resultRows, DESTINATION_NAMES, forecastButton, everyColumn } from './fixtures'
 import type { Page } from '@playwright/test'
 
-// A desk's results stand in a column right of the map and the chart in a
-// pane under it (record 0312). A press on Both or Table opens and shuts that
-// pane at the panel speed (record 0202), with its chart drawn at its end
-// size in every moving frame (record 0216); the column itself holds still.
-// Measured on the live layout, frame by frame, since jsdom lays nothing out.
+// A desk's results stand in a column right of the map, which widens over it
+// for every column and the chart (record 0321). A press on Both or Table
+// opens and shuts the chart's pane at the top of the widened column at the
+// panel speed (record 0202), with its chart drawn at its end size in every
+// moving frame (record 0216); the column itself holds still. Measured on the
+// live layout, frame by frame, since jsdom lays nothing out.
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -61,7 +62,7 @@ const partOpen = (frames: { pane: number }[]) => {
   return frames.filter((f) => f.pane > 0.5 && Math.abs(f.pane - end) > 0.5)
 }
 
-test('a press on Both opens the chart pane under the map at the panel speed, its chart drawn at its end size', async ({ page }) => {
+test('a press on Both opens the chart pane in the widened column at the panel speed, its chart drawn at its end size', async ({ page }) => {
   await analyzedAt(page, 'Show table only')
   const opening = await framesAfter(page, 'Show both chart and table', 900)
   const end = opening[opening.length - 1]
@@ -69,7 +70,7 @@ test('a press on Both opens the chart pane under the map at the panel speed, its
   const moving = partOpen(opening)
   expect(moving.length).toBeGreaterThan(0)
   for (const f of moving) expect(f.chartSize).toBe(end.chartSize)
-  // The column holds still while the pane under the map moves.
+  // The column holds still while the pane inside it moves.
   expect(new Set(opening.map((f) => f.column)).size).toBe(1)
 
   const closing = await framesAfter(page, 'Show table only', 900)
@@ -80,16 +81,17 @@ test('a press on Both opens the chart pane under the map at the panel speed, its
   await expect(pane(page).locator('[inert] .recharts-wrapper')).toHaveCount(1)
 })
 
-// The chevron takes the column and the chart away, and the round chevron on
-// the map's edge brings both back with every row.
+// The chevron takes the column and its chart away, and the round chevron on
+// the map's edge brings the column back with every row, its chart drawn again
+// once it is widened.
 test('the collapse chevron takes the column away and the map edge chevron brings it back', async ({ page }) => {
   await analyzedAt(page, 'Show both chart and table')
   await page.getByRole('button', { name: 'Collapse results' }).click()
   await expect(column(page)).toHaveCount(0)
-  // The chart's pane shuts to nothing and keeps its chart for the way back.
-  await expect.poll(() => pane(page).evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(1)
+  await expect(pane(page)).toHaveCount(0)
   await page.getByRole('button', { name: 'Expand results' }).click()
   await expect(column(page)).toBeVisible()
-  await expect(pane(page).locator('.recharts-wrapper')).toHaveCount(1)
   await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  await everyColumn(page)
+  await expect(pane(page).locator('.recharts-wrapper')).toHaveCount(1)
 })

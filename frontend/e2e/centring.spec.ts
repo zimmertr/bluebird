@@ -55,10 +55,12 @@ async function settledMarker(card: Locator) {
 }
 
 // Analyze, fold the column away, and bring it back from the map's edge,
-// pressing the first row's "Center map on" from inside the page in the first
-// frame the row stands while the canvas still has the map's old width: a
-// press sent from the test waits on a round trip and can land after the
-// resize. With `close`, the card the press opens is closed by its own button
+// pressing the first row's "Center map on" from inside the page as soon as
+// the row stands while the canvas still has the map's old width: a press
+// sent from the test waits on a round trip and can land after the resize.
+// The row is watched for as the DOM changes, not only once a frame, because
+// the column comes back whole rather than moving, and the resize that
+// follows it can land before the next frame's callback. With `close`, the card the press opens is closed by its own button
 // in the same frame, before the resize comes.
 const column = (page: Page) => page.locator('[data-tour="results"]')
 
@@ -76,19 +78,32 @@ async function pressInsideTheMove(page: Page, { close = false } = {}) {
     ({ name, close }) =>
       new Promise<{ canvasWidth: number; closed: boolean } | null>((resolve) => {
         const deadline = performance.now() + 20_000
-        document.querySelector<HTMLButtonElement>('[aria-label="Expand results"]')!.click()
-        const frame = () => {
-          if (performance.now() > deadline) return resolve(null)
+        let done = false
+        const check = () => {
+          if (done) return
+          if (performance.now() > deadline) {
+            done = true
+            observer.disconnect()
+            return resolve(null)
+          }
           const canvas = document.querySelector('.maplibregl-canvas')?.getBoundingClientRect()
           const results = document.querySelector('[data-tour="results"]')?.getBoundingClientRect()
           const button = document.querySelector<HTMLButtonElement>(`[aria-label="Center map on ${name}"]`)
           if (canvas && results && button && canvas.right > results.left + 1) {
+            done = true
+            observer.disconnect()
             button.click()
             const shut = close ? document.querySelector<HTMLButtonElement>('.maplibregl-popup-close-button') : null
             shut?.click()
             return resolve({ canvasWidth: canvas.width, closed: shut !== null })
           }
-          requestAnimationFrame(frame)
+        }
+        const observer = new MutationObserver(check)
+        observer.observe(document.body, { childList: true, subtree: true })
+        document.querySelector<HTMLButtonElement>('[aria-label="Expand results"]')!.click()
+        const frame = () => {
+          check()
+          if (!done) requestAnimationFrame(frame)
         }
         frame()
       }),
