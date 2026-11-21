@@ -2404,8 +2404,10 @@ describe('status and notices', () => {
 // more columns at a time.
 describe('the refreshed look', () => {
   it('lines figures up by their digits rather than by a monospace face', () => {
-    expect(STYLES.FIGURES).toBe('tabular-nums')
-    expect(STYLES.CHART_CARD.value.split(' ')).toContain(STYLES.FIGURES)
+    // A step narrow on the face's width axis since record 0324.
+    expect(STYLES.FIGURES).toBe('tabular-nums font-stretch-semi-condensed')
+    // The chart card's values line up by their digits too, at the face's own width.
+    expect(STYLES.CHART_CARD.value.split(' ')).toContain('tabular-nums')
   })
 
   it('rounds a control at 6px and a surface at twice that', () => {
