@@ -231,6 +231,9 @@ export default function ResultsBar({
       ),
     },
   ].filter((action) => action !== false)
+  // A desk's column leaves to the right (the from-scratch shell), so its
+  // chevron points there; a phone's sheet folds down.
+  const sideways = sheet ? undefined : '-rotate-90'
   return (
     // At a desk the bar is the results' top, where they meet the map, so it
     // wears the edge the panel wears where it meets the map (record 0220). It
@@ -266,7 +269,7 @@ export default function ResultsBar({
             aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
             className={`${ICON_BUTTON} ml-auto @4xl:hidden`}
           >
-            <IconChevron up={resultsCollapsed} />
+            <IconChevron up={resultsCollapsed} className={sideways} />
           </button>
         </div>
         {/* Two groups: the mode switch at the left and the buttons at the
@@ -350,7 +353,7 @@ export default function ResultsBar({
               aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
               className={`${ICON_BUTTON} hidden @4xl:flex`}
             >
-              <IconChevron up={resultsCollapsed} />
+              <IconChevron up={resultsCollapsed} className={sideways} />
             </button>
           </div>
         </div>

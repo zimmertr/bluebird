@@ -73,6 +73,7 @@ import {
   MOTION,
   PANEL_MS,
   DESK_PANEL,
+  RESULTS_COLUMN,
   RESULTS_PANE,
   LAYOUT_HOLD,
   PANEL_BODY,
@@ -4948,6 +4949,20 @@ describe('the panel frame', () => {
     }
     expect(RESULTS_PANE.foot).toMatch(/(^|\s)justify-end(\s|$)/)
     expect(RESULTS_PANE.top).not.toMatch(/justify-end/)
+  })
+
+  // A desk's results stand in a column down the map's right edge (the
+  // from-scratch shell): never narrower than the table's name, score and
+  // strip need, never so wide the map is a sliver, edged on its left by the
+  // panel's rule, and on the panel's ground. Its chips fill the column, so
+  // they carry no two-row cap of their own.
+  it('stands a desk\'s results in a column of bounded width', () => {
+    const cols = RESULTS_COLUMN.column.split(' ')
+    expect(cols).toContain('w-[clamp(26rem,34vw,36rem)]')
+    expect(cols).toEqual(expect.arrayContaining(['flex-col', 'flex-shrink-0', 'border-l', PANEL_EDGE, 'bg-panel']))
+    expect(RESULTS_COLUMN.chips).not.toMatch(/max-h-/)
+    expect(RESULTS_COLUMN.chips.split(' ')).toEqual(expect.arrayContaining(['flex-1', 'min-h-0', 'overflow-y-auto']))
+    expect(RESULTS_COLUMN.expand.startsWith(MAP_ROUND_BUTTON)).toBe(true)
   })
 
   // The chart-only legend's tallest strip (#795): two rows of 26px chips and
