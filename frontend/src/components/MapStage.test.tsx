@@ -175,6 +175,7 @@ const LOWER_SHEET_FIRST = (then: () => void) => then()
 
 function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
+    theme: 'dark',
     layersForcedOpen: false,
     onCloseControls: NOOP,
     mapRef: MAP_REF,

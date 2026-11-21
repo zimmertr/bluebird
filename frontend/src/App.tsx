@@ -192,7 +192,7 @@ export default function App() {
   // tour, and the tour's own start and end keep it and clear it.
   const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
-  const { choice: themeChoice, setChoice: setThemeChoice } = useTheme()
+  const { choice: themeChoice, theme, setChoice: setThemeChoice } = useTheme()
   // The controls panel is docked on desktop and the Controls sheet on phones
   // (record 0141). It starts open on a desktop and closed on a phone
   // (`useDrawer`, #696); a close button collapses it to widen the map.
@@ -1005,6 +1005,7 @@ export default function App() {
         <div className={isDesktop ? 'relative flex min-w-0 flex-1 flex-col' : 'contents'}>
         <MapStage
           mapRef={mapRef}
+          theme={theme}
           drawMode={drawMode}
           isDesktop={isDesktop}
           destinationInputs={destinationInputs}

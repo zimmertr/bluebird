@@ -1,5 +1,6 @@
 import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from 'react'
 // Namespace import: maplibre-gl v6 is ESM-only and no longer has a default export
+import type { Theme } from '../utils/viewPrefs'
 import * as maplibregl from 'maplibre-gl'
 // v6 resolves its web worker with a runtime-computed `new URL(...)` that Vite
 // can't statically bundle, so production builds 404 the worker and silently
@@ -189,6 +190,8 @@ interface Props {
   // `onTerrainChange`. A state setter, so stable: the button is made once,
   // with the map, and reads it through the controller.
   showTerrain: boolean
+  /** The theme the ground is painted in (record 0317). */
+  theme: Theme
   onTerrainChange: (on: boolean) => void
   // The satellite fire detections (#799), read from the pod's hourly copy of
   // NASA FIRMS for the view like the perimeters, and no more a knob.
@@ -316,6 +319,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       cloudDeck = null,
       scoreColouring = null,
       showTerrain,
+      theme,
       onTerrainChange,
       radarIndex,
       gridSpec,
@@ -947,6 +951,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.terrain.update({ relief: showRelief, contours: showContours, terrain: showTerrain })
     }, [showRelief, showContours, showTerrain, mapReady])
+
+    // The ground's look (record 0317), which follows the theme like every
+    // colour the app paints.
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.ground.setTheme(theme)
+    }, [theme, mapReady])
 
     useEffect(() => {
       if (mapReady) featuresRef.current?.terrain.updateSlope(showSlope)

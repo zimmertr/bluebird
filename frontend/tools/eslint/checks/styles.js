@@ -35,6 +35,9 @@ const COLOR_OWNERS = [
   // The relief's shadow and light and the contours' ink, matched to the
   // basemap's ground the way basemap.ts's colours are (#799).
   'src/map/terrain.ts',
+  // The ground's tint, shade and Liberty's faint look in each theme (record
+  // 0317), the prototype's palette spelled for MapLibre.
+  'src/map/ground.ts',
   'src/utils/wildfires.ts',
   'src/utils/smoke.ts',
   'src/utils/closures.ts',
@@ -1107,7 +1110,7 @@ export const STYLES = [
     // #799), match OpenFreeMap rather than the app.
     name: 'map-paint-named',
     files: ['src/map/*.ts'],
-    ignores: [...TESTS, 'src/map/mapStyles.ts', 'src/map/basemap.ts', 'src/map/terrain.ts'],
+    ignores: [...TESTS, 'src/map/mapStyles.ts', 'src/map/basemap.ts', 'src/map/terrain.ts', 'src/map/ground.ts'],
     probe: 'src/map/resultsLayer.ts',
     ban: [
       {

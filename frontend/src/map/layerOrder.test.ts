@@ -8,6 +8,7 @@ import type * as maplibregl from 'maplibre-gl'
 import { SLOTS, addLayerAt, beneathFor, slotOf, slotsOf, type StyleLayerRef } from './layerOrder'
 import { TRAIL_CASING_LAYER, TRAIL_LAYER } from './basemap'
 import { CLOUD_LAYER } from './cloudSea'
+import { GROUND_SHADE_LAYER, GROUND_TINT_LAYER } from './ground'
 import { PENDING_MARKER_LAYER, RESULT_MARKER_LAYER } from './resultsLayer'
 import {
   CONTOUR_CASING_LAYER,
@@ -58,6 +59,7 @@ describe('the slots', () => {
   // here is a decision about what draws over what.
   it('rank every layer from the ground to the result markers', () => {
     expect(SLOTS).toEqual([
+      'tint',
       'ground',
       'imagery',
       'roads',
@@ -89,6 +91,8 @@ describe('the slots', () => {
   // as in its module's tests, where `addLayerAt` refuses it.
   it('name every layer the modules export', () => {
     const want: [string, string][] = [
+      [GROUND_TINT_LAYER, 'tint'],
+      [GROUND_SHADE_LAYER, 'tint'],
       [IMAGERY_EOX, 'imagery'],
       [IMAGERY_USGS, 'imagery'],
       [CREDIT_LAYER, 'relief'],

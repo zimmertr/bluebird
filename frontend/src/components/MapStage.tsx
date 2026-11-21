@@ -1,4 +1,5 @@
 import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
+import type { Theme } from '../utils/viewPrefs'
 import MapView, { type MapViewHandle } from './MapView'
 import SearchBox, { type SearchBoxHandle } from './SearchBox'
 import { useSlashToSearch } from '../hooks/useSlashToSearch'
@@ -48,6 +49,8 @@ import type { CornerSlots } from '../map/controls'
 import type { ActionWord } from '../utils/analyzeGate'
 
 export interface MapStageProps {
+  /** The theme the app paints in, which the map's ground follows (record 0317). */
+  theme: Theme
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
   mapRef: RefObject<MapViewHandle | null>
   /**
@@ -181,6 +184,7 @@ export interface MapStageProps {
  */
 export default function MapStage({
   mapRef,
+  theme,
   drawMode,
   isDesktop,
   destinationInputs,
@@ -475,6 +479,7 @@ export default function MapStage({
           showSatellite={overlays.showSatellite}
           baseOpacity={overlays.baseOpacity}
           showTerrain={overlays.showTerrain}
+          theme={theme}
           onTerrainChange={overlays.setShowTerrain}
           showFireActivity={overlays.showFireActivity}
           radarIndex={timeline.radarIndex}
