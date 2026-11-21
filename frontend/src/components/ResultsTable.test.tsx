@@ -2,7 +2,7 @@ import { Profiler, type ComponentProps, type ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import ResultsTable from './ResultsTable'
-import { displayedColumns, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
+import { compactColumns, displayedColumns, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
 import { geoKey } from '../utils/points'
@@ -415,5 +415,33 @@ describe('a footnote mark', () => {
     expect(scrolled).toHaveBeenCalledTimes(1)
     expect(document.activeElement).toBe(note)
     expect(window.location.hash).toBe(hash)
+  })
+})
+
+// The desk column's compact table (record 0320): no chart checkboxes, the
+// days' names over the strip, and the height and best hours under the name.
+describe('compact', () => {
+  it('draws the strip under the days, the line under the name, and no checkbox', () => {
+    const sat8 = Date.parse('2026-11-21T08:00:00-08:00')
+    const times = [sat8, sat8 + 3_600_000, sat8 + 86_400_000]
+    const scored = ROWS.map((r) => ({
+      ...r,
+      score: 80,
+      score_hours: [40, 80, 90],
+      score_lit: [true, true, true],
+      score_best: [0, 2] as [number, number],
+      best_start_ms: sat8,
+      best_end_ms: sat8 + 2 * 3_600_000,
+    }))
+    render(
+      <ResultsTable
+        {...props({ results: scored, columns: compactColumns('temp_avg_f', true), times, compact: true, onToggleChart: () => {} })}
+      />,
+    )
+    const table = screen.getByRole('table')
+    expect(within(table).queryAllByRole('checkbox')).toHaveLength(0)
+    const head = within(table).getAllByRole('columnheader')
+    expect(head.some((th) => th.textContent === 'SatSun')).toBe(true)
+    expect(screen.getByText('14,411 ft · best', { exact: false }).textContent).toBe('14,411 ft · best Sat 8a–10a')
   })
 })

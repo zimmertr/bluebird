@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestHoursText, headline, headlineText, hourShort, scoreRange } from './headline'
+import { bestHoursText, bestWhen, headline, headlineText, hourShort, scoreRange } from './headline'
 
 describe('headline', () => {
   it('counts the places at 80 or better', () => {
@@ -49,5 +49,16 @@ describe('bestHoursText', () => {
 
   it('writes an hour the prototype\'s way', () => {
     expect([0, 11, 12, 13, 23].map((h) => hourShort(at(`2026-11-21T${String(h).padStart(2, '0')}:00:00-08:00`)))).toEqual(['12a', '11a', '12p', '1p', '11p'])
+  })
+})
+
+// The compact table's line under a name (record 0320).
+describe('bestWhen', () => {
+  it('names the day and the hours of the best stretch', () => {
+    const start = Date.parse('2026-11-21T13:00:00-08:00')
+    expect(bestWhen(start, start + 4 * 3_600_000)).toBe('Sat 1p–5p')
+  })
+  it('says nothing without a stretch', () => {
+    expect(bestWhen(null, null)).toBeNull()
   })
 })

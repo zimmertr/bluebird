@@ -101,6 +101,30 @@ export function withScoreColumn(cols: readonly ColDef[], scored: boolean): ColDe
   return [...cols.slice(0, cut), SCORE_COL, ...cols.slice(cut)]
 }
 
+/**
+ * The hours a row's score was made from, drawn as a strip of days under the
+ * days' names (record 0320). Keyed on the row's own `score_hours`, which is
+ * not a sort key, so its header sorts nothing.
+ */
+export const HOURS_COL: ColDef = { key: 'score_hours', label: 'Hours' }
+
+/** The two values the compact table keeps beside the ranking (record 0320). */
+export const COMPACT_KEYS: readonly ColDef['key'][] = ['wind_max_mph', 'temp_min_f']
+
+/**
+ * The compact table's columns (record 0320): the name, then what ranks the
+ * field (the score and its hours while a lens ranks, the ranked metric
+ * otherwise), then the highest wind and the lowest temperature, the two a
+ * reader checks first on a summit. Every other column waits behind the
+ * column's expand button.
+ */
+export function compactColumns(sortBy: SortBy, scored: boolean): ColDef[] {
+  const byKey = (key: ColDef['key']) => COLUMNS.find((c) => c.key === key)
+  const lead = scored ? [SCORE_COL, HOURS_COL] : [byKey(sortBy)]
+  const rest = COMPACT_KEYS.filter((k) => scored || k !== sortBy).map(byKey)
+  return [byKey('name'), ...lead, ...rest].filter((c): c is ColDef => c !== undefined)
+}
+
 /** The two safety-flag columns, in the order they close the table. */
 export const FLAG_COLS: readonly ColDef[] = [WILDFIRE_COL, CLOSURE_COL]
 

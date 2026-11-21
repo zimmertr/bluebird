@@ -100,6 +100,7 @@ export interface ResultsPanelsProps {
     TableView,
     | 'tableRows'
     | 'tableColumns'
+    | 'compactTableColumns'
     | 'tableColWidths'
     | 'setTableColWidths'
     | 'analysisModelLabel'
@@ -235,6 +236,7 @@ export default function ResultsPanels({
   const {
     tableRows,
     tableColumns,
+    compactTableColumns,
     tableColWidths,
     setTableColWidths,
     analysisModelLabel,
@@ -457,7 +459,8 @@ export default function ResultsPanels({
                     onDetailSort={sortDetail}
                     pointSample={pointSample}
                     scoreRange={scoreRange}
-                    columns={tableColumns}
+                    columns={column ? compactTableColumns : tableColumns}
+                    compact={column}
                     columnWidths={tableColWidths}
                     onColumnWidthsChange={setTableColWidths}
                     modelFallbackLabel={analysisModelLabel}

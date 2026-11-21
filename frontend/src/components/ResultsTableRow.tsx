@@ -4,6 +4,7 @@ import type { DestinationResult } from '../types'
 import HourStrip from './HourStrip'
 import {
   CLOSURE_KEY,
+  HOURS_COL,
   SCORE_KEY,
   ELEVATION_COL,
   MODEL_KEY,
@@ -28,6 +29,9 @@ import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
 import { isPartialRow } from '../utils/model/modelCompare'
 import { geoKey } from '../utils/points'
+import { heightLabel } from '../utils/resultFeatures'
+import { bestWhen } from '../utils/score/headline'
+import { SEP } from '../metrics'
 import {
   cellColor,
   cellText,
@@ -194,9 +198,11 @@ interface NameTdProps {
   onCenter: () => void
   // The row the link out is built from (`destinationUrl`).
   link: Parameters<typeof destinationUrl>[0]
+  // The compact table's line under the name (record 0320).
+  sub?: ReactNode
 }
 
-function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps) {
+function NameTd({ cellClass, widths, label, name, onCenter, link, sub }: NameTdProps) {
   // A crag's search names its state once the outlines arrive, and the cell
   // draws again then.
   const href = destinationUrl(link, useUsStates(link.type === 'crag'))
@@ -226,7 +232,27 @@ function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps)
           </a>
         </span>,
       )}
+      {sub}
     </td>
+  )
+}
+
+// The height and when the best four hours fall, under the compact table's
+// name (record 0320): `6,007 ft · best Sat 1p–5p`.
+function NameSub({ row }: { row: DestinationResult }) {
+  const height = heightLabel(row.elevation_ft)
+  const when = bestWhen(row.best_start_ms, row.best_end_ms)
+  if (!height && when === null) return null
+  return (
+    <span className={TABLE.nameSub}>
+      {height}
+      {height && when !== null && ` ${SEP} `}
+      {when !== null && (
+        <>
+          best <span className={TABLE.nameSubWhen}>{when}</span>
+        </>
+      )}
+    </span>
   )
 }
 
@@ -247,6 +273,9 @@ interface CellContext {
   heightPending: boolean
   // Centres the map on the row: the name button's fly-to.
   onCenter: () => void
+  // The compact table (record 0320): the name's sub-line, and the hours in
+  // a column of their own rather than beside the score.
+  compact: boolean
   // The row's own id, from `useId`, so it holds still across renders of a
   // memoized row: the hidden sentences are found by ids built from it.
   rowId: string
@@ -455,7 +484,26 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   const face = key === 'name' ? 'font-medium' : key === 'type' ? '' : FIGURES
   const cellClass = `${TABLE.cell}${align} whitespace-nowrap ${face}`.trimEnd()
   if (key === 'name') {
-    return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
+    return (
+      <NameTd
+        cellClass={cellClass}
+        widths={ctx.widths}
+        label={display}
+        name={row.name}
+        onCenter={ctx.onCenter}
+        link={row}
+        sub={ctx.compact ? <NameSub row={row} /> : undefined}
+      />
+    )
+  }
+  // The compact table's strip of days (record 0320), the column's whole
+  // spare width.
+  if (key === HOURS_COL.key) {
+    return (
+      <td className={`${TABLE.cell} w-full`}>
+        <HourStrip row={row} range={ctx.scoreRange} times={ctx.times ?? NO_TIMES} />
+      </td>
+    )
   }
   const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample, ctx.scoreRange)
   // The score carries its hours beside it (record 0307).
@@ -467,7 +515,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
           key,
           <>
             {display}
-            <HourStrip row={row} range={ctx.scoreRange} />
+            {!ctx.compact && <HourStrip row={row} range={ctx.scoreRange} />}
           </>,
         )}
       </td>
@@ -507,6 +555,9 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   )
 }
 
+// The compact strip with no grid yet draws nothing, from one empty array.
+const NO_TIMES: readonly number[] = []
+
 // The id of a row's one Windy sentence.
 const windyNoteId = (rowId: string) => `${rowId}-windy`
 
@@ -535,6 +586,7 @@ interface RowProps {
   chartColor?: string
   onRemove?: (row: DestinationResult) => void
   onFocusResult?: (row: DestinationResult) => void
+  compact?: boolean
 }
 
 function ResultsTableRow({
@@ -560,6 +612,7 @@ function ResultsTableRow({
   chartColor,
   onRemove,
   onFocusResult,
+  compact = false,
 }: RowProps) {
   const rowId = useId()
   const ctx: CellContext = {
@@ -579,6 +632,7 @@ function ResultsTableRow({
     onCenter: () => onFocusResult?.(row),
     rowId,
     scoreRange,
+    compact,
   }
   // A press on the row's ground opens the popup a click on its marker gives,
   // through the same fly-to the name's button takes (record 0143); a press on

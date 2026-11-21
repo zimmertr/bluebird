@@ -26,6 +26,9 @@ import {
   ELEVATION_COL,
   MODEL_COL,
   TYPE_COL,
+  HOURS_COL,
+  SCORE_COL,
+  compactColumns,
 } from './tableColumns'
 import { FAMILY_KEYS, RANKED_FAMILIES, familyOf, NOUN, SEP } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
@@ -688,5 +691,23 @@ describe('the terrain height mark', () => {
     expect(TERRAIN_HEIGHT_MARK).toBe('†')
     expect(TERRAIN_HEIGHT_NOTE.startsWith(`${TERRAIN_HEIGHT_MARK} `)).toBe(true)
     expect(TERRAIN_HEIGHT_NOTE).not.toMatch(/[—–]/)
+  })
+})
+
+// The desk column's compact table (record 0320).
+describe('compactColumns', () => {
+  it('stands the score and its hours after the name while a lens ranks, then the wind and the low', () => {
+    expect(compactColumns('temp_avg_f', true).map((c) => c.key)).toEqual([
+      'name',
+      SCORE_COL.key,
+      HOURS_COL.key,
+      'wind_max_mph',
+      'temp_min_f',
+    ])
+  })
+
+  it('stands the ranked metric after the name otherwise, and never twice', () => {
+    expect(compactColumns('precip_total_in', false).map((c) => c.key)).toEqual(['name', 'precip_total_in', 'wind_max_mph', 'temp_min_f'])
+    expect(compactColumns('wind_max_mph', false).map((c) => c.key)).toEqual(['name', 'wind_max_mph', 'temp_min_f'])
   })
 })

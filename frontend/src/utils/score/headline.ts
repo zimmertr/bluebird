@@ -75,3 +75,13 @@ export function bestHoursText(starts: readonly number[], runHours: number): stri
   const mid = sorted[Math.floor(sorted.length / 2)]
   return `Best hours mostly ${day}, ${hourShort(mid)}–${hourShort(mid + runHours * HOUR_MS)}`
 }
+
+/**
+ * When a row's best four hours fall, as `Sat 1p–5p`, for the compact table's
+ * line under the name (record 0320); null with no stretch.
+ */
+export function bestWhen(startMs: number | null | undefined, endMs: number | null | undefined): string | null {
+  if (startMs == null || endMs == null) return null
+  const day = new Date(startMs).toLocaleDateString(undefined, { weekday: 'short' })
+  return `${day} ${hourShort(startMs)}–${hourShort(endMs)}`
+}

@@ -35,6 +35,7 @@ import {
   visibleColumns,
   withModelColumn,
   withScoreColumn,
+  compactColumns,
 } from '../utils/tableColumns'
 import { type ViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 
@@ -359,6 +360,9 @@ export function useTableView({
       scored,
     )
   }, [pointSample, sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder, rankedFirst, scored])
+  // The desk column's compact table (record 0320), whatever the Columns menu
+  // holds: that menu shapes the table the column's expand button opens.
+  const compactTableColumns = useMemo(() => compactColumns(sortBy, scored), [sortBy, scored])
 
   // Every column there is, in the reader's order: what the Columns picker
   // lists, and the list a move is made within.
@@ -478,6 +482,7 @@ export function useTableView({
   return {
     tableRows,
     tableColumns,
+    compactTableColumns,
     allColumns,
     pickerVisibleKeys,
     columnsAtDefault,

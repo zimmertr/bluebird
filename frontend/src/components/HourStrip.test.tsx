@@ -21,4 +21,18 @@ describe('HourStrip', () => {
     const { container } = render(<HourStrip row={resultRow()} />)
     expect(container.firstElementChild).toBeNull()
   })
+
+  // The compact table's strip (record 0320): one block per day, every hour
+  // one height, the best stretch bracketed.
+  it('draws a block per day with the field\'s grid, and brackets the best stretch', () => {
+    const sat8 = Date.parse('2026-11-21T08:00:00-08:00')
+    const times = [sat8, sat8 + 3_600_000, sat8 + 86_400_000]
+    const row = { ...resultRow(), score_hours: [40, 80, 90], score_lit: [true, true, true], score_best: [1, 2] as [number, number] }
+    const { container } = render(<HourStrip row={row} times={times} />)
+    const strip = container.firstElementChild as HTMLElement
+    expect(strip.className).toBe(HOUR_STRIP.days)
+    expect(strip.children).toHaveLength(2)
+    expect([...strip.querySelectorAll('span')].filter((s) => s.className === HOUR_STRIP.bracket)).toHaveLength(1)
+  })
 })
+

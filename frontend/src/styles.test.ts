@@ -76,6 +76,7 @@ import {
   DESK_PANEL,
   RESULTS_COLUMN,
   RESULTS_HEAD,
+  HOUR_STRIP,
   RESULTS_PANE,
   LAYOUT_HOLD,
   PANEL_BODY,
@@ -5613,5 +5614,15 @@ describe('RESULTS_HEAD', () => {
     for (const cls of [RESULTS_HEAD.lens, RESULTS_HEAD.lensOn, RESULTS_HEAD.limit, RESULTS_HEAD.add]) {
       expect(cls.split(' ')).toContain('h-7')
     }
+  })
+})
+
+// The compact strip (record 0320): each day's name stands over its block, so
+// the header row and the strip share one gap between days and one floor.
+describe('HOUR_STRIP days', () => {
+  const pick = (cls: string, re: RegExp) => cls.split(' ').filter((c) => re.test(c))
+  it('spaces the day names as the day blocks', () => {
+    expect(pick(HOUR_STRIP.dayHead, /^(gap-|min-w-)/)).toEqual(pick(HOUR_STRIP.days, /^(gap-|min-w-)/))
+    expect(pick(HOUR_STRIP.dayName, /^(flex-1|basis-0)$/)).toEqual(pick(HOUR_STRIP.day, /^(flex-1|basis-0)$/))
   })
 })

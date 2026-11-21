@@ -3467,6 +3467,21 @@ export const HOUR_STRIP = {
   hour: 'h-2 min-w-px flex-1',
   best: 'h-3.5',
   gap: 'ml-1',
+  /**
+   * The compact table's strip (record 0320), the prototype's: the window's
+   * lit hours as one block per day at the column's full width, every hour
+   * one height, and the best four marked by a bracket under them rather
+   * than by height, the bracket in the strong ink so it reads on any score.
+   * The day blocks share one `gap` with the header's day names (`dayHead`),
+   * so each name stands over its own block.
+   */
+  days: 'flex h-5 w-full min-w-28 gap-1',
+  day: 'flex min-w-0 flex-1 basis-0 gap-px',
+  cell: 'h-full min-w-px flex-1 basis-0',
+  run: 'relative flex basis-0 gap-px',
+  bracket: 'pointer-events-none absolute inset-x-0 -bottom-1.5 h-[7px] rounded-b-sm border-x-2 border-b-[3px] border-ink-strong',
+  dayHead: 'flex w-full min-w-28 gap-1 text-left',
+  dayName: 'min-w-0 flex-1 basis-0 truncate',
 } as const
 
 /**
@@ -4392,6 +4407,12 @@ export const TABLE = {
    * on the second, and the popup a row tap opens shows it whole.
    */
   nameText: 'min-w-0 text-left truncate max-lg:whitespace-normal max-lg:line-clamp-2',
+  /**
+   * The compact table's line under a name (record 0320): the height and when
+   * the best four hours fall, the when in the table's own ink.
+   */
+  nameSub: `block truncate ${TEXT.caption} font-sans`,
+  nameSubWhen: 'font-semibold text-ink',
   /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover
