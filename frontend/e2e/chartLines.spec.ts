@@ -1,4 +1,4 @@
-import { test, expect, resultRows, isoDay, forecastButton, everyColumn } from './fixtures'
+import { test, expect, resultRows, isoDay, forecastButton, everyColumn, narrowColumn } from './fixtures'
 
 // Up to twenty lines, every chart line is a ColorBrewer Set1 colour of its
 // own, with nothing drawn round it (#801): in light each clears 3:1 against
@@ -63,8 +63,12 @@ test('draws each chart line in a colour of its own, at 3:1 in light, under no fi
   holds(light, LIGHT_PANEL)
   expect(await filtered()).toBe(0)
 
+  // The theme switch stands in the sentence bar, which the widened column
+  // covers.
+  await narrowColumn(page)
   await page.getByRole('button', { name: 'Theme Light' }).first().click()
   await page.getByRole('option', { name: 'Dark' }).click()
+  await everyColumn(page)
   await expect.poll(strokes).not.toEqual(light)
   const dark = await strokes()
   expect(dark).toHaveLength(light.length)

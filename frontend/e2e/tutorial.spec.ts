@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { test, expect, resultRows, forecastButton, everyColumn } from './fixtures'
+import { test, expect, resultRows, forecastButton, everyColumn, narrowColumn } from './fixtures'
 
 // The guided tutorial (#536), walked the way a reader walks it. The unit
 // suites pin the steps, the placement arithmetic and the source anchors; this
@@ -357,7 +357,11 @@ test('at a desk the Results and Chart cards switch a pressed Both to their view 
   await page.getByRole('button', { name: SEGMENT.both }).first().click()
   await expectMode(page, 'both')
   expect(await storedMode(page)).toBe('both')
+  // The Tutorial link stands in the map's corner, which the widened column
+  // covers.
+  await narrowColumn(page)
   await walkDeskViews(page)
+  await everyColumn(page)
   await expectMode(page, 'chart')
   expect(await storedMode(page)).toBe('both')
 })

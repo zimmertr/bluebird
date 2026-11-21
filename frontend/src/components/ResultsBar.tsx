@@ -277,9 +277,11 @@ export default function ResultsBar({
               the same before and after and the zero says nothing has
               been ranked yet. The window timestamp joins once a
               report exists (windowTitle below). */}
-          {/* The headline over its subtitle, the prototype's two lines, so
-              neither cuts the other short (record 0319). */}
-          <div className="flex min-w-0 flex-1 flex-col">
+          {/* The headline over its subtitle at a desk, the prototype's two
+              lines, so neither cuts the other short (record 0319); a phone's
+              sheet keeps them on one line, which its height is worked out
+              from. */}
+          <div className={sheet ? 'contents' : 'flex min-w-0 flex-1 flex-col'}>
           <span className={`${TEXT.subheading} min-w-0 truncate`}>
             {lens !== null && scoreHeadline !== null
               ? scoreHeadline

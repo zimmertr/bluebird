@@ -426,7 +426,22 @@ export async function resultsOpened(page: Page) {
 // chart behind its expand button (record 0321). A phone has no expand
 // button, where this does nothing.
 export async function everyColumn(page: Page) {
+  if ((page.viewportSize()?.width ?? 0) < DESK_MIN_PX) return
   const button = page.getByRole('button', { name: 'Every column', exact: true })
+  const wide = page.getByRole('button', { name: 'Narrow the table', exact: true })
+  // The button stands once the report does, so wait for one of its two names.
+  await expect(button.or(wide)).toBeVisible()
   if (await button.isVisible()) await button.click()
-  await expect(page.getByRole('button', { name: 'Every column', exact: true })).toHaveCount(0)
+  await expect(wide).toBeVisible()
 }
+
+// The widened column stands over the map's sentence bar, its corner and its
+// tools; this narrows it again, and does nothing on a phone or a compact column.
+export async function narrowColumn(page: Page) {
+  const wide = page.getByRole('button', { name: 'Narrow the table', exact: true })
+  if (await wide.isVisible()) await wide.click()
+  await expect(page.getByRole('button', { name: 'Narrow the table', exact: true })).toHaveCount(0)
+}
+
+// `useIsDesktop`'s breakpoint.
+const DESK_MIN_PX = 1024
