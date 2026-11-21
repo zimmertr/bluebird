@@ -277,6 +277,9 @@ export default function ResultsBar({
               the same before and after and the zero says nothing has
               been ranked yet. The window timestamp joins once a
               report exists (windowTitle below). */}
+          {/* The headline over its subtitle, the prototype's two lines, so
+              neither cuts the other short (record 0319). */}
+          <div className="flex min-w-0 flex-1 flex-col">
           <span className={`${TEXT.subheading} min-w-0 truncate`}>
             {lens !== null && scoreHeadline !== null
               ? scoreHeadline
@@ -287,6 +290,7 @@ export default function ResultsBar({
               {subtitle}
             </span>
           )}
+          </div>
           {/* The expand button, at the title row's end before the chevron
               (record 0321). */}
           {wide !== undefined && onWide && showResults && (

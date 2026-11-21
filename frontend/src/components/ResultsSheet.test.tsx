@@ -178,7 +178,7 @@ describe('ResultsSheet', () => {
     const { rerender } = render(<ResultsSheet {...props()} />)
     expect(seen.panels[seen.panels.length - 1].part).toBe('column')
     rerender(<ResultsSheet {...props()} wide />)
-    expect(seen.panels[seen.panels.length - 1].part).toBe('all')
+    expect(seen.panels[seen.panels.length - 1].part).toBe('wide')
   })
 
   it('draws every pane in a phone\'s sheet', () => {

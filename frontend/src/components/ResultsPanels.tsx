@@ -131,8 +131,10 @@ export interface ResultsPanelsProps {
    * desk splits them, the chart under the map (`chart`) and the table, or a
    * lone chart's series chips, in the column down its right edge (`column`),
    * where the table fills the column rather than taking a height of its own.
+   * Since record 0321 a desk's column draws `column` compact and `wide`
+   * widened over the map: every pane, the table filling what the chart leaves.
    */
-  part?: 'all' | 'chart' | 'column'
+  part?: 'all' | 'chart' | 'column' | 'wide'
   /**
    * Whether the results are collapsed to their bar, which shuts both panes.
    * A phone does not render the panels at all while collapsed.
@@ -310,6 +312,10 @@ export default function ResultsPanels({
     ) : null
   const legendShown = !collapsed && part !== 'column' && resultsMode === 'chart' && legendStrip !== null
   const column = part === 'column'
+  // The desk's widened column (record 0321): every pane, as a phone's sheet
+  // draws them, with the table filling what the chart leaves, as the compact
+  // column's does, since a desk's layout gives the table no height of its own.
+  const fills = column || part === 'wide'
   // In the column a lone chart's chips take the table's room, so they fill
   // the column's height rather than scrolling in their two rows.
   const columnChips =
@@ -404,7 +410,7 @@ export default function ResultsPanels({
         </div>
       </div>
       )}
-      {panesMove && part === 'all' && (
+      {panesMove && (part === 'all' || part === 'wide') && (
         <div className={`${RESULTS_PANE.frame} ${legendPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
           <div inert={!legendShown} className={`${RESULTS_PANE.foot} ${chartHold}`}>
             {legendPane.mounted && <Held holding={!legendShown}>{legendStrip}</Held>}
@@ -420,14 +426,14 @@ export default function ResultsPanels({
       {part !== 'chart' && (
       <div
         className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion} ${
-          column ? (tableShown ? 'min-h-0 flex-1' : '') : panesMove ? 'mt-auto' : ''
+          fills ? (tableShown ? 'min-h-0 flex-1' : '') : panesMove ? 'mt-auto' : ''
         }`}
       >
         <div inert={!tableShown} className={`${RESULTS_PANE.foot} ${tableHold}`}>
           {tablePane.mounted && (
             <>
               {/* The column's table takes the column's height: nothing to drag. */}
-              {!column && (
+              {!fills && (
                 <ResizeGrip
                   onReset={tableGrip.onReset}
                   onDragStart={tableGrip.onDragStart}
@@ -446,10 +452,10 @@ export default function ResultsPanels({
               <div
                 ref={tableScrollRef}
                 className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} ${
-                  column ? 'flex-1' : 'flex-shrink-0'
+                  fills ? 'flex-1' : 'flex-shrink-0'
                 } ${layer}`}
                 // The column's table fills it; elsewhere a table takes its pane's height.
-                style={column ? undefined : { height: `${tablePane.px}px` }}
+                style={fills ? undefined : { height: `${tablePane.px}px` }}
               >
                 <Held holding={!tableShown}>
                   <ResultsTable

@@ -5622,7 +5622,7 @@ describe('RESULTS_HEAD', () => {
 describe('HOUR_STRIP days', () => {
   const pick = (cls: string, re: RegExp) => cls.split(' ').filter((c) => re.test(c))
   it('spaces the day names as the day blocks', () => {
-    expect(pick(HOUR_STRIP.dayHead, /^(gap-|min-w-)/)).toEqual(pick(HOUR_STRIP.days, /^(gap-|min-w-)/))
+    expect(pick(HOUR_STRIP.dayHead, /^(gap-|w-)/)).toEqual(pick(HOUR_STRIP.days, /^(gap-|w-)/))
     expect(pick(HOUR_STRIP.dayName, /^(flex-1|basis-0)$/)).toEqual(pick(HOUR_STRIP.day, /^(flex-1|basis-0)$/))
   })
 })

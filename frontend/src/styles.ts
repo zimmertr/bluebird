@@ -3485,15 +3485,17 @@ export const HOUR_STRIP = {
    * lit hours as one block per day at the column's full width, every hour
    * one height, and the best four marked by a bracket under them rather
    * than by height, the bracket in the strong ink so it reads on any score.
-   * The day blocks share one `gap` with the header's day names (`dayHead`),
-   * so each name stands over its own block.
+   * The day blocks share one `gap` and one width with the header's day names
+   * (`dayHead`), so each name stands over its own block. A fixed width, the
+   * prototype's at a column of its usual size, because a cell asking for the
+   * table's spare width widened the table past the column (2026-11-21).
    */
-  days: 'flex h-5 w-full min-w-28 gap-1',
+  days: 'flex h-5 w-40 gap-1',
   day: 'flex min-w-0 flex-1 basis-0 gap-px',
   cell: 'h-full min-w-px flex-1 basis-0',
   run: 'relative flex basis-0 gap-px',
   bracket: 'pointer-events-none absolute inset-x-0 -bottom-1.5 h-[7px] rounded-b-sm border-x-2 border-b-[3px] border-ink-strong',
-  dayHead: 'flex w-full min-w-28 gap-1 text-left',
+  dayHead: 'flex w-40 gap-1 text-left',
   dayName: 'min-w-0 flex-1 basis-0 truncate',
 } as const
 

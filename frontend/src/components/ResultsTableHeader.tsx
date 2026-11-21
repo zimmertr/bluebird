@@ -51,8 +51,6 @@ interface Props {
   chartableRows: DestinationResult[]
   headState: 'all' | 'some' | 'none'
   onChartRange?: (rows: DestinationResult[], selected: boolean) => void
-  /** The compact table (record 0320): the hours column under the days' names. */
-  compact?: boolean
   /** The days' names over the compact strip. */
   dayLabels?: readonly string[]
 }
@@ -124,7 +122,6 @@ function ResultsTableHeader({
   chartableRows,
   headState,
   onChartRange,
-  compact = false,
   dayLabels = NO_DAYS,
 }: Props) {
   const widths = columnWidths ?? {}
@@ -227,7 +224,7 @@ function ResultsTableHeader({
             // The compact strip's header is the days' names, one over each
             // day's block (record 0320); nothing sorts on the hours.
             col.key === HOURS_COL.key ? (
-              <th key={col.key} scope="col" className={`${TABLE.head} w-full`}>
+              <th key={col.key} scope="col" className={TABLE.head}>
                 <span className={HOUR_STRIP.dayHead}>
                   {dayLabels.map((label, i) => (
                     <span key={i} className={HOUR_STRIP.dayName}>
@@ -271,8 +268,7 @@ function ResultsTableHeader({
               span beside the thead is not valid table markup. A reference
               resolves through aria-hidden, so the hint still reaches the
               headers while the filler stays out of the tree. */}
-          {/* The compact strip takes the spare width itself. */}
-          <th aria-hidden="true" className={compact ? 'p-0' : 'w-full p-0'}>
+          <th aria-hidden="true" className="w-full p-0">
             <span id={sortHintId} className={SR_ONLY}>
               Press Enter or Space to sort.
             </span>

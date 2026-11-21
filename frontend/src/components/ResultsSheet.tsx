@@ -377,7 +377,7 @@ export default function ResultsSheet(props: ResultsSheetProps) {
               every pane, as a phone's sheet does, which drops them while
               collapsed (record 0321). */}
           {(isDesktop || !resultsCollapsed) && (
-            <ResultsPanels {...panelsProps(props)} part={isDesktop && !wide ? 'column' : 'all'} />
+            <ResultsPanels {...panelsProps(props)} part={isDesktop ? (wide ? 'wide' : 'column') : 'all'} />
           )}
           {isDesktop && <div ref={legendFootRef} data-legend-foot="" className={RESULTS_COLUMN.foot} />}
         </div>

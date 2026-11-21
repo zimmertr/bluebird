@@ -260,7 +260,6 @@ function ResultsTable({
           chartableRows={chartableRows}
           headState={headState}
           onChartRange={onChartRange}
-          compact={compact}
           dayLabels={dayLabels}
         />
         <tbody>

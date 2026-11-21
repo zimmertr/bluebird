@@ -15,7 +15,7 @@ The desk's results column (record 0312) drew the whole table: a chart checkbox, 
 
 - **The columns.** `compactColumns` is the name, then the score and the hours (`HOURS_COL`, keyed on the row's `score_hours`) while a lens ranks, or the ranked metric otherwise, then `COMPACT_KEYS`, the highest wind and the lowest temperature, never one twice. The Columns menu does not shape it: it shapes the table the expand button opens.
 - **The name's line.** Under the name, the height and the best stretch, as `6,007 ft · best Sat 1p–5p` (`heightLabel`, `bestWhen`), the stretch in the table's own ink.
-- **The strip.** `HourStrip`, given the field's grid, draws one block per local day (`stripDays`) at the column's spare width, every hour one height, and a bracket under the best four in the strong ink. The header over it names each day over its block, the two rows sharing one gap. Nothing sorts on the hours.
+- **The strip.** `HourStrip`, given the field's grid, draws one block per local day (`stripDays`) at a fixed 160px, the prototype's at a column of its usual size (asking for the table's spare width widened the table past the column), every hour one height, and a bracket under the best four in the strong ink. The header over it names each day over its block, the two rows sharing one gap. Nothing sorts on the hours.
 - **No checkboxes.** The compact table draws no chart checkbox. Picking the chart's lines is part of the table the expand button opens.
 - **The column only.** `ResultsPanels` hands the compact set to its `part="column"` table. A phone's sheet and the full table keep the full set.
 

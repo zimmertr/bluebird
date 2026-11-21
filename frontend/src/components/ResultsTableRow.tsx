@@ -496,11 +496,10 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
       />
     )
   }
-  // The compact table's strip of days (record 0320), the column's whole
-  // spare width.
+  // The compact table's strip of days (record 0320).
   if (key === HOURS_COL.key) {
     return (
-      <td className={`${TABLE.cell} w-full`}>
+      <td className={TABLE.cell}>
         <HourStrip row={row} range={ctx.scoreRange} times={ctx.times ?? NO_TIMES} />
       </td>
     )
