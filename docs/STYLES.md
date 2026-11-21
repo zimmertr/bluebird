@@ -262,7 +262,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 
 A button's shape says where it stands. A circle floats on the map with nothing behind it; every control inside the panel, a sheet, a card or a popup is a rounded rectangle, and an icon-only one is `SQUARE_BUTTON`, a raised square with a frame. The results table, the marker popup and the chart's card share one table look: the table's heads, a hairline between rows with the table's tint under the pointer, digits grouped in thousands, and the ranked family in `cellStyle`'s colours. Record: [0257](architectural-decision-records/0257-one-table-look-and-button-shape-by-place.md)
 
-The results table is a spreadsheet first, so it spends its width on numbers. A metric's header is two lines, its name over its unit (`TABLE.headUnit`), top aligned so every name shares the first line, and tight, about 36px for the pair. The numbers wear tabular figures (`FIGURES`) rather than a monospace face, and print as the popup's and the chart card's do. Every corner is `RADIUS.control`'s 6px or `RADIUS.surface`'s 12px, and the app's one face is Inter, bundled with the app so every reader's widths are the ones `styles.test.ts` measured. Record: [0304](architectural-decision-records/0304-the-refreshed-look-and-a-denser-table.md)
+The results table is a spreadsheet first, so it spends its width on numbers. A metric's header is two lines, its name over its unit (`TABLE.headUnit`), top aligned so every name shares the first line, and tight, about 36px for the pair. The numbers wear tabular figures (`FIGURES`) rather than a monospace face, and print as the popup's and the chart card's do. Every corner is `RADIUS.control`'s 6px or `RADIUS.surface`'s 12px, and the app's one face is Archivo, bundled with the app so every reader's widths are the ones `styles.test.ts` measured, its figures a step narrow on the width axis. Record: [0304](architectural-decision-records/0304-the-refreshed-look-and-a-denser-table.md) Record: [0324](architectural-decision-records/0324-archivo-and-38px-map-tools.md)
 
 ## Two themes
 
@@ -789,7 +789,7 @@ are as wide as the wider of it and the chip row, so the rest of the map's top
 is the map's. The map's buttons stand in its bottom-right corner instead, as
 Google Maps stands its own (`MAP_CORNER`): the credit line flush in the corner
 with the scale at its end, and over it the compass, the locate button and the
-zoom pair, 24px in, 6px apart and 10px above the line. The column yields the
+zoom pair, 24px in, 6px apart and 10px above the line. Every button in the column is a 38px square with 12px corners, the zoom pair rounded as one (`.map-tools` in `map.css`, record [0324](architectural-decision-records/0324-archivo-and-38px-map-tools.md)). The column yields the
 gaps between its buttons to the map; the credit box does not, since a reader
 sees one banner and expects a press anywhere on it to select its text rather
 than drag the map (record [0268](architectural-decision-records/0268-the-corner-credits-the-basemap-in-each-providers-words.md)). The line sets the

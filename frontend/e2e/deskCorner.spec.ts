@@ -85,10 +85,10 @@ for (const [width, height] of [
     // line is 27px tall with its 2px padding and its 1px top edge.
     near(at.scale.height, 22)
     near(at.line.height, 27)
-    // The column: 32px buttons 24px in, 6px apart, the zoom pair joined, and
-    // 10px above the line.
+    // The column: 38px buttons 24px in (record 0324), 6px apart, the zoom
+    // pair joined, and 10px above the line.
     for (const button of [at.layers, at.draw, at.terrain, at.locate, at.zoomIn, at.zoomOut]) {
-      near(button.width, 32)
+      near(button.width, 38)
       near(button.right, at.map.right - 24)
     }
     near(at.draw.top - at.layers.bottom, 6)

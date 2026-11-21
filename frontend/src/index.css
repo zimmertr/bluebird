@@ -1,12 +1,13 @@
 @import "tailwindcss";
-/* The app's one typeface, Inter, bundled rather than fetched (#825; record
-   0304): the CSP serves fonts from 'self' alone, and a face the build carries
-   measures the same on every reader's machine, where the system stack drew SF
-   Pro on a Mac, Segoe on Windows and Roboto on Android, so every width
-   styles.test.ts pins was true of one of them. The package's stylesheet
+/* The app's one typeface, Archivo, bundled rather than fetched (record 0324,
+   which took it from the prototype in place of record 0304's Inter): the CSP
+   serves fonts from 'self' alone, and a face the build carries measures the
+   same on every reader's machine, so every width styles.test.ts pins is true
+   of the one face. Its width axis is what the narrow figures read
+   (`FIGURES`), so the stylesheet is the one carrying both axes. The package
    declares one @font-face per script with its unicode-range, so a browser
    fetches the Latin file alone unless a name needs another. */
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/archivo/wdth.css";
 /* No map styling here. This file is shared by every entry, including the three
    text pages, so vendor CSS lives in map.css, imported only by MapView. */
 @config "../tailwind.config.js";
@@ -77,10 +78,10 @@
    that changing DAY.range moves the floor. */
 @theme {
   --color-sky-650: oklch(0.5587 0.145 242.3);
-  /* Inter first, then the system stack it replaced, which draws for the moment
-     before the file arrives (the package declares `font-display: swap`) and
-     on a reader whose browser refuses web fonts. */
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  /* Archivo first, then the system stack, which draws for the moment before
+     the file arrives (the package declares `font-display: swap`) and on a
+     reader whose browser refuses web fonts. */
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
 html,

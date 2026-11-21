@@ -941,3 +941,29 @@
   background-color: var(--popup-thumb);
   border-radius: 3px;
 }
+
+/* A desk's tool column (record 0324): the prototype's 38px rounded squares,
+ * 12px at the corner, for the app's buttons (Layers, drawing, 3D) and the
+ * library's (locate, the compass and the zoom pair, which stays one capsule
+ * 76px tall). Here rather than in `MAP_ROUND_BUTTON`, because that 32px
+ * round button is also the phone's chip height (record 0254), and a desk's
+ * column is the one place the larger face stands. Unlayered, so it beats the
+ * utilities' size and radius. The library's glyphs scale with the button
+ * (29/40 of 38). */
+.map-tools button {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+}
+
+.map-tools .maplibregl-ctrl-zoom-in {
+  border-radius: 12px 12px 0 0;
+}
+
+.map-tools .maplibregl-ctrl-zoom-out {
+  border-radius: 0 0 12px 12px;
+}
+
+.map-tools .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  background-size: 27px;
+}

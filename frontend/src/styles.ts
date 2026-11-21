@@ -117,7 +117,7 @@ export const TEXT = {
    * subheading; only the step moved (the maintainer's option B, 2026-10-13).
    *
    * Sentence case since the refreshed look (#825; record 0304): tracked
-   * capitals read dated beside Inter, so the heading holds its rank on size,
+   * capitals read dated beside the sans, so the heading holds its rank on size,
    * weight and the strongest ink instead. The words in the source never
    * changed; only the transform that capitalised them went.
    */
@@ -168,12 +168,14 @@ export const CONTROL_SIZE = 'text-xs'
  * Digits that line up down a column: the results table's numbers, the
  * player's hour and the analysis overlay's count (#825; record 0304). They
  * were set in the system monospace so a column of figures aligned; tabular
- * figures do the same in Inter, every digit one width, without dropping the
+ * figures do the same in the sans, every digit one width, without dropping the
  * table into a typewriter face beside the names in the sans. The coordinate
  * box stays monospace, because what it holds is pasted text a reader edits
- * character by character, not figures read down a column.
+ * character by character, not figures read down a column. Since record 0324
+ * they are set a step narrow on Archivo's width axis, the prototype's figures,
+ * so a column of numbers takes less of the table than the names beside it.
  */
-export const FIGURES = 'tabular-nums'
+export const FIGURES = 'tabular-nums font-stretch-semi-condensed'
 
 /**
  * The reading tier: the two dialogs and the analysis overlay card.
@@ -2020,7 +2022,7 @@ export const MAP_TOOL = {
 
 export const MAP_CORNER = {
   box: `absolute right-0 bottom-[var(--map-corner-lift,0px)] flex flex-col items-end gap-2.5 pointer-events-none ${LAYER.base}`,
-  stack: 'map-corner mr-6 flex flex-col items-end gap-1.5 touch:gap-3',
+  stack: 'map-corner map-tools mr-6 flex flex-col items-end gap-1.5 touch:gap-3',
   // `leading-5` is the library's own 20px line, which the map's container
   // gives its controls and the corner, outside it, does not: without it the
   // scale shrank to 17px from the 22px box record 0162 holds it to.
@@ -3676,7 +3678,8 @@ export const MENU_TRIGGER = {
   chip: CHIP_FACE,
   /**
    * A button of a desk's map tool column (record 0315), Layers among them:
-   * the map buttons' round face around a glyph, with the one trigger's
+   * the map buttons' round face around a glyph (drawn as a desk column's
+   * 38px square by `.map-tools` in `map.css`, record 0324), with the one trigger's
    * states, so it lights while its menu is out as a chip does.
    */
   tool:
