@@ -548,29 +548,18 @@ export default function LayersPopover({
   // does not hold the sheet open: a modal sheet would take the keyboard from
   // the tour's own card, so on a phone its Layers step points at the chip.
   // In a desk's tool column it is a round button named by its glyph (record 0315).
-  const button = tool ? (
+  const button = (
     <MenuButton
       ref={buttonRef}
-      shape="tool"
+      shape={tool ? 'tool' : 'chip'}
       open={open}
-      chevron={false}
+      chevron={!tool && !sheet}
       onClick={() => setLayersOpen((o) => !o)}
       data-tour="layers"
-      aria-label="Layers"
+      aria-label={tool ? 'Layers' : undefined}
+      className={tool ? undefined : 'flex-shrink-0'}
     >
-      <IconLayers />
-    </MenuButton>
-  ) : (
-    <MenuButton
-      ref={buttonRef}
-      shape="chip"
-      open={open}
-      chevron={!sheet}
-      onClick={() => setLayersOpen((o) => !o)}
-      data-tour="layers"
-      className="flex-shrink-0"
-    >
-      Layers
+      {tool ? <IconLayers /> : 'Layers'}
     </MenuButton>
   )
 
