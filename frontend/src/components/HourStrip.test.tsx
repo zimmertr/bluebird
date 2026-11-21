@@ -4,7 +4,7 @@ import { HOUR_STRIP } from '../styles'
 import { render } from '../testSupport/render'
 import { resultRow } from '../testSupport/fixtures'
 
-// The Score cell's hour strip (record 0306): a bar per lit hour, the best
+// The Score cell's hour strip (record 0307): a bar per lit hour, the best
 // stretch taller, hidden from a screen reader beside the number it explains.
 describe('HourStrip', () => {
   it('draws a bar per lit hour, the best ones taller', () => {

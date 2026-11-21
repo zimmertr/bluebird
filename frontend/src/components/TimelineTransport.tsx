@@ -49,7 +49,7 @@ interface Props {
   liftPx: number
   /**
    * At a desk the day strip hosts the bar under its row of days (record
-   * 0310), so the bar draws no card and takes no place of its own.
+   * 0311), so the bar draws no card and takes no place of its own.
    */
   embedded?: boolean
 }

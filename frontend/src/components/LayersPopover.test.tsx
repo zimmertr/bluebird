@@ -119,7 +119,7 @@ describe('LayersPopover', () => {
   })
 
   // In a desk's tool column it is a round button named Layers, and its card
-  // opens to the button's left (record 0314).
+  // opens to the button's left (record 0315).
   it('is a round named button in the tool column, with its card to the left', async () => {
     const { user } = render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered tool />)
     const button = screen.getByRole('button', { name: 'Layers' })
@@ -449,7 +449,7 @@ describe('LayersPopover', () => {
     expect(setShowPlayer).toHaveBeenCalledWith(false)
   })
 
-  // The cloud sea draws the held report's deck (record 0309), so its row
+  // The cloud sea draws the held report's deck (record 0310), so its row
   // greys before a report, with no note, and is on until turned off.
   // A phone's sheet has no room for it until the phone's shell, which draws no cloud.
   it('leaves the cloud deck row off a phone\'s sheet', () => {

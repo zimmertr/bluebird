@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, renderHook } from '@testing-library/react'
 import { useSlashToSearch } from './useSlashToSearch'
 
-// `/` opens the Where card and puts the keyboard in its search (record 0312).
+// `/` opens the Where card and puts the keyboard in its search (record 0313).
 describe('useSlashToSearch', () => {
   it('opens the card on `/` and focuses the field once it has mounted', () => {
     const open = vi.fn()

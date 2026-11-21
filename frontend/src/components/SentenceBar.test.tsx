@@ -6,7 +6,7 @@ import { panelMessages } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 import { BUTTON_FORECAST_QUIET } from '../styles'
 
-// The desk's sentence bar (record 0308): which card each chip opens, what the
+// The desk's sentence bar (record 0309): which card each chip opens, what the
 // button says, and the run a link may ask for on open, which the bar now owns
 // because its cards come and go.
 
@@ -66,7 +66,7 @@ describe('SentenceBar', () => {
   })
 
   // The sentence reads `Peaks in this view on Sat 21 – Sun 22` (record
-  // 0313): a list drops the place, Current drops the `on`.
+  // 0314): a list drops the place, Current drops the `on`.
   it('joins the phrases with in and on, and leaves out what a list or Current lacks', () => {
     const { container, rerender } = render(<SentenceBar {...props()} />)
     const group = () => screen.getByRole('group', { name: 'Forecast' }).textContent

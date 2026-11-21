@@ -60,7 +60,7 @@ export interface MapFeatures {
   results: ResultsLayer
   pois: PoiPopups
   terrain: TerrainLayers
-  /** The cloud sea (record 0309), on the terrain's one load of the elevation. */
+  /** The cloud sea (record 0310), on the terrain's one load of the elevation. */
   cloud: CloudSeaLayer
 }
 

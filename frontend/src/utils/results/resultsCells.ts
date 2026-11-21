@@ -122,7 +122,7 @@ export function cellColor(
   raw: unknown,
   coloredGroup: ReadonlySet<string>,
   pointSample: boolean,
-  // The range the score's colour is stretched over (record 0306), or null.
+  // The range the score's colour is stretched over (record 0307), or null.
   scoreRange: { lo: number; hi: number } | null = null,
 ): { backgroundColor: string; color: string } | undefined {
   if (key === SCORE_KEY) return raw != null ? scoreCellStyle(raw as number, scoreRange) : undefined

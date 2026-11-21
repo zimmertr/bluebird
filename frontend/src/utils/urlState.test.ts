@@ -1751,7 +1751,7 @@ describe('the camera, the removals and the table order in a link', () => {
   })
 })
 
-describe('a link and the lens (record 0306)', () => {
+describe('a link and the lens (record 0307)', () => {
   it('restores the lens a link names, and a metric ranking for lens=metric', () => {
     expect(decodeState('?lens=calm')?.lens).toBe('calm')
     expect(decodeState('?lens=metric&sort=wind_avg_mph')?.lens).toBeNull()

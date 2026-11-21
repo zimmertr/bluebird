@@ -115,7 +115,7 @@ describe('AppDrawer', () => {
     expect(screen.getByRole('button', { name: 'Theme Dark' })).toBeTruthy()
   })
 
-  // The place search heads the Where card and no other (record 0312).
+  // The place search heads the Where card and no other (record 0313).
   it('heads a desk\'s Where card with the search, and no other card', () => {
     const search = <input aria-label="Place search" />
     const { rerender } = render(drawer(true, NOOP, { isDesktop: true, card: 'destinations', search }))

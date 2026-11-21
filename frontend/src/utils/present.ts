@@ -40,7 +40,7 @@ export interface PresentationKnobs {
   constraints: Constraints
   /**
    * The lens the field is ranked by, best score first, or null (and absent)
-   * for a ranking by `sortBy` (record 0306). The rows must carry their score
+   * for a ranking by `sortBy` (record 0307). The rows must carry their score
    * (`scoreRows`) for a lens to rank them; one with none sorts last.
    */
   lens?: Lens | null

@@ -144,7 +144,7 @@ export const resultRows = (page: Page) => page.locator('[data-results-table] tbo
 
 // The one button that runs a forecast, at either width: the phone's map
 // button reads `Analyze`, the desk's sentence bar names its spend
-// (`Forecast 247 peaks`, `Forecast 31 new`, `Up to date`, record 0308), and
+// (`Forecast 247 peaks`, `Forecast 31 new`, `Up to date`, record 0309), and
 // either reads `Try again` after a transient failure.
 export const FORECAST_WORD = /^(Analyze|Forecast|Forecast [\d,]+ [a-z]+|Up to date|Try again)$/
 // Scoped to the tour's Analyze anchor, which is the phone's button itself and
@@ -347,7 +347,7 @@ async function placeVertices(page: Page, vertices: readonly [number, number][]) 
 }
 
 // At a desk the panel's sections are cards the sentence bar's chips open, one
-// at a time (record 0308): Where, When and Limits. A phone keeps its Controls
+// at a time (record 0309): Where, When and Limits. A phone keeps its Controls
 // sheet, where this does nothing.
 export async function openCard(page: Page, name: 'Where' | 'When' | 'Limits') {
   const bar = page.getByRole('group', { name: 'Forecast', exact: true })

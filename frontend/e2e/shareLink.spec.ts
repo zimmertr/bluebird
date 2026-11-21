@@ -55,7 +55,7 @@ test('the address bar keeps the readable link the app writes, and writes it once
   // default ranking and results cap spelled out, so the app has one rewrite
   // to make: the delimiters readable, the defaults dropped. A link that names
   // a ranking opens on that metric rather than a lens, and says so with
-  // `lens=metric` (record 0306).
+  // `lens=metric` (record 0307).
   const d1 = isoDay(1)
   const pin = '-121.94734,47.48844,peak,2995,node/349018340,East+Tiger+Mountain'
   await page.goto(
@@ -160,7 +160,7 @@ test('a link reopens at its camera, with its removals and its table order', asyn
 // handler is attached, so the first vertex the panel counts says the map has
 // loaded. Escape then cancels draw mode and leaves no ring behind.
 async function waitForMapLoad(page: Page) {
-  // In the Where card at a desk (record 0308), shut again once drawing.
+  // In the Where card at a desk (record 0309), shut again once drawing.
   await inWhere(page, () => page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click())
   const counted = message(page, 'Add at least 2 more points')
   await expect(async () => {

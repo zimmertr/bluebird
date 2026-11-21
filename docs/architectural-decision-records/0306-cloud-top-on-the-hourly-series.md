@@ -1,4 +1,4 @@
-# 0305. The hourly series carries the top of the deck's layer, from the same walk
+# 0306. The hourly series carries the top of the deck's layer, from the same walk
 
 - Status: Proposed, in the from-scratch UI PR; accepted when the maintainer merges it. Amends 0113 (the walk carries on past the deck).
 - Date: 2026-11-17

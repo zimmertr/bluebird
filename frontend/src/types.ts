@@ -166,7 +166,7 @@ export interface HourlySeries {
   // nothing for the row; every analysis asks it (#683).
   cloud_deck_ft?: (number | null)[] | null
   // The top of the deck's layer, feet above sea level, from the same walk
-  // (record 0305). Absent with the deck; the map's cloud sea reads it.
+  // (record 0306). Absent with the deck; the map's cloud sea reads it.
   cloud_top_ft?: (number | null)[] | null
   // Wind bearing in degrees clockwise from north, the direction the wind blows
   // FROM. Client-populated only: the backend does not fetch it, because nothing
@@ -267,7 +267,7 @@ export interface DestinationResult {
   // sends it.
   terrain_ft?: number | null
   // The row's score on the reader's lens, 0 to 100, and its best stretch of
-  // hours (record 0306). Client-populated over the held field by
+  // hours (record 0307). Client-populated over the held field by
   // `scoreRows`; the API never sends them, and a row ranked by a metric
   // carries none.
   score?: number | null

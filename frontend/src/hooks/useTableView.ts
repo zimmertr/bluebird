@@ -86,7 +86,7 @@ export interface TableViewInputs {
   fire: FireProximity
   /** The closure check (`useClosureProximity`), which sorts and fills the Closure column. */
   closure: ClosureProximity
-  /** A lens ranks the field, so the Score column stands after the name (record 0306). */
+  /** A lens ranks the field, so the Score column stands after the name (record 0307). */
   scored?: boolean
 }
 

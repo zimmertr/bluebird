@@ -103,7 +103,7 @@ async function expectSectionInPanel(page: Page, anchor: string) {
       }
       if (!el) return null
       const s = el.getBoundingClientRect()
-      // A desk's card holds its one section (record 0308), and with room to
+      // A desk's card holds its one section (record 0309), and with room to
       // spare it scrolls nothing: the section then stands whole on screen.
       if (!box) return { fits: true, inside: s.top >= 0 && s.bottom <= innerHeight + 1 }
       const b = box.getBoundingClientRect()

@@ -186,7 +186,7 @@ describe('resultsFeatureCollection', () => {
 // Snowfall plays back the way precipitation does (#678): an hour of it is a
 // rate, so a total ranking reads the hour under the playhead on the snowfall
 // rate scale rather than holding the window's colour, as snow depth did.
-// Under a lens the markers are the score's (record 0306): the window's, or the
+// Under a lens the markers are the score's (record 0307): the window's, or the
 // hour's under the playhead, on the light ramp the map's ground wears.
 describe('fillColor under a lens', () => {
   const scored = { ...resultRow({ precip_total_in: 0.1 }), score: 84, score_hours: [40, null, 91] }

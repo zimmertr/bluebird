@@ -91,7 +91,7 @@ const APP_LAYERS: Readonly<Record<AppSlot, readonly string[]>> = {
   slope: ['slope'],
   contours: ['contours-casing', 'contours', 'contours-index'],
   trails: ['ofm-trails-casing', 'ofm-trails'],
-  // The cloud sea (record 0309) hides the ground, its lines and its trails,
+  // The cloud sea (record 0310) hides the ground, its lines and its trails,
   // and stands under every overlay, label and marker.
   cloud: ['cloud-sea'],
   grid: ['forecast-grid-fill'],

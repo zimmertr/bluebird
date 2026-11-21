@@ -580,7 +580,7 @@ export function mapCornerLiftPx(liftPx: number): number {
 }
 
 /**
- * A desk's results column dragged by its left edge (record 0311): no
+ * A desk's results column dragged by its left edge (record 0312): no
  * narrower than `RESULTS_COLUMN.column`'s own floor, 26rem, where the
  * compact table's columns fit, and never so wide that the map keeps less
  * than `COLUMN_MAP_MIN_PX`, which holds the sentence bar and the corner

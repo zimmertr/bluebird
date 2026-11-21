@@ -204,7 +204,7 @@ describe('the codec table against the links it wrote before', () => {
     expect(out).toMatchObject({ sortDesc: true, limit: 50, showSnow: true })
   })
 
-  // The cloud sea is on until turned off (record 0309): a link names it only
+  // The cloud sea is on until turned off (record 0310): a link names it only
   // when it is off, and an older link, which never names it, opens with it on.
   it('writes nocloud only for a cloud sea turned off', () => {
     expect(encodeState({ ...dateless, showCloud: false }, DEFAULT_MODEL)).toContain('nocloud=1')
@@ -500,7 +500,7 @@ describe('a pasted list too long for a link', () => {
   })
 })
 
-describe('the lens param (record 0306)', () => {
+describe('the lens param (record 0307)', () => {
   const lensParam = URL_PARAMS.find((row) => row.key === 'lens')!
   const base = { sortBy: 'aqi_avg', sortDesc: false } as const
 

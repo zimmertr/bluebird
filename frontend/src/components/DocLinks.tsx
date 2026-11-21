@@ -13,7 +13,7 @@ interface Props {
 /**
  * The three document links: the tour, the privacy page and the terms. The
  * panel's footer carried them; at a desk with the sentence bar they stand on
- * the map's credit line (record 0308), so one component spells them for both.
+ * the map's credit line (record 0309), so one component spells them for both.
  *
  * Two labels, two pages, and each label goes where it says. The privacy copy
  * used to open a dialog, which meant it had no URL and the Terms link next to

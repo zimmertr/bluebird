@@ -1,10 +1,10 @@
-# 0310. A desk picks its days on a strip at the map's foot
+# 0311. A desk picks its days on a strip at the map's foot
 
 - Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
 - Date: 2026-11-18
 - Decider: the maintainer, 2026-11-17 ("Plain days until a run")
 - Issues and PRs: #825
-- Cited in code as: record 0310
+- Cited in code as: record 0311
 - Guide: `frontend/src/components/CLAUDE.md` (`DayStrip.tsx`, `TimelineTransport.tsx`, `MapStage.tsx`), `frontend/src/utils/calendar/CLAUDE.md` (`dayStrip.ts`)
 
 ## Context

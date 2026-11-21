@@ -60,7 +60,7 @@ export interface ShareableState {
   sortBy: SortBy
   sortDesc: boolean // false = lowest first (the historical behavior)
   // The lens the field is ranked by, or null for a ranking by `sortBy`
-  // (record 0306). Optional so a state built before the score existed still
+  // (record 0307). Optional so a state built before the score existed still
   // types; such a state encodes exactly as it did.
   lens?: Lens | null
   // Which aggregate each metric's ranking-row dropdown holds (#291), active
@@ -91,7 +91,7 @@ export interface ShareableState {
   showSmoke: boolean
   showSnow: boolean
   showGrid: boolean
-  // The cloud sea (record 0309), the one layer on until the reader turns it
+  // The cloud sea (record 0310), the one layer on until the reader turns it
   // off, so a link carries it only when it is off. Optional for `lens`'s
   // reason: a state built before it existed still types and encodes as it did.
   showCloud?: boolean
@@ -326,7 +326,7 @@ export function decodeLink(
   const selection = decodeSelection(params)
   if (selection) out.selection = selection
   // A link written before the score named its ranking with `sort` and `desc`
-  // alone, and opens on that ranking rather than on a lens (record 0306). A
+  // alone, and opens on that ranking rather than on a lens (record 0307). A
   // link that names neither opens on the default lens, which is the caller's.
   if (out.lens === undefined && (out.sortBy !== undefined || out.sortDesc !== undefined)) out.lens = null
 

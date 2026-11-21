@@ -52,7 +52,7 @@ interface ResultsSheetProps
   removals: Pick<Removals, 'removed' | 'removeResult' | 'restoreRemoved' | 'restoreAllRemoved'>
   /** Bumped once per committed report, which is when the bar's title is announced. */
   analysisSeq: number
-  /** Picks the lens the field ranks by, or none (record 0306). */
+  /** Picks the lens the field ranks by, or none (record 0307). */
   onLens?: (lens: Lens | null) => void
 }
 
@@ -142,7 +142,7 @@ function panelsProps(p: ResultsSheetProps): Omit<ResultsPanelsProps, 'part'> {
 }
 
 /**
- * A desk's chart under the map (record 0311): the chart's pane of
+ * A desk's chart under the map (record 0312): the chart's pane of
  * the panels, while the table stands in the column down the map's right edge
  * (`ResultsSheet`). Nothing on a phone, whose sheet draws every pane.
  */

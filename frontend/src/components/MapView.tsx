@@ -67,7 +67,7 @@ export interface MapViewHandle {
   // share link's camera is written without state (`map/camera.ts`): a pan
   // would otherwise render every child of the map's parent.
   watchBounds: (onBounds: (bounds: ViewBounds) => void) => () => void
-  /** The box the view covers lying flat (`viewBoxOf`), or null before the map exists: the search area while no ring is drawn (record 0308). */
+  /** The box the view covers lying flat (`viewBoxOf`), or null before the map exists: the search area while no ring is drawn (record 0309). */
   getViewBox: () => BBox | null
   /** Put the camera back where `getCamera` found it, with no animation. */
   setCamera: (camera: MapCamera) => void
@@ -126,7 +126,7 @@ interface Props {
   onDrawUpdate: (count: number) => void
   results: DestinationResult[]
   sortBy: SortBy
-  /** The markers' score colouring while a lens ranks the field, or null (record 0306). */
+  /** The markers' score colouring while a lens ranks the field, or null (record 0307). */
   scoreColouring?: ScoreColouring | null
   // What a popup's Windy links carry, matching the results table's cells: the
   // model every number came from, and the report's own hourly grid, which is
@@ -174,7 +174,7 @@ interface Props {
   showSlope: boolean
   /**
    * The cloud deck at the hour drawn, one point per destination, or null for
-   * no cloud sea (record 0309). Built once per hour and report in `App.tsx`.
+   * no cloud sea (record 0310). Built once per hour and report in `App.tsx`.
    */
   cloudDeck?: readonly DeckPoint[] | null
   showSatellite: boolean

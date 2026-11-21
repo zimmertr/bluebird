@@ -123,7 +123,7 @@ interface LayersPopoverProps {
   >
   /** Whether anything spans time, so the player row can be ticked. */
   playerOffered: boolean
-  /** Whether a report is held, so the cloud deck has something to draw (record 0309). */
+  /** Whether a report is held, so the cloud deck has something to draw (record 0310). */
   cloudOffered?: boolean
   /** The map, for the view each bounded row is tested against while the menu is open. */
   mapRef: RefObject<Pick<MapViewHandle, 'watchBounds'> | null>
@@ -136,7 +136,7 @@ interface LayersPopoverProps {
    * stands under the chip (#714). The chip is the same at both.
    */
   sheet?: boolean
-  /** A desk's tool column (record 0314): a round button with its card opened to the left. */
+  /** A desk's tool column (record 0315): a round button with its card opened to the left. */
   tool?: boolean
 }
 
@@ -335,7 +335,7 @@ export default function LayersPopover({
           disabled: outOfView.has('radar'),
         },
         { key: 'snow', label: SNOW_ROW_LABEL, checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
-        // The cloud sea (record 0309), grey until a report holds a deck to
+        // The cloud sea (record 0310), grey until a report holds a deck to
         // draw, with no `note`, for the player's reason. A desk's alone until
         // the phone's shell, which draws none.
         ...(sheet
@@ -547,7 +547,7 @@ export default function LayersPopover({
   // card is absolute, so the chip's box is the row member's. The tutorial
   // does not hold the sheet open: a modal sheet would take the keyboard from
   // the tour's own card, so on a phone its Layers step points at the chip.
-  // In a desk's tool column it is a round button named by its glyph (record 0314).
+  // In a desk's tool column it is a round button named by its glyph (record 0315).
   const button = tool ? (
     <MenuButton
       ref={buttonRef}

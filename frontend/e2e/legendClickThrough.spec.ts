@@ -36,7 +36,7 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  // In the Where card at a desk (record 0308), shut again once drawing.
+  // In the Where card at a desk (record 0309), shut again once drawing.
   await inWhere(page, () => page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click())
   // The panel slides away rather than vanishing, so the point is read once
   // nothing but the map or the legend stands at it.
@@ -114,7 +114,7 @@ test('the desk legend card scrolls when its sections outgrow the map', async ({ 
 
 // With the player on, the card stops above its band only where the centred
 // bar reaches under it: a map narrower than 864px (record 0261). No panel
-// stands beside a desk's map since the sentence bar (record 0308), so the map
+// stands beside a desk's map since the sentence bar (record 0309), so the map
 // is the window's width, and at 1024, the narrowest desk, it is wide too.
 for (const width of [1440, 1024] as const) {
   test(`the desk legend card clears the player only where the bar reaches under it, at ${width} px`, async ({ page }) => {

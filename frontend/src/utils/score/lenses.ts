@@ -1,6 +1,6 @@
 /**
  * The five lenses a reader ranks by: the same hour factors weighted for a
- * different day out. The weights are the approved formula's (record 0306); a
+ * different day out. The weights are the approved formula's (record 0307); a
  * lens with a weight of 0 on a factor never reads it.
  */
 

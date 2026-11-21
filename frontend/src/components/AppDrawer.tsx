@@ -108,15 +108,15 @@ interface AppDrawerProps {
   onThemeChoice: (choice: ThemeChoice) => void
   /**
    * At a desk, the one section a sentence-bar chip opened, as a card under the
-   * bar, or null with none open (record 0308). Given, the desk draws no docked
+   * bar, or null with none open (record 0309). Given, the desk draws no docked
    * panel: the card is the panel.
    */
   card?: PanelSection | null
-  /** The map's view is the search area while no ring is drawn (record 0308). */
+  /** The map's view is the search area while no ring is drawn (record 0309). */
   viewIsArea?: boolean
   /** Closes the card: its close button. */
   onCardClose?: () => void
-  /** The place search, at the head of a desk's Where card (record 0312). */
+  /** The place search, at the head of a desk's Where card (record 0313). */
   search?: ReactNode
 }
 

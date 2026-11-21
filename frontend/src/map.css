@@ -441,7 +441,7 @@
 }
 
 /* A desk's tool column shows the compass only while the map is turned or
-   tilted, as the prototype does (record 0314), rather than greyed in place. */
+   tilted, as the prototype does (record 0315), rather than greyed in place. */
 .map-corner .maplibregl-ctrl-compass.compass-idle {
   display: none;
 }

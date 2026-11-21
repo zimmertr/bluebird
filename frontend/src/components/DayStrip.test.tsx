@@ -4,7 +4,7 @@ import DayStrip from './DayStrip'
 import { render } from '../testSupport/render'
 import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
 
-// The day strip at a desk's map foot (record 0310): a press picks a day, a
+// The day strip at a desk's map foot (record 0311): a press picks a day, a
 // drag a run of them, Shift extends, and the arrows walk the days.
 const NOW = () => new Date(2026, 6, 15, 12, 0)
 const BAND: BandLimits = { forecastHours: 384, pastDays: 365, aqiDays: 5 }

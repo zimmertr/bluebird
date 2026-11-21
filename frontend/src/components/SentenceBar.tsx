@@ -30,7 +30,7 @@ interface Props {
 }
 
 /**
- * The map's sentence bar at a desk (record 0308): one line that says what a
+ * The map's sentence bar at a desk (record 0309): one line that says what a
  * Forecast will search and over which hours, each phrase a chip that opens
  * its section as a card under the bar, then the one button that spends.
  * Everything that changes what is forecast is here; everything that only
@@ -70,7 +70,7 @@ export default function SentenceBar({
   }, [autoAnalyze, capabilitiesSettled, gateOpen, onAutoAnalyze])
 
   return (
-    // One card holding the name, the sentence and the button (record 0313).
+    // One card holding the name, the sentence and the button (record 0314).
     <div className={SENTENCE_BAR.row}>
       {/* The product's name, which the panel's header carried, and the
           page's one heading: the bar leads with it as the prototype did. */}

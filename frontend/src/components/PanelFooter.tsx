@@ -34,7 +34,7 @@ interface Props {
   // the last thing in the Controls sheet's scrolling body.
   phone?: boolean
   /**
-   * The map's sentence bar holds the button (record 0308): no rule, no
+   * The map's sentence bar holds the button (record 0309): no rule, no
    * padding and no links, and the button names what it will forecast. The
    * list takes `widthRef`'s width, the bar's chips and button, where the
    * button alone would wrap every line.
@@ -122,7 +122,7 @@ export default function PanelFooter({
             disabled={!analyzeEnabled && !blocked}
             aria-disabled={blocked || undefined}
             // The bar draws an outline while a press would fetch nothing new
-            // and the button is not saying anything else (record 0313).
+            // and the button is not saying anything else (record 0314).
             className={`${bar ? (bar.quiet && word === 'Analyze' ? BUTTON_FORECAST_QUIET : BUTTON_FORECAST_BAR) : BUTTON_FORECAST} ${DISABLED} ${BLOCKED}`}
           >
             {bar && word === 'Analyze' ? bar.label : word}

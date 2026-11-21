@@ -34,7 +34,7 @@ const look = (el: Locator) =>
   }, LOOK as unknown as string[])
 
 // The same class list on a button outside every popup, in the results, which
-// wear the panel's surface since the docked panel went (record 0308).
+// wear the panel's surface since the docked panel went (record 0309).
 const panelLook = (page: Page, className: string) =>
   page.evaluate(
     ({ className, props }) => {
@@ -78,7 +78,7 @@ for (const theme of ['dark', 'light'] as const) {
 
     // The card's surface and ink are the panel's, the `panel` token the
     // sentence bar's cards and the results wear since the docked panel went
-    // (record 0308). Polled, because the map pans to fit a popup it has just
+    // (record 0309). Polled, because the map pans to fit a popup it has just
     // opened and a read can land on the card that pan replaces.
     const panel = await paint(page, 'var(--ui-panel)')
     const content = popup.locator('.maplibregl-popup-content')

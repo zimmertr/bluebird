@@ -5,9 +5,9 @@ import type { CornerSlots } from '../map/controls'
 interface Props {
   /** Receives the corner's slots once it mounts, and null when it goes. */
   onSlots: (slots: CornerSlots | null) => void
-  /** The document links, which lead the credit line where the sentence bar took the panel's footer (record 0308). */
+  /** The document links, which lead the credit line where the sentence bar took the panel's footer (record 0309). */
   links?: ReactNode
-  /** The map tools over the library's buttons: Layers and drawing a ring (record 0314). */
+  /** The map tools over the library's buttons: Layers and drawing a ring (record 0315). */
   tools?: ReactNode
 }
 

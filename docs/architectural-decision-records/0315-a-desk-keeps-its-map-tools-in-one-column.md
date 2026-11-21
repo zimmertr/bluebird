@@ -1,10 +1,10 @@
-# 0314. A desk keeps its map tools in one column on the right
+# 0315. A desk keeps its map tools in one column on the right
 
 - Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, choosing "One tool column" for the map's controls
 - Issues and PRs: #825
-- Cited in code as: record 0314
+- Cited in code as: record 0315
 - Guide: `frontend/src/components/CLAUDE.md` (`MapCorner.tsx`, `LayersPopover.tsx`, `MapStage.tsx`)
 
 ## Context

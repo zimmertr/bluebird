@@ -13,7 +13,7 @@ const VIEW = { lng: -121.767, lat: 47.45, zoom: 9 }
 // Ring B's corners as degrees from the camera's centre, each one west of ring
 // A's western corner. Low and far west, because the results pane shortens the
 // map and a desk's draw bar hangs under the chip row at its middle (record
-// 0308), and a corner pressed on the bar is no corner.
+// 0309), and a corner pressed on the bar is no corner.
 const RING_B_OFFSETS: [number, number][] = [
   [-0.24, 0],
   [-0.18, 0],

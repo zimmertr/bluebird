@@ -4,7 +4,7 @@ import LensChips, { LENS_LABEL } from './LensChips'
 import { LENSES } from '../utils/score/lenses'
 import { render } from '../testSupport/render'
 
-// The lenses (record 0306): one toggle each, the lit one pressed, and a
+// The lenses (record 0307): one toggle each, the lit one pressed, and a
 // press on it ranks by the metric again.
 describe('LensChips', () => {
   it('draws a toggle per lens, in order, with the ranking one pressed', () => {

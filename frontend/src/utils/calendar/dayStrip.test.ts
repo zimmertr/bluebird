@@ -7,7 +7,7 @@ const NOW = new Date(2026, 6, 15, 12, 0)
 const LONG: BandLimits = { forecastHours: 384, pastDays: 365, aqiDays: 5 }
 const HRRR: BandLimits = { ...LONG, forecastHours: 48 }
 
-// The strip (record 0310): today through the model's reach, one cell a day.
+// The strip (record 0311): today through the model's reach, one cell a day.
 describe('stripDays', () => {
   it('runs from today to the band’s last day, today marked', () => {
     const days = stripDays(NOW, LONG)

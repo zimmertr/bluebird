@@ -24,7 +24,7 @@ describe('MapCorner', () => {
   })
 
   // The map tools stand over the library's buttons, in the column a popup
-  // keeps clear of (record 0314).
+  // keeps clear of (record 0315).
   it('stands the tools over the compass in the column', () => {
     const onSlots = vi.fn<(slots: CornerSlots | null) => void>()
     const { container } = render(<MapCorner onSlots={onSlots} tools={<button>Layers</button>} />)

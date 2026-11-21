@@ -250,7 +250,7 @@ interface CellContext {
   // The row's own id, from `useId`, so it holds still across renders of a
   // memoized row: the hidden sentences are found by ids built from it.
   rowId: string
-  // The range the score's colour is stretched over (record 0306), or null.
+  // The range the score's colour is stretched over (record 0307), or null.
   scoreRange: { lo: number; hi: number } | null
 }
 
@@ -458,7 +458,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
     return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
   }
   const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample, ctx.scoreRange)
-  // The score carries its hours beside it (record 0306).
+  // The score carries its hours beside it (record 0307).
   if (key === SCORE_KEY) {
     return (
       <td className={cellClass} style={colorSty}>
@@ -517,7 +517,7 @@ interface RowProps {
   widths: Record<string, number>
   coloredGroup: ReadonlySet<string>
   pointSample: boolean
-  /** The range the score's colour is stretched over, or null (record 0306). */
+  /** The range the score's colour is stretched over, or null (record 0307). */
   scoreRange?: { lo: number; hi: number } | null
   modelFallbackLabel?: string | null
   modelId?: string | null

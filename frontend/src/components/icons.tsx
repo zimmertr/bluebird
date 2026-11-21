@@ -459,7 +459,7 @@ export function IconSearch({ className }: IconProps): ReactNode {
   )
 }
 
-/** Layers, the map tool column's menu of overlays (record 0314): two stacked sheets, as the prototype draws it. */
+/** Layers, the map tool column's menu of overlays (record 0315): two stacked sheets, as the prototype draws it. */
 export function IconLayers({ className }: IconProps): ReactNode {
   return (
     <svg
@@ -478,7 +478,7 @@ export function IconLayers({ className }: IconProps): ReactNode {
   )
 }
 
-/** Drawing a ring on the map, from the tool column (record 0314): a loop of line with its starting point. */
+/** Drawing a ring on the map, from the tool column (record 0315): a loop of line with its starting point. */
 export function IconLoop({ className }: IconProps): ReactNode {
   return (
     <svg

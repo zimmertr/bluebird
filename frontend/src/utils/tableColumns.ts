@@ -81,7 +81,7 @@ export const CLOSURE_KEY = 'closure'
 export const CLOSURE_COL: ColDef = { key: CLOSURE_KEY, label: 'Closure' }
 
 /**
- * The score under the reader's lens (record 0306), a whole number from 0 to
+ * The score under the reader's lens (record 0307), a whole number from 0 to
  * 100. Not in `COLUMNS`: it stands only while a lens ranks the field, right
  * after the name, because it is the number the order is.
  */

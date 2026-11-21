@@ -160,7 +160,7 @@ describe('ResultsSheet', () => {
   })
 
   // A desk's column goes with the chevron, bar and all, and the round button
-  // on the map's edge brings it back (record 0311); a phone's
+  // on the map's edge brings it back (record 0312); a phone's
   // sheet keeps its bar and drops the panels.
   it('takes a desk\'s column away on the chevron, and folds a phone\'s sheet to its bar', () => {
     const { rerender } = render(<ResultsSheet {...props({ resultsCollapsed: true })} />)
@@ -216,7 +216,7 @@ describe('ResultsSheet', () => {
 
   // A desk's column takes its width from a drag on its left edge, held
   // between its own floor and the map's, and a double press gives the
-  // class's width back (record 0311). A phone's sheet has no such edge.
+  // class's width back (record 0312). A phone's sheet has no such edge.
   it('widens a desk\'s column by its left edge and puts it back on a double press', () => {
     vi.stubGlobal('innerWidth', 1400)
     render(<ResultsSheet {...props()} />)

@@ -162,7 +162,7 @@ export interface LegendInputs {
   markerScale: LabelledScale | null
   /** Whether the report's markers are on the map and coloured. */
   hasColoredMarkers: boolean
-  /** Whether a lens ranks the field, so the markers wear the score and the key says so (record 0306). */
+  /** Whether a lens ranks the field, so the markers wear the score and the key says so (record 0307). */
   scored?: boolean
   /** Whether the ranked metric has any value on the rows shown (`fieldHasValue`). */
   rankedFieldHasValue: boolean

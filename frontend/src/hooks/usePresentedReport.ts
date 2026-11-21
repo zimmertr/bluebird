@@ -135,7 +135,7 @@ export function usePresentedReport({
   // simply have no match and pass through unchanged.
   const knobs = demoKnobs ?? liveKnobs
   // Every row scored on the lens before the derivation ranks them, so the
-  // table, the markers and the count read one scored field (record 0306).
+  // table, the markers and the count read one scored field (record 0307).
   // Keyed on the lens and the field alone: a sort, cap or bound change
   // re-presents the same scores.
   const lens = knobs.lens ?? null
@@ -164,7 +164,7 @@ export function usePresentedReport({
   }, [keptScores])
   // The range the score's colour is stretched over, over the same rows the
   // headline counts, so the table, the strips, the markers and the legend
-  // read one ramp (record 0306).
+  // read one ramp (record 0307).
   const scoreSpan = useMemo(() => (keptScores === null ? null : scoreRange(keptScores)), [keptScores])
   const results = useMemo(
     () =>
@@ -200,7 +200,7 @@ export function usePresentedReport({
   // sort, and the types would not complain.
   // The ranking's own order, which the header arrow shows while nobody has
   // pressed a header: the Score column, best first, while the reader's lens
-  // ranks the field (record 0306), and the panel's metric otherwise.
+  // ranks the field (record 0307), and the panel's metric otherwise.
   const readerLens = liveKnobs.lens ?? null
   const rankKey: SortKey = readerLens !== null ? SCORE_KEY : view.sortBy
   const rankDesc = readerLens !== null ? true : view.sortDesc

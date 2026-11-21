@@ -42,7 +42,7 @@ interface Props {
   // analysis.
   pointSample?: boolean
   // The range the Score cells' colour is stretched over while a lens ranks
-  // (record 0306), or null.
+  // (record 0307), or null.
   scoreRange?: { lo: number; hi: number } | null
   // Columns to display, filtered by user visibility choices. The file always
   // carries the full set via buildResultsCsv; only the screen narrows.

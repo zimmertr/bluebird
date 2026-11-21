@@ -110,7 +110,7 @@ describe('attribute copy', () => {
 // it pointed at the privacy page anyway.
 describe('the document pages', () => {
   // Spelled once in `DocLinks`, which the panel's footer and a desk's credit
-  // line both render (record 0308).
+  // line both render (record 0309).
   it('are both reachable from the control panel footer and the desk credit line', () => {
     expect(docLinks).toMatch(/href="\/privacy"/)
     expect(docLinks).toMatch(/href="\/terms"/)

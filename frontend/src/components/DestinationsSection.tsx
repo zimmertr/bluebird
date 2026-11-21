@@ -87,7 +87,7 @@ interface Props {
   // Empties the ring and leaves the mode as it is.
   onClearDrawing: () => void
   drawPointCount: number
-  /** The map's view is the search area while no ring is drawn (record 0308), so the kinds are live without one. */
+  /** The map's view is the search area while no ring is drawn (record 0309), so the kinds are live without one. */
   viewIsArea?: boolean
   // The two readings the Analyze gate also takes, handed down rather than
   // derived again here so the counter and the gate cannot disagree.
@@ -252,7 +252,7 @@ export default function DestinationsSection({
   // tick with no ring was never sent anyway (`planAnalysis` sends no types
   // without one). Greyed rather than hidden, as the draw row's buttons are
   // (#687), so a ring arriving does not move the panel under the reader.
-  // While the view is the area (record 0308) there is always a ring, and the
+  // While the view is the area (record 0309) there is always a ring, and the
   // types stay live however far out the map is: a view past the cap is the
   // Forecast button's blocker, and the reader picks what to find before
   // zooming in to it.

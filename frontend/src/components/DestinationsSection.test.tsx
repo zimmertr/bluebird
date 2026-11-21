@@ -328,7 +328,7 @@ describe('DestinationsSection', () => {
       expect(typeBoxes()[0].checked).toBe(true)
     })
 
-    // While the view is the area (record 0308) there is always a ring, and a
+    // While the view is the area (record 0309) there is always a ring, and a
     // view past the cap is the Forecast button's blocker, not the types'.
     it('keeps them live while the view is the area, however far out it is', () => {
       const view = { viewIsArea: true }

@@ -1,5 +1,5 @@
 /**
- * The search area when no ring is drawn: the map's own view (record 0308).
+ * The search area when no ring is drawn: the map's own view (record 0309).
  *
  * The view is the area a reader is already looking at, so it is what a
  * Forecast searches unless they draw a ring or pick a list. It is handed to

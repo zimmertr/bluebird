@@ -172,7 +172,7 @@ export function useResultsLayout({
   // What the last commit laid out, which a desk's raise (#925) and the Both
   // widening read, so neither handler has to take the heights as inputs.
   // A stacked desk also kept the results' height from it on a press (#850);
-  // since record 0311 a desk's table stands in the column beside the map and
+  // since record 0312 a desk's table stands in the column beside the map and
   // shares no height with the chart, so no press keeps one.
   const shownRef = useRef<{
     desk: boolean
@@ -224,7 +224,7 @@ export function useResultsLayout({
   const [sheetMeasuredPx, setSheetMeasuredPx] = useState<number | null>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   // The bar and a lone chart's chips, which a stacked desk measured for the
-  // map's floor (#714, #850). Since the column (record 0311) both
+  // map's floor (#714, #850). Since the column (record 0312) both
   // stand beside the map and nothing measures them; the refs stay where the
   // markup hands them.
   const barRef = useRef<HTMLDivElement>(null)
@@ -414,7 +414,7 @@ export function useResultsLayout({
   )
   // What the map│chart grip may not drag the chart over: the table while it
   // is rendered, which is the one thing that differs between Both and
-  // chart-only mode. A desk's table stands in the column (record 0311), so
+  // chart-only mode. A desk's table stands in the column (record 0312), so
   // `tablePanelPx` is none there.
   const chartReservedPx = (resultsMode === 'both' ? tablePanelPx : 0) + reservedPx
   // Whether a phone's sheet covers the map's rows and its Analyze button,

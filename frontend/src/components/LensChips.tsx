@@ -2,7 +2,7 @@ import { Fragment } from 'react'
 import { LENSES, type Lens } from '../utils/score/lenses'
 import { ACCENT, BAR_GROUP, BAR_PRESS, SEGMENT_DIVIDER, SEGMENT_IDLE, SEGMENT_ITEM, TEXT } from '../styles'
 
-// What each lens is called on screen (record 0306). Strings in the PR's
+// What each lens is called on screen (record 0307). Strings in the PR's
 // table for the maintainer's approval.
 export const LENS_LABEL: Readonly<Record<Lens, string>> = {
   bluebird: 'Bluebird',
@@ -19,7 +19,7 @@ interface Props {
 
 /**
  * The lenses the field is ranked by, one segment each in the results bar's
- * well (record 0306). A press on the lit one lets go of it, and the field
+ * well (record 0307). A press on the lit one lets go of it, and the field
  * ranks by the metric the Metrics table names, as it did before the score.
  * Each is a toggle (`aria-pressed`), since none of them opens anything.
  */

@@ -9,7 +9,7 @@ import type { Locator, Page } from '@playwright/test'
 async function analyze(page: Page) {
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  // The map's button on a phone, the sentence bar's at a desk (record 0308).
+  // The map's button on a phone, the sentence bar's at a desk (record 0309).
   await forecastButton(page.getByRole('main')).click()
   await expectRanked(page)
 }

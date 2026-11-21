@@ -168,7 +168,7 @@ export default function App() {
   const isDesktop = useIsDesktop()
   // A desk opens on the default lens; a phone keeps today's metric ranking
   // in this PR, its sheet having no room budgeted for the lens row (record
-  // 0306), unless a link brings a lens.
+  // 0307), unless a link brings a lens.
   const rankingKnobs = useRankingKnobs(restored, caps.maxLimit, isDesktop ? DEFAULT_LENS : null)
   const {
     sortBy,
@@ -197,7 +197,7 @@ export default function App() {
   // (record 0141). It starts open on a desktop and closed on a phone
   // (`useDrawer`, #696); a close button collapses it to widen the map.
   // Shut at a desk too: the sentence bar and its cards stand where the
-  // docked panel stood (record 0308), so a desk has no panel to open.
+  // docked panel stood (record 0309), so a desk has no panel to open.
   const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(false)
   // A phone's Controls sheet under a drag on its grip (record 0146): the height
   // the drag left it at, or null for its own share of the map.
@@ -269,7 +269,7 @@ export default function App() {
     drawPointCount,
     finishDrawing,
   } = drawMode
-  // What a Forecast searches (record 0308): the drawn ring, or the map's view
+  // What a Forecast searches (record 0309): the drawn ring, or the map's view
   // while none is drawn, and no ring at all with no kind to find. Handed to
   // the gate, the count and the command where the drawn ring went; the link
   // and the commit cues keep the drawn ring, so a pan writes no ring into a
@@ -385,7 +385,7 @@ export default function App() {
     movePlayheadTo,
   } = timeline
 
-  // ── The cloud sea (record 0309) ──────────────────────────────────────────
+  // ── The cloud sea (record 0310) ──────────────────────────────────────────
   // The deck every destination in the held field carries, at the hour the
   // player stands on, or the window's middle hour while it is off: the
   // report's own numbers, so drawing it asks nothing of Open-Meteo. A desk's
@@ -485,7 +485,7 @@ export default function App() {
     restoredTableSort: restored?.tableSort ?? null,
   })
   // The markers' colouring while a lens ranks the field: the score's ramp
-  // stretched over the range the Score cells read (record 0306), memoized for
+  // stretched over the range the Score cells read (record 0307), memoized for
   // the memoized map's sake.
   const scoreRangeNow = report.scoreRange
   const scoreColouring = useMemo<ScoreColouring | null>(
@@ -544,7 +544,7 @@ export default function App() {
   })
   const { writeUrl } = urlSync
   // Every settled move of the map: the link's camera, and the view the search
-  // area stands in for (record 0308).
+  // area stands in for (record 0309).
   const reportCamera = urlSync.reportView
   const reportArea = searchArea.reportView
   const onCameraMove = useCallback(
@@ -729,7 +729,7 @@ export default function App() {
   })
 
   // A desk's messages are the sentence bar's, which is always on the map, so
-  // a failure has no shut panel to open (record 0308): the bar's own list
+  // a failure has no shut panel to open (record 0309): the bar's own list
   // opens itself (`PanelFooter`), as the panel's did.
 
   // On mobile the controls are an off-canvas drawer, and it closes when an
@@ -893,7 +893,7 @@ export default function App() {
     />
   )
 
-  // The sentence bar at a desk (record 0308), and what its Forecast button says:
+  // The sentence bar at a desk (record 0309), and what its Forecast button says:
   // the count ahead of a first run, and once a report holds forecasts for the
   // same window and model, only what it does not hold yet.
   const universeKeys = useMemo(
@@ -999,7 +999,7 @@ export default function App() {
         // the landmark is where the keyboard lands, not a control.
         tabIndex={-1}
         // A desk is a row: the map and its chart down the left, the results'
-        // column down the right (record 0311).
+        // column down the right (record 0312).
         className={`flex-1 flex overflow-hidden min-w-0 focus:outline-none ${isDesktop ? 'flex-row' : 'flex-col relative'}`}
       >
         <div className={isDesktop ? 'relative flex min-w-0 flex-1 flex-col' : 'contents'}>

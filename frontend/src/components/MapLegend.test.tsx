@@ -115,7 +115,7 @@ describe('MapLegend', () => {
     expect(temp.map((s) => s.label)).toEqual(['Temperature (°F)', 'Snow depth (in)'])
   })
 
-  // Under a lens the markers wear the score (record 0306), so the key is the
+  // Under a lens the markers wear the score (record 0307), so the key is the
   // score's, whatever metric the panel last ranked by.
   it('keys the score while a lens ranks the field', () => {
     const scored = legendSections({ ...BASE, markerScale: SCORE_MAP_SCALE, hasColoredMarkers: true, scored: true }, 'id')

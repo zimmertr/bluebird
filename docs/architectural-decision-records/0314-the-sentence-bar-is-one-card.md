@@ -1,15 +1,15 @@
-# 0313. The sentence bar is one card that reads as a sentence
+# 0314. The sentence bar is one card that reads as a sentence
 
 - Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, ordering the build brought to the prototype (https://claude.ai/artifact/3gjaDv8Bh4qns9Zuv1FsGH)
 - Issues and PRs: #825
-- Cited in code as: record 0313
+- Cited in code as: record 0314
 - Guide: `frontend/src/components/CLAUDE.md` (`SentenceBar.tsx`, `PanelFooter.tsx`), `frontend/src/utils/CLAUDE.md` (`sentenceBar.ts`)
 
 ## Context
 
-Record 0308 put a sentence on the map's top row, but drew it as five separate chips: the name, Where, When, Limits and the button. The prototype draws one floating card that reads aloud as a sentence, "Peaks in this view on Sat 21 – Sun 22", with each choice underlined inside it and the one warm button at its end, outlined when it would fetch nothing.
+Record 0309 put a sentence on the map's top row, but drew it as five separate chips: the name, Where, When, Limits and the button. The prototype draws one floating card that reads aloud as a sentence, "Peaks in this view on Sat 21 – Sun 22", with each choice underlined inside it and the one warm button at its end, outlined when it would fetch nothing.
 
 ## Decision
 

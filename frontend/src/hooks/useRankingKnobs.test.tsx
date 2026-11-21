@@ -24,7 +24,7 @@ describe('useRankingKnobs', () => {
   })
 
   // A lens ranks until the reader picks a metric or a direction in the
-  // Metrics table, which is a ranking by that metric (record 0306).
+  // Metrics table, which is a ranking by that metric (record 0307).
   it('opens on the lens it is handed, and lets go of it for a metric or a direction', () => {
     const { result } = renderHook(() => useRankingKnobs(null, 1500, 'bluebird'))
     expect(result.current.lens).toBe('bluebird')

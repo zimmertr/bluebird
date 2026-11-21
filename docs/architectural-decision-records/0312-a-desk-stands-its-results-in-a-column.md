@@ -1,10 +1,10 @@
-# 0311. A desk stands its results in a column down the map's right edge
+# 0312. A desk stands its results in a column down the map's right edge
 
 - Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, choosing "Pane under the map" for the chart
 - Issues and PRs: #825
-- Cited in code as: the from-scratch shell, record 0311
+- Cited in code as: the from-scratch shell, record 0312
 - Guide: `frontend/src/components/CLAUDE.md` (`ResultsSheet.tsx`, `ResultsPanels.tsx`, `ResultsBar.tsx`), `frontend/src/hooks/CLAUDE.md` (`useResultsLayout.ts`)
 
 ## Context

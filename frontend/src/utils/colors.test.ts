@@ -932,7 +932,7 @@ describe('the score ramp', () => {
   })
 })
 
-// The score's map scale stretched over the field (record 0306): the legend's
+// The score's map scale stretched over the field (record 0307): the legend's
 // ticks are the field's own scores, and a marker coloured on the scale wears
 // the colour `scoreFill` gives the same score over the same range.
 describe('scoreScale', () => {

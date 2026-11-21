@@ -8,7 +8,7 @@ interface Props {
   /** Puts back the ring the mode started with and leaves it: the panel's Cancel. */
   onCancel: () => void
   /**
-   * A desk's bar (record 0308): in the slot under the chip row where the
+   * A desk's bar (record 0309): in the slot under the chip row where the
    * sentence bar's cards hang, rather than across the map.
    */
   inline?: boolean
@@ -31,7 +31,7 @@ interface Props {
  * `MapStage` leaves the forecast player out while the bar is up: playback is
  * no use while points are being placed.
  *
- * A desk draws on an uncovered map too since the sentence bar (record 0308):
+ * A desk draws on an uncovered map too since the sentence bar (record 0309):
  * Draw polygon shuts the Where card, and the bar hangs in the card's place.
  */
 export default function MapDrawBar({ drawPointCount, onDone, onCancel, inline = false }: Props) {

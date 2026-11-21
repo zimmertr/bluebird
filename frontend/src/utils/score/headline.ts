@@ -38,7 +38,7 @@ export function scoreRange(scores: readonly (number | null)[]): { lo: number; hi
 }
 
 /**
- * The headline as the results bar says it (record 0306): `12 places score 80
+ * The headline as the results bar says it (record 0307): `12 places score 80
  * or better`, or one place in the singular. In the PR's table for approval.
  */
 export function headlineText(h: Headline): string {

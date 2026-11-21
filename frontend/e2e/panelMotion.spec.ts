@@ -2,7 +2,7 @@ import { test, expect, expectRanked, resultRows, DESTINATION_NAMES, forecastButt
 import type { Page } from '@playwright/test'
 
 // A desk's results stand in a column right of the map and the chart in a
-// pane under it (record 0311). A press on Both or Table opens and shuts that
+// pane under it (record 0312). A press on Both or Table opens and shuts that
 // pane at the panel speed (record 0202), with its chart drawn at its end
 // size in every moving frame (record 0216); the column itself holds still.
 // Measured on the live layout, frame by frame, since jsdom lays nothing out.

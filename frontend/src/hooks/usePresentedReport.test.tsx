@@ -99,7 +99,7 @@ describe('usePresentedReport', () => {
   })
 
   // A lens ranks by the score, best first, so that is the order the header
-  // arrow shows until a header is pressed (record 0306).
+  // arrow shows until a header is pressed (record 0307).
   it('puts the arrow on Score while a lens ranks, and back on the metric without one', () => {
     let liveKnobs: PresentationKnobs = { ...KNOBS, lens: 'bluebird' }
     const { result, rerender } = renderHook(() => usePresentedReport(inputs({ liveKnobs })))

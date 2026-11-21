@@ -3295,7 +3295,7 @@ describe('a blocked Analyze and the message list', () => {
   // so the 82-character over-cap sentence wraps inside it rather than running
   // the card past the panel's right edge over the map.
   // The sentence bar hands its chips' span in place of the slot (record
-  // 0308), where the button alone would wrap every line.
+  // 0309), where the button alone would wrap every line.
   it("stands the desk card at the Analyze slot's width, 328px at the docked panel", () => {
     expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: bar\?\.widthRef \?\? slotRef,/)
     const panelPx = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) * 4
@@ -4696,8 +4696,8 @@ describe('the one menu', () => {
   // results bar's group. Everything else is the one menu. The segment and the
   // square came with the chart's picker (#499), and the header's round button
   // with the theme menu (#843), each the look of what it stands beside, and
-  // the sentence bar's phrase with the bar (record 0313), and the map tool
-  // column's round button with that column (record 0314).
+  // the sentence bar's phrase with the bar (record 0314), and the map tool
+  // column's round button with that column (record 0315).
   it('keeps the trigger shapes and no more', () => {
     expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'slot', 'square', 'tool'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
@@ -4955,7 +4955,7 @@ describe('the panel frame', () => {
   })
 
   // A desk's results stand in a column down the map's right edge (record
-  // 0311): never narrower than the table's name, score and
+  // 0312): never narrower than the table's name, score and
   // strip need, never so wide the map is a sliver, edged on its left by the
   // panel's rule, and on the panel's ground. Its chips fill the column, so
   // they carry no two-row cap of their own.
@@ -5552,7 +5552,7 @@ describe('sheet handles and pull to refresh', () => {
   })
 })
 
-// Alpenglow (record 0307): the Forecast button's fill and its dark label.
+// Alpenglow (record 0308): the Forecast button's fill and its dark label.
 // Both themes measured here, the label against the fill (1.4.3) and the fill
 // against the surfaces it stands on (1.4.11); the light hover is the one state
 // under 3:1 on the panel and is pinned so a change to it is a re-measurement.
@@ -5571,7 +5571,7 @@ describe('the alpenglow fill', () => {
     expect(ratio(light('on-act'), light('act-hover'))).toBe(5.33)
   })
 
-  // Up to date wears no fill (record 0313): its words carry it, so they owe
+  // Up to date wears no fill (record 0314): its words carry it, so they owe
   // 4.5:1 on the bar's face in both themes.
   it('draws Up to date as quiet words in an outline, readable on the bar', () => {
     expect(BUTTON_FORECAST_QUIET).not.toMatch(/(^|\s)bg-/)

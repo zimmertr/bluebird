@@ -1,11 +1,11 @@
 /**
- * The cloud sea (record 0309): the cloud deck the report already fetched,
+ * The cloud sea (record 0310): the cloud deck the report already fetched,
  * drawn on the ground at one hour, so a valley under a marine layer reads
  * white and the summits that stand above it read clear.
  *
  * Nothing here asks anything of anyone. The deck's base and top at each
  * destination are the hourly series every analysis carries (`cloud_deck_ft`,
- * `cloud_top_ft`, record 0305); between destinations they are interpolated,
+ * `cloud_top_ft`, record 0306); between destinations they are interpolated,
  * and the ground's height under each pixel is the elevation tile the relief
  * and the slope read. A pixel is painted by where the ground stands against
  * the deck there: inside it, a slate fog; under it, a light veil; above its

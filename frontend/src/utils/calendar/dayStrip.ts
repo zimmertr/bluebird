@@ -1,4 +1,4 @@
-// The day strip at a desk's map foot (record 0310): the days ahead the
+// The day strip at a desk's map foot (record 0311): the days ahead the
 // forecast reaches, one cell each, and which of them the window holds. Pure,
 // for the calendar family's reason: the rules are pinned in node and the
 // component keeps the wiring.

@@ -573,7 +573,7 @@ export function cellInks(value: number, scale: ColorScale): { fill: string; ink:
 }
 
 /**
- * The score's ramp, fog to bluebird (record 0306): one family of blues from a
+ * The score's ramp, fog to bluebird (record 0307): one family of blues from a
  * grey that recedes into the map to the deep blue of a clear high sky, so the
  * best places are the ones the eye lands on. Not a verdict ramp, and not on
  * the list above: the score is not a metric with a good end and a bad one in

@@ -20,7 +20,7 @@ interface Args {
   tourLayer: { shown: boolean; show: (on: boolean) => void }
   /**
    * At a desk, opens the sentence bar's card a step's section stands in, or
-   * shuts it with null (record 0308): the sections are cards there, mounted
+   * shuts it with null (record 0309): the sections are cards there, mounted
    * only while open, so a step that lights one opens it first.
    */
   deskCard?: (section: DeskSection | null) => void

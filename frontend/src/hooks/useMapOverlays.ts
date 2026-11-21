@@ -45,7 +45,7 @@ export function useMapOverlays(
   // radar it is the browser that fetches them, and like the radar it draws
   // nothing the ranking ever reads.
   const [showSnow, setShowSnow] = useState(() => restored?.showSnow ?? false)
-  // The cloud sea (record 0309): the deck the held report carries, drawn on
+  // The cloud sea (record 0310): the deck the held report carries, drawn on
   // the terrain. On until the reader turns it off, unlike every row above,
   // because it fetches nothing and draws only once a report is held.
   const [showCloud, setShowCloud] = useState(() => restored?.showCloud ?? true)

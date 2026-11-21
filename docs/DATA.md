@@ -1559,9 +1559,13 @@ nothing while it ranks, because no lattice cell is a place the server keeps.
 Ranking on it with several forecast models selected is refused for the same
 reason air quality is: one source answers, whatever model ranks the field.
 
-**A coordinate no place shares reads the newest day alone.** The server keeps
-days only at the cells its places sit in, so a pasted coordinate in a cell no
-OpenStreetMap place shares has no history: a window that reaches today reads
+**A coordinate far from every place reads the newest day alone.** The server
+keeps days only at the cells its places sit in. A pasted coordinate in a cell
+no OpenStreetMap place shares reads the cell of the nearest place within 150 m,
+the distance a pasted coordinate is matched to its summit by, because a list
+and OpenStreetMap can put one summit on either side of a cell edge: on
+2026-11-21 Forbidden Peak's list coordinate stood 5 m from OpenStreetMap's and
+read today alone. A coordinate with no place that close has no history: a window that reaches today reads
 today's depth for today and every day after it, and a window that ends before
 today reads `N/A`. A server with no database reads every destination that
 way, which is why a PR preview shows `N/A` for a window in the past.

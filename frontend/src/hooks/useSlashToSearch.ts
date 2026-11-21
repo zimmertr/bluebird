@@ -8,7 +8,7 @@ function typing(target: EventTarget | null): boolean {
 
 /**
  * A desk's `/` opens the Where card with its search field holding the
- * keyboard (record 0312), the key every map and search page reads as
+ * keyboard (record 0313), the key every map and search page reads as
  * "search". Search lives in the card rather than on the map, so the key is
  * what keeps it one press away.
  *

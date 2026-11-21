@@ -44,7 +44,7 @@ const overlaps = (a: { left: number; top: number; right: number; bottom: number 
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
 // No panel stands beside the map at a desk since the sentence bar (record
-// 0308), so the map has the whole row at both widths.
+// 0309), so the map has the whole row at both widths.
 for (const [width, height] of [
   [1440, 900],
   [1024, 768],

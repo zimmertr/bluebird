@@ -1,15 +1,15 @@
-# 0312. A desk searches for places from the Where card
+# 0313. A desk searches for places from the Where card
 
 - Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, choosing "Inside the Where card" for the place search
 - Issues and PRs: #825
-- Cited in code as: record 0312
+- Cited in code as: record 0313
 - Guide: `frontend/src/components/CLAUDE.md` (`MapRows.tsx`, `AppDrawer.tsx`, `MapStage.tsx`, `SentenceBar.tsx`), `frontend/src/hooks/CLAUDE.md` (`useSlashToSearch.ts`)
 
 ## Context
 
-The prototype's top left holds one thing, the sentence bar. The build kept today's search pill beside it, and once the results took a column (record 0311) the map was narrow enough that the pill squeezed the Where and When chips to empty boxes (the maintainer's screenshot, 2026-11-21).
+The prototype's top left holds one thing, the sentence bar. The build kept today's search pill beside it, and once the results took a column (record 0312) the map was narrow enough that the pill squeezed the Where and When chips to empty boxes (the maintainer's screenshot, 2026-11-21).
 
 ## Decision
 

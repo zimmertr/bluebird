@@ -31,7 +31,7 @@ interface Props {
   onStartDrawing: () => void
   onFinishDrawing: () => void
   drawPointCount: number
-  /** The map's view is the search area while no ring is drawn (record 0308). */
+  /** The map's view is the search area while no ring is drawn (record 0309). */
   viewIsArea?: boolean
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
@@ -118,7 +118,7 @@ interface Props {
   onChart: (keys: readonly ChartMetric[], on: boolean) => void
   /**
    * One section alone, for the card a chip on the map's sentence bar opens
-   * at a desk (record 0308): no header, no footer, and no run-on-open, which
+   * at a desk (record 0309): no header, no footer, and no run-on-open, which
    * the bar runs since it is always mounted where the card is not.
    */
   only?: PanelSection

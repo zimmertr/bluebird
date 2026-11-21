@@ -1,5 +1,5 @@
 /**
- * The words on the map's sentence bar (record 0308): what a Forecast will
+ * The words on the map's sentence bar (record 0309): what a Forecast will
  * search, over which hours, and what the button will spend. Every string here
  * is in the PR's table for the maintainer's approval.
  */
@@ -37,7 +37,7 @@ export function whereLabel(types: readonly DiscoveryType[], source: AreaSource, 
 
 /**
  * The sentence's what and where as the bar draws them, two phrases with
- * `in` between (record 0313): `Peaks` in `this view`. A list, or no kind
+ * `in` between (record 0314): `Peaks` in `this view`. A list, or no kind
  * ticked, is one phrase with no place after it.
  */
 export function wherePhrases(

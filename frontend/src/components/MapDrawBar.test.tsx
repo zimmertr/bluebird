@@ -5,7 +5,7 @@ import { DRAW_BAR, SENTENCE_BAR } from '../styles'
 import { render } from '../testSupport/render'
 
 // The draw bar: Done and Cancel on the map while a ring is drawn, across the
-// map on a phone and in the cards' slot at a desk (record 0308).
+// map on a phone and in the cards' slot at a desk (record 0309).
 describe('MapDrawBar', () => {
   it('holds Done until the ring is a polygon, and wires both presses', () => {
     const onDone = vi.fn()

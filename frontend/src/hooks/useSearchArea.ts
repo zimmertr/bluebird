@@ -15,7 +15,7 @@ export interface SearchAreaInputs {
 }
 
 /**
- * The area a Forecast searches (record 0308): the drawn ring, or the view
+ * The area a Forecast searches (record 0309): the drawn ring, or the view
  * when none is drawn, with the area the cap measures. `reportView` is the
  * map's settled-move callback; the view is state, so a pan that lands renders
  * the bar and the button, and a pan of a few metres keeps the old ring.

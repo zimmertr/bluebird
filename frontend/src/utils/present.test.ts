@@ -540,7 +540,7 @@ describe('reportView', () => {
   })
 })
 
-describe('presentResults under a lens (record 0306)', () => {
+describe('presentResults under a lens (record 0307)', () => {
   const scored = (name: string, score: number | null, aqi: number) =>
     resultRow({ name, latitude: 46 + aqi / 100, score, aqi_avg: aqi })
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { stripHours } from './hourStrip'
 
-// The Score cell's strip (record 0306): the lit hours, a gap after a night,
+// The Score cell's strip (record 0307): the lit hours, a gap after a night,
 // and the best stretch marked.
 describe('stripHours', () => {
   it('keeps the lit hours, marks the gap a night leaves, and the best stretch', () => {

@@ -149,11 +149,11 @@ export interface MapStageProps {
    * how a tap on the map that opens a card gives it room, as a row's press does.
    */
   lowerSheetFirst: (then: () => void) => void
-  /** At a desk, the sentence bar and the card one of its chips opened (record 0308). */
+  /** At a desk, the sentence bar and the card one of its chips opened (record 0309). */
   bar?: ReactNode
   /**
    * The card, handed the place search the map owns, which a desk's Where
-   * card carries at its head (record 0312).
+   * card carries at its head (record 0313).
    */
   barCard?: (search: ReactNode) => ReactNode
   /** Opens a desk's Where card, for `/` (`useSlashToSearch`). */
@@ -165,11 +165,11 @@ export interface MapStageProps {
   onCameraMove?: (view: CameraView, readerMove: boolean) => void
   /** At a desk with the bar, the document links the corner's credit line carries (`DocLinks`). */
   cornerLinks?: ReactNode
-  /** The cloud deck at the hour drawn (record 0309), built in `App.tsx`. */
+  /** The cloud deck at the hour drawn (record 0310), built in `App.tsx`. */
   cloudDeck?: readonly DeckPoint[] | null
-  /** The markers' score colouring while a lens ranks the field (record 0306), memoized in `App.tsx`. */
+  /** The markers' score colouring while a lens ranks the field (record 0307), memoized in `App.tsx`. */
   scoreColouring?: ScoreColouring | null
-  /** At a desk, the window the day strip picks and the band it is drawn over (record 0310). */
+  /** At a desk, the window the day strip picks and the band it is drawn over (record 0311). */
   dayStrip?: { selection: ForecastSelection; onSelection: (s: ForecastSelection) => void; band: BandLimits } | null
 }
 
@@ -254,7 +254,7 @@ export default function MapStage({
     registerPlace(place)
   }
 
-  // A desk's search, at the head of the Where card (record 0312), and `/`,
+  // A desk's search, at the head of the Where card (record 0313), and `/`,
   // which opens the card with the keyboard in it.
   const deskSearch = isDesktop && bar !== undefined && bar !== null
   useSlashToSearch(
@@ -349,7 +349,7 @@ export default function MapStage({
       tool={isDesktop}
     />
   )
-  // A desk's tool column (record 0314): Layers, and drawing a ring, whose
+  // A desk's tool column (record 0315): Layers, and drawing a ring, whose
   // button reads pressed while one is drawn and a second press lets it go.
   const tools = isDesktop ? (
     <>
@@ -545,7 +545,7 @@ export default function MapStage({
         />
       )}
       {/* At a desk the day strip stands at the map's foot and hosts the
-          player under its days (record 0310); a phone keeps the player alone. */}
+          player under its days (record 0311); a phone keeps the player alone. */}
       {isDesktop && dayStrip ? (
         <DayStrip
           selection={dayStrip.selection}

@@ -1,10 +1,10 @@
-# 0308. The map's view is the search area, and a sentence bar holds what a Forecast spends
+# 0309. The map's view is the search area, and a sentence bar holds what a Forecast spends
 
 - Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves its strings and merges it. Would supersede the docked desk panel of 0202 and the panel half of 0028.
 - Date: 2026-11-18
 - Decider: the maintainer, 2026-11-17 ("build it in a pr", from the prototype)
 - Issues and PRs: #825
-- Cited in code as: record 0308
+- Cited in code as: record 0309
 - Guide: `frontend/src/utils/CLAUDE.md` (`searchArea.ts`, `sentenceBar.ts`), `frontend/src/components/CLAUDE.md` (`SentenceBar`, `DocLinks`), `frontend/src/hooks/CLAUDE.md` (`useSearchArea`)
 
 ## Context

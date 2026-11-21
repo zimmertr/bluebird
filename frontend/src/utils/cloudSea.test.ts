@@ -17,7 +17,7 @@ import {
 import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
 import { FEET_PER_METER } from './basemapPoi'
 
-// The cloud sea (record 0309): the deck the report holds, interpolated
+// The cloud sea (record 0310): the deck the report holds, interpolated
 // between destinations and laid against the ground's height.
 
 const RAINIER = { lon: -121.76, lat: 46.853 }

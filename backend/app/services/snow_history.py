@@ -14,7 +14,9 @@ hours.
 Only cells that hold a place are kept: 181,417 of the grid's 33.5 million on
 2026-11-12, which is what makes a year about 350 MB rather than the 24 GB the
 grid itself would be. A pasted coordinate in a cell no place shares reads
-today's depth and no history.
+the cell of the nearest place within `NEAR_PLACE_M`, because a list's
+coordinate for a summit can sit across a cell edge from OSM's node for it,
+and one with no place that close reads today's depth and no history.
 
 A window reads each of its UTC days up to the newest day the history holds,
 and every day after that as that newest depth (TJ, 2026-11-12): a trip next
@@ -42,7 +44,10 @@ from psycopg import AsyncConnection
 from app import db
 from app.db import refresh
 from app.limits import ARCHIVE_DATA_DAYS
-from app.services import snodas
+
+# `osm` before `places`: the places module's own imports run the osm package,
+# which imports places back, so places loaded first is half built when it does.
+from app.services import osm, places, snodas
 from app.services.http import HEADERS
 
 log = logging.getLogger(__name__)
@@ -79,6 +84,13 @@ BACKOFF_MAX_S = 6 * 3600.0
 # A file NSIDC has not published by then never will be: a 404 for a day older
 # than this is recorded as missing rather than asked again.
 PUBLISH_GRACE_DAYS = 2
+
+# How far a point may stand from the place whose cell it reads. Three of the
+# Smoot 100 read today alone on 2026-11-21: Forbidden Peak's list coordinate
+# is 5 m from OSM's node and Mount Deception's 28 m, each across a cell edge
+# from it. The reach a pasted point is matched to its summit by, so a row the
+# app names after a peak reads that peak's snow.
+NEAR_PLACE_M = osm.CUSTOM_MATCH_RADIUS_M
 
 _SAMPLE = struct.Struct(">h")
 
@@ -394,7 +406,9 @@ async def window_depths(
     with no database still ranks a window on today's depth.
     """
     days = window_days(start, end)
-    cells = [cell_of(lat, lon) for lat, lon in points]
+    # Where each point is read: its own coordinate, or the nearest place's.
+    reads = list(points)
+    cells = [cell_of(lat, lon) for lat, lon in reads]
     stored: dict[int, dict[date, float | None]] = {}
     newest: date | None = None
     if db.available():
@@ -419,8 +433,25 @@ async def window_depths(
         except Exception as exc:  # noqa: BLE001 — as above
             log.warning("Snow depth history could not be read: %r", exc)
 
+    # A cell with no row in either read holds no place; such a point reads the
+    # nearest place's cell instead, over the same days.
+    stray = [i for i, c in enumerate(cells) if c is not None and c not in stored]
+    if stray and db.available():
+        try:
+            near = await places.nearest([reads[i] for i in stray], NEAR_PLACE_M)
+            moved = [(i, place) for i, place in zip(stray, near, strict=True) if place is not None]
+            first = min(days[0], newest) if newest is not None else days[0]
+            last = max(days[-1], newest) if newest is not None else days[-1]
+            wanted = sorted({c for _, place in moved if (c := cell_of(*place)) is not None})
+            extra, _ = await _stored(wanted, first, last)
+            stored.update(extra)
+            for i, place in moved:
+                reads[i], cells[i] = place, cell_of(*place)
+        except Exception as exc:  # noqa: BLE001 — as above
+            log.warning("Snow depth history could not be read: %r", exc)
+
     results: list[WindowDepth] = []
-    for (lat, lon), at in zip(points, cells, strict=True):
+    for (lat, lon), at in zip(reads, cells, strict=True):
         depths = dict(stored.get(at, {})) if at is not None else {}
         if grid_day is not None and depths.get(grid_day) is None and isinstance(grid, snodas.Snapshot):
             try:

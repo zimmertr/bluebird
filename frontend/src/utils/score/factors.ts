@@ -6,7 +6,7 @@
  *
  * Every curve is piecewise linear through the points written beside it, and
  * those points are the formula the maintainer approves in the PR that
- * introduced the score (record 0306), so a change here is a change to that
+ * introduced the score (record 0307), so a change here is a change to that
  * table.
  */
 import { CLOUD_DECK_CEILING_FT } from '../openMeteoAggregate'

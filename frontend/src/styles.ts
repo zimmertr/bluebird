@@ -727,7 +727,7 @@ const TRIGGER_STATE =
  * fell into before the built stylesheet was read.
  */
 /**
- * Alpenglow (record 0307): the warm light on the summits at first light, worn
+ * Alpenglow (record 0308): the warm light on the summits at first light, worn
  * by the one control that spends a forecast and by nothing else, so the eye
  * knows which press costs upstream calls. Everything else that acts wears the
  * sky accent. The label is a dark ink rather than white, because a warm fill
@@ -751,7 +751,7 @@ export const BUTTON_PRIMARY =
 
 /**
  * The button that spends a forecast: `BUTTON_PRIMARY`'s shape in alpenglow
- * (`ACT`, record 0307), so it is the one primary action that does not wear
+ * (`ACT`, record 0308), so it is the one primary action that does not wear
  * the sky accent.
  */
 export const BUTTON_FORECAST =
@@ -759,7 +759,7 @@ export const BUTTON_FORECAST =
   `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING}`
 
 /**
- * The same button in the map's sentence bar (record 0308): as tall as the
+ * The same button in the map's sentence bar (record 0309): as tall as the
  * chips beside it and as wide as its words, which name what it will forecast.
  */
 export const BUTTON_FORECAST_BAR =
@@ -768,7 +768,7 @@ export const BUTTON_FORECAST_BAR =
 
 /**
  * The bar's button when a press would fetch nothing new (`Up to date`,
- * record 0313): an outline in the quiet ink, so the one warm fill on the
+ * record 0314): an outline in the quiet ink, so the one warm fill on the
  * screen means a forecast will be spent. It still takes a press, which
  * re-ranks what is held.
  */
@@ -1876,12 +1876,12 @@ export const MAP_ROWS = {
   /**
    * A desk's sentence bar, and the card one of its phrases opened under the
    * chip row, from the map's left edge now that the search is in the Where
-   * card (record 0312). No wider than the map less its two edge insets, so a
+   * card (record 0313). No wider than the map less its two edge insets, so a
    * narrow desk cuts the phrases' words rather than running the bar over
    * the results column.
    */
   barSlot: 'w-max max-w-[calc(100cqw_-_2_*_var(--map-edge-inset))]',
-  /** The bar's own row, as tall as the card rather than a chip (record 0313). */
+  /** The bar's own row, as tall as the card rather than a chip (record 0314). */
   barRow: `relative ${YIELD_EMPTY}`,
   /**
    * The second row: one line of chips, 6px apart, never wrapping. The rows
@@ -1999,7 +1999,7 @@ export const MAP_SLOT = {
  * stay put while the bar grows and shrinks with the zoom.
  */
 /**
- * A desk's map tools (record 0314): the column down the map's right edge
+ * A desk's map tools (record 0315): the column down the map's right edge
  * that the prototype draws, Layers and drawing a ring over the compass, the
  * 3D button, the locate button and the zoom pair. `menu` is the Layers card,
  * opened to the column's left and growing up from the button, since the
@@ -3117,14 +3117,14 @@ export const MOTION = {
 export const PANEL_MS = 300
 
 /**
- * The map's sentence bar at a desk (record 0308): the chips that say what a
+ * The map's sentence bar at a desk (record 0309): the chips that say what a
  * Forecast will search and over which hours, and the card each opens, which
  * hangs under the bar the way the legend's card hangs under its chip, on the
  * legend card's face, and scrolls inside what is left of the map below it.
  */
 export const SENTENCE_BAR = {
   /**
-   * The bar is one card (record 0313), as the prototype draws it: the name,
+   * The bar is one card (record 0314), as the prototype draws it: the name,
    * the sentence and the button on one floating face, rather than a chip
    * each, so it reads as one line to say rather than five controls.
    */
@@ -3151,7 +3151,7 @@ export const SENTENCE_BAR = {
   head: `flex flex-shrink-0 items-center justify-between border-b ${PANEL_EDGE} pl-4 pr-1.5 py-1.5`,
   body: `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS}`,
   /**
-   * The place search at the head of the Where card (record 0312): the map's
+   * The place search at the head of the Where card (record 0313): the map's
    * pill, given the card's width and its own row above the card's body, and
    * over it, so the list of places hangs over the sections below.
    */
@@ -3209,7 +3209,7 @@ export const RESULTS_PANE = {
 } as const
 
 /**
- * A desk's results as a column down the map's right edge (record 0311):
+ * A desk's results as a column down the map's right edge (record 0312):
  * the results bar on top and the table under it, the full height of
  * the window, edged on its left by the panel's rule. The chart stands under
  * the map instead, where it keeps the map's width. While a chart stands
@@ -3433,7 +3433,7 @@ export const DAY = {
 } as const
 
 /**
- * A row's hour strip in its Score cell (record 0306): one bar per lit hour the
+ * A row's hour strip in its Score cell (record 0307): one bar per lit hour the
  * score read, in the score's ramp, a wider gap where a night falls, and the
  * best stretch drawn taller, so it marks itself by shape rather than by a
  * second hue. A fixed width, so a long window's hours narrow rather than
@@ -3447,7 +3447,7 @@ export const HOUR_STRIP = {
 } as const
 
 /**
- * The day strip at a desk's map foot (record 0310): the days ahead as one row
+ * The day strip at a desk's map foot (record 0311): the days ahead as one row
  * of cells, the window's days lit as the calendar lights them (`DAY`), and the
  * forecast player under the row once a report spans hours. Placed where the
  * player stood alone, bottom centre over the credit line (`transportBottomPx`),
@@ -3609,7 +3609,7 @@ const TRIGGER_FIELD = `${FIELD_LOOK} ${TAP.height} appearance-none pr-6 relative
 export const MENU_TRIGGER = {
   chip: CHIP_FACE,
   /**
-   * A button of a desk's map tool column (record 0314), Layers among them:
+   * A button of a desk's map tool column (record 0315), Layers among them:
    * the map buttons' round face around a glyph, with the one trigger's
    * states, so it lights while its menu is out as a chip does.
    */
@@ -3617,7 +3617,7 @@ export const MENU_TRIGGER = {
     `size-8 flex flex-shrink-0 items-center justify-center bg-floating/95 border border-edge ${RADIUS.pill} ` +
     `${ELEVATION.raised} backdrop-blur-sm text-ink-strong ${TRIGGER_STATE}`,
   /**
-   * A phrase of the map's sentence bar (record 0313): its words in the strong
+   * A phrase of the map's sentence bar (record 0314): its words in the strong
    * ink, underlined in the rule so they read as choices inside a sentence,
    * on no face of their own because the bar is the face, and the one
    * trigger's states, so an open phrase lights as an open chip does.

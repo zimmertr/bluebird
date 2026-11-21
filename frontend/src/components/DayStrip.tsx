@@ -33,7 +33,7 @@ const dayName = (key: string) =>
   dayDate(key).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
 
 /**
- * The day strip at a desk's map foot (record 0310): every day ahead the model
+ * The day strip at a desk's map foot (record 0311): every day ahead the model
  * reaches, one cell each, and the forecast player under them once a report
  * spans hours. A press picks a day and a drag picks a run of them, the
  * calendar's own reducers (`applyDayDrag`, `dragAnchor`), so a range's end

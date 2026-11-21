@@ -181,7 +181,7 @@ export function popupGroups(
       key === WILDFIRE_KEY ||
       key === CLOSURE_KEY ||
       key === MODEL_KEY ||
-      // The lens's score belongs to no metric family (record 0306), and the
+      // The lens's score belongs to no metric family (record 0307), and the
       // card's grid is the families.
       key === SCORE_KEY
     )

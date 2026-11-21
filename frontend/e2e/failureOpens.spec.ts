@@ -3,7 +3,7 @@ import type { Page, Route } from '@playwright/test'
 
 // #803: a run that fails opens the message list itself (M1), at a desk and on
 // a phone. A desk's list hangs from the sentence bar's button, which is always
-// on the map (record 0308), so there is no shut panel to open. A refused run is a blocker: Analyze greys, and a
+// on the map (record 0309), so there is no shut panel to open. A refused run is a blocker: Analyze greys, and a
 // second press opens the list rather than asking the pod the same question.
 
 const RING = '/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55'

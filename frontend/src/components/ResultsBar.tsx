@@ -84,7 +84,7 @@ interface ResultsBarProps {
   compareWait: string | null
   /** Why a compared model has no rows, when the chart cannot say it. */
   compareNotes: readonly CompareNote[]
-  /** The lens the field ranks by, or null, and its setter (record 0306). Absent: no lens row. */
+  /** The lens the field ranks by, or null, and its setter (record 0307). Absent: no lens row. */
   lens?: Lens | null
   onLens?: (lens: Lens | null) => void
   /** The headline that stands for the title while a lens ranks the field. */
@@ -231,7 +231,7 @@ export default function ResultsBar({
       ),
     },
   ].filter((action) => action !== false)
-  // A desk's column leaves to the right (record 0311), so its
+  // A desk's column leaves to the right (record 0312), so its
   // chevron points there; a phone's sheet folds down.
   const sideways = sheet ? undefined : '-rotate-90'
   return (

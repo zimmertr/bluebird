@@ -32,7 +32,7 @@ for (const viewport of [
     // The ring comes from the share link, so the phone needs no map clicks.
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    // The sentence bar's button at a desk (record 0308), the map's own on a
+    // The sentence bar's button at a desk (record 0309), the map's own on a
     // phone, whose drawer opens closed and inert (#696): both stand in main.
     await forecastButton(page.getByRole('main')).click()
     // The first row is read after the sort, so the ranking lands before it.

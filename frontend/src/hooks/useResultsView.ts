@@ -9,7 +9,7 @@ import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { SinglePanel } from '../utils/layout'
 
 export interface ResultsViewInputs {
-  /** A lens ranks the field, so the table carries the Score column (record 0306). */
+  /** A lens ranks the field, so the table carries the Score column (record 0307). */
   scored?: boolean
   /** The reader has the forecast player on (`useResultsLayout`'s `playerOn`). */
   playerOn?: boolean

@@ -35,7 +35,7 @@ interface MapRowsProps {
   legend: ReactNode
   /**
    * At a desk, the sentence bar that stands where the Controls chip stood,
-   * and the card one of its chips opened, under the chips (record 0308).
+   * and the card one of its chips opened, under the chips (record 0309).
    */
   bar?: ReactNode
   barCard?: ReactNode
@@ -94,9 +94,9 @@ export default function MapRows({
     // A popup keeps clear of the rows (`resultsLayer.ts` finds every
     // `data-map-overlay`), which stand over the top of every map.
     <div data-map-overlay="" className={`${MAP_ROWS.stack} ${LAYER.mapControls}`} inert={covered}>
-      {/* A desk's bar is a card taller than a chip, on a row of its own height (record 0313). */}
+      {/* A desk's bar is a card taller than a chip, on a row of its own height (record 0314). */}
       <div className={desk && bar ? MAP_ROWS.barRow : MAP_ROWS.row}>
-        {/* A desk's search is in the Where card (record 0312). */}
+        {/* A desk's search is in the Where card (record 0313). */}
         {!(desk && bar) && (
           <div className={searching ? MAP_ROWS.pillWide : MAP_ROWS.pill}>
             <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} onExpandedChange={setSearching} />
@@ -105,7 +105,7 @@ export default function MapRows({
         {/* Empty here: the map stands its own 3D and locate buttons in them,
             so each keeps its states and the locate button its permission
             prompt. */}
-        {/* A desk's sentence bar beside the pill (record 0308), so Legend and
+        {/* A desk's sentence bar beside the pill (record 0309), so Legend and
             Layers keep the row under it and the legend's card its place over
             the map's left edge (TJ, 2026-10-18). */}
         {desk && bar && <div className={MAP_ROWS.barSlot}>{bar}</div>}

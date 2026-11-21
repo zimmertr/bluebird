@@ -64,7 +64,7 @@ test('the Layers tool and the results bar open their menus beside and under them
   await expect(layers).toHaveAttribute('aria-expanded', 'true')
   const layersMenu = page.locator('[data-tour="layers-menu"]')
   // In the map's tool column the card opens to the button's left, its foot
-  // on the button's, because the column stands at the map's foot (record 0314).
+  // on the button's, because the column stands at the map's foot (record 0315).
   const chip = await rect(layers)
   const menuBox = await rect(layersMenu)
   near(chip.left - menuBox.right, 8)
@@ -184,7 +184,7 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
 
 // A three-digit Removed count wrapped the bar's button group beside the docked
 // panel at 1024. No panel stands beside the map since the sentence bar (record
-// 0308), so the bar has the window's width at every desk and does not wrap;
+// 0309), so the bar has the window's width at every desk and does not wrap;
 // the test that held the wrap went with the panel.
 
 // The panel's two field menus on a phone are bottom sheets instead (record
@@ -217,7 +217,7 @@ test('every trigger lights the one way while open and rests as it was after', as
     await page.getByRole('listbox', { name }).getByRole('option').last().click()
   }
   // The model picker and the calendar are in the When card at a desk, and
-  // the aggregate in the Limits card (record 0308): each opens its card first.
+  // the aggregate in the Limits card (record 0309): each opens its card first.
   const triggers: [string, Locator, (() => Promise<void>) | null, ('When' | 'Limits')?][] = [
     ['Legend', page.getByRole('button', { name: 'Legend', exact: true }), null],
     ['Layers', page.getByRole('button', { name: 'Layers', exact: true }), null],

@@ -467,7 +467,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     },
   },
   flag('desc', 'sortDesc'),
-  // The lens (record 0306): its name, or `metric` for a ranking by `sort`.
+  // The lens (record 0307): its name, or `metric` for a ranking by `sort`.
   // Written whenever it is off the default, and with the default too whenever
   // `sort` or `desc` is written, so a link from after the score is never read
   // as one from before it, which named its metric ranking with those alone.
@@ -692,7 +692,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   flag('radar', 'showRadar'),
   flag('smoke', 'showSmoke'),
   flag('snowdepth', 'showSnow'),
-  // The cloud sea is on until turned off (record 0309), so its one word in a
+  // The cloud sea is on until turned off (record 0310), so its one word in a
   // link says it is off, read only from `1` as every flag is.
   {
     key: 'nocloud',

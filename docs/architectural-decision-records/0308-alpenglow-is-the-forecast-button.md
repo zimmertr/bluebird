@@ -1,10 +1,10 @@
-# 0307. Alpenglow is the one button that spends a forecast
+# 0308. Alpenglow is the one button that spends a forecast
 
 - Status: Proposed, in the from-scratch UI PR; accepted when the maintainer merges it.
 - Date: 2026-11-17
 - Decider: the maintainer, 2026-11-17 (the prototype's Forecast button, built into a PR)
 - Issues and PRs: #825
-- Cited in code as: record 0307
+- Cited in code as: record 0308
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Style through the design system
 
 ## Context

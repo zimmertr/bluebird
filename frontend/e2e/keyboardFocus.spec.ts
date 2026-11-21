@@ -57,7 +57,7 @@ test("Tab reaches a row's remove and shows it", async ({ page }) => {
 })
 
 test('a sentence-bar chip opens its card from the keyboard, and its close shuts it', async ({ page }) => {
-  // A desk has no docked panel since the sentence bar (record 0308): each
+  // A desk has no docked panel since the sentence bar (record 0309): each
   // chip opens its section as a card under the bar.
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('/')

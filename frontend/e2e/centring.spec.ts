@@ -2,7 +2,7 @@ import { test, expect, expectRanked, DESTINATION_NAMES, forecastButton } from '.
 import type { Locator, Page } from '@playwright/test'
 
 // A row centred while a desk's layout moves (#714; record 0202). The first
-// report opens the chart's pane under the map (record 0311), and through that move the
+// report opens the chart's pane under the map (record 0312), and through that move the
 // map's canvas holds the window's height, centred on the map's column; where
 // the move ends it takes the column's height. A centring flight fixes its
 // target in the canvas's pixels when it starts, so one pressed inside the

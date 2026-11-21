@@ -1,6 +1,6 @@
 # 0295. Snow depth returns beside snowfall, read over the window from a year of daily grids
 
-- Status: Accepted. Supersedes [0120](0120-snowfall-replaces-snow-depth.md) in part (its snow depth half; its snowfall half stands), and reinstates [0053](0053-snow-depth-ceiling.md), [0054](0054-snodas-snow-depth.md) and [0104](0104-refused-snow-file-is-no-grid.md). Amended by [0301](0301-a-failing-upstream-is-asked-less-and-less-often.md) (the backfill's pace)
+- Status: Accepted. Supersedes [0120](0120-snowfall-replaces-snow-depth.md) in part (its snow depth half; its snowfall half stands), and reinstates [0053](0053-snow-depth-ceiling.md), [0054](0054-snodas-snow-depth.md) and [0104](0104-refused-snow-file-is-no-grid.md). Amended by [0301](0301-a-failing-upstream-is-asked-less-and-less-often.md) (the backfill's pace) and by [0305](0305-a-point-beside-a-place-reads-its-cell.md) (a point beside a place reads its cell)
 - Date: 2026-11-12
 - Decider: the maintainer (TJ), on issue #849, 2026-11-03 ("File it, grid on the pod") and 2026-11-12
 - Issues and PRs: #849, #921, #678, #449, #463, #629, #748

@@ -11,7 +11,7 @@ export interface DrawModeInputs {
   restoredPolygon: GeoPolygon | null | undefined
   /**
    * Takes away what covers the map the ring is drawn on: the controls drawer
-   * on a phone, the Where card at a desk (record 0308).
+   * on a phone, the Where card at a desk (record 0309).
    */
   uncoverMap: () => void
 }

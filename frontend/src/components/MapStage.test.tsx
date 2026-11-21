@@ -284,7 +284,7 @@ describe('MapStage', () => {
   })
 
   // A phone's rows carry Legend and Layers; a desk's carry Legend, and its
-  // Layers stands in the map's tool column with the draw button (record 0314).
+  // Layers stands in the map's tool column with the draw button (record 0315).
   it('hands the rows the Legend chip at both widths, and Layers to a desk\'s tool column', () => {
     const { container, rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     const rows = () => screen.getByTestId('rows')
