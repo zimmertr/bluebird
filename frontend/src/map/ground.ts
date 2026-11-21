@@ -102,6 +102,9 @@ export const LIBERTY_LOOK = {
     road: 0.3,
     casing: 0,
     boundary: 0.3,
+    // Liberty's dashed park edge is pale, and on the dark slate it read as
+    // the brightest line on the map (2026-11-21).
+    parkEdge: 0.1,
     water: rgb([10, 30, 46]),
     waterway: rgb([22, 53, 77]),
     roadInk: rgb([170, 195, 220]),
@@ -114,6 +117,7 @@ export const LIBERTY_LOOK = {
     road: 0.55,
     casing: 0.4,
     boundary: 0.5,
+    parkEdge: 0.4,
     water: rgb([176, 210, 236]),
     waterway: null,
     roadInk: null,
@@ -178,6 +182,7 @@ export function settingsFor(layer: GroundLayerRef, theme: Theme): Setting[] {
     return [share('line-opacity', casing ? look.casing : look.road), ...(casing ? [] : ink('line-color', look.roadInk))]
   }
   if (layer.type === 'line' && sl === 'boundary') return [share('line-opacity', look.boundary)]
+  if (layer.type === 'line' && sl === 'park') return [share('line-opacity', look.parkEdge)]
   if (layer.type === 'symbol') return [...ink('text-color', look.text), ...ink('text-halo-color', look.halo)]
   return []
 }

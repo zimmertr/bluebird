@@ -85,6 +85,13 @@ describe('Liberty under the ground', () => {
     expect(settingsFor(ref('building'), 'light')).toEqual([])
   })
 
+  it('fades the parks\' dashed edge, most in the dark', () => {
+    const edge = { id: 'park_outline', type: 'line', source: 'openmaptiles', sourceLayer: 'park' }
+    expect(settingsFor(edge, 'dark')[0].value(1)).toBe(LIBERTY_LOOK.dark.parkEdge)
+    expect(settingsFor(edge, 'light')[0].value(1)).toBe(LIBERTY_LOOK.light.parkEdge)
+    expect(LIBERTY_LOOK.dark.parkEdge).toBeLessThan(LIBERTY_LOOK.light.parkEdge)
+  })
+
   it('leaves the app\'s own layers and every other source alone', () => {
     expect(settingsFor({ id: 'results-labels', type: 'symbol' }, 'dark')).toEqual([])
     expect(settingsFor({ id: 'smoke-outline', type: 'line', source: 'smoke' }, 'dark')).toEqual([])
