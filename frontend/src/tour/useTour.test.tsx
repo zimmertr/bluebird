@@ -189,14 +189,6 @@ describe('the chart cards under the tour', () => {
     expect(TOUR_FOUR_PANELS).toEqual(['temp', 'freeze', 'snowfall', 'precip'])
   })
 
-  // One room from the Results card through Pinned hours (#850), and none on
-  // the marker card, which folds the results, or before Results.
-  it('holds the results tall from the Results card through Pinned hours', async () => {
-    const { seen } = await walk()
-    const tall = [...seen].filter(([, s]) => s.resultsTall).map(([a]) => a)
-    expect(tall).toEqual(['results', 'chart', 'chart-panels', 'chart-layout', 'chart-pins'])
-  })
-
   it('holds the layout menu open for its card alone', async () => {
     const { seen } = await walk()
     expect([...seen].filter(([, s]) => s.chartTour.layoutOpen).map(([a]) => a)).toEqual(['chart-layout'])

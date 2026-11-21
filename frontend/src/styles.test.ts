@@ -4951,8 +4951,8 @@ describe('the panel frame', () => {
     expect(RESULTS_PANE.top).not.toMatch(/justify-end/)
   })
 
-  // A desk's results stand in a column down the map's right edge (the
-  // from-scratch shell): never narrower than the table's name, score and
+  // A desk's results stand in a column down the map's right edge (record
+  // 0311): never narrower than the table's name, score and
   // strip need, never so wide the map is a sliver, edged on its left by the
   // panel's rule, and on the panel's ground. Its chips fill the column, so
   // they carry no two-row cap of their own.

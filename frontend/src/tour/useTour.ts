@@ -362,16 +362,6 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
      * panels (#850).
      */
     sheetFull: showingChart || step?.reveal === 'panels',
-    /**
-     * The Results card through Pinned hours hold a desk's results at one
-     * taller room (#850): a reader who never analyzed would reach the Panels
-     * card with a 149px chart, where four panels fall under their own floors
-     * and are not drawn, and one room from the Results card on keeps the
-     * results' top edge still (the maintainer, 2026-11-04: "I want tutorial
-     * steps 7 and 8 to have the same results area vertical size as 9, 10,
-     * and 11.").
-     */
-    resultsTall: step?.reveal === 'results' || showingChart || showingPanels,
     /** The chart's readout stands on this hour while the demonstration is up, or follows the reader. */
     chartTooltipIndex: readsMiddle && hours > 0 ? middleHour : null,
     /** What the chart draws in place of the reader's own while the demonstration is up (#850). */

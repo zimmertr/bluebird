@@ -231,7 +231,7 @@ export default function ResultsBar({
       ),
     },
   ].filter((action) => action !== false)
-  // A desk's column leaves to the right (the from-scratch shell), so its
+  // A desk's column leaves to the right (record 0311), so its
   // chevron points there; a phone's sheet folds down.
   const sideways = sheet ? undefined : '-rotate-90'
   return (

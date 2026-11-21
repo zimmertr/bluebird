@@ -65,7 +65,6 @@ interface ResultsSheetView {
     | 'sheetRaised'
     | 'barRef'
     | 'legendRef'
-    | 'roomHoldPx'
     | 'resultsCollapsed'
     | 'toggleCollapsed'
     | 'resultsMode'
@@ -141,7 +140,7 @@ function panelsProps(p: ResultsSheetProps): Omit<ResultsPanelsProps, 'part'> {
 }
 
 /**
- * A desk's chart under the map (the from-scratch shell): the chart's pane of
+ * A desk's chart under the map (record 0311): the chart's pane of
  * the panels, while the table stands in the column down the map's right edge
  * (`ResultsSheet`). Nothing on a phone, whose sheet draws every pane.
  */

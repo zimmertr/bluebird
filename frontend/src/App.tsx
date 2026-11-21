@@ -776,7 +776,6 @@ export default function App() {
     collapsedOverride: tour.sheetCollapsed,
     restView: tour.sheetView,
     fullOverride: tour.sheetFull,
-    tallResults: tour.resultsTall,
     response: shownResponse,
     // The Both widening reads the reader's own report, never the tour's (#850).
     ownResponse: response,
@@ -995,7 +994,7 @@ export default function App() {
         // the landmark is where the keyboard lands, not a control.
         tabIndex={-1}
         // A desk is a row: the map and its chart down the left, the results'
-        // column down the right (the from-scratch shell).
+        // column down the right (record 0311).
         className={`flex-1 flex overflow-hidden min-w-0 focus:outline-none ${isDesktop ? 'flex-row' : 'flex-col relative'}`}
       >
         <div className={isDesktop ? 'relative flex min-w-0 flex-1 flex-col' : 'contents'}>

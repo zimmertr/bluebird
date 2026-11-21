@@ -621,7 +621,7 @@ export const APP = [
   {
     // The phone sheet is a second branch beside the desk's results rather
     // than an edit to them. A desk's are the column down the map's right edge
-    // (the from-scratch shell), drawn by its one role, so its width and edge
+    // (record 0311), drawn by its one role, so its width and edge
     // are decided in styles.ts and not at the call site.
     name: 'app-docked-panels',
     files: ['src/components/ResultsSheet.tsx'],

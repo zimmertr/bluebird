@@ -160,7 +160,7 @@ describe('ResultsSheet', () => {
   })
 
   // A desk's column goes with the chevron, bar and all, and the round button
-  // on the map's edge brings it back (the from-scratch shell); a phone's
+  // on the map's edge brings it back (record 0311); a phone's
   // sheet keeps its bar and drops the panels.
   it('takes a desk\'s column away on the chevron, and folds a phone\'s sheet to its bar', () => {
     const { rerender } = render(<ResultsSheet {...props({ resultsCollapsed: true })} />)
@@ -175,10 +175,11 @@ describe('ResultsSheet', () => {
   // under the map: one report, handed to both halves alike.
   it('splits a desk\'s panes between the column and the chart under the map', () => {
     seen.panels.length = 0
+    const shared = props()
     render(
       <>
-        <ResultsSheet {...props()} />
-        <ResultsChartPane {...props()} />
+        <ResultsSheet {...shared} />
+        <ResultsChartPane {...shared} />
       </>,
     )
     const parts = seen.panels.map((p) => p.part)

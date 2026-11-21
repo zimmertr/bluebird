@@ -116,7 +116,8 @@ async function expectSectionInPanel(page: Page, anchor: string) {
 }
 
 // The popup stands whole in the part of the map the reader can see: above
-// the sheet, and clear of the button column, the legend and the card.
+// the sheet, and clear of the button column, the legend and the card. A
+// desk's column folds away for the card, so there is no sheet to stand above.
 async function expectPopupClear(page: Page) {
   await expect(page.locator('[data-tour="marker"]')).toBeVisible()
   await expect(async () => {
@@ -131,7 +132,7 @@ async function expectPopupClear(page: Page) {
     )
     expect(popup).not.toBeNull()
     expect(popup!.top).toBeGreaterThanOrEqual(0)
-    expect(popup!.bottom).toBeLessThanOrEqual(sheet!.top)
+    if (sheet !== null) expect(popup!.bottom).toBeLessThanOrEqual(sheet.top)
     for (const o of [...overlays, tourCard!]) expect(overlaps(popup!, o), JSON.stringify(o)).toBe(false)
   }).toPass({ timeout: 5_000 })
 }

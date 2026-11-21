@@ -3155,8 +3155,8 @@ export const RESULTS_PANE = {
 } as const
 
 /**
- * A desk's results as a column down the map's right edge (the from-scratch
- * shell): the results bar on top and the table under it, the full height of
+ * A desk's results as a column down the map's right edge (record 0311):
+ * the results bar on top and the table under it, the full height of
  * the window, edged on its left by the panel's rule. The chart stands under
  * the map instead, where it keeps the map's width. While a chart stands
  * alone the column's body holds its series chips (`chips`), which then fill
