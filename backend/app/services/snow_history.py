@@ -44,6 +44,7 @@ from psycopg import AsyncConnection
 from app import db
 from app.db import refresh
 from app.limits import ARCHIVE_DATA_DAYS
+
 # `osm` before `places`: the places module's own imports run the osm package,
 # which imports places back, so places loaded first is half built when it does.
 from app.services import osm, places, snodas
