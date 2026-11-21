@@ -171,11 +171,9 @@ export const CONTROL_SIZE = 'text-xs'
  * figures do the same in the sans, every digit one width, without dropping the
  * table into a typewriter face beside the names in the sans. The coordinate
  * box stays monospace, because what it holds is pasted text a reader edits
- * character by character, not figures read down a column. Since record 0324
- * they are set a step narrow on Archivo's width axis, the prototype's figures,
- * so a column of numbers takes less of the table than the names beside it.
+ * character by character, not figures read down a column.
  */
-export const FIGURES = 'tabular-nums font-stretch-semi-condensed'
+export const FIGURES = 'tabular-nums'
 
 /**
  * The reading tier: the two dialogs and the analysis overlay card.

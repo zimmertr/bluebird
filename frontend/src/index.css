@@ -3,12 +3,11 @@
    which took it from the prototype in place of record 0304's Inter): the CSP
    serves fonts from 'self' alone, and a face the build carries measures the
    same on every reader's machine, so every width styles.test.ts pins is true
-   of the one face. Each entry imports the package's `wdth.css` from its
-   script, before this file, and not through an @import here: Tailwind inlines
+   of the one face. Each entry imports the package's stylesheet (the weight
+   axis alone, 34 kB for Latin) from its script, before this file, and not through an @import here: Tailwind inlines
    an @import without rebasing its url()s, so the font files' relative paths
    reached the browser unresolved and 404ed, which is how Inter never loaded in
-   production (measured 2026-11-21). Its width axis is what the narrow figures
-   read (`FIGURES`). The package declares one @font-face per script with its
+   production (measured 2026-11-21). `index.html` preloads the Latin file. The package declares one @font-face per script with its
    unicode-range, so a browser fetches the Latin file alone unless a name
    needs another. */
 /* No map styling here. This file is shared by every entry, including the three
