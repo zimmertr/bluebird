@@ -1101,9 +1101,9 @@ describe('shared recipes', () => {
 
   it('floors an axis half at the width Radar takes', () => {
     // `Radar` at text-xs: 33.02px in Chrome on macOS, 2026-09-14, and 33.01px
-    // in Inter (record 0304), 2026-11-16, plus the
-    // half's two insets and the pixel the divider takes.
-    const RADAR_PX = 34
+    // in Inter (record 0304), 2026-11-16, and 32.45px in Archivo (record 0324),
+    // 2026-11-21, plus the half's two insets and the pixel the divider takes.
+    const RADAR_PX = 33
     const floors = [...TRANSPORT_AXIS_W.matchAll(/min-w-\[(\d+)px\]/g)].map((m) => Number(m[1]))
     const insetPx = stepPx(TRANSPORT_AXIS_ITEM, 'px')
     const tapPx = Number(TAP.action.match(/touch:min-w-(\d+)/)![1]) * 4
@@ -1324,11 +1324,12 @@ describe('shared recipes', () => {
   // one control whose job is telling eight similar things apart truncates.
   // Measured in Chrome on macOS at the panel's text-xs, 2026-09-14.
   it('leaves the model picker room for its longest label', () => {
-    // `UK Met Office`: 79.69px, and 79.85px in Inter (record 0304), 2026-11-16.
-    // `Meteo-France ARPEGE` is 130.03px (130.71px in Inter) and fits no
+    // `UK Met Office`: 79.69px, 79.85px in Inter (record 0304), 2026-11-16, and
+    // 73.47px in Archivo (record 0324), 2026-11-21, the face the app draws.
+    // `Meteo-France ARPEGE` is 130.03px (128.18px in Archivo) and fits no
     // trigger the panel can offer — it truncated at the old 144px too, and
     // shortening it is the maintainer's call, not this file's.
-    const UK_MET_OFFICE_PX = 80
+    const UK_MET_OFFICE_PX = 74
     expect(controlWPx() - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(UK_MET_OFFICE_PX)
   })
 
@@ -1338,9 +1339,10 @@ describe('shared recipes', () => {
   // leave 84px.
   it('keeps the chart metric select off the panel column', () => {
     // `Precipitation (in/hr)`, the widest option (record 0222), measured
-    // 109.03px (108.90px in Inter (record 0304), 2026-11-16); held with 8px to
-    // spare, about the margin it had at 144px.
-    const WIDEST_OPTION_PX = 109.03
+    // 109.03px (108.90px in Inter (record 0304), 2026-11-16, and 101.55px in
+    // Archivo (record 0324), 2026-11-21); held with 8px to spare, about the
+    // margin it had at 144px.
+    const WIDEST_OPTION_PX = 101.55
     const chartPx = stepPx(CHART_METRIC_W, 'w')
     expect(chartPx - 8 - selectArrowPx() - 2 - WIDEST_OPTION_PX).toBeGreaterThanOrEqual(8)
   })
@@ -1369,8 +1371,9 @@ describe('shared recipes', () => {
   // 2026-09-14); re-measure before moving either width, the gap, or the nouns.
   it('leaves the metric label room for its longest noun', () => {
     // `Freezing level` at text-xs: 78.03px in Chrome on macOS, 2026-09-14,
-    // and 78.30px in Inter (record 0304), 2026-11-16.
-    const FREEZING_LEVEL_PX = 79
+    // 78.30px in Inter (record 0304), 2026-11-16, and 73.51px in Archivo
+    // (record 0324), 2026-11-21.
+    const FREEZING_LEVEL_PX = 74
     const rem = Number(SELECT_W_AGGREGATE.match(/\[(\d+(?:\.\d+)?)rem\]/)![1])
     const dropdownPx = rem * 16
     const boxPx = (Number(METRIC_BOX_W.match(/-(\d+)$/)![1]) / 4) * 16
@@ -1397,10 +1400,11 @@ describe('shared recipes', () => {
     const PHONE_CONTENT_PX = 328
     expect(labelAt(PHONE_CONTENT_PX, 0, toggleTouchPx)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     // The dropdown's floor: `Total`, its widest word, 27.54px at text-xs in
-    // production (Chrome on macOS, 2026-11-12) and 27.63px in Inter (record 0304), 2026-11-16,
+    // production (Chrome on macOS, 2026-11-12), 27.63px in Inter (record 0304), 2026-11-16,
+    // and 25.94px in Archivo (record 0324), 2026-11-21,
     // beside the field's 8px left
     // padding, its arrow's reserve and its 2px of border, so it never cuts off.
-    const TOTAL_PX = 27.63
+    const TOTAL_PX = 25.94
     expect(dropdownPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(TOTAL_PX)
   })
 
@@ -1435,8 +1439,9 @@ describe('shared recipes', () => {
   it('leaves every segment half room for its longest word', () => {
     // At text-xs: `Highest` 43.69px, `Current` 42.89px, `All day` 37.80px,
     // `Lowest` 39.88px, `Dates` 32.75px, `Hourly` 37.13px. In Inter (record 0304), 2026-11-16:
-    // 43.54, 42.90, 38.13, 40.63, 32.54 and 37.63px.
-    const HIGHEST_PX = 44
+    // 43.54, 42.90, 38.13, 40.63, 32.54 and 37.63px. In Archivo (record 0324),
+    // 2026-11-21: 41.21, 40.22, 35.49, 38.09, 31.60 and 35.14px.
+    const HIGHEST_PX = 42
     const insetPx = stepPx(SEGMENT_ITEM, 'px')
     const halfPx = (controlWPx() - 2 - 1) / 2
 
@@ -1945,11 +1950,12 @@ describe('tap targets', () => {
   // Remove moves nothing (TJ, 2026-11-04: no flapping between sizes). The
   // width is Remove's, the wider word, at the button's text-xs in the app's
   // face, measured in Chrome on macOS 2026-11-04: 44.95px (Add 22.48px),
-  // and again in Inter (record 0304) on 2026-11-16: 45.52px (Add 22.98px).
+  // again in Inter (record 0304) on 2026-11-16: 45.52px (Add 22.98px), and in
+  // Archivo (record 0324) on 2026-11-21: 44.84px (Add 21.78px).
   // The button spends 8px a side and its 1px edge; the rest is the word's.
   it("holds the card button's one width to the wider word", () => {
-    const REMOVE_PX = 45.52
-    const ADD_PX = 22.98
+    const REMOVE_PX = 44.84
+    const ADD_PX = 21.78
     const width = stepPx(CARD_ACTION, 'w')
     const room = width - 2 * stepPx(CARD_ACTION, 'px') - 2
     expect(width).toBe(64)
@@ -5040,7 +5046,8 @@ describe('the polygon row', () => {
   // Three equal buttons on the fields' edges (#687): the two button roles with
   // the inset cut to 4px and nothing else changed, because 12px a side would
   // wrap `Draw polygon` (77.4px on a Mac, 78.77px in Inter since record 0304,
-  // 2026-11-16) in a third of a 295px field.
+  // 2026-11-16, 73.04px in Archivo since record 0324, 2026-11-21) in a third
+  // of a 295px field.
   it('is the two button roles at a 4px inset, three to a row', () => {
     expect(DRAW_ROW.secondary).toBe(BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '))
     expect(DRAW_ROW.accent).toBe(BUTTON_ACCENT.replace(' px-3 ', ' px-1 '))
