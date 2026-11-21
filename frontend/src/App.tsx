@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
@@ -855,7 +856,7 @@ export default function App() {
     layoutMotion,
   }
 
-  const renderDrawer = (bar?: { card: PanelSection | null; onCardClose: () => void }) => (
+  const renderDrawer = (bar?: { card: PanelSection | null; onCardClose: () => void; search?: ReactNode }) => (
     <AppDrawer
       open={sidebarOpen}
       isDesktop={isDesktop}
@@ -888,6 +889,7 @@ export default function App() {
       viewIsArea={searchArea.source === 'view'}
       card={bar?.card}
       onCardClose={bar?.onCardClose}
+      search={bar?.search}
     />
   )
 
@@ -945,16 +947,18 @@ export default function App() {
   ) : null
   // While a ring is drawn at a desk the draw bar hangs where the cards do,
   // until a chip opens a card again: the Where card carries Clear as well.
-  const barCardNode = !isDesktop ? null : drawing && barCard === null ? (
-    <MapDrawBar
-      inline
-      drawPointCount={drawPointCount}
-      onDone={finishDrawing}
-      onCancel={drawMode.handleCancelDrawing}
-    />
-  ) : (
-    renderDrawer({ card: barCard, onCardClose: closeBarCard })
-  )
+  const barCardNode = (search: ReactNode) =>
+    !isDesktop ? null : drawing && barCard === null ? (
+      <MapDrawBar
+        inline
+        drawPointCount={drawPointCount}
+        onDone={finishDrawing}
+        onCancel={drawMode.handleCancelDrawing}
+      />
+    ) : (
+      renderDrawer({ card: barCard, onCardClose: closeBarCard, search })
+    )
+  const openWhere = useCallback(() => setBarCard('destinations'), [])
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
@@ -1035,6 +1039,7 @@ export default function App() {
           lowerSheetFirst={resultsView.lowerSheetFirst}
           bar={barNode}
           barCard={barCardNode}
+          onOpenWhere={openWhere}
           cornerLinks={cornerLinks}
           cloudDeck={cloudDeck}
           scoreColouring={scoreColouring}

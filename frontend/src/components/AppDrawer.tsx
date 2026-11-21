@@ -1,4 +1,4 @@
-import { useRef, type RefObject } from 'react'
+import { useRef, type ReactNode, type RefObject } from 'react'
 import BottomSheet from './BottomSheet'
 import type { SheetHeight } from '../utils/sheetDrag'
 import ControlPanel, { type PanelSection } from './ControlPanel'
@@ -116,6 +116,8 @@ interface AppDrawerProps {
   viewIsArea?: boolean
   /** Closes the card: its close button. */
   onCardClose?: () => void
+  /** The place search, at the head of a desk's Where card (record 0312). */
+  search?: ReactNode
 }
 
 // What each card is headed, the word its chip stands for. In the PR's table.
@@ -165,6 +167,7 @@ export default function AppDrawer({
   onThemeChoice,
   card,
   onCardClose,
+  search,
   viewIsArea = false,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
@@ -275,6 +278,7 @@ export default function AppDrawer({
             <IconClose />
           </button>
         </div>
+        {card === 'destinations' && search && <div className={SENTENCE_BAR.search}>{search}</div>}
         <div className={SENTENCE_BAR.body}>{panel}</div>
       </section>
     )

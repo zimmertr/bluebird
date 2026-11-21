@@ -1,6 +1,7 @@
 import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
 import MapView, { type MapViewHandle } from './MapView'
-import type { SearchBoxHandle } from './SearchBox'
+import SearchBox, { type SearchBoxHandle } from './SearchBox'
+import { useSlashToSearch } from '../hooks/useSlashToSearch'
 import TimelineTransport from './TimelineTransport'
 import type { DeckPoint } from '../utils/cloudSea'
 import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
@@ -149,7 +150,13 @@ export interface MapStageProps {
   lowerSheetFirst: (then: () => void) => void
   /** At a desk, the sentence bar and the card one of its chips opened (record 0308). */
   bar?: ReactNode
-  barCard?: ReactNode
+  /**
+   * The card, handed the place search the map owns, which a desk's Where
+   * card carries at its head (record 0312).
+   */
+  barCard?: (search: ReactNode) => ReactNode
+  /** Opens a desk's Where card, for `/` (`useSlashToSearch`). */
+  onOpenWhere?: () => void
   /**
    * Every settled move of the camera: the link's, and the search area's
    * view (`useSearchArea`). The link's alone where none is given.
@@ -208,6 +215,7 @@ export default function MapStage({
   lowerSheetFirst,
   bar,
   barCard,
+  onOpenWhere,
   onCameraMove = urlSync.reportView,
   cornerLinks,
   cloudDeck = null,
@@ -244,6 +252,22 @@ export default function MapStage({
     mapRef.current?.flyToPlace(place, layout.sheetPadBottomPx)
     registerPlace(place)
   }
+
+  // A desk's search, at the head of the Where card (record 0312), and `/`,
+  // which opens the card with the keyboard in it.
+  const deskSearch = isDesktop && bar !== undefined && bar !== null
+  useSlashToSearch(
+    deskSearch && onOpenWhere !== undefined,
+    () => onOpenWhere?.(),
+    () => {
+      if (!searchBoxRef.current) return false
+      searchBoxRef.current.focus()
+      return true
+    },
+  )
+  const cardSearch = deskSearch ? (
+    <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
+  ) : null
 
   // A clicked basemap feature registers without a camera move: you are already
   // looking straight at it, and flying to it would answer a question nobody
@@ -473,7 +497,7 @@ export default function MapStage({
         legend={legendChip}
         covered={layout.overMapRows}
         bar={bar}
-        barCard={barCard}
+        barCard={barCard?.(cardSearch)}
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}

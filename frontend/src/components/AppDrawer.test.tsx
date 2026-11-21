@@ -115,6 +115,16 @@ describe('AppDrawer', () => {
     expect(screen.getByRole('button', { name: 'Theme Dark' })).toBeTruthy()
   })
 
+  // The place search heads the Where card and no other (record 0312).
+  it('heads a desk\'s Where card with the search, and no other card', () => {
+    const search = <input aria-label="Place search" />
+    const { rerender } = render(drawer(true, NOOP, { isDesktop: true, card: 'destinations', search }))
+    const where = screen.getByRole('region', { name: 'Where' })
+    expect(where.querySelector('input[aria-label="Place search"]')).not.toBeNull()
+    rerender(drawer(true, NOOP, { isDesktop: true, card: 'forecast', search }))
+    expect(screen.queryByLabelText('Place search')).toBeNull()
+  })
+
   it('closes from its own button', () => {
     const onClose = vi.fn()
     render(drawer(true, onClose))

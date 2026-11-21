@@ -73,10 +73,10 @@ export default function SentenceBar({
         <h1 className={SENTENCE_BAR.name}>Bluebird Forecast</h1>
       </div>
       <div ref={groupRef} role="group" aria-label="Forecast" className={SENTENCE_BAR.group}>
-        <MenuButton shape="chip" open={card === 'destinations'} onClick={() => toggle('destinations')} className="min-w-0">
+        <MenuButton shape="chip" open={card === 'destinations'} onClick={() => toggle('destinations')} className={SENTENCE_BAR.slot}>
           <span className={MAP_CHIP_SUMMARY_TEXT}>{where}</span>
         </MenuButton>
-        <MenuButton shape="chip" open={card === 'forecast'} onClick={() => toggle('forecast')} className="min-w-0">
+        <MenuButton shape="chip" open={card === 'forecast'} onClick={() => toggle('forecast')} className={SENTENCE_BAR.slot}>
           <span className={MAP_CHIP_SUMMARY_TEXT}>{when}</span>
         </MenuButton>
         <MenuButton shape="chip" open={card === 'metrics'} onClick={() => toggle('metrics')}>

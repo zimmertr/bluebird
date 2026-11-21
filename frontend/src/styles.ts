@@ -3104,10 +3104,24 @@ export const SENTENCE_BAR = {
    * than letting the map's labels through it.
    */
   forecastSlot: `relative flex ${RADIUS.control} bg-floating`,
-  name: `${TEXT.section} whitespace-nowrap leading-none`,
+  // A narrow map keeps the logo and the page's heading for a screen reader,
+  // and gives the name's width to the sentence.
+  name: `${TEXT.section} whitespace-nowrap leading-none @max-[52rem]:sr-only`,
   card: `${SURFACE_CHIP_CARD.key} pointer-events-auto flex w-90 flex-col overflow-hidden max-h-[calc(100cqh-7.5rem)]`,
   head: `flex flex-shrink-0 items-center justify-between border-b ${PANEL_EDGE} pl-4 pr-1.5 py-1.5`,
   body: `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS}`,
+  /**
+   * The place search at the head of the Where card (record 0312): the map's
+   * pill, given the card's width and its own row above the card's body, and
+   * over it, so the list of places hangs over the sections below.
+   */
+  search: `relative z-[1] h-9 flex-shrink-0 mx-3 mt-3`,
+  /**
+   * The Where and When chips' floor: they cut their words before anything
+   * else in the bar gives, and never below the first few letters, so a
+   * narrow map shows a clipped phrase rather than an empty chip.
+   */
+  slot: 'min-w-20',
   /** The draw bar at a desk, hung where the cards hang and as wide as one. */
   drawBar: `${SURFACE_FLOATING} pointer-events-auto flex w-90 items-center gap-2 px-3 py-1.5`,
 } as const

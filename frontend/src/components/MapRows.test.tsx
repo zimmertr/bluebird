@@ -161,6 +161,16 @@ describe('MapRows at a desk', () => {
     expect(onOpenControls).toHaveBeenCalledOnce()
   })
 
+  // The search is in the Where card once the sentence bar stands on the
+  // row (record 0312); a phone keeps its pill.
+  it('carries no search pill beside the sentence bar', () => {
+    const { rerender } = render(rows({ desk: true, bar: <div>bar</div> }))
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    expect(screen.getByText('bar')).toBeTruthy()
+    rerender(rows({ desk: false, bar: <div>bar</div> }))
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
+  })
+
   it('keeps Legend and Layers while the panel is open', () => {
     render(rows({ desk: true, sidebarOpen: true }))
     const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)

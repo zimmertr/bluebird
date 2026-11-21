@@ -95,9 +95,12 @@ export default function MapRows({
     // `data-map-overlay`), which stand over the top of every map.
     <div data-map-overlay="" className={`${MAP_ROWS.stack} ${LAYER.mapControls}`} inert={covered}>
       <div className={MAP_ROWS.row}>
-        <div className={searching ? MAP_ROWS.pillWide : MAP_ROWS.pill}>
-          <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} onExpandedChange={setSearching} />
-        </div>
+        {/* A desk's search is in the Where card (record 0312). */}
+        {!(desk && bar) && (
+          <div className={searching ? MAP_ROWS.pillWide : MAP_ROWS.pill}>
+            <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} onExpandedChange={setSearching} />
+          </div>
+        )}
         {/* Empty here: the map stands its own 3D and locate buttons in them,
             so each keeps its states and the locate button its permission
             prompt. */}
