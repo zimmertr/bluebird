@@ -204,6 +204,38 @@ async def summits_near(
     return near
 
 
+async def nearest(
+    points: Sequence[tuple[float, float]], reach_m: float
+) -> list[tuple[float, float] | None]:
+    """The closest place of any kind within `reach_m` of each (lat, lon), in order.
+
+    The snow depth history keeps only the cells places stand in, and a list's
+    coordinate for a summit can sit across a cell edge from OSM's node for it
+    (Forbidden Peak, 5 m apart on 2026-11-21), so it reads the place's cell.
+    Raises when the database cannot answer; that caller degrades on its own.
+    """
+    lats = [lat for lat, _ in points]
+    lons = [lon for _, lon in points]
+    degs = [_degrees_for(reach_m, lat) for lat in lats]
+    async with db.connection() as conn:
+        records = await (
+            await conn.execute(
+                "SELECT DISTINCT ON (q.i) q.i, ST_Y(p.geom), ST_X(p.geom)"
+                " FROM unnest(%s::float8[], %s::float8[], %s::float8[])"
+                "      WITH ORDINALITY AS q(lat, lon, deg, i)"
+                " CROSS JOIN LATERAL ST_SetSRID(ST_MakePoint(q.lon, q.lat), 4326) AS here"
+                " JOIN places p ON ST_DWithin(p.geom, here, q.deg)"
+                "  AND ST_DWithin(p.geom::geography, here::geography, %s)"
+                " ORDER BY q.i, ST_Distance(p.geom::geography, here::geography)",
+                (lats, lons, degs, reach_m),
+            )
+        ).fetchall()
+    out: list[tuple[float, float] | None] = [None] * len(points)
+    for i, lat, lon in records:
+        out[i - 1] = (lat, lon)
+    return out
+
+
 # The kinds the map draws as markers of its own: the basemap's tiles carry no
 # trailhead and no crag it can tell from a route (#734).
 LANDMARK_KINDS = (rules.TRAILHEAD, rules.CRAG)
