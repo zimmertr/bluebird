@@ -747,8 +747,10 @@ window's first UTC day to its last or the newest day analyzed, whichever comes
 first, and stops there rather than repeating the newest depth; the aggregates
 count the two days after it, the 13th and the 14th, as 4.33 each. A point
 outside the grid reads `null` and no days. The server keeps days only at the
-1 km cells its OpenStreetMap places sit in, so a coordinate in a cell no place
-shares reads the newest day alone, and an instance without that copy reads
+1 km cells its OpenStreetMap places sit in. A coordinate in a cell no place
+shares reads the cell of the nearest place within 150 m, because a list's
+coordinate for a summit can sit across a cell edge from OpenStreetMap's, and
+one with no place that close reads the newest day alone. An instance without that copy reads
 today's grid alone at every point: a window that reaches the newest day reads
 its depth there and after it, and a window that ends before it reads `null`. A window takes the analyze routes' reach,
 and a list takes up to the analysis cap; both are on

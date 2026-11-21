@@ -272,6 +272,64 @@ async def test_a_run_writes_each_place_cells_days_and_a_window_reads_them_back(d
     assert valley == WindowDepth(None, None, None, [(date(2026, 11, d), None) for d in (10, 11, 12)])
 
 
+# A cell edge in the Cascades, and the latitude of a row's middle.
+_EDGE_LON = snow_history.MIN_X + 1_135 * snow_history.RES
+_ROW_LAT = snow_history.MAX_Y - 1_166.5 * snow_history.RES
+
+
+@pytest.mark.db
+async def test_a_point_beside_a_place_across_a_cell_edge_reads_the_place_cell(database, monkeypatch):
+    # 2026-11-21: three of the Smoot 100 read today's depth and no history.
+    # Forbidden Peak's list coordinate is 5 m from OSM's node, across an edge.
+    async with database.connection() as conn:
+        await _place(conn, 1, _ROW_LAT, _EDGE_LON + 0.0001)
+
+    async def fetch_day(_client, day, _today):
+        return SimpleNamespace(day=day)
+
+    monkeypatch.setattr(snow_history, "_fetch_day", fetch_day)
+    monkeypatch.setattr(snow_history, "sample", lambda snap, cells: [snap.day.day * 100 for _ in cells])
+    await snow_history.run(now=datetime(2026, 11, 12, 18, tzinfo=UTC))
+
+    beside = (_ROW_LAT, _EDGE_LON - 0.0003)
+    far = (_ROW_LAT, _EDGE_LON - 0.02)
+    assert snow_history.cell_of(*beside) != snow_history.cell_of(_ROW_LAT, _EDGE_LON + 0.0001)
+    start = datetime(2026, 11, 10, tzinfo=UTC)
+    (place, near, alone), _ = await snow_history.window_depths(
+        [(_ROW_LAT, _EDGE_LON + 0.0001), beside, far], start, start + timedelta(days=2)
+    )
+    assert near == place
+    assert near.days == [(date(2026, 11, d), snow_history.inches(d * 100)) for d in (10, 11, 12)]
+    # Past the reach a pasted point is matched to its summit by, nothing.
+    assert alone.max_in is None
+
+
+@pytest.mark.db
+async def test_a_point_whose_own_cell_holds_a_place_keeps_it(database, monkeypatch):
+    # A window ahead of the history has no rows of its own, and its point must
+    # still read its own cell rather than a closer place's over the edge.
+    async with database.connection() as conn:
+        await _place(conn, 1, _ROW_LAT, _EDGE_LON - 0.0015)
+        await _place(conn, 2, _ROW_LAT, _EDGE_LON + 0.0001)
+
+    async def fetch_day(_client, day, _today):
+        return SimpleNamespace(day=day)
+
+    monkeypatch.setattr(snow_history, "_fetch_day", fetch_day)
+    monkeypatch.setattr(
+        snow_history, "sample",
+        lambda snap, cells: [cell % 1000 for cell in cells],
+    )
+    await snow_history.run(now=datetime(2026, 11, 12, 18, tzinfo=UTC))
+
+    point = (_ROW_LAT, _EDGE_LON - 0.0003)
+    own = snow_history.cell_of(*point)
+    assert own == snow_history.cell_of(_ROW_LAT, _EDGE_LON - 0.0015)
+    start = datetime(2026, 12, 20, tzinfo=UTC)
+    (depth,), _ = await snow_history.window_depths([point], start, start + timedelta(days=1))
+    assert depth.max_in == snow_history.inches(own % 1000)
+
+
 @pytest.mark.db
 async def test_a_second_run_merges_its_days_into_the_month_without_losing_the_first(database, monkeypatch):
     async with database.connection() as conn:
