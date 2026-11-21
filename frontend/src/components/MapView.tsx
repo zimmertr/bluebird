@@ -62,6 +62,8 @@ export interface MapCamera {
 export interface MapViewHandle {
   /** The camera as it stands, or null before the map exists. */
   getCamera: () => MapCamera | null
+  /** Ring this place's marker for its row under the pointer, or none (record 0318). */
+  hotMarker: (key: string | null) => void
   // The view's bounds now and after each settled move, for the Layers menu's
   // coverage test (`useLayerReach`), until the returned function is called.
   // A subscription rather than a value on React state, for the reason the
@@ -246,6 +248,8 @@ interface Props {
   // Where each settled camera goes (`map/camera.ts`). Stable, and it writes the
   // link without rendering anything, so a pan costs no React work.
   onCameraMove: (view: CameraView, readerMove: boolean) => void
+  /** A marker the pointer rests on, or null as it leaves (record 0318). Stable. */
+  onMarkerHover: (key: string | null) => void
   // Whether the basemap style is failing to load (`map/basemapWatch.ts`), for
   // the note below Analyze (#580). A state setter, so stable: the watch is
   // registered once, with the map, and keeps the one it was handed.
@@ -335,6 +339,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       cameraPadBottomPx,
       restoredView,
       onCameraMove,
+      onMarkerHover,
       onBasemapFailed,
       maxPolygonPoints,
       lowerSheetFirst,
@@ -410,6 +415,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onMoveAggregate,
       cameraPadBottomPx,
       onCameraMove,
+      onMarkerHover,
       maxPolygonPoints,
       onTerrainChange,
       lowerSheetFirst,
@@ -517,6 +523,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // a ring too big to show, while a pan to one merely off screen holds the
       // scale the user was reading at. The zoom change is the disorienting
       // part, not the pan.
+      hotMarker(key) {
+        featuresRef.current?.results.setHot(key)
+      },
       framePolygon() {
         const map = mapRef.current
         const pts = ptsRef.current

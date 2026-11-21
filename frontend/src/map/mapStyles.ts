@@ -22,35 +22,22 @@
  * cut the layer out), so a change to one could miss the other. They are one
  * object each now, spread into both layers.
  */
-import type { CircleLayerSpecification, SymbolLayerSpecification } from 'maplibre-gl'
+import type {
+  CircleLayerSpecification,
+  ExpressionSpecification,
+  FilterSpecification,
+  SymbolLayerSpecification,
+} from 'maplibre-gl'
 
 /** Tailwind `sky-400`, the app's accent: the ring being drawn and its handles. */
 export const DRAW_COLOR = '#38bdf8'
 
-/**
- * Tailwind `blue-500`: a pasted or searched destination the analysis has not
- * ranked yet. Not a metric colour, because nothing has been fetched for it,
- * and not the draw colour, because it is not part of the ring; a neutral
- * "Bluebird Forecast blue" that says the point exists.
- */
-export const PENDING_COLOR = '#3b82f6'
 
 /** The white stroke every marker and handle wears, its edge on a dark ground. */
 export const MARKER_STROKE = '#ffffff'
 
-const MARKER_RADIUS = 10
+/** A pill's white stroke; a dot's is `DOT_STROKE_WIDTH` (record 0318). */
 const MARKER_STROKE_WIDTH = 2
-
-/**
- * A ranked result and a pending destination are one kind of dot, and the
- * colour is the only thing that differs between them.
- */
-export const MARKER_PAINT: Omit<CircleLayerSpecification['paint'], 'circle-color'> = {
-  'circle-radius': MARKER_RADIUS,
-  'circle-stroke-width': MARKER_STROKE_WIDTH,
-  'circle-stroke-color': MARKER_STROKE,
-  'circle-opacity': 0.9,
-}
 
 /**
  * The dark ring outside every marker's white stroke, its edge on a light
@@ -70,16 +57,61 @@ export const MARKER_PAINT: Omit<CircleLayerSpecification['paint'], 'circle-color
  * the dot the size it was.
  */
 export const MARKER_HALO = '#0f172b'
-export const MARKER_HALO_PAINT: CircleLayerSpecification['paint'] = {
-  'circle-radius': MARKER_RADIUS + MARKER_STROKE_WIDTH,
-  'circle-opacity': 0,
-  'circle-stroke-width': 1,
-  'circle-stroke-color': MARKER_HALO,
-}
 
-/** The rank digit drawn inside a result marker. */
+/**
+ * The prototype's markers (record 0318): every ranked place a small dot, the
+ * top five a numbered pill, and a place not yet forecast a smaller grey dot.
+ * `rankNum` is the feature's rank as a number, 0 for none.
+ */
+export const TOP_RANKS = 5
+const TOP: ExpressionSpecification = ['all', ['>=', ['get', 'rankNum'], 1], ['<=', ['get', 'rankNum'], TOP_RANKS]]
+const PILL_RADIUS = 11
+const DOT_RADIUS = 4.5
+const DOT_STROKE_WIDTH = 1.5
+const IDLE_RADIUS = 3.5
+/** A ranked marker: a pill for the top five, a dot for the rest. */
+export const RESULT_MARKER_PAINT: Omit<CircleLayerSpecification['paint'], 'circle-color'> = {
+  'circle-radius': ['case', TOP, PILL_RADIUS, DOT_RADIUS],
+  'circle-stroke-width': ['case', TOP, MARKER_STROKE_WIDTH, DOT_STROKE_WIDTH],
+  'circle-stroke-color': MARKER_STROKE,
+  'circle-opacity': 1,
+}
+/** A place not yet forecast: grey, smaller, a little faded, as the prototype's idle dot. */
+export const IDLE_COLOR = '#94a3b8'
+export const IDLE_MARKER_PAINT: CircleLayerSpecification['paint'] = {
+  'circle-radius': IDLE_RADIUS,
+  'circle-color': IDLE_COLOR,
+  'circle-stroke-width': 1,
+  'circle-stroke-color': MARKER_STROKE,
+  'circle-opacity': 0.8,
+}
+/**
+ * The ring a hovered place wears on the map while its row is under the
+ * pointer, or the other way round: the accent blue, 3px outside the dark
+ * halo's line. Sky-500, which reads on the dark slate and the pale ground
+ * alike, so one value serves both themes.
+ */
+export const HOT_RING = '#0ea5e9'
+const HOT: ExpressionSpecification = ['boolean', ['feature-state', 'hot'], false]
+const haloPaint = (radius: ExpressionSpecification | number, stroke: ExpressionSpecification | number) =>
+  ({
+    'circle-radius': typeof radius === 'number' ? radius + (typeof stroke === 'number' ? stroke : 0) : ['+', radius, stroke],
+    'circle-opacity': 0,
+    'circle-stroke-width': ['case', HOT, 3, 1],
+    'circle-stroke-color': ['case', HOT, HOT_RING, MARKER_HALO],
+  }) satisfies CircleLayerSpecification['paint']
+/** The ranked markers' halo, the hot ring when hovered. */
+export const RESULT_HALO_PAINT: CircleLayerSpecification['paint'] = haloPaint(
+  ['case', TOP, PILL_RADIUS, DOT_RADIUS],
+  ['case', TOP, MARKER_STROKE_WIDTH, DOT_STROKE_WIDTH],
+)
+/** The idle dots' halo, the hot ring when hovered. */
+export const IDLE_HALO_PAINT: CircleLayerSpecification['paint'] = haloPaint(IDLE_RADIUS, 1)
+
+/** The rank drawn inside the top five's pills, and only theirs. */
+export const RANK_FILTER: FilterSpecification = TOP
 export const RANK_LAYOUT: SymbolLayerSpecification['layout'] = {
-  'text-size': 10,
+  'text-size': 11.5,
   'text-font': ['Noto Sans Bold'],
 }
 export const RANK_PAINT: SymbolLayerSpecification['paint'] = { 'text-color': MARKER_STROKE }
@@ -90,8 +122,8 @@ export const RANK_PAINT: SymbolLayerSpecification['paint'] = { 'text-color': MAR
  * Both as Tailwind v4 computes them (#687); the halo was the v3 slate-900.
  */
 export const MARKER_LABEL_LAYOUT: Omit<SymbolLayerSpecification['layout'], 'text-field'> = {
-  'text-offset': [0, 1.6],
-  'text-size': 11,
+  'text-offset': ['case', TOP, ['literal', [0, 1.3]], ['literal', [0, 0.7]]],
+  'text-size': 11.5,
   'text-anchor': 'top',
   'text-font': ['Noto Sans Regular'],
 }

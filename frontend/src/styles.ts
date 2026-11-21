@@ -4312,8 +4312,11 @@ export const TABLE = {
    * load-bearing rather than decorative — the rank cell's remove × appears on
    * `group-hover`, so a row that forgets it is a row that cannot be removed
    * with a pointer.
+   *
+   * `data-hot` is the same wash, set on the row whose marker the pointer
+   * rests on (record 0318), so the map and the table point at one place.
    */
-  row: 'group border-t border-rule/50 hover:bg-raised/30 transition-colors',
+  row: 'group border-t border-rule/50 hover:bg-raised/30 data-hot:bg-raised/30 transition-colors',
   /**
    * A ranked row a press opens the marker popup from (#696; record 0143):
    * the pointer says the whole row answers, where it said so over the name

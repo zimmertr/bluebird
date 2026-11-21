@@ -43,6 +43,9 @@ export interface MapInputs {
   // Where the settled camera goes, and whether the reader moved it
   // (`map/camera.ts`). The share link's writer, which never renders.
   onCameraMove: (view: CameraView, readerMove: boolean) => void
+  // The place a pointer rests on over the map, or null as it leaves, so its
+  // table row is marked the way the pointer marks it (record 0318).
+  onMarkerHover: (key: string | null) => void
   // The most positions a ring may carry, as /api/capabilities publishes it.
   maxPolygonPoints: number
   // The 3D button's press, asking for the terrain on or off (#799). The

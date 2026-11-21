@@ -1,4 +1,5 @@
 import { useCallback, useId, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
+import { useHoverLink } from '../hooks/useHoverLink'
 import type { Theme } from '../utils/viewPrefs'
 import MapView, { type MapViewHandle } from './MapView'
 import SearchBox, { type SearchBoxHandle } from './SearchBox'
@@ -227,6 +228,8 @@ export default function MapStage({
   scoreColouring = null,
   dayStrip = null,
 }: MapStageProps) {
+  // The map and the table point at one place under the pointer (record 0318).
+  const onMarkerHover = useHoverLink(mapRef)
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
   // stands its own locate button in (#696). State rather than a ref, so the
@@ -496,6 +499,7 @@ export default function MapStage({
           cameraPadBottomPx={layout.cameraPadBottomPx}
           restoredView={restoredView}
           onCameraMove={onCameraMove}
+          onMarkerHover={onMarkerHover}
           onBasemapFailed={onBasemapFailed}
           maxPolygonPoints={maxPolygonPoints}
           lowerSheetFirst={lowerSheetFirst}

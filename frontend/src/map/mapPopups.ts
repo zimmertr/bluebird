@@ -138,6 +138,12 @@ export interface MapPopupTarget {
    * hand.
    */
   holdsCursor?: () => boolean
+  /**
+   * Told the feature of the target's the pointer rests on, or null as the
+   * pointer leaves them, for a target that marks what is under the pointer
+   * (the result markers' ring, record 0318). Told only when it changes.
+   */
+  hover?: (feature: maplibregl.MapGeoJSONFeature | null) => void
 }
 
 export type { MapPoint } from '../utils/pointReadout'
@@ -451,7 +457,21 @@ export function mountMapPopups(
   })
   map.on('mouseout', () => {
     resting = null
+    hovered(null)
   })
+
+  // Each hover target's feature under the pointer as last told, by its id.
+  const told = new Map<MapPopupTarget, unknown>()
+  function hovered(features: maplibregl.MapGeoJSONFeature[] | null) {
+    for (const t of targets) {
+      if (!t.hover) continue
+      const feature = features?.find((f) => t.layers.includes(f.layer.id)) ?? null
+      const id = feature?.id ?? null
+      if ((told.get(t) ?? null) === id) continue
+      told.set(t, id)
+      t.hover(feature)
+    }
+  }
 
   function decideCursor(point: maplibregl.Point, lngLat: maplibregl.LngLat, dragging: boolean) {
     const seq = ++moveSeq
@@ -459,10 +479,13 @@ export function mountMapPopups(
     const canvas = map.getCanvas()
     if (dragging) {
       canvas.style.cursor = ''
+      hovered(null)
       return
     }
     const drawing = controller.inputs.drawing
-    const cursor = mapCursor(drawing, targetsAt(point).under)
+    const found = targetsAt(point)
+    hovered(found.features)
+    const cursor = mapCursor(drawing, found.under)
     canvas.style.cursor = cursor
     if (cursor !== '' || drawing) return
     const live = pointsOn()

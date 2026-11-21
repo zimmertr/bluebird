@@ -1,9 +1,19 @@
 import type { FeatureCollection } from 'geojson'
+import type { ExpressionSpecification } from 'maplibre-gl'
 import { DestinationResult, SortBy } from '../types'
 import { colorOnScale, hourlyScale, markerColor, scoreFill } from './colors'
 import { valueAt } from './chart/chartData'
 import { familyOf } from '../metrics'
-import { isFiniteNumber } from './numbers'
+import { grouped, isFiniteNumber } from './numbers'
+import { geoKey } from './points'
+
+/**
+ * The height under a marker's name in its label (record 0318), as the
+ * prototype writes it: grouped thousands and the unit, or nothing.
+ */
+export function heightLabel(ft: number | null | undefined): string {
+  return isFiniteNumber(ft) ? `${grouped(Math.round(ft))} ft` : ''
+}
 
 // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day horizon), and
 // scrubbing playback past that horizon hits the same gap an hour at a time.
@@ -128,6 +138,13 @@ export function resultsFeatureCollection(
       properties: {
         name: r.name,
         rank: ranked ? String(i + 1) : '',
+        // The rank as a number for the paint, which draws the top five as
+        // pills and the rest as dots (record 0318); 0 for an unranked marker.
+        rankNum: ranked ? i + 1 : 0,
+        // The place's id for the hover ring's feature-state, the key its
+        // table row carries (`data-key`).
+        key: geoKey(r.latitude, r.longitude),
+        height: heightLabel(r.elevation_ft),
         // Carried through so the popup's external link (destinationUrl) can be
         // built on a marker click, matching the table's name-cell link.
         type: r.type,
@@ -178,4 +195,32 @@ export function resultsFeatureCollection(
  */
 export function windArrowsShowing(sortBy: SortBy, hourIndex: number | null): boolean {
   return hourIndex !== null && familyOf(sortBy) === 'wind'
+}
+
+/**
+ * A ranked marker's label: its name, and its height under it a step smaller
+ * (record 0318).
+ */
+export const LABEL_TEXT: ExpressionSpecification = [
+  'format',
+  ['get', 'name'],
+  {},
+  ['case', ['==', ['get', 'height'], ''], '', '\n'],
+  {},
+  ['get', 'height'],
+  { 'font-scale': 0.9 },
+]
+
+/** The one place a hovered row or marker names, or none. */
+export function hotFilter(key: string | null): ExpressionSpecification {
+  return ['==', ['get', 'key'], key ?? '']
+}
+
+/**
+ * Which ranked markers wear their name (record 0318): the first, and the
+ * one hovered here or in its row. The map's own names stay readable under
+ * a field of hundreds of dots that each named themselves before.
+ */
+export function labelFilter(key: string | null): ExpressionSpecification {
+  return ['any', ['==', ['get', 'rankNum'], 1], hotFilter(key)]
 }

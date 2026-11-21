@@ -23,6 +23,8 @@ type Handler = (event: unknown) => void
 /** A feature drawn under the cursor, as `queryRenderedFeatures` returns one. */
 export interface StubFeature {
   layer: { id: string }
+  /** The feature's id, as a source's `promoteId` gives one. */
+  id?: string | number
   properties?: Record<string, unknown>
   geometry?: { type: string; coordinates: unknown }
 }
@@ -158,6 +160,7 @@ export function stubMap(opts: StubMapOptions = {}) {
     getSource: (id: string) => sources[id],
     getFilter: (id: string) => opts.filters?.[id],
     setFilter: (id: string, filter: unknown) => calls.push(['setFilter', id, filter]),
+    setFeatureState: (feature: unknown, state: unknown) => calls.push(['setFeatureState', feature, state]),
     setLayoutProperty: (id: string, key: string, value: unknown) => {
       layout[id] = { ...(layout[id] ?? {}), [key]: value }
       calls.push(['setLayoutProperty', id, key, value])
