@@ -864,7 +864,9 @@ export default function App() {
     removals,
     analysisSeq,
     onLens: isDesktop || lens !== null ? rankingKnobs.setLens : undefined,
-    limits,
+    // A desk's for now: the phone's sheet gets its scrolling row of lenses
+    // and limits with its own layout (task 17 of the from-scratch PR).
+    limits: isDesktop ? limits : undefined,
     wide: deskWide,
     onWide: toggleWide,
     sortBy: view.sortBy,
