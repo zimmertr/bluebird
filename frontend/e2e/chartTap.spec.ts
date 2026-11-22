@@ -29,7 +29,10 @@ async function openChart(page: Page) {
   const grip = (await page.locator('.cursor-ns-resize').last().boundingBox())!
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
   await page.mouse.down()
-  await page.mouse.move(grip.x + grip.width / 2, 250, { steps: 10 })
+  // To 360px from the top: the plot stands taller than 150px, and the map
+  // above keeps room for the player over the foot's card (`transportFits`),
+  // which a higher sheet hides it for.
+  await page.mouse.move(grip.x + grip.width / 2, 360, { steps: 10 })
   await page.mouse.up()
   await expect.poll(async () => (await surface.boundingBox())!.height).toBeGreaterThan(150)
   return (await surface.boundingBox())!
