@@ -191,8 +191,8 @@ The rain-radar and snow-depth overlays appear in none of this, and deliberately.
 Their images go from Iowa Environmental Mesonet and from NOAA straight to the
 browser rather than through this service, so there is no request here to pace and
 no snapshot to hold. What bounds that traffic is the layers being off by default,
-IEM's own five-minute edge cache, and — for snow, which refuses caching entirely
-— a 512 px tile, which is four times less of NOAA's render time per screen. See
+IEM's own five-minute edge cache, and (for snow, which refuses caching entirely)
+a 512 px tile, which is four times less of NOAA's render time per screen. See
 [DATA.md](DATA.md#rain-radar) and [DATA.md](DATA.md#snow-depth).
 
 When a request fails rather than refuses, the status code says whose problem it

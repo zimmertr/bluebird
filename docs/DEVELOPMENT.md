@@ -11,7 +11,7 @@ LOG_LEVEL=TRACE uvicorn app.main:app --reload --port 8000
 ```
 
 While it runs, Prometheus metrics are served at `http://localhost:9464/metrics`
-(its own port, never a route on the app — see
+(its own port, never a route on the app, see
 [ARCHITECTURE.md](ARCHITECTURE.md#metrics)); set `METRICS_PORT=0` to turn that
 off.
 
@@ -425,7 +425,7 @@ TypeScript compiler API at run time and **refuses TS 7 outright**; the TS 7 npm
 package no longer ships that JS API at all, so the linter carries its own
 TypeScript 6. This is the side-by-side arrangement TypeScript documents for the
 case. The config is `frontend/tools/eslint/eslint.config.js`, and its paths are
-written for a run whose working directory is `frontend/` — ESLint reads a
+written for a run whose working directory is `frontend/`: ESLint reads a
 `--config` file's patterns against the working directory rather than against the
 file's own folder.
 
@@ -445,14 +445,13 @@ script also gives Renovate something to bump. It installs on demand, so
 
 Open-Meteo is fetched **from the visitor's own browser against the visitor's own
 IP**, so a regression-testing session spends the quota of whoever is sitting at
-the machine — and anyone else behind the same address. A morning of manual
+the machine: and anyone else behind the same address. A morning of manual
 testing can leave the real app answering `Open-Meteo quota reached. Try again
 later.` for the rest of the hour, which is indistinguishable from a real
 outage.
 
 Paste this into the browser console before pressing Analyze and every forecast
-request is answered locally instead. **The numbers it returns are invented** —
-a latitude-driven gradient with a daily wave — so it is for exercising layout,
+request is answered locally instead. **The numbers it returns are invented** (a latitude-driven gradient with a daily wave) so it is for exercising layout,
 state and interaction, never for judging a forecast.
 
 ```js

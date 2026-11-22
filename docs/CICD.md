@@ -3,9 +3,9 @@
 How a change travels from a pull request to `bluebirdforecast.com`, across the
 three repositories and the supporting services that automate the path.
 
-> **Keep this current.** Any change that alters the flow — a workflow in
+> **Keep this current.** Any change that alters the flow (a workflow in
 > `bluebird` or `bluebird-helm`, an image/chart/tag convention, or the
-> `Kubernetes-Manifests` wiring — must update this document in the same change.
+> `Kubernetes-Manifests` wiring) must update this document in the same change.
 > The diagrams also describe two sibling repos, so changes made *there* should
 > come back here too; nothing enforces that automatically.
 
@@ -134,7 +134,7 @@ the newest release (#632). Record:
    Only the *backend* halves of the image are built per architecture. The
    frontend stage carries `--platform=$BUILDPLATFORM`, so the SPA is compiled
    once on the runner's own architecture and both images copy the same
-   `dist/` — see [Where the time goes](#where-the-time-goes) for what the
+   `dist/`: see [Where the time goes](#where-the-time-goes) for what the
    emulated version of that stage cost.
 
    **Build identity.** Three build args are passed here and baked into the
@@ -164,7 +164,7 @@ the newest release (#632). Record:
    day. The chart runs the fill at its `appVersion`, so every release needs
    one. Record:
    [0184](architectural-decision-records/0184-planet-fill-cronjob-and-image.md)
-3. **Scan Pushed Image** — Trivy, once per image and platform
+3. **Scan Pushed Image**: Trivy, once per image and platform
    (`ghcr.io/zimmertr/bluebird` on `linux/amd64` and `linux/arm64`, and
    `ghcr.io/zimmertr/bluebird-fill` on `linux/amd64`), against each image's version tag, with the same scan
    settings as the PR gate and the weekly scan. It fails on a fixable
@@ -239,7 +239,7 @@ its deploy bumps (bluebird-helm record 0005, yggdrasil record 0054).
    pinned to an old chart. A new branch per version means `gh pr create` opens a
    new PR every time instead of advancing the existing one.
 
-**Path 3 — GitOps sync** (Argo CD → cluster): Argo CD reconciles
+**Path 3: GitOps sync** (Argo CD → cluster): Argo CD reconciles
 `public/bluebird/`. Kustomize inflates the OCI `helmCharts` entry with
 `values.yml`, overlays the namespace and the three `AnalysisTemplate`s
 (`api-test`, `error-rate` and `version-check`), and pins
@@ -252,8 +252,8 @@ sync. The operator that runs the `Cluster` is an Argo CD app of its own,
 `misc/cloudnative-pg` (chart 0.29.1). Sync waves order the rest: the
 database at -1, the app at 0, because the app's pods read the Secret the
 operator writes for the database. The rollout
-itself is a four-step canary — a scale step that starts one canary pod at zero
-user traffic, then three blocking analyses, then promotion in a single cutover — described
+itself is a four-step canary (a scale step that starts one canary pod at zero
+user traffic, then three blocking analyses, then promotion in a single cutover) described
 in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
 
 ### Finishing a failed release
@@ -347,10 +347,10 @@ job merged is the first measurement.
 
 ### Two independent knobs reach prod
 
-- **Image tag** — Path 1, a self-merging PR (`chore/bluebird-image`).
-- **Chart version (stable)** — Path 2 → Path 3, a self-merging PR
+- **Image tag**: Path 1, a self-merging PR (`chore/bluebird-image`).
+- **Chart version (stable)**: Path 2 → Path 3, a self-merging PR
   (`chore/bluebird-stable-chart`); prod, and the one that triggers a canary.
-- **Chart version (preview)** — Path 2, a self-merging PR
+- **Chart version (preview)**: Path 2, a self-merging PR
   (`chore/bluebird-preview-chart`); ephemeral per-PR environments only, so it
   never touches prod.
 
@@ -373,7 +373,7 @@ writes above go through a PR, and what they wait on is the required
 check in that repo's `pr.yml`, **`Validate manifests`**, which:
 
 1. YAML-parses every changed `.yml`/`.yaml`. This is the failure mode the bump
-   jobs can actually cause — the two chart bumps rewrite version lines with
+   jobs can actually cause: the two chart bumps rewrite version lines with
    targeted `sed` (the image bump sets one path with `yq`, through
    yggdrasil's release module), and a regex matching more than intended
    corrupts the file.
@@ -407,7 +407,7 @@ strands the automation:
   `--auto` only.
 - **Auto-merge is re-armed on every release**, on the update path as well as
   the create path, because GitHub disables it on any force-push to the head
-  branch — and every one of these jobs force-pushes its fixed branch each
+  branch: and every one of these jobs force-pushes its fixed branch each
   release. On a failing required check GitHub disarms auto-merge itself and
   notifies the arming account.
 - **"Require branches to be up to date" must stay off** (`strict: false`). These
@@ -489,7 +489,7 @@ credentials, which no pull request can make:
 ### What a stable chart bump costs
 
 Most chart releases are `appVersion`-only and change nothing in prod's render:
-`bluebird.labels` — the only helper carrying `app.kubernetes.io/version` — is
+`bluebird.labels`, the only helper carrying `app.kubernetes.io/version`, is
 applied to *object* metadata, while the Rollout's pod template uses
 `bluebird.selectorLabels`, which omits it; and `bluebird.image` does default to
 `.Chart.AppVersion`, but KM's `images:` transformer pins an explicit `newTag`
@@ -500,7 +500,7 @@ whose image follows `.Chart.AppVersion` because `images:` names
 and it starts no canary either, since the CronJob is not the Rollout's pod
 template.
 
-A chart release that *does* change prod — a new default, a new resource — rolls
+A chart release that *does* change prod (a new default, a new resource) rolls
 out as a canary like any other pod-template change, and `Validate manifests` has
 already rendered it against prod's `values.yml`.
 
@@ -523,24 +523,24 @@ drops the value, by shipping the `Kubernetes-Manifests` edit alongside it.
 ## Inside the prod canary (Argo Rollouts)
 
 Every path above ends the same way: Argo CD applies a change to the Rollout's
-**pod template** — the image tag (Path 1) or the chart/values (Path 2 → 3) —
+**pod template**, the image tag (Path 1) or the chart/values (Path 2 → 3),
 and the Argo Rollouts controller takes over. This section is what "canary
 rollout" means concretely in this cluster. There are **no `pause` steps and no
 manual promotion**: a release either promotes itself to 100% or aborts itself
 back to stable, which is what makes the unattended loops in the next section
-safe — a Renovate auto-merge faces exactly the same gates as a hand-cut
+safe, a Renovate auto-merge faces exactly the same gates as a hand-cut
 release.
 
 The moving parts ("KM" = `Kubernetes-Manifests/public/bluebird/`):
 
 | Resource | Comes from | Role |
 | --- | --- | --- |
-| `Rollout bluebird` | chart `workload.yaml`; strategy, steps, and history limits from KM `values.yml` | the workload — `useRollout: true` turns the chart's Deployment into a Rollout |
+| `Rollout bluebird` | chart `workload.yaml`; strategy, steps, and history limits from KM `values.yml` | the workload: `useRollout: true` turns the chart's Deployment into a Rollout |
 | `Service bluebird` / `bluebird-canary` | chart | stable/canary endpoints; the controller injects `rollouts-pod-template-hash` selectors so each always tracks the right ReplicaSet |
 | `VirtualService bluebird` | chart | the three weighted routes `bluebird-stable`, `bluebird-api-public` and `bluebird-api-keyed`, whose destination weights the controller owns |
-| `AnalysisTemplate version-check` | KM `resources/analysisTemplate-versionCheck.yml` | identity gate — the canary must serve the exact image being rolled out |
+| `AnalysisTemplate version-check` | KM `resources/analysisTemplate-versionCheck.yml` | identity gate: the canary must serve the exact image being rolled out |
 | `AnalysisTemplate api-test` | KM `resources/analysisTemplate-apiTest.yml` | functional gate: a `POST /api/destinations` for the peaks in a fixed ring, which the places table answers with no third party on the path |
-| `AnalysisTemplate error-rate` | KM `resources/analysisTemplate-errorRate.yml` | soak gate — the canary's 5xx share read from Prometheus, three times a minute apart |
+| `AnalysisTemplate error-rate` | KM `resources/analysisTemplate-errorRate.yml` | soak gate: the canary's 5xx share read from Prometheus, three times a minute apart |
 
 The first two gates are Argo `web` providers and the third is a `prometheus`
 provider, so the controller makes every call itself: a release starts no Job
@@ -551,8 +551,7 @@ pods and mounts no scripts.
 cert-manager terminates TLS at the Istio ingress gateway, which routes by the
 `bluebird` VirtualService. Its named routes `bluebird-stable` (the SPA), `bluebird-api-public` (the API
 allowlist) and `bluebird-api-keyed` (the keyed analyze routes) each carry two
-weighted destinations —
-the stable and canary Services — and the Rollouts controller owns those weights
+weighted destinations (the stable and canary Services) and the Rollouts controller owns those weights
 while a release is in flight. The public hostnames reach the gateway through a
 Cloudflare Tunnel; [TRAFFIC.md](TRAFFIC.md) has that half:
 
@@ -577,7 +576,7 @@ flowchart LR
 `trafficRouting.istio` in KM `values.yml` is what hands those weights to the
 controller. It is not optional decoration: the `setCanaryScale` step below is
 rejected without it, because absent a router Argo derives the canary's traffic
-share from its replica count — the very dial `setCanaryScale` overrides. Prod
+share from its replica count, the very dial `setCanaryScale` overrides. Prod
 sat `Degraded` on exactly that once, when a comment-trimming commit deleted the
 block and left the step behind.
 
@@ -593,15 +592,15 @@ flowchart TD
     apply["Argo CD applies a new pod template<br/>(image newTag via Path 1, chart/values via Path 2)"]
     detect["Rollouts controller detects the new revision"]
 
-    subgraph GATE["Steps 0–3 — the whole gate runs at 0% user traffic"]
+    subgraph GATE["Steps 0–3: the whole gate runs at 0% user traffic"]
         scale["setCanaryScale: replicas 1<br/>one new-version pod behind Service bluebird-canary<br/>VirtualService still 100/0"]
         vc["AnalysisRun version-check (web provider)<br/>GET canary /api/version<br/>must match the image tag being rolled out"]
         at["AnalysisRun api-test (web provider)<br/>POST canary /api/destinations<br/>must return at least one peak"]
-        er["AnalysisRun error-rate (prometheus provider)<br/>canary 5xx share below 5%<br/>count 3, interval 60s — 120 s of wall clock"]
+        er["AnalysisRun error-rate (prometheus provider)<br/>canary 5xx share below 5%<br/>count 3, interval 60s, 120 s of wall clock"]
     end
 
-    done["Promoted — canary ReplicaSet scales to 3 and becomes stable,<br/>Service bluebird repointed at it, old ReplicaSet scaled down"]
-    abort["Aborted — canary scaled to 0, VirtualService never left<br/>100% stable, Rollout Degraded<br/>(Argo CD: Synced + Degraded)"]
+    done["Promoted: canary ReplicaSet scales to 3 and becomes stable,<br/>Service bluebird repointed at it, old ReplicaSet scaled down"]
+    abort["Aborted: canary scaled to 0, VirtualService never left<br/>100% stable, Rollout Degraded<br/>(Argo CD: Synced + Degraded)"]
     fix["Fix forward: the next release via Path 1<br/>(no rollback; see When a release is bad)"]
 
     apply --> detect --> scale --> vc
@@ -614,7 +613,7 @@ flowchart TD
     abort -.-> fix
 ```
 
-**Step 0 — `setCanaryScale: {replicas: 1}`.** One pod of the *new* version comes
+**Step 0: `setCanaryScale: {replicas: 1}`.** One pod of the *new* version comes
 up behind `Service bluebird-canary`, whose hash selector the controller has
 already repointed at the canary ReplicaSet. The VirtualService is untouched at
 100/0, so ordinary users keep hitting stable for the entire gate. The step
@@ -622,17 +621,17 @@ completes only once that pod counts as Available, which means both analyses
 below are guaranteed to run against a Ready pod and neither needs its own
 startup grace.
 
-**Step 1 — `version-check`, the identity gate.** A `web` provider GETs
+**Step 1: `version-check`, the identity gate.** A `web` provider GETs
 `http://bluebird-canary.bluebird-system.svc.cluster.local:8000/api/version` and
 reads `$.version`. The step passes the image being rolled out into the template
 via `fieldRef` on `spec.template.spec.containers[0].image`, so the condition is
-`hasSuffix("{{args.version}}", ":" + result)` — the canary must report the exact
+`hasSuffix("{{args.version}}", ":" + result)`: the canary must report the exact
 release, not merely something semver-shaped. The `:` is load-bearing: it anchors
 the comparison so a canary reporting `0.29.6` cannot satisfy an image tagged
-`10.29.6` or `0.29.60`. `count: 1`, `failureLimit: 0` — nothing external is in
+`10.29.6` or `0.29.60`. `count: 1`, `failureLimit: 0`: nothing external is in
 the path, so there is nothing legitimate to flake and nothing to retry.
 
-**Step 2 — `api-test`, the functional gate.** Same provider, a single POST to
+**Step 2: `api-test`, the functional gate.** Same provider, a single POST to
 the canary's `/api/destinations` with a fixed body: a known-good polygon (Tiger
 Mountain, Issaquah WA) and `destination_types: [peak]`. The condition is
 `len(result.destinations) >= 1`, so the step passes when the canary finds a
@@ -655,10 +654,10 @@ which is why the controller needs no route back in through the gateway. The
 cost is that ingress and TLS are no longer on the gate path; they are covered by
 the stable traffic that never stopped flowing.
 
-**Step 3 — `error-rate`, the soak gate.** A `prometheus` provider reads the
-canary pods' 5xx share —
-`bluebird_forecast_http_requests_total{role="canary",status=~"5.."}` over the
-same series without the status filter, both as a 2-minute rate — and requires
+**Step 3: `error-rate`, the soak gate.** A `prometheus` provider reads the
+canary pods' 5xx share
+(`bluebird_forecast_http_requests_total{role="canary",status=~"5.."}` over the
+same series without the status filter, both as a 2-minute rate) and requires
 it below `0.05`. `count: 3`, `interval: 60s`, `failureLimit: 1`: three readings
 a minute apart, of which one may fail. **This is 120 s of wall clock and the
 single largest segment of the whole merge-to-live path** (see [Where the time
@@ -694,8 +693,8 @@ Every term keeps `or vector(0)`, so an empty series answers 0 and never errors
 the measurement.
 
 Two things about it are worth stating plainly, because they bound what the
-120 s buys. The `role` label is real — it reaches Prometheus through the
-Rollout's `canaryMetadata`, verified against the live series — so the query is
+120 s buys. The `role` label is real (it reaches Prometheus through the
+Rollout's `canaryMetadata`, verified against the live series) so the query is
 not silently scoped to nothing. But the canary sits at **0% user traffic** for
 the entire gate, so the only requests in that window are the two analysis
 probes above plus the kubelet's `/healthz` probes. What the gate therefore
@@ -706,9 +705,9 @@ than flaking.
 
 **Promotion.** There is no weighted soak: once step 3 passes, the step index
 moves past the end of the list, which lifts the `setCanaryScale` pin. The canary
-ReplicaSet scales up to whatever the HPA asks for, three at the floor, *becomes* stable — the controller
+ReplicaSet scales up to whatever the HPA asks for, three at the floor, *becomes* stable (the controller
 repoints the `bluebird` Service's hash selector at it and returns the route to
-100/0 against the new pods — and the old ReplicaSet scales down. The cutover is
+100/0 against the new pods) and the old ReplicaSet scales down. The cutover is
 therefore all-at-once after the gate rather than gradual. History is kept
 deliberately short for Argo CD UI legibility by a single knob:
 `revisionHistoryLimit: 1`, current plus one previous ReplicaSet. That one knob
@@ -718,12 +717,12 @@ outright, so what survives is the gates of the last two releases. The
 deliberately **not** set: the controller's defaults sit above that cap and
 never bind, and a count low enough to bind is a trap. Those counts are per
 Rollout rather than per release, so anything below the number of analysis steps
-deletes a gate's run the instant it passes — which is what a former
+deletes a gate's run the instant it passes, which is what a former
 `successfulRunHistoryLimit: 1` did, leaving green releases looking like they
 had only ever run one gate.
 
-**Abort.** If any of the three analyses fails — or someone runs `kubectl argo
-rollouts abort` — the canary ReplicaSet scales to zero and the Rollout reports
+**Abort.** If any of the three analyses fails (or someone runs `kubectl argo
+rollouts abort`) the canary ReplicaSet scales to zero and the Rollout reports
 **Degraded**. Nothing has to snap back: the stable ReplicaSet was never scaled
 down and the VirtualService never left 100% stable, so no user request was ever
 served by the version that failed.
@@ -732,14 +731,14 @@ served by the version that failed.
 
 The `bluebird` Application is generated by the `public` ApplicationSet
 (`Kubernetes-Manifests/public/applicationset.yml`) with automated sync, prune,
-and **`selfHeal`** — which would instantly revert the controller's weight
+and **`selfHeal`**, which would instantly revert the controller's weight
 edits mid-rollout. The ApplicationSet therefore carries an
 `ignoreDifferences` jq rule matching exactly the destination weights on the
 three routes the controller weights (`-stable`, `-api-public`, `-api-keyed`),
 so live weight drift is invisible to the diff. A weighted route missing from
 that rule is one `selfHeal` would put back mid-rollout. Argo CD's health assessment understands Rollouts natively: the app shows
 *Progressing* during a canary, *Healthy* at promotion, and *Degraded* after an
-abort **while still being Synced** — an aborted rollout is Rollouts state, not
+abort **while still being Synced**: an aborted rollout is Rollouts state, not
 git drift, so `selfHeal` won't retry it. Remediation flows through git like
 everything else: ship the fix as the next release via Path 1; the next
 pod-template change supersedes the aborted revision and starts a fresh canary.
@@ -1007,7 +1006,7 @@ Three consequences, and two of them are reasons *not* to optimise:
 **`pr.yml` triggers on `pull_request` only.** It used to carry a `push` trigger
 as well, and ran the whole workflow twice per commit: the two events name
 different refs, so the `concurrency` group could not collapse them, and all 20
-sampled runs were such a pair. They ran in parallel, so nobody waited longer —
+sampled runs were such a pair. They ran in parallel, so nobody waited longer:
 the cost was a second set of runners per commit and two races to write the same
 cache keys, which fed straight into the budget problem below. The trade is that
 a branch pushed with no pull request open gets no checks until one is opened.
@@ -1050,7 +1049,7 @@ Where it was going:
 | everything else, mostly live buildx scopes | 819 | 4.53 GB |
 
 GitHub scopes a cache to the ref that wrote it and **never reclaims a closed
-pull request's** — 18 closed, merged pull requests were still holding 32% of
+pull request's**: 18 closed, merged pull requests were still holding 32% of
 the whole budget. `cache-cleanup.yml` now deletes a pull request's caches when
 it closes, through yggdrasil's `cache-cleanup` module, and the npm cache is gone, which together is about 6.2 GB that stops
 competing with the Docker layers.
@@ -1093,7 +1092,7 @@ for amd64 alone since, which only the cluster runs.
 
 `Build & Push` is the multi-arch build, and within it one step dominates.
 In release run `34916818009` the **arm64 `npm run build` took 35.6 s against
-3.0 s for the identical amd64 step** — the emulation penalty on the one stage
+3.0 s for the identical amd64 step**: the emulation penalty on the one stage
 whose output does not depend on the architecture at all. Everything else in the
 arm64 half was a cache hit. That is why the Dockerfile's frontend stage is
 pinned with `--platform=$BUILDPLATFORM`: the stage runs once, natively, and both
@@ -1121,8 +1120,8 @@ sources named in the last column.
 | merged → Argo CD begins syncing | 43 s | 4–182 s | merge commit → `Application.status.history[].deployStartedAt` (n=9) |
 | Argo CD applies the sync | 4 s | 3–8 s | `deployStartedAt` → `deployedAt` (n=9) |
 | canary pod up (`setCanaryScale`) | 21 s | 21 s | Rollout step 0 → 1 (revisions 206, 207) |
-| `version-check` | 1 s | — | Rollout step 1 → 2 (revision 206) |
-| `api-test` | under 1 s | — | Revision 56 (2026-10-28), the first rollout on the discovery gate: its one measurement started and finished in the same second. The 13 s median of revisions 206 and 207 was the analyze gate's, before #787 |
+| `version-check` | 1 s | None | Rollout step 1 → 2 (revision 206) |
+| `api-test` | under 1 s | None | Revision 56 (2026-10-28), the first rollout on the discovery gate: its one measurement started and finished in the same second. The 13 s median of revisions 206 and 207 was the analyze gate's, before #787 |
 | `error-rate` | **120 s** | fixed | Rollout step 3 → 4 (revisions 206, 207) |
 | promotion + service cutover | 23 s | 21–25 s | step 4 → `RolloutCompleted` |
 | stable scale-up, old ReplicaSet down | 30 s | 30–31 s | `RolloutCompleted` → `RolloutHealthy` |
@@ -1207,8 +1206,7 @@ flowchart LR
   a `FROM` line reads no file. `backend/tests/test_node_version.py` fails when that tag and the
   file disagree, so CI always tests the runtime the image builds with.
 - `pr.yml`'s frontend job runs `npm run check:api` before the typecheck. The
-  SPA's wire types are hand-written, and `frontend/src/api-schema.d.ts` —
-  generated from the committed snapshot above — is what the typecheck holds them
+  SPA's wire types are hand-written, and `frontend/src/api-schema.d.ts` (generated from the committed snapshot above) is what the typecheck holds them
   against, so the same contract change has to land on both sides of the repo in
   one PR. Regenerate with `cd frontend && npm run generate:api`. The generator
   is a package of its own (`frontend/tools/api-types`, with its own lockfile, which
@@ -1445,7 +1443,7 @@ which scans both platforms of the pushed digest before production moves. This
 job is the later check: CVEs disclosed after that scan, on the amd64 half.
 
 - **Always:** SARIF upload → code-scanning alerts in the repo **Security tab**.
-- **Gate:** the job fails — triggering GitHub's workflow-failure email — only
+- **Gate:** the job fails (triggering GitHub's workflow-failure email) only
   when a **fixable Critical/High** vulnerability exists, i.e. only when there
   is something to do. It refuses through Trivy's own `severity` and
   `exit-code` inputs, as the PR gate does, and the failure names each image's
@@ -1561,7 +1559,7 @@ The merge is the Renovate app's, so no token of this repo drives it. A merge
 made with the default `GITHUB_TOKEN` would be suppressed by GitHub's recursion
 guard and never fire `release.yml`'s `on: push`, so the update would land on
 `main` but never ship. An app's merge does fire it, so an auto-merged
-update deploys through Path 1 like any other merge — the prod canary still gates
+update deploys through Path 1 like any other merge: the prod canary still gates
 the rollout.
 
 The same trap applies to Path 1 step 6's auto-merged `appVersion` bump, which is
@@ -1600,7 +1598,7 @@ sequenceDiagram
 
 That last step is specific to an `appVersion`-only chart release, where the pod
 template never changes. A chart release that alters prod's render lands the same
-way and rolls out as a canary — see [What a stable chart bump
+way and rolls out as a canary: see [What a stable chart bump
 costs](#what-a-stable-chart-bump-costs).
 
 ## Conventions
