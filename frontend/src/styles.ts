@@ -3518,7 +3518,9 @@ export const HOUR_STRIP = {
  * on the raised ground, and under it, across the table, the summit against
  * the cloud (`profile` and its marks, boxes placed in percentages), a key, the facts in two
  * rows of four, and the row's two actions. The profile's marks are the
- * theme's own inks: the deck in the soft ink, nights on the panel's ground,
+ * theme's own inks: the deck in the soft ink, nights under the scrim, which
+ * darkens the ground in either theme where the panel's ground lightened it in
+ * the light one,
  * the summit and the best four hours in the strong ink and the freezing level
  * in the accent, dashed, as the prototype keys it.
  */
@@ -3526,7 +3528,7 @@ export const OPENED_ROW = {
   row: 'bg-raised',
   cell: 'bg-raised px-3 pb-3 pt-1',
   profile: `relative h-28 overflow-hidden ${RADIUS.control} bg-recessed`,
-  night: 'absolute inset-y-0 bg-panel',
+  night: 'absolute inset-y-0 bg-scrim/20',
   cloud: 'absolute bg-ink-soft/45',
   summit: 'absolute inset-x-0 h-0.5 -translate-y-1/2 bg-ink-strong',
   freeze: 'absolute border-t-2 border-dashed border-accent',
