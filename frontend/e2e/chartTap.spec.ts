@@ -6,11 +6,9 @@ import type { Page } from '@playwright/test'
 // before its click, so on a phone a tap did nothing. The playhead is read from
 // the transport's range input, which is the map's own record of the hour.
 
-// 780 tall rather than 740 since the foot's days drew a sky track (record
-// 0333): at 740 the chart's own height holds the sheet's top at 343px, and
-// the player wants the map down to 352 to stand between the rows and the
-// foot, so it is not drawn while the chart is up there.
-test.use({ viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true })
+// 844 tall, so the plot keeps 150px with the sheet lowered under its
+// Chart stop, which the taller foot moved down (record 0333).
+test.use({ viewport: { width: 360, height: 844 }, hasTouch: true, isMobile: true })
 
 // A phone's chart reads the hour under a finger with the player on screen,
 // so the sheet stands at its own height rather than the full stop Chart
@@ -33,11 +31,12 @@ async function openChart(page: Page) {
   const grip = (await page.locator('.cursor-ns-resize').last().boundingBox())!
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
   await page.mouse.down()
-  // Chart lifts the sheet to its full stop (record 0155), where the map
-  // above has no room for the player over the foot's card (`transportFits`),
-  // so the grip brings it down to its own height: the plot still stands
-  // taller than 150px there (190px at 500x757 in the preview, 2026-11-21).
-  await page.mouse.move(grip.x + grip.width / 2, 480, { steps: 10 })
+  // Chart lifts the sheet to its stop (record 0155), which leaves the player
+  // exactly its room over the foot's card (`transportFits`), so the grip
+  // brings it 24px lower to stand clear of a pixel's drift. Relative to the
+  // grip, because the stop moves with the foot's height: a fixed y of 480
+  // dragged the sheet up once the foot grew a sky track (record 0333).
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + 24, { steps: 10 })
   await page.mouse.up()
   await expect.poll(async () => (await surface.boundingBox())!.height).toBeGreaterThan(150)
   return (await surface.boundingBox())!
