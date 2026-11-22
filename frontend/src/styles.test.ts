@@ -4969,10 +4969,11 @@ describe('the panel frame', () => {
   // they carry no two-row cap of their own.
   it('stands a desk\'s results in a column of bounded width', () => {
     const cols = RESULTS_COLUMN.column.split(' ')
-    expect(cols).toContain('w-[clamp(26rem,34vw,36rem)]')
+    // The prototype's proportion (record 0325): 44% of the window, 420 to 640px.
+    expect(cols).toContain('w-[clamp(26.25rem,44vw,40rem)]')
     // A drag on its left edge stops at the class's own floor (`columnWidthPx`),
     // and the grip stands in the column's box.
-    expect(COLUMN_MIN_PX).toBe(26 * 16)
+    expect(COLUMN_MIN_PX).toBe(26.25 * 16)
     expect(cols).toContain('relative')
     expect(cols).toEqual(expect.arrayContaining(['flex-col', 'flex-shrink-0', 'border-l', PANEL_EDGE, 'bg-panel']))
     expect(RESULTS_COLUMN.chips).not.toMatch(/max-h-/)

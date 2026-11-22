@@ -213,7 +213,7 @@ describe('ResultsSheet', () => {
     fireEvent.pointerMove(document, { clientX: 850, clientY: 300, pointerType: 'mouse' })
     expect(column.style.width).toBe('500px')
     fireEvent.pointerMove(document, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
-    expect(column.style.width).toBe('416px')
+    expect(column.style.width).toBe('420px')
     fireEvent.pointerUp(document, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
     fireEvent.pointerDown(grip, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
     expect(column.style.width).toBe('')

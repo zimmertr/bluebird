@@ -1,6 +1,6 @@
 # 0312. A desk stands its results in a column down the map's right edge
 
-- Status: Proposed, in the from-scratch UI PR; the chart's pane under the map superseded by [0321](0321-the-column-widens-over-the-map-for-every-column.md)
+- Status: Proposed, in the from-scratch UI PR; the chart's pane under the map superseded by [0321](0321-the-column-widens-over-the-map-for-every-column.md); the width amended by [0325](0325-the-column-takes-the-prototypes-proportion.md)
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, choosing "Pane under the map" for the chart
 - Issues and PRs: #825

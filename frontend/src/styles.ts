@@ -3241,7 +3241,13 @@ export const RESULTS_PANE = {
  * on the map's right edge that brings a collapsed column back.
  */
 export const RESULTS_COLUMN = {
-  column: `relative flex w-[clamp(26rem,34vw,36rem)] flex-shrink-0 flex-col border-l ${PANEL_EDGE} bg-panel`,
+  /**
+   * The column down a desk's right edge (record 0312), at the prototype's
+   * proportion since record 0325: 44% of the window, never under 420px, where
+   * the compact table's name, score, two days of hours, wind and low fit, and
+   * never over 640px, past which the map gives up room the rows do not use.
+   */
+  column: `relative flex w-[clamp(26.25rem,44vw,40rem)] flex-shrink-0 flex-col border-l ${PANEL_EDGE} bg-panel`,
   /**
    * The column widened over the map by its expand button (record 0321), the
    * prototype's: from the right edge across most of the window, every column,
@@ -3487,15 +3493,16 @@ export const HOUR_STRIP = {
    * than by height, the bracket in the strong ink so it reads on any score.
    * The day blocks share one `gap` and one width with the header's day names
    * (`dayHead`), so each name stands over its own block. A fixed width, the
-   * prototype's at a column of its usual size, because a cell asking for the
-   * table's spare width widened the table past the column (2026-11-21).
+   * prototype's (two days in about 128px, its hours flush, record 0325),
+   * because a cell asking for the table's spare width widened the table past
+   * the column, and 160px a day left Wind and Low off its edge (2026-11-21).
    */
-  days: 'flex h-5 w-40 gap-1',
-  day: 'flex min-w-0 flex-1 basis-0 gap-px',
+  days: 'flex h-5 w-32 gap-1',
+  day: 'flex min-w-0 flex-1 basis-0',
   cell: 'h-full min-w-px flex-1 basis-0',
-  run: 'relative flex basis-0 gap-px',
+  run: 'relative flex basis-0',
   bracket: 'pointer-events-none absolute inset-x-0 -bottom-1.5 h-[7px] rounded-b-sm border-x-2 border-b-[3px] border-ink-strong',
-  dayHead: 'flex w-40 gap-1 text-left',
+  dayHead: 'flex w-32 gap-1 text-left',
   dayName: 'min-w-0 flex-1 basis-0 truncate',
 } as const
 
