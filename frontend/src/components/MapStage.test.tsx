@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { createRef, type ReactNode } from 'react'
 import MapStage, { type MapStageProps } from './MapStage'
 import type { MapViewHandle } from './MapView'
@@ -10,6 +10,9 @@ import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { DRAGGED_MAP_PX, FAB_INSET_PX, phoneCornerLiftPx, transportStandPx } from '../utils/results/resultsSheet'
 import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
 import type { Place } from '../utils/geocode'
+import type { BandLimits } from '../utils/calendar/calendar'
+
+const BAND: BandLimits = { forecastHours: 384, pastDays: 365, aqiDays: 5 }
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
 // about is what reaches it: the props of every render are kept here.
@@ -37,7 +40,7 @@ vi.mock('./TimelineTransport', () => ({
 vi.mock('./PhoneFoot', () => ({
   default: (props: {
     fabBottomPx: number
-    onFabPx: (px: number) => void
+    strip: ReactNode
     analyzeEnabled: boolean
     word: string
     onAnalyze: () => void
@@ -51,7 +54,7 @@ vi.mock('./PhoneFoot', () => ({
       data-count={String(props.messages.count)}
       data-covered={String(props.covered)}
     >
-      <button onClick={() => props.onFabPx(120)}>Fab</button>
+      {props.strip && <div data-testid="foot-strip">{props.strip}</div>}
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
         Analyze
       </button>
@@ -503,16 +506,16 @@ describe('MapStage', () => {
     expect(screen.getByTestId('foot').dataset.covered).toBe('true')
   })
 
-  // The opened credit line stops short of the button (map.css), so a phone
-  // publishes the width it measured; a desk has no button.
-  it('publishes the button\'s width on a phone', () => {
-    const { container, rerender } = render(<MapStage {...props()} />)
-    const stage = () => container.firstElementChild as HTMLElement
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('')
+  // A phone's foot holds the strip's days (record 0329), and the strip
+  // stands nowhere else on a phone; a desk's strip is its own card.
+  it('hands a phone\'s foot the strip\'s days', () => {
+    const dayStrip = { selection: { kind: 'now' } as const, onSelection: () => {}, band: BAND }
+    const { container, rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false, dayStrip })} />)
+    expect(within(screen.getByTestId('foot-strip')).getByRole('group', { name: 'Forecast day' })).toBeTruthy()
+    expect(screen.getAllByRole('group', { name: 'Forecast day' })).toHaveLength(1)
+    expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--map-fab-w')).toBe('')
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('0px')
-    fireEvent.click(screen.getByRole('button', { name: 'Fab' }))
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('120px')
+    expect(screen.queryByTestId('foot-strip')).toBeNull()
   })
 
   // A sheet at its highest leaves the button its strip and no room for the

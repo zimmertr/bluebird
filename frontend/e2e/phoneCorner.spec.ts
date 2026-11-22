@@ -42,10 +42,11 @@ for (const width of [360, 390]) {
     const opened = await bottoms(page)
     test.info().annotations.push({ type: `corner ${width} px opened`, description: JSON.stringify(opened) })
     expect(Math.abs(opened.credit - (opened.footTop - 10))).toBeLessThanOrEqual(1)
-    // Taller than the row, so it grew up from the shared edge, and it runs to
-    // its own 10px margin off the map's right edge.
+    // Taller than the row, so it grew up from the shared edge, and it wraps
+    // inside its own 10px margin off the map's right edge, with no button
+    // beside it to stop short of.
     expect(opened.creditTop).toBeLessThan(opened.credit - 24)
-    expect(Math.round(opened.mapRight - opened.creditRight)).toBe(10)
+    expect(opened.mapRight - opened.creditRight).toBeGreaterThanOrEqual(9.5)
   })
 }
 
