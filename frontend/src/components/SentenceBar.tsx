@@ -3,7 +3,7 @@ import { MenuButton } from './Menu'
 import PanelFooter from './PanelFooter'
 import type { PanelSection } from './ControlPanel'
 import { type AutoAnalyzeStep, autoAnalyzeStep } from '../utils/analyzeGate'
-import { MAP_CHIP_SUMMARY_TEXT, SENTENCE_BAR } from '../styles'
+import { MAP_CHIP_SUMMARY_TEXT, SENTENCE_BAR, SR_ONLY } from '../styles'
 import { logoUrl } from '../logo'
 import { UP_TO_DATE } from '../utils/sentenceBar'
 
@@ -27,6 +27,12 @@ interface Props {
   onAutoAnalyze: (step: Exclude<AutoAnalyzeStep, 'wait'>) => void
   /** What stands after the button: the theme switch, which the panel's header held. */
   trail?: ReactNode
+  /**
+   * A phone's bar (record 0328): the logo and the phrases on one line, each
+   * phrase raising the Controls sheet through `onCard`. The Forecast button
+   * is the map's own at its foot, and the sheet runs a link's one Forecast.
+   */
+  phone?: boolean
 }
 
 /**
@@ -49,6 +55,7 @@ export default function SentenceBar({
   capabilitiesSettled,
   onAutoAnalyze,
   trail,
+  phone = false,
 }: Props) {
   const toggle = (section: PanelSection) => onCard(card === section ? null : section)
   // The message list's width: the chips and the button, as one span.
@@ -59,7 +66,7 @@ export default function SentenceBar({
   const gateOpen = footer.analyzeEnabled
   useEffect(() => {
     const step = autoAnalyzeStep({
-      requested: autoAnalyze,
+      requested: autoAnalyze && !phone,
       capabilitiesSettled,
       gateOpen,
       fired: autoFiredRef.current,
@@ -67,7 +74,42 @@ export default function SentenceBar({
     if (step === 'wait') return
     autoFiredRef.current = true
     onAutoAnalyze(step)
-  }, [autoAnalyze, capabilitiesSettled, gateOpen, onAutoAnalyze])
+  }, [autoAnalyze, capabilitiesSettled, gateOpen, onAutoAnalyze, phone])
+
+  const phrases = (
+    <>
+      {/* What and where both open the Where card, which holds both. */}
+      <MenuButton shape="slot" data-card="destinations" open={card === 'destinations'} onClick={() => toggle('destinations')} className={SENTENCE_BAR.slot}>
+        <span className={MAP_CHIP_SUMMARY_TEXT}>{what}</span>
+      </MenuButton>
+      {area !== null && (
+        <>
+          <span className={SENTENCE_BAR.word}>in</span>
+          <MenuButton shape="slot" data-card="destinations" open={card === 'destinations'} onClick={() => toggle('destinations')} className={SENTENCE_BAR.slot}>
+            <span className={MAP_CHIP_SUMMARY_TEXT}>{area}</span>
+          </MenuButton>
+        </>
+      )}
+      {whenWord !== null && <span className={SENTENCE_BAR.word}>{whenWord}</span>}
+      <MenuButton shape="slot" data-card="forecast" open={card === 'forecast'} onClick={() => toggle('forecast')} className={SENTENCE_BAR.slot}>
+        <span className={MAP_CHIP_SUMMARY_TEXT}>{when}</span>
+      </MenuButton>
+    </>
+  )
+
+  // A phone's bar gives the name's width to the phrases, and keeps the page's
+  // heading for a screen reader.
+  if (phone) {
+    return (
+      <div className={SENTENCE_BAR.phoneRow}>
+        <img src={logoUrl} alt="" width={256} height={256} className={SENTENCE_BAR.phoneLogo} />
+        <h1 className={SR_ONLY}>Bluebird Forecast</h1>
+        <div role="group" aria-label="Forecast" className={SENTENCE_BAR.phoneGroup}>
+          {phrases}
+        </div>
+      </div>
+    )
+  }
 
   return (
     // One card holding the name, the sentence and the button (record 0314).
@@ -79,22 +121,7 @@ export default function SentenceBar({
         <h1 className={SENTENCE_BAR.name}>Bluebird Forecast</h1>
       </div>
       <div ref={groupRef} role="group" aria-label="Forecast" className={SENTENCE_BAR.group}>
-        {/* What and where both open the Where card, which holds both. */}
-        <MenuButton shape="slot" data-card="destinations" open={card === 'destinations'} onClick={() => toggle('destinations')} className={SENTENCE_BAR.slot}>
-          <span className={MAP_CHIP_SUMMARY_TEXT}>{what}</span>
-        </MenuButton>
-        {area !== null && (
-          <>
-            <span className={SENTENCE_BAR.word}>in</span>
-            <MenuButton shape="slot" data-card="destinations" open={card === 'destinations'} onClick={() => toggle('destinations')} className={SENTENCE_BAR.slot}>
-              <span className={MAP_CHIP_SUMMARY_TEXT}>{area}</span>
-            </MenuButton>
-          </>
-        )}
-        {whenWord !== null && <span className={SENTENCE_BAR.word}>{whenWord}</span>}
-        <MenuButton shape="slot" data-card="forecast" open={card === 'forecast'} onClick={() => toggle('forecast')} className={SENTENCE_BAR.slot}>
-          <span className={MAP_CHIP_SUMMARY_TEXT}>{when}</span>
-        </MenuButton>
+        {phrases}
         <PanelFooter {...footer} bar={{ label, widthRef: groupRef, quiet: label === UP_TO_DATE }} />
       </div>
       {trail}

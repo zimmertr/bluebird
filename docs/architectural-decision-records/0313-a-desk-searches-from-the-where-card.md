@@ -1,6 +1,6 @@
 # 0313. A desk searches for places from the Where card
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amended by 0328 (a phone's search heads the Controls sheet too).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, choosing "Inside the Where card" for the place search
 - Issues and PRs: #825

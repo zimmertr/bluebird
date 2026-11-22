@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import SearchBox, { type SearchBoxHandle } from './SearchBox'
 import { IconMenu } from './icons'
 import { MenuButton } from './Menu'
@@ -35,7 +35,9 @@ interface MapRowsProps {
   legend: ReactNode
   /**
    * At a desk, the sentence bar that stands where the Controls chip stood,
-   * and the card one of its chips opened, under the chips (record 0309).
+   * and the card one of its chips opened, under the chips (record 0309). On a
+   * phone the bar stands where the search pill stood, and the Controls chip
+   * goes, since each phrase raises the sheet (record 0328).
    */
   bar?: ReactNode
   barCard?: ReactNode
@@ -83,12 +85,21 @@ export default function MapRows({
 }: MapRowsProps) {
   const summaryId = useId()
   const [searching, setSearching] = useState(false)
-  const summaryShown = (!desk || !sidebarOpen) && !(desk && bar)
+  const phoneBar = !desk && bar !== undefined && bar !== null
+  const summaryShown = (!desk || !sidebarOpen) && !bar
 
   // Stands in for the Controls sheet's Done, or the desk panel's Close, so it
   // takes the keyboard when that button goes inert under it (#576).
   const controlsRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(controlsRef, !sidebarOpen)
+  // A phone's bar holds the way back instead: its When phrase, the one the
+  // sheet's Done stands in for as the chip did.
+  const barRef = useRef<HTMLDivElement>(null)
+  const barFocusRef = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    barFocusRef.current = barRef.current?.querySelector<HTMLElement>('[data-card="forecast"]') ?? null
+  })
+  useTakeOrphanedFocus(barFocusRef, phoneBar && !sidebarOpen)
 
   return (
     // A popup keeps clear of the rows (`resultsLayer.ts` finds every
@@ -97,7 +108,12 @@ export default function MapRows({
       {/* A desk's bar is a card taller than a chip, on a row of its own height (record 0314). */}
       <div className={desk && bar ? MAP_ROWS.barRow : MAP_ROWS.row}>
         {/* A desk's search is in the Where card (record 0313). */}
-        {!(desk && bar) && (
+        {phoneBar && (
+          <div ref={barRef} className={MAP_ROWS.pill}>
+            {bar}
+          </div>
+        )}
+        {!bar && (
           <div className={searching ? MAP_ROWS.pillWide : MAP_ROWS.pill}>
             <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} onExpandedChange={setSearching} />
           </div>

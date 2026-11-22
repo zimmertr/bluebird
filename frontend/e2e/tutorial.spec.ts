@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { test, expect, resultRows, forecastButton, everyColumn, narrowColumn } from './fixtures'
+import { test, expect, resultRows, forecastButton, everyColumn, narrowColumn, controlsPhrase } from './fixtures'
 
 // The guided tutorial (#536), walked the way a reader walks it. The unit
 // suites pin the steps, the placement arithmetic and the source anchors; this
@@ -422,7 +422,7 @@ test.describe('on a phone with a report', () => {
     await page.getByRole('button', { name: 'Collapse results' }).first().tap()
     await expect(page.getByRole('button', { name: 'Expand results' }).first()).toBeVisible()
 
-    await page.getByRole('button', { name: 'Open controls' }).tap()
+    await controlsPhrase(page).tap()
     const link = page.getByRole('dialog', { name: 'Controls' }).getByRole('link', { name: 'Tutorial' })
     await link.scrollIntoViewIfNeeded()
     await link.tap()

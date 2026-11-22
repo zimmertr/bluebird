@@ -102,4 +102,20 @@ describe('SentenceBar', () => {
     const buttons = screen.getAllByRole('button').map((b) => b.textContent)
     expect(buttons[buttons.length - 1]).toBe('Theme')
   })
+
+  // A phone's bar (record 0328): the logo and the phrases on one line, each
+  // raising the Controls sheet, with no button and no run of its own, since
+  // the map's button spends and the sheet runs a link's one Forecast.
+  it('on a phone carries the phrases alone, and leaves a link\'s run to the sheet', () => {
+    const onCard = vi.fn()
+    const onAutoAnalyze = vi.fn()
+    render(<SentenceBar {...props({ phone: true, onCard, autoAnalyze: true, onAutoAnalyze })} />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Bluebird Forecast' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Forecast 247 peaks' })).toBeNull()
+    expect(screen.queryByText('Bluebird Forecast', { selector: 'h1:not(.sr-only)' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Sat 21 – Sun 22' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Peaks' }))
+    expect(onCard.mock.calls.map((c) => c[0])).toEqual(['forecast', 'destinations'])
+    expect(onAutoAnalyze).not.toHaveBeenCalled()
+  })
 })

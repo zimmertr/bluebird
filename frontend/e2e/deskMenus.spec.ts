@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, isoDay, forecastButton, openCard, everyColumn } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, isoDay, forecastButton, openCard, everyColumn, controlsPhrase } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every menu at a desk is the one menu (#714, record 0201): a card 4px under
@@ -275,7 +275,7 @@ test.describe('on a phone', () => {
   test('the model list and the calendar open as bottom sheets', async ({ page }) => {
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Open controls' }).tap()
+    await controlsPhrase(page).tap()
 
     await page.getByRole('button', { name: /^Forecast model:/ }).tap()
     const models = page.getByRole('dialog', { name: 'Model' })
@@ -305,7 +305,7 @@ test.describe('on a phone', () => {
     await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await expect(page.locator('select')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Open controls' }).tap()
+    await controlsPhrase(page).tap()
     const field = page.getByRole('button', { name: /^Temperature aggregate / })
     await field.tap()
     const sheet = page.getByRole('dialog', { name: 'Temperature aggregate' })

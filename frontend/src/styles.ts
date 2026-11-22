@@ -3192,6 +3192,20 @@ export const SENTENCE_BAR = {
    * narrow map shows a clipped phrase rather than an empty chip.
    */
   slot: 'min-w-14',
+  /**
+   * A phone's bar (record 0328): one 32px line where the search pill stood,
+   * the logo and the phrases, each phrase cutting its words, because every
+   * phone anchor (the draw bar, the compass, the sheets' and the player's
+   * room) is worked out from the two rows' fixed heights, which a wrapping
+   * bar would move. The Forecast button stays at the map's foot.
+   */
+  phoneRow:
+    `pointer-events-auto flex h-full w-full min-w-0 items-center gap-1 bg-floating/95 border border-edge ` +
+    `${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm pl-1.5 pr-0.5`,
+  phoneLogo: 'h-5 w-5 flex-shrink-0 rounded-full object-cover',
+  phoneGroup: 'flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden',
+  /** The place search at the head of a phone's Controls sheet (record 0328). */
+  phoneSearch: 'relative z-[1] h-9 flex-shrink-0 mx-4 mt-3',
   /** The draw bar at a desk, hung where the cards hang and as wide as one. */
   drawBar: `${SURFACE_FLOATING} pointer-events-auto flex w-90 items-center gap-2 px-3 py-1.5`,
 } as const
@@ -3350,8 +3364,13 @@ export const CONTROLS_SHEET = {
     `absolute inset-x-0 bottom-0 ${LAYER.drawer} flex flex-col overflow-hidden ` +
     `bg-panel border-t border-frame rounded-t-xl ${ELEVATION.overlay} ${MOTION.slide} focus:outline-none`,
   shut: 'translate-y-full',
-  /** The panel under the sheet's top, which takes the rest and scrolls inside. */
-  panel: 'min-h-0 flex-1',
+  /**
+   * The panel under the sheet's top, which takes the rest and scrolls inside,
+   * under the place search that heads it (record 0328).
+   */
+  panel: 'flex min-h-0 flex-1 flex-col',
+  /** The panel itself under that search, the column's remaining height. */
+  panelBody: 'min-h-0 flex-1',
   /**
    * The panel's scrolling body on a phone: its own 16px at the end, the gap
    * the stack keeps above each rule, plus the home indicator band

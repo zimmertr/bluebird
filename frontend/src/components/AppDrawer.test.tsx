@@ -229,6 +229,15 @@ describe('AppDrawer', () => {
       expect(container.contains(sheet())).toBe(true)
     })
 
+    // The place search heads the sheet now that the sentence bar stands where
+    // its pill stood (record 0328), over the panel rather than in it.
+    it('heads the sheet with the place search it is handed', () => {
+      render(phone(true, NOOP, { search: <input aria-label="Search for a place" /> }))
+      const search = screen.getByRole('textbox', { name: 'Search for a place' })
+      expect(sheet().contains(search)).toBe(true)
+      expect(search.compareDocumentPosition(screen.getByTestId('panel')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
     // On a phone the menu is the Controls sheet's alone, in its title row
     // beside Done (#706), and its rows open in a sheet headed Theme (#843).
     it('carries the theme menu in its title row, beside Done', () => {

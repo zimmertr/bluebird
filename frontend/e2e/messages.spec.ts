@@ -1,4 +1,4 @@
-import { test, expect, drawRing, expectRanked, message, resultRows, DESTINATION_NAMES, forecastButton, openCard } from './fixtures'
+import { test, expect, drawRing, expectRanked, message, resultRows, DESTINATION_NAMES, forecastButton, openCard, controlsPhrase } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // The Analyze button counts the panel's messages in a badge at its corner and
@@ -162,7 +162,7 @@ for (const [width, height] of [
       await forecastButton(page.getByRole('main')).click()
       await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
       const before = await count(page)
-      await page.getByRole('button', { name: 'Open controls' }).tap()
+      await controlsPhrase(page).tap()
       const controls = page.getByRole('dialog', { name: 'Controls' })
       await controls.getByRole('checkbox', { name: 'Lakes', exact: true }).check()
       await controls.getByRole('button', { name: 'Done' }).tap()

@@ -1,4 +1,4 @@
-import { test, expect, resultRows, isoDay } from './fixtures'
+import { test, expect, resultRows, isoDay, forecastButton } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A phone's results sheet goes to full screen when its grip is dragged to the
@@ -18,14 +18,14 @@ async function dragTo(page: Page, from: { x: number; y: number }, toY: number) {
 test('the results sheet goes full screen dragged to the top, and comes back down', async ({ page }) => {
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const analyze = page.getByRole('main').getByRole('button', { name: 'Analyze' })
+  const analyze = forecastButton(page.getByRole('main'))
   await analyze.tap()
   await expect(resultRows(page).first()).toBeAttached()
 
   const sheet = page.locator('[data-tour="results"]')
   // By CSS rather than by role: under a full-screen sheet both are inert,
   // which takes them out of the accessibility tree a role query reads.
-  const controls = page.locator('button[aria-label="Open controls"]')
+  const controls = page.locator('[role="group"][aria-label="Forecast"] [data-card="forecast"]')
   const fab = page.locator('[data-tour="analyze"]')
   const resting = (await sheet.boundingBox())!
   expect(resting.y).toBeGreaterThan(300)
@@ -69,7 +69,7 @@ test('the results sheet goes full screen dragged to the top, and comes back down
 test('a release short of the top falls back to the strip under the chips', async ({ page }) => {
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const analyze = page.getByRole('main').getByRole('button', { name: 'Analyze' })
+  const analyze = forecastButton(page.getByRole('main'))
   await analyze.tap()
   await expect(resultRows(page).first()).toBeAttached()
 

@@ -218,10 +218,10 @@ test('a link carrying terrain and no camera opens tilted, with the button presse
   await expect(page.locator('.maplibregl-ctrl-compass')).toBeEnabled()
 })
 
-// On a phone the 3D button stands in the search row, left of the locate
-// button, the same round button 8px from it, and the pill ends 8px short of
-// it. The chip row keeps its own end for the map (`legendClickThrough`). The
-// pill still holds its placeholder whole at the narrowest phone.
+// On a phone the 3D button stands in the top row, left of the locate button,
+// the same round button 12px from it, and the sentence bar ends 12px short of
+// it (record 0328), where the search pill did. The chip row keeps its own end
+// for the map (`legendClickThrough`).
 for (const width of [360, 390]) {
   test(`a phone stands the 3D button beside the locate button at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
@@ -229,28 +229,22 @@ for (const width of [360, 390]) {
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     const at = await page.evaluate(() => {
       const box = (el: Element) => el.getBoundingClientRect()
-      const input = document.querySelector('input[placeholder="Search for a destination"]') as HTMLInputElement
-      const pill = input.closest('.rounded-full') as HTMLElement
-      const cs = getComputedStyle(input)
-      const ctx = document.createElement('canvas').getContext('2d')!
-      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+      const group = document.querySelector('[role="group"][aria-label="Forecast"]')!
+      const layers = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Layers')!
       return {
         terrain: box(document.querySelector('button[aria-label="3D terrain"]')!).toJSON(),
         locate: box(document.querySelector('.maplibregl-ctrl-geolocate')!).toJSON(),
-        pill: box(pill).toJSON(),
-        field: input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
-        words: ctx.measureText(input.placeholder).width,
-        chipRow: box(document.querySelector('button[aria-label="Open controls"]')!.parentElement!).toJSON(),
+        bar: box(group.parentElement!).toJSON(),
+        layers: box(layers).toJSON(),
       }
     })
-    test.info().annotations.push({ type: `search row ${width} px`, description: JSON.stringify(at) })
+    test.info().annotations.push({ type: `top row ${width} px`, description: JSON.stringify(at) })
     expect(at.terrain.width).toBe(32)
     expect(at.terrain.height).toBe(at.locate.height)
     expect(at.terrain.top).toBe(at.locate.top)
     expect(Math.round(at.locate.left - at.terrain.right)).toBe(12)
-    expect(Math.round(at.terrain.left - at.pill.right)).toBe(12)
+    expect(Math.round(at.terrain.left - at.bar.right)).toBe(12)
     // Not in the chip row.
-    expect(at.terrain.bottom).toBeLessThanOrEqual(at.chipRow.top)
-    expect(at.words).toBeLessThanOrEqual(at.field)
+    expect(at.terrain.bottom).toBeLessThanOrEqual(at.layers.top)
   })
 }

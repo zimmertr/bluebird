@@ -14,6 +14,7 @@ import AppDrawer from './components/AppDrawer'
 import type { ScoreColouring } from './utils/resultFeatures'
 import MapDrawBar from './components/MapDrawBar'
 import SentenceBar from './components/SentenceBar'
+import SearchBox from './components/SearchBox'
 import DocLinks from './components/DocLinks'
 import ThemeMenu from './components/ThemeMenu'
 import type { PanelSection } from './components/ControlPanel'
@@ -951,6 +952,51 @@ export default function App() {
     noun: discoveryNoun(destinationTypes, customCount > 0),
   })
   const closeBarCard = () => setBarCard(null)
+  // A phone's phrases raise the Controls sheet, and the same phrase lowers it
+  // (record 0328); which one was pressed is held only to light it.
+  const phoneCard = useCallback(
+    (card: PanelSection | null) => {
+      setBarCard(card)
+      if (card === null) closeDrawer()
+      else openDrawer()
+    },
+    [closeDrawer, openDrawer],
+  )
+  const phoneBarNode = (
+    <SentenceBar
+      {...wherePhrases(destinationTypes, searchArea.source, customCount)}
+      when={whenLabel(selection, new Date())}
+      whenWord={whenWord(selection)}
+      card={sidebarOpen ? barCard : null}
+      onCard={phoneCard}
+      label={barLabel}
+      footer={{
+        analyzeEnabled: shownMessages.analyzeEnabled,
+        word,
+        onAnalyze: handleAnalyze,
+        onTutorial: tour.start,
+        tutorialWaits: tourWaits,
+        messages: shownMessages,
+      }}
+      autoAnalyze={false}
+      capabilitiesSettled={capsApplied}
+      onAutoAnalyze={runAutoAnalyze}
+      phone
+    />
+  )
+  // A phone's place search, at the head of the Controls sheet now that the
+  // bar stands where its pill stood (record 0328). A pick lowers the sheet so
+  // the camera's move is seen.
+  const phoneSearch = (
+    <SearchBox
+      onSelect={(place) => {
+        mapRef.current?.flyToPlace(place, layout.sheetPadBottomPx)
+        removals.registerPlace(place)
+        closeDrawer()
+      }}
+      pointed={searchPointed}
+    />
+  )
   const barNode = isDesktop ? (
     <SentenceBar
       {...wherePhrases(destinationTypes, searchArea.source, customCount)}
@@ -972,7 +1018,9 @@ export default function App() {
       onAutoAnalyze={runAutoAnalyze}
       trail={<ThemeMenu choice={themeChoice} onChoice={setThemeChoice} />}
     />
-  ) : null
+  ) : (
+    phoneBarNode
+  )
   const cornerLinks = isDesktop ? (
     <DocLinks onTutorial={tour.start} tutorialWaits={tourWaits} className={TEXT.caption} />
   ) : null
@@ -1016,7 +1064,7 @@ export default function App() {
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
 
-      {!isDesktop && renderDrawer()}
+      {!isDesktop && renderDrawer({ card: null, onCardClose: closeDrawer, search: phoneSearch })}
 
       {/* Map + results column. On a phone the results leave the flow and stand
           on the map as a sheet, so the column is what positions them; on
@@ -1061,6 +1109,7 @@ export default function App() {
           controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
           messages={shownMessages}
           actionWord={word}
+          actionLabel={barLabel}
           onAnalyze={handleAnalyze}
           layersForcedOpen={tour.layersOpen}
           searchPointed={searchPointed}

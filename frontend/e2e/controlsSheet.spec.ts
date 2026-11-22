@@ -1,4 +1,4 @@
-import { test, expect, resultRows, DESTINATION_NAMES, forecastButton } from './fixtures'
+import { test, expect, resultRows, DESTINATION_NAMES, forecastButton, controlsPhrase } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // On a phone the Controls sheet opens the way Legend and Layers do (TJ,
@@ -65,7 +65,7 @@ for (const [width, height] of [
       const badge = page.getByRole('button', { name: /^\d+ messages?$/ })
       const before = (await badge.count()) === 0 ? 0 : Number((await badge.getAttribute('aria-label'))!.split(' ')[0])
 
-      await page.getByRole('button', { name: 'Open controls' }).tap()
+      await controlsPhrase(page).tap()
       // Hidden ones included, so the same locator finds it shut and inert.
       const sheet = page.getByRole('dialog', { name: 'Controls', includeHidden: true })
       await expect(sheet).toHaveAttribute('aria-modal', 'true')

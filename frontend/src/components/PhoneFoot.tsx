@@ -19,6 +19,8 @@ interface PhoneFootProps {
   analyzeEnabled: boolean
   /** What the button reads (#736, `actionWord`), the same word as the panel's. */
   word: ActionWord
+  /** What the button says while the word is Analyze (`forecastLabel`), as the desk's bar does (record 0328). */
+  label?: string
   /** The panel's Analyze command itself, never a second path to it. */
   onAnalyze: () => void
   /** The panel's messages (`usePanelMessages`): the badge's count and colour, and the sheet's rows. */
@@ -45,6 +47,7 @@ export default function PhoneFoot({
   onFabPx,
   analyzeEnabled,
   word,
+  label,
   onAnalyze,
   messages,
   covered = false,
@@ -115,7 +118,7 @@ export default function PhoneFoot({
           {/* Every word in one cell, so the button is the widest one's width
               whichever it reads; the others are invisible and unread. */}
           <span className={MAP_FAB_WORDS.cell}>
-            <span>{word}</span>
+            <span>{label !== undefined && word === 'Analyze' ? label : word}</span>
             {ACTION_WORDS.filter((w) => w !== word).map((w) => (
               <span key={w} aria-hidden="true" className={MAP_FAB_WORDS.hidden}>
                 {w}

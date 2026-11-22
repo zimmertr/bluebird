@@ -134,6 +134,8 @@ export interface MapStageProps {
   messages: PanelMessages
   /** What the panel's Analyze reads (#736, `actionWord`), which the phone's button reads too. */
   actionWord: ActionWord
+  /** What the Forecast button says while it reads Analyze (`forecastLabel`), on a phone's button as on the bar's. */
+  actionLabel?: string
   /** The panel's Analyze command, which the phone's Analyze button calls. */
   onAnalyze: () => void
   /** The tutorial holds the Layers menu open for its step (#536). */
@@ -226,6 +228,7 @@ export default function MapStage({
   controlsSummary,
   messages,
   actionWord,
+  actionLabel,
   onAnalyze,
   layersForcedOpen,
   searchPointed,
@@ -584,6 +587,7 @@ export default function MapStage({
           onFabPx={setFabPx}
           analyzeEnabled={messages.analyzeEnabled}
           word={actionWord}
+          label={actionLabel}
           onAnalyze={onAnalyze}
           messages={messages}
           covered={layout.overMapRows}

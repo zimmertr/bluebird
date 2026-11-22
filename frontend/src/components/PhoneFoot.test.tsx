@@ -120,6 +120,15 @@ describe('PhoneFoot', () => {
     expect(words().map((w) => w.textContent)).toEqual(['Try again', 'Analyze', 'Analyzing…'])
   })
 
+  // It names the spend as the desk's bar does (record 0328), and gives way to
+  // the run's own words.
+  it('reads the Forecast label while its word is Analyze', () => {
+    const { rerender } = render(foot({ label: 'Forecast 31 peaks' }))
+    expect(screen.getByRole('button', { name: 'Forecast 31 peaks' })).toBeTruthy()
+    rerender(foot({ label: 'Forecast 31 peaks', word: 'Try again' }))
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+  })
+
   // Placed where it is told: the slot, not the button, since the badge rides
   // the same place.
   it('stands where it is told', () => {

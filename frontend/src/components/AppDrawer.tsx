@@ -15,7 +15,7 @@ import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { ChartMetricsState } from '../hooks/useChartMetrics'
 import type { ActionWord } from '../utils/analyzeGate'
-import { DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER, SENTENCE_BAR, TEXT } from '../styles'
+import { CONTROLS_SHEET, DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER, SENTENCE_BAR, TEXT } from '../styles'
 import type { ThemeChoice } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
@@ -116,7 +116,7 @@ interface AppDrawerProps {
   viewIsArea?: boolean
   /** Closes the card: its close button. */
   onCardClose?: () => void
-  /** The place search, at the head of a desk's Where card (record 0313). */
+  /** The place search, at the head of a desk's Where card (record 0313) and of a phone's Controls sheet (record 0328). */
   search?: ReactNode
 }
 
@@ -303,7 +303,8 @@ export default function AppDrawer({
           actions: <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} sheet />,
         }}
       >
-        {panel}
+        {search && <div className={SENTENCE_BAR.phoneSearch}>{search}</div>}
+        <div className={CONTROLS_SHEET.panelBody}>{panel}</div>
       </BottomSheet>
     )
   }

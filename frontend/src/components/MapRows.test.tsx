@@ -216,4 +216,31 @@ describe('MapRows at a desk', () => {
     rerender(rows({ desk: true, sidebarOpen: false }))
     expect(document.activeElement).toBe(document.body)
   })
+
+  // A phone's sentence bar stands where the search pill stood (record 0328),
+  // and its phrases raise the sheet, so the Controls chip goes; the When
+  // phrase takes the keyboard back when the sheet's Done goes inert under it.
+  it('on a phone stands the bar in the pill\'s place, with no Controls chip', () => {
+    const page = (open: boolean) => (
+      <>
+        <aside inert={!open}>
+          <button>Done</button>
+        </aside>
+        {rows({
+          sidebarOpen: open,
+          bar: (
+            <div role="group" aria-label="Forecast">
+              <button data-card="forecast">Sat 21</button>
+            </div>
+          ),
+        })}
+      </>
+    )
+    const { rerender } = render(page(true))
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open controls' })).toBeNull()
+    screen.getByRole('button', { name: 'Done' }).focus()
+    rerender(page(false))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Sat 21' }))
+  })
 })
