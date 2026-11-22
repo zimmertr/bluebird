@@ -91,7 +91,13 @@ export default function SentenceBar({
         </>
       )}
       {whenWord !== null && <span className={SENTENCE_BAR.word}>{whenWord}</span>}
-      <MenuButton shape="slot" data-card="forecast" open={card === 'forecast'} onClick={() => toggle('forecast')} className={SENTENCE_BAR.slot}>
+      <MenuButton
+        shape="slot"
+        data-card="forecast"
+        open={card === 'forecast'}
+        onClick={() => toggle('forecast')}
+        className={phone ? `${SENTENCE_BAR.slot} ${SENTENCE_BAR.phoneWhen}` : SENTENCE_BAR.slot}
+      >
         <span className={MAP_CHIP_SUMMARY_TEXT}>{when}</span>
       </MenuButton>
     </>
