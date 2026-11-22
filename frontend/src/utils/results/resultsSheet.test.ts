@@ -271,7 +271,8 @@ describe('the resting height', () => {
     })
     expect(chart).toBe(0)
     expect(table).toBe(120)
-    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(435)
+    // 650 less the widened header (112, record 0330), a grip and the floor.
+    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(394)
   })
 })
 
@@ -445,7 +446,7 @@ describe('the camera padding', () => {
       ...defaults,
     })
     expect(lift).toBe(sheetChromePx(1) + 120)
-    expect(lift).toBe(215)
+    expect(lift).toBe(256)
     expect(650 - lift).toBeLessThan(RESTING_MAP_PX)
   })
 

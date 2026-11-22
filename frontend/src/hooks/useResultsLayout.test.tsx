@@ -428,8 +428,10 @@ describe('useResultsLayout', () => {
       drag(result, 'chartGrip', 2000)
       expect(result.current.overMapRows).toBe(true)
       const sum = result.current.chartPanelPx + result.current.tablePanelPx
-      drag(result, 'tableGrip', -100)
-      expect(result.current.tablePanelPx).toBe(table - 100)
+      // 80 rather than 100 since the widened header grew to 112 (record
+      // 0330), which left the table 90px over its floor here.
+      drag(result, 'tableGrip', -80)
+      expect(result.current.tablePanelPx).toBe(table - 80)
       act(() => result.current.tableGrip.onReset())
       expect(result.current.overMapRows).toBe(true)
       expect(result.current.tablePanelPx).toBe(rest.table)
