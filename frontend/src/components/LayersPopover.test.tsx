@@ -278,7 +278,7 @@ describe('LayersPopover', () => {
     const grid = screen.getByRole('checkbox', { name: 'Forecast grid' }).closest('label')!.parentElement!.parentElement!
     expect(grid.className).toBe(MENU_GROUP.sheetRow)
     expect(grid.querySelector('input[type="range"]')).not.toBeNull()
-    expect(rows()).toHaveLength(13)
+    expect(rows()).toHaveLength(14)
   })
 
   // A layer with nothing to draw over the view greys, with no note, the way
@@ -562,7 +562,7 @@ describe('LayersPopover', () => {
     open()
     expect(chip.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('dialog', { name: 'Layers' })).toBeTruthy()
-    expect(rows()).toHaveLength(13)
+    expect(rows()).toHaveLength(14)
     // A press in the sheet, which is in a portal outside the chip's column,
     // is not a press outside the menu.
     fireEvent.pointerDown(screen.getAllByRole('checkbox')[0])
