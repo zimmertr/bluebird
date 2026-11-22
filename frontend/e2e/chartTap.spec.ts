@@ -8,9 +8,9 @@ import type { Page } from '@playwright/test'
 
 test.use({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true })
 
-// The chart at its resting height on a phone is a 27 px strip with no plot
-// band inside it, so the grip above it is dragged up first, the way a reader
-// who wants to read the chart would.
+// A phone's chart reads the hour under a finger with the player on screen,
+// so the sheet stands at its own height rather than the full stop Chart
+// lifts it to.
 async function openChart(page: Page) {
   // The Forecast player is off by default on a phone, and the switch is this
   // browser's habit rather than a link's (#864), so storage turns it on.
@@ -29,10 +29,11 @@ async function openChart(page: Page) {
   const grip = (await page.locator('.cursor-ns-resize').last().boundingBox())!
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
   await page.mouse.down()
-  // To 360px from the top: the plot stands taller than 150px, and the map
-  // above keeps room for the player over the foot's card (`transportFits`),
-  // which a higher sheet hides it for.
-  await page.mouse.move(grip.x + grip.width / 2, 360, { steps: 10 })
+  // Chart lifts the sheet to its full stop (record 0155), where the map
+  // above has no room for the player over the foot's card (`transportFits`),
+  // so the grip brings it down to its own height: the plot still stands
+  // taller than 150px there (190px at 500x757 in the preview, 2026-11-21).
+  await page.mouse.move(grip.x + grip.width / 2, 480, { steps: 10 })
   await page.mouse.up()
   await expect.poll(async () => (await surface.boundingBox())!.height).toBeGreaterThan(150)
   return (await surface.boundingBox())!
