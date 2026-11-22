@@ -3540,7 +3540,7 @@ export const OPENED_ROW = {
   swatchFreeze: 'h-0 w-4 border-t-2 border-dashed border-accent',
   facts: 'mt-3 grid grid-cols-4 gap-x-4 gap-y-2',
   factLabel: `block ${TEXT.caption}`,
-  factValue: `block ${TEXT.control} font-semibold text-ink-strong ${FIGURES}`,
+  factValue: `block ${CONTROL_SIZE} font-semibold text-ink-strong ${FIGURES}`,
   actions: 'mt-3 flex flex-wrap gap-2',
   action: `${BUTTON_SECONDARY} inline-flex items-center gap-1.5`,
 } as const
