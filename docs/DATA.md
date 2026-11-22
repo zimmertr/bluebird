@@ -28,8 +28,8 @@ this section does: what every source can tell you, what it cannot, and why
 Bluebird Forecast calls it the way it does. The licenses and credits each provider
 requires are collected in [NOTICES.md](../NOTICES.md). A downloaded CSV
 carries its own copy of the Open-Meteo and OpenStreetMap credits below the
-data — CC BY 4.0 and ODbL both ask the credit to travel with every copy, and
-a file is read detached from the screen that shows them — plus a NOAA NOHRSC
+data: CC BY 4.0 and ODbL both ask the credit to travel with every copy, and
+a file is read detached from the screen that shows them, plus a NOAA NOHRSC
 credit, with a link to its snow analysis in place of a license, whenever the
 file carries the snow depth column, the NIFC credit whenever it carries the
 wildfire column, and a US Forest Service credit, with a link to the Forest
@@ -291,15 +291,15 @@ Open-Meteo as well as one here.
 
 **Wind is reported at the destination's own elevation.** Open-Meteo's
 `wind_speed_10m` measures 10 meters above the *model's* terrain, which is
-smoothed to the model's grid and sits inside the friction layer — on a summit
+smoothed to the model's grid and sits inside the friction layer: on a summit
 it understates what a person feels, and during a measured November storm the
 100 m wind ran more than twice the 10 m value over Cascade summits
 ([#257](https://github.com/zimmertr/bluebird/issues/257)). So each hourly
 fetch also carries the free-air wind at five pressure levels (925 / 850 /
 700 / 600 / 500 hPa), and every wind number interpolates between the two
-levels bracketing the destination's elevation, floored at the 10 m value —
+levels bracketing the destination's elevation, floored at the 10 m value:
 free air can only add exposure, never shelter. Destinations below the lowest
-level (~762 m — a valley really is sheltered) report the plain 10 m wind.
+level (~762 m: a valley really is sheltered) report the plain 10 m wind.
 Destinations above the highest level, 500 hPa (~5,574 m, 18,287 ft), take the
 500 hPa wind as it stands rather than interpolating: no higher level is
 fetched for wind or temperature, so the number is the air at that level
@@ -321,7 +321,7 @@ would add five variables to every request and raise its weight factor from
 a model's free-air wind, not a gust or a summit anemometer (the app carries no
 gust, [0124](architectural-decision-records/0124-no-wind-gust.md)), and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
-sample — wind and temperature alike — to the terrain height Open-Meteo resolves
+sample (wind and temperature alike) to the terrain height Open-Meteo resolves
 for that coordinate (its ~90 m elevation model, reported on every response)
 rather than to any destination's claimed height. So high ground paints its real
 numbers. The square a destination stands in is the exception: it paints that
@@ -349,7 +349,7 @@ night it radiates its heat away and the air just over it freezes, while the
 summit stands in free air well above the cold layer. The table therefore
 showed a peak below freezing
 while its own freezing level sat thousands of feet higher
-([#443](https://github.com/zimmertr/bluebird/issues/443) — measured over
+([#443](https://github.com/zimmertr/bluebird/issues/443): measured over
 2026-09-18 to 2026-09-21, `temperature_2m` read a minimum of 25.7 °F where the
 free air at summit height held near 43 °F).
 
@@ -359,7 +359,7 @@ between the two levels bracketing the destination's elevation. Two things
 differ from the wind. There is **no floor**: a summit can be colder than the
 free air on a calm clear night and warmer than it under an inversion, so a
 clamp in either direction would report a number no model produced. And the
-fallback is the 2 m value rather than the 10 m one — a destination below the
+fallback is the 2 m value rather than the 10 m one: a destination below the
 lowest level (~762 m) or in an archive window reports the surface temperature
 exactly as it did before, and one with no known elevation follows the wind's
 rule above: a peak or pasted point at the terrain height, a lake, trailhead or
@@ -394,7 +394,7 @@ different elevations.
 **The freezing level is an air temperature, not a snow surface.** Each hourly
 fetch carries Open-Meteo's `freezing_level_height`, the height at which the
 free-air temperature crosses freezing, and the table reports its minimum,
-average and maximum over the window in feet above sea level — the same unit and
+average and maximum over the window in feet above sea level: the same unit and
 datum as the **Elevation (ft)** column, because the reading is the comparison
 between the two. Open-Meteo quotes the height in whatever unit
 `precipitation_unit` selects, and names that unit on every response, so a
@@ -415,7 +415,7 @@ not that no answer came back.
 
 Third, only three of the eight models publish it at all: NOAA GFS, NOAA HRRR
 and DWD ICON. The other five answer the request with a column of nulls, which the table
-shows as `N/A` in those three columns and nothing else — the aggregation keeps
+shows as `N/A` in those three columns and nothing else: the aggregation keeps
 the freezing level independent of every other figure, so a model that does not
 carry it leaves precipitation, temperature and wind untouched. Which models
 answer is decided from the data rather than from a list in the code, so a model
@@ -486,7 +486,7 @@ archive's nature rather than a limitation of the wiring.
 
 - **It names no model.** Everywhere else Bluebird Forecast sends an explicit
   `models=` (see below), and the archive is the documented exception: its default
-  is a reanalysis — ECMWF IFS HRES with ERA5 and ERA5-Land — which is one dataset
+  is a reanalysis (ECMWF IFS HRES with ERA5 and ERA5-Land) which is one dataset
   at every location, so there is no per-location pick to hide. The forecast
   models the panel lists never ran over those hours at all, so the picker does
   not apply and is disabled while an archive window is selected. Sending a model
@@ -516,10 +516,10 @@ archive's nature rather than a limitation of the wiring.
   dash there.
 - **A window may cross the boundary, and then it carries both.** A window that
   starts in the archive's range and ends inside the forecast endpoint's is
-  fetched from each of them — the archive through the hour before the reader's
+  fetched from each of them: the archive through the hour before the reader's
   local midnight that starts the boundary's day, the forecast endpoint from that
   midnight on, so no local day is split between them (the API splits at the
-  boundary itself, see [API.md](API.md)) — and the hours are joined in order
+  boundary itself, see [API.md](API.md)), and the hours are joined in order
   before anything is aggregated, so the report is one window rather than two
   halves. What changes across that join is what the two bullets above describe:
   the early hours are the reanalysis and name no model, the later hours are the
@@ -531,8 +531,8 @@ archive's nature rather than a limitation of the wiring.
   [the grid section](#the-forecast-grid) gives.
 
 Air quality is not part of that split. It has an archive of its own on the same
-endpoint — measured 2026-09-12, it answered a window 365 days back with real US
-AQI — so an old window is an ordinary air-quality fetch, and an hour it cannot
+endpoint (measured 2026-09-12, it answered a window 365 days back with real US
+AQI) so an old window is an ordinary air-quality fetch, and an hour it cannot
 answer degrades to `null` the way every other gap does.
 
 ## Choosing a model
@@ -562,7 +562,7 @@ is weighted above forecast length, so it runs roughly opposite to ordering by
 reach. The two that lead it are seamless blends, which is why they do. The default,
 **NOAA GFS**, is HRRR's 3 km grid to about hour 45 and GFS's out to sixteen
 days. **ECCC GEM** is HRDPS at 2.5 km to about hour 45, RDPS at 10 km to hour
-81, then GEM global — finer than the default through the first three days, at
+81, then GEM global: finer than the default through the first three days, at
 the cost of stopping around nine.
 
 The short-range outlier is **HRRR** itself, which reaches about two days. The
@@ -571,7 +571,7 @@ when a number needs to be purely HRRR rather than a blend.
 
 HRRR is the only **regional** model here. It is run over the continental US
 and neighbouring parts of Canada and Mexico, and Open-Meteo refuses any point
-outside that grid — a refusal that takes the whole batch with it, so a single
+outside that grid: a refusal that takes the whole batch with it, so a single
 destination outside coverage fails the analysis rather than quietly dropping one
 row. The grid is not a lat/lon rectangle: Banff and Monterrey are inside it, and
 Edmonton, 67 cells north of its last row, is not. Since #803
@@ -1057,7 +1057,7 @@ split at the antimeridian for the Aleutians) and again under `coverage` in
 against it, row by row. A destination outside coverage reads `N/A` in the table's
 **Wildfire (mi)** column and in the same column of a downloaded CSV, so a
 missing warning is never mistaken for a clear check (a dash in the table, a
-blank cell in the file) — while a covered destination in the same table keeps
+blank cell in the file): while a covered destination in the same table keeps
 its real answer. The outline is
 coarse to roughly ±50 km, so a trip hugging the border may read as covered
 from just outside it; the bias errs toward keeping a real US warning over
@@ -1147,7 +1147,7 @@ three opacities of one grey for exactly that reason: the encoding is "more" and
 "less", which is what the source actually says.
 
 HMS publishes one dated file per day and Bluebird Forecast's server fetches it, for the
-same reason it fetches perimeters — one caller instead of one per visitor —
+same reason it fetches perimeters (one caller instead of one per visitor)
 though the pressure is milder here, since NOAA serves these off a plain file
 server with no quota to exhaust. What the server buys instead is the date
 arithmetic: before the day's first pass lands, that file does not exist yet, and
@@ -1352,7 +1352,7 @@ The step is ten minutes rather than the mosaic's own five-minute cadence for a
 reason that is about the map library, not the data. Each frame is its own raster
 layer, and at twelve of them MapLibre's tile queue jams: measured against the
 live service, six frames load, the seventh stalls partway, and the last five are
-never requested at all — permanently, with every missing tile answering 200 to a
+never requested at all, permanently, with every missing tile answering 200 to a
 direct fetch. Six frames also halves the roughly 420 tile requests a full loop
 sends to a donated server, which is its own argument.
 
@@ -1446,7 +1446,7 @@ outright (`cache-control: max-age=0, must-revalidate`). So every pan is a fresh
 set of renders, measured at about half a second each. Two things bound that
 cost and neither is a proxy. The layer is off by default, and the tiles are
 512 px rather than 256, which is four times less of NOAA's render time for the
-same screen — a render costs the same whatever its size, because the time is
+same screen: a render costs the same whatever its size, because the time is
 the render and not the pixels. A cache in the pod was considered and rejected:
 it would make this service a tile server for a layer most visitors never switch
 on, for a product NOAA already serves.

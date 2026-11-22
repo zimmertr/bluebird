@@ -140,7 +140,7 @@ A **When** toggle reading **Current** or **Dates**, and under **Dates**, once yo
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
 - **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total, the freezing level by its minimum, and wind, temperature and AQI by their average; the Metrics section's aggregate dropdowns change that.
 - **Pick a second day** to extend to a range, or **drag across days** to choose one in a single gesture. Dragging either end of an existing range adjusts that end, and picking a day inside a range starts over from that day.
-- **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet the calendar opens by itself, empty — today is outlined, nothing is selected, and Analyze waits until you pick a day (one click for a single day, a second click or a drag for a range).
+- **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet the calendar opens by itself, empty: today is outlined, nothing is selected, and Analyze waits until you pick a day (one click for a single day, a second click or a drag for a range).
 - **Hours** appears under **When**, set to **All day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
 
 The Hours row sits above the grid inside the calendar, so the two decisions the window needs are together. Days in the past are ordinary here: the calendar reaches back as far as the archive the service publishes (`limits.archive_days` in `GET /api/capabilities`) against about 15 days forward, which is why the toggle says Dates rather than anything that implies the future. How wet was this ridge last July is a question it can answer.
@@ -181,7 +181,7 @@ At a desk the report opens ranked by a score rather than by one metric. Each day
 
 ### Ranking
 
-Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window — Avg, Max, and Min for every metric, plus Total for precipitation and snowfall — so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are the totals of precipitation and snowfall, the averages of the other weather metrics, and the minimum for the freezing level, which is the one that answers the overnight refreeze. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only, and clicking `#` puts them back in ranked order — the Metrics table is what re-ranks the whole field.
+Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window (Avg, Max, and Min for every metric, plus Total for precipitation and snowfall) so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are the totals of precipitation and snowfall, the averages of the other weather metrics, and the minimum for the freezing level, which is the one that answers the overnight refreeze. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only, and clicking `#` puts them back in ranked order: the Metrics table is what re-ranks the whole field.
 
 Ranking by a freezing level reads naturally in either direction: Highest
 `Freezing level · Min` finds the destinations whose coldest hour still froze high
@@ -216,7 +216,7 @@ to its minimum, the lowest the deck came in the window, and ranking by Highest
 `Cloud deck · Min` puts the clearest windows on top. How the deck is worked
 out, and how far to trust it, are in [DATA.md](DATA.md#cloud-deck).
 
-Wind and temperature are both reported at each destination's own elevation, not at the standard 10 meters and 2 meters above the model's terrain — on a summit the near-ground values are the wrong air. The 10-meter wind understates what you would feel, often by a factor of two, and the 2-meter temperature carries the surface layer of a valley floor that cools by radiation on a clear night (Open-Meteo lapses it to the summit's own height, and the cold comes with it), which is why the temperature columns used to show a peak below freezing while its own freezing level sat thousands of feet higher. How both numbers are derived, and their limits, are in [DATA.md](DATA.md#open-meteo). A peak or pasted point with no known elevation is read at the ground height Open-Meteo's terrain model gives its coordinate; a lake, trailhead or crag with none shows the plain near-ground values, which are the real conditions where it sits.
+Wind and temperature are both reported at each destination's own elevation, not at the standard 10 meters and 2 meters above the model's terrain: on a summit the near-ground values are the wrong air. The 10-meter wind understates what you would feel, often by a factor of two, and the 2-meter temperature carries the surface layer of a valley floor that cools by radiation on a clear night (Open-Meteo lapses it to the summit's own height, and the cold comes with it), which is why the temperature columns used to show a peak below freezing while its own freezing level sat thousands of feet higher. How both numbers are derived, and their limits, are in [DATA.md](DATA.md#open-meteo). A peak or pasted point with no known elevation is read at the ground height Open-Meteo's terrain model gives its coordinate; a lake, trailhead or crag with none shows the plain near-ground values, which are the real conditions where it sits.
 
 **No header says which method produced a number.** Every metric column reports at the destination's elevation: precipitation and air quality as the grid cell's surface values at that point, the freezing level as a height of its own, and the wind and temperature as above. A header that named the method on two of the metric columns read as a difference in place, so the method lives in [DATA.md](DATA.md#open-meteo) instead. Over an archive window the pressure levels are not published and both families fall back to the near-ground value; the line in the Analyze button's messages names the window.
 
@@ -437,7 +437,7 @@ layers above, it changes nothing about the analysis.
 
 Every other overlay draws somebody else's data. This one draws yours: the same
 metric your results are ranked by, asked for on a lattice of points across the area
-your analysis covered, and painted on the colors the marker legend already shows. It answers the question the markers cannot — is this one summit's
+your analysis covered, and painted on the colors the marker legend already shows. It answers the question the markers cannot: is this one summit's
 weather, or is the whole valley like that?
 
 It is the one layer whose switch costs something, which is why it is a switch. Turning
@@ -497,7 +497,7 @@ while the layer is off, and using either one switches it on.
 
 Two things to know when reading it:
 
-- **The legend states the sample spacing** — `Forecast grid   3 km`. That is
+- **The legend states the sample spacing**: `Forecast grid   3 km`. That is
   the distance between the points actually asked about: inside it you are looking
   at one forecast, and between two of them you are looking at a blend. Over a
   large area the points spread further apart to keep the request reasonable, and
@@ -505,7 +505,7 @@ Two things to know when reading it:
   fetched, the legend says `Unavailable` instead, and whatever did arrive stays
   drawn.
 - **It covers where you looked.** The field extends a set distance around each
-  destination the analysis found — the coverage slider on the row —
+  destination the analysis found (the coverage slider on the row)
   and fades out at that edge. The slider's range follows the model:
   from one to four of its own grid cells around each destination, with the
   default in the middle. On NOAA GFS's 3 km grid that is 3 to 12 km; on
@@ -538,8 +538,7 @@ It has up to two axes, and a switch to pick between them when both exist:
   minutes apart. The readout counts backwards from now rather than naming a clock
   time, because the frames are addressed as "ten minutes ago" and the capture
   moment is only known that closely.
-- **The forecast axis**, which the switch labels with the ranked metric —
-  Wind, Precipitation, Temperature, Freezing level, Snowfall, Snow depth, or AQI — appears once an analysis covers
+- **The forecast axis**, which the switch labels with the ranked metric (Wind, Precipitation, Temperature, Freezing level, Snowfall, Snow depth, or AQI) appears once an analysis covers
   more than one hour, and scrubs the window you asked for. The markers recolor to the hour under the playhead, on the
   same bands the legend shows, and the legend follows: precipitation and snowfall
   switch to inches per hour, since an hour of rain or snow and a window's total
@@ -566,9 +565,9 @@ On a phone the report is a sheet standing on the map rather than a panel beside 
 
 Every column is resizable: drag the divider at a header's right edge, or double-click it to fit the column to its longest value. On a phone, drag the same divider with a finger. At a desk, Name opens wide enough for a 25-character name. Widen it whenever a longer name is cut off. Widths hold for the session.
 
-**Columns** opens a picker for the columns the table shows. Every column starts on — the table scrolls sideways when it must — and unticking narrows the view for easier comparison. Hold Shift and click a box to tick or untick every box between it and the last one you clicked, the way a file manager selects a run of files; the ranked metric's columns stay on whatever the run crosses. **Reset all** under the list puts every box back to its default, and is greyed while they already are. The downloaded CSV always carries every column regardless of what the table displays or how you arranged it.
+**Columns** opens a picker for the columns the table shows. Every column starts on (the table scrolls sideways when it must) and unticking narrows the view for easier comparison. Hold Shift and click a box to tick or untick every box between it and the last one you clicked, the way a file manager selects a run of files; the ranked metric's columns stay on whatever the run crosses. **Reset all** under the list puts every box back to its default, and is greyed while they already are. The downloaded CSV always carries every column regardless of what the table displays or how you arranged it.
 
-**Columns can be moved.** Drag a table header sideways and the column goes where you drop it; on a touch screen, hold it for a moment first, so a tap still sorts. The column you picked up rides under the pointer and a blue line shows the gap it will drop into, so nothing moves until you let go. The same order can be set in the **Columns** picker, by dragging a row's grip at its right edge, and the two are one order: move a column in either place and the other follows at once. The grip is also the keyboard route, since a drag needs a pointer — focus it and the up and down arrows move that column one place at a time. A column you have hidden keeps its place and comes back where you left it. The downloaded CSV ignores your order and always comes out in the standard one.
+**Columns can be moved.** Drag a table header sideways and the column goes where you drop it; on a touch screen, hold it for a moment first, so a tap still sorts. The column you picked up rides under the pointer and a blue line shows the gap it will drop into, so nothing moves until you let go. The same order can be set in the **Columns** picker, by dragging a row's grip at its right edge, and the two are one order: move a column in either place and the other follows at once. The grip is also the keyboard route, since a drag needs a pointer: focus it and the up and down arrows move that column one place at a time. A column you have hidden keeps its place and comes back where you left it. The downloaded CSV ignores your order and always comes out in the standard one.
 
 Your order lasts until you change **Rank by**. Ranking pulls the metric you rank on to the front of the table, and it wins: a new ranking puts the columns back to the standard order with that metric leading. Short of that the order is yours and survives a reload. It rides in no link, so a report you share opens in the standard order for whoever opens it.
 
@@ -652,7 +651,7 @@ player only where the map is narrow enough for the two to meet. The chip is grey
 map to explain. On a phone the same sections are in the sheet the **Legend**
 chip opens.
 
-A section keyed on a single value — smoke, rain radar, active wildfires — is one
+A section keyed on a single value (smoke, rain radar, active wildfires) is one
 line with its swatch on the right. Fire activity is one line too: three
 starbursts on the right, red, orange and yellow, reading `12`, `24` and
 `48`, the hour each age band ends at. A section keyed on a **scale** is a strip
@@ -660,9 +659,8 @@ across the box with its numbers **inside** it, along the bottom edge: the bottom
 of the scale, its middle and its top, each standing on the band boundary it
 names. That is the shape the marker colors, the snow depth layer and the slope
 angle layer take, and it is one line rather than two. The slope angle strip
-names every band by the degrees it starts at. The unit rides the section's name —
-`Temperature (°F)`, `Precipitation (in)`, `Precipitation (in/hr)` while the
-forecast player is scrubbing, and `Snow depth (in)` — so the numbers on the strip
+names every band by the degrees it starts at. The unit rides the section's name (`Temperature (°F)`, `Precipitation (in)`, `Precipitation (in/hr)` while the
+forecast player is scrubbing, and `Snow depth (in)`) so the numbers on the strip
 stay bare. AQI is the one with no unit to state, its index being a plain index.
 The strip is drawn in equal bands rather than to scale, because a scale running
 from 0.39 to 787 inches to scale would be most of its bands in the first few
@@ -687,13 +685,13 @@ Click a marker for a popup carrying the same metrics the results table is showin
 
 ## Results Table
 
-Every row carries a **Type** — Peak, Crag, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
+Every row carries a **Type** (Peak, Crag, Lake, Trailhead, or Custom for one you supplied) because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
 Click any column header to sort the rows on screen by it, ascending or descending. From the keyboard, Tab reaches each header and Enter or Space sorts by it, exactly as a click does; a screen reader reads that hint on each header. Each number in a row links to that destination on Windy, and a screen reader reads the number itself, then where the link goes. The first Tab on the page offers **Skip to map**, which jumps past the panel to the map and the results, and a screen reader hears the results bar's title each time a report arrives. The **Columns**, **Models** and **Removed** buttons open their lists with the keyboard already inside them; Tab past either end of a list, or Escape, closes it and returns you to its button. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Metrics** table in the panel. On a phone the ranked metric's columns come right after **Name**, then **Model** while you compare, then **Type** and **Elevation**, so the first view shows the rank, the name and the ranked value. At a desk the order is unchanged, and the downloaded CSV keeps the desk's order on any device. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place. Each row keeps its number in the # column, which is its place in the ranking and the number on its marker, so after a header sort the numbers no longer run in order. The downloaded CSV's Rank column is the same number.
 
 The **Name** column stays put as you scroll the table sideways, so every number keeps its destination beside it. Click or tap anywhere on a row, away from its checkbox, its × and its links, and that destination's popup opens on the map, the same as a click on its marker; on a phone the sheet drops to its bar first so the popup has the map to stand on. The narrow column, at a desk and on a phone's sheet before **Every column**, does something else: a click opens the row in place, with the summit drawn against the cloud over the window's hours (each hour's deck as a band from its base to its top, the freezing level dashed, nights shaded and the best four hours boxed), eight facts under it and two buttons, **Show on map**, which flies the map there and opens the popup, and the link to the destination's page. Click the row again to close it. The chevron at the row's end does the same from the keyboard, and reads as open or closed to a screen reader. While a row is open its marker keeps its ring on the map. On a phone the **Name** column opens as wide as the longest name, but never more than about half the sheet; a longer name ends in an ellipsis, and the popup a tap opens shows it whole. Drag the column's edge to widen it. A name centres the map on its destination, and the numbers in the table and the popup each link to Windy. Links read in the colour of the text around them: at a desk one underlines when the pointer rests on it, and on a touch screen every link wears a faint underline.
 
-Hovering a row reveals a × at its end (shown to the keyboard when Tab reaches it) that removes the destination from the report. On a touch screen there is no hover, so the remove is in the popup a tap on the row opens: **Remove**, beside the card's ×, does what the row's × does and closes the popup. In a result's popup, drag a column's head onto another to move that column in the table too, for every metric, and drag a head's right edge to size that column on every popup. Either way — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any bound. Changing the destinations themselves starts a fresh report where it may return: edit the pasted list or the checked types and a removed destination you still name comes back as a pending destination immediately, while the report on screen keeps it struck out until you run the analysis. To undo one, the **Removed** button in the results bar lists every removed row by name, with its type beside any name two removed rows share, and restores them one at a time or all at once with **Restore all**. Restoring the last one closes the list and puts the keyboard on that row's name in the table. A restore never fetches — a row the report still holds simply reappears, and one it no longer holds (a searched place, or a row removed before a re-analysis) comes back as a pending destination that rejoins the next Analyze.
+Hovering a row reveals a × at its end (shown to the keyboard when Tab reaches it) that removes the destination from the report. On a touch screen there is no hover, so the remove is in the popup a tap on the row opens: **Remove**, beside the card's ×, does what the row's × does and closes the popup. In a result's popup, drag a column's head onto another to move that column in the table too, for every metric, and drag a head's right edge to size that column on every popup. Either way: the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any bound. Changing the destinations themselves starts a fresh report where it may return: edit the pasted list or the checked types and a removed destination you still name comes back as a pending destination immediately, while the report on screen keeps it struck out until you run the analysis. To undo one, the **Removed** button in the results bar lists every removed row by name, with its type beside any name two removed rows share, and restores them one at a time or all at once with **Restore all**. Restoring the last one closes the list and puts the keyboard on that row's name in the table. A restore never fetches: a row the report still holds simply reappears, and one it no longer holds (a searched place, or a row removed before a re-analysis) comes back as a pending destination that rejoins the next Analyze.
 
 | Column | Description |
 |---|---|

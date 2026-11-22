@@ -189,7 +189,7 @@ location and does not report its pick.
 
 `forecast_models` in `GET /api/capabilities` is the list, **best first**. That
 order is this deployment's editorial ranking for mountain terrain, not a sort on
-any field in the response — it weights grid spacing over forecast length, so it
+any field in the response: it weights grid spacing over forecast length, so it
 is roughly the reverse of ordering by `forecast_hours`. Render it as given.
 
 Four more things follow from the choice, and the same endpoint publishes all of
@@ -223,7 +223,7 @@ validator refuses past: inside that edge a model does not fail, it just returns
 `null` for hours beyond its own reach, so a window reaching too far yields rows
 with fewer hours behind them rather than an error.
 
-**One model is regional.** `regional: true` marks it — today only `gfs_hrrr`,
+**One model is regional.** `regional: true` marks it: today only `gfs_hrrr`,
 run over the continental US and neighbouring parts of Canada and Mexico. A
 request naming it is refused with `400` if *any* destination falls outside that
 grid, including destinations you never named, since discovery happens
@@ -349,7 +349,7 @@ roughly triples the candidate count, and every candidate is a weighted upstream
 call and a step closer to the analysis ceiling.
 
 `POST /api/destinations` takes a `polygon`, a set of `destination_types`, and
-the optional elevation band, and returns every named candidate inside — the same
+the optional elevation band, and returns every named candidate inside: the same
 never-sampled discovery an analysis starts with, under the same candidate
 ceiling (with its own, cheaper rate-limit bucket), just without the weather. It exists so a
 client can attach forecasts itself: the bundled web app calls it and then
@@ -394,8 +394,8 @@ curl -s "https://bluebirdforecast.com/api/wildfires?bbox=-122.1,46.6,-121.4,47.0
 geometry fidelity: `coarse` (the default) simplifies perimeters to roughly 56
 metres, which is finer than a map pixel at any zoom that fits a whole fire and
 about a thirteenth of the bytes; `full` returns them as surveyed. The web app
-itself uses `coarse` for drawing and for its proximity check alike — 56 metres
-cannot move a 10-mile answer — so `full` exists for callers who need the
+itself uses `coarse` for drawing and for its proximity check alike (56 metres
+cannot move a 10-mile answer) so `full` exists for callers who need the
 surveyed shapes.
 
 Two timestamps appear and they answer different questions. `fetched_at` is when
@@ -422,7 +422,7 @@ covered", not "nothing burning". The `coverage` foreign member states this
 machine-readably: a coarse (±50 km, biased outward) US outline as a GeoJSON
 MultiPolygon, with Alaska split at the antimeridian so no ring wraps 180°.
 Test your query area against it before reading an empty `features` array as
-an all-clear — that test is exactly what the app does with it. Static per
+an all-clear: that test is exactly what the app does with it. Static per
 release. See [DATA.md](DATA.md#wildfires).
 
 ### Fire detections
@@ -528,7 +528,7 @@ describes, and they are null where HMS did not state them.
 `analysis_date` is the one field worth reading before trusting the rest. HMS
 publishes one dated file per day and its first analyst pass lands around late
 morning Eastern, so before then this service falls back to yesterday's analysis
-rather than reporting an outage — and this field is how you can tell. It is a
+rather than reporting an outage: and this field is how you can tell. It is a
 `YYYY-MM-DD` date in US Eastern time.
 
 Perimeters and plumes share a caching contract: one national snapshot per
@@ -852,8 +852,8 @@ are never filtered out.
 ## Asking for only what you would actually go to
 
 Ranking orders every candidate; it never removes one. `sort_by` accepts every
-aggregate column a result row carries — the window's peak wind
-(`wind_max_mph`) as readily as its average — and `sort_desc` picks the
+aggregate column a result row carries (the window's peak wind
+(`wind_max_mph`) as readily as its average) and `sort_desc` picks the
 direction. The accepted keys are published by `GET /api/capabilities` under
 `sort_keys`.
 
@@ -1090,7 +1090,7 @@ weather request's 1.5.
 Every candidate gets a real forecast, so analyses are capped at a candidate
 count that `GET /api/capabilities` publishes. An over-limit search refuses
 with a `400` that carries remedies, not just
-words: `found`, `limit`, and — when one exists — a computed
+words: `found`, `limit`, and (when one exists) a computed
 `suggested_min_elevation_ft` with `suggested_keeps`, the elevation floor
 that would bring the search under the cap, alongside the `error` object with
 `"code": "refusal"`. Prefer that filter: it keeps the ranking exact.
@@ -1125,7 +1125,7 @@ If you would rather cut than filter, opt in explicitly with
 `/api/destinations`: the highest-elevation candidates up to the cap are
 analyzed (rows with unknown elevation are dropped first), and the response
 says so with `"truncated": true` and the pre-cut count in `total_found`.
-Truncation never happens without that flag — an unasked-for cut would
+Truncation never happens without that flag: an unasked-for cut would
 misrepresent the ranking.
 
 ## Watching a long analysis
@@ -1160,8 +1160,8 @@ estimate ("Open-Meteo quota: resuming in about 34s"). The first `progress`
 event carries the three counters alone; every per-batch one after it adds
 `batches_done`, `total_batches`, and a `message` line. `message` stays the
 stable phase heading, so a client can key its UI on it and show `detail` as
-secondary text. During quiet stretches — a paced analysis can legitimately
-wait most of a minute for quota — the stream emits `{"type": "keepalive"}`
+secondary text. During quiet stretches (a paced analysis can legitimately
+wait most of a minute for quota) the stream emits `{"type": "keepalive"}`
 events; ignore them. A terminal `error` event carries the same `error` object
 the JSON routes answer with, since a stream that has already opened has no
 status code left to fail with. It also carries the refusal remedy fields when
@@ -1246,7 +1246,7 @@ is expected, not an error, and an air-quality outage never fails an analysis.
 So does the freezing level. `freeze_min_ft`, `freeze_avg_ft` and `freeze_max_ft`
 are the window's freezing level in feet above sea level, and `series.freeze_ft`
 carries it per hour. They are `null` for every row of an analysis run on a model
-that does not publish the variable, which is five of the eight — only
+that does not publish the variable, which is five of the eight: only
 `gfs_seamless`, `gfs_hrrr` and `icon_seamless` answer it (measured 2026-09-12).
 Nothing else on the row is affected: the aggregation reduces it separately, so a
 model with no freezing level still returns complete precipitation, temperature
@@ -1351,7 +1351,7 @@ A request sent with `"elevation_lookup": false` made no lookup, so its flag is
 
 | Status | `error.code` | Meaning |
 | --- | --- | --- |
-| `400` | `validation`, `model_coverage`, `refusal` | The request parsed but does not describe a runnable analysis. Inverted window, neither `destination_types` nor `custom_destinations`, `destination_types` without a `polygon`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
+| `400` | `validation`, `model_coverage`, `refusal` | The request parsed but does not describe a runnable analysis. Inverted window, neither `destination_types` nor `custom_destinations`, `destination_types` without a `polygon`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates: the over-limit case carries the structured remedy fields described above. |
 | `401` | `invalid_api_key` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only `POST /api/analyze` answers it as a status; on the stream the same failure arrives as a terminal `error` event. No retry helps. |
 | `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. The gateway's body says "this path" where the app's names it, because a fixed answer at the edge cannot repeat the request; the `error` object and the headers are the same. |
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
@@ -1491,7 +1491,7 @@ so the command above is a path this repository exercises on every pull request.
 ## Please be considerate
 
 Every upstream Bluebird Forecast depends on (Overpass, Open-Meteo, Nominatim, OpenStreetMap's own servers) is run by
-people paying for it, and the two that answer without a key are free — and
+people paying for it, and the two that answer without a key are free: and
 Open-Meteo meters weighted calls (each location in a batch counts), so a single
 large analysis can spend over a thousand of them. That is what a key buys: an
 analyze request that carries one spends its own quota rather than anybody

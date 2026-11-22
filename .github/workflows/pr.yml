@@ -175,13 +175,14 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:test@localhost/postgres
 
-  # The planet fill's image and suite (#760). A job of its own, in parallel
-  # with the rest: the fill is a second image with its own Dockerfile, and its
-  # end-to-end test needs a PostgreSQL with PostGIS that no other job starts.
+  # The planet fill's suite (#760). A job of its own, in parallel with the
+  # rest: its end-to-end test needs a PostgreSQL with PostGIS that no other
+  # job starts. Docker Build lints, builds and scans the fill's image beside
+  # the app's, so this job builds only the suite's `test` target.
   #
-  # No GitHub Actions layer cache, unlike Docker Build. The repository's cache
-  # is already over GitHub's 10 GB limit and evicting the app's layers, and
-  # both builds here are one apt install each, which the background start
+  # No GitHub Actions layer cache, unlike the app's image. The repository's
+  # cache is already over GitHub's 10 GB limit and evicting the app's layers,
+  # and both builds here are one apt install each, which the background start
   # below hides behind each other anyway.
   fill:
     name: Planet Fill
@@ -191,21 +192,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
-        with:
-          dockerfile: fill/Dockerfile
-      # The database builds and starts in the background while the fill image
-      # builds, so the job waits for the slower of the two rather than both.
-      # The same steps as `make test-fill`.
-      - name: Build the image and run the suite
+      # The database builds and starts in the background while the fill's
+      # suite builds, so the job waits for the slower of the two rather than
+      # both. The same steps as `make test-fill`.
+      - name: Build the suite and run it
         run: |
           docker network create fill-net
           (docker build -q -t bluebird:test-db backend/tests/db \
             && docker run -d --rm --name fill-db --network fill-net -e POSTGRES_PASSWORD=test bluebird:test-db) \
             > db.log 2>&1 &
           db=$!
-          docker build -f fill/Dockerfile -t bluebird:fill .
           docker build -f fill/Dockerfile --target test -t bluebird:fill-test .
           if ! wait "$db"; then
             cat db.log
@@ -215,45 +211,38 @@ jobs:
           docker run --rm --network fill-net \
             -e TEST_DATABASE_URL=postgresql://postgres:test@fill-db/postgres bluebird:fill-test
 
-      # The same gate Docker Build applies to the app's image (yggdrasil's
-      # docker-build module), so the release scan of the pushed fill image
-      # holds no surprise. No scan settings: the one rule in yggdrasil's
-      # default skips pip's vendored SBOM, and this image installs no pip. No
-      # PR comment: the app's sticky comment is the one place people look,
-      # and this job's summary carries the table when it fails.
-      - name: Fail on fixable Critical or High vulnerabilities (Trivy)
-        id: scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: bluebird:fill
-          output: trivy.txt
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '1'
-      - name: Report the findings
-        if: failure() && steps.scan.outcome == 'failure'
-        run: cat trivy.txt >> "$GITHUB_STEP_SUMMARY"
-
-  # yggdrasil's docker-build module: hadolint, the linux/amd64 image built but
-  # not pushed, a Trivy scan with a sticky PR comment, the structure test below,
-  # and a refusal on any fixable Critical or High. amd64-only on purpose: this
-  # gate proves the Dockerfile assembles; the release workflow builds the arm64
-  # half (emulated builds would roughly double this job for no extra signal).
-  # The scan settings are yggdrasil's default trivy.yaml. Decision records
-  # 0276 and 0278.
+  # yggdrasil's docker-build module, one matrix job per image in the release's
+  # list: hadolint, the linux/amd64 image built but not pushed, a Trivy scan
+  # with a sticky PR comment, the structure test below, and a refusal on any
+  # fixable Critical or High. amd64-only on purpose: this gate proves the
+  # Dockerfile assembles; the release workflow builds the arm64 half (emulated
+  # builds would roughly double this job for no extra signal). The scan
+  # settings are yggdrasil's default trivy.yaml. Decision records 0276, 0278
+  # and 0306.
   docker-build:
-    # Branch protection requires `Docker Build / Docker Build` (this job's
-    # name, then the module's); renaming either strands PRs on a phantom
-    # "Expected" check that never reports.
+    # Branch protection requires `Docker Build / Docker Build (zimmertr/bluebird)`
+    # and `(zimmertr/bluebird-fill)` (this job's name, then the module's);
+    # renaming either strands PRs on a phantom "Expected" check that never
+    # reports.
     name: Docker Build
-    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@c71af5523eef7252d901774a217fe532fdb3209c # v2.7.0
+    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@571dc1db86efcdaf2d5289b5e8d34f98b8816a18 # v3.0.1
     permissions:
       contents: read
-      pull-requests: write # the sticky scan comment
+      pull-requests: write # the sticky scan comments
     with:
-      cache: true
-      # The browser and Lighthouse jobs load this image rather than build it
-      # again (the Lighthouse job's comment has the measurement).
+      # The release's two images. The app's carries its layer cache and what
+      # only a built image can show, in tests/structure-test.yaml: the files
+      # the build output must hold, and the sentinel version read back through
+      # the app. The HTTP behaviour behind those files is the backend's own
+      # tests, against stand-ins at the same paths (record 0060 in yggdrasil).
+      images: >-
+        [{"image": "zimmertr/bluebird",
+          "cache": true,
+          "structure-test": "tests/structure-test.yaml"},
+         {"image": "zimmertr/bluebird-fill",
+          "file": "fill/Dockerfile"}]
+      # The browser and Lighthouse jobs load the app's image rather than build
+      # it again (the Lighthouse job's comment has the measurement).
       upload-image: true
       # A sentinel rather than a real version: the structure test asserts this
       # exact string comes back through the app, which is what proves the
@@ -262,60 +251,38 @@ jobs:
         APP_VERSION=0.0.0-ci
         APP_COMMIT=${{ github.sha }}
         APP_BUILT_AT=1970-01-01T00:00:00Z
-      # What only a built image can show, in tests/structure-test.yaml: the
-      # files the build output must hold, and the sentinel version read back
-      # through the app. The HTTP behaviour behind those files is the
-      # backend's own tests, against stand-ins at the same paths (record 0060
-      # in yggdrasil).
-      structure-test: tests/structure-test.yaml
 
-  # The cold-load gate (issue #337). Separate from Docker Build because that
-  # job's name is branch-protected and because a red Lighthouse run should say
-  # "the first screen got heavier", not hide inside a scan report.
+  # The cold-load gate (issue #337), through yggdrasil's lighthouse module.
+  # Separate from Docker Build because a red Lighthouse run should say "the
+  # first screen got heavier", not hide inside a scan report. The budgets,
+  # the blocked third-party hosts, and the reasoning behind both live in
+  # .github/lighthouserc.js.
   #
   # `needs: docker-build` is for the image: that job saves the one it built as
-  # an artifact, and this one loads it rather than building it again. Measured
-  # 2026-10-27 over ten runs each (issue #794): the download and load take 6 s
-  # median against 16 s for setting up buildx and replaying the build from the
-  # Actions cache, and Docker Build pays 4 s once to save and upload a 50 MB
-  # artifact.
+  # an artifact, and the module loads it rather than building it again.
+  # Measured 2026-10-27 over ten runs each (issue #794): the download and load
+  # take 6 s median against 16 s for setting up buildx and replaying the build
+  # from the Actions cache, and Docker Build pays 4 s once to save and upload a
+  # 50 MB artifact.
   lighthouse:
-    name: Lighthouse Budgets
+    name: Lighthouse
     needs: docker-build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Download the image
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: bluebird-image
-      - name: Load the image
-        run: |
-          docker load -i bluebird-image.tar
-          docker tag bluebird:pr-scan bluebird:lighthouse
+    uses: zimmertr/yggdrasil/.github/workflows/lighthouse.yml@571dc1db86efcdaf2d5289b5e8d34f98b8816a18 # v3.0.1
+    permissions:
+      contents: read
+    with:
+      image: zimmertr/bluebird
+      config: .github/lighthouserc.js
+      port: 8000
+      health-path: /healthz
 
-      - name: Serve the built image
-        run: |
-          docker run -d --rm --name lighthouse-target -p 8000:8000 bluebird:lighthouse
-          for _ in $(seq 1 30); do
-            curl -fsS localhost:8000/healthz >/dev/null 2>&1 && break
-            sleep 1
-          done
-          curl -fsS localhost:8000/ >/dev/null
-
-      # The budgets, the blocked third-party hosts, and the reasoning behind
-      # both live in .github/lighthouserc.js.
-      - name: Audit the first screen
-        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # 12.6.2
-        with:
-          configPath: .github/lighthouserc.js
-          # The HTML reports land in the run's artifacts, so a failure can be
-          # read rather than guessed at. Nothing is uploaded off GitHub.
-          uploadArtifacts: true
-          temporaryPublicStorage: false
+  # yggdrasil's dependency-review module: fails a PR that adds a package
+  # version with a known High or Critical vulnerability. Decision record 0306.
+  dependency-review:
+    name: Dependency Review
+    uses: zimmertr/yggdrasil/.github/workflows/dependency-review.yml@571dc1db86efcdaf2d5289b5e8d34f98b8816a18 # v3.0.1
+    permissions:
+      contents: read
 
   # The browser smoke suite and the axe audit (issue #412): the one check that
   # operates the app. It draws a ring, analyzes, and opens a share link against
