@@ -3532,7 +3532,7 @@ export const OPENED_ROW = {
   freeze: 'absolute border-t-2 border-dashed border-accent',
   best: `absolute inset-y-px border-2 border-ink-strong ${RADIUS.control}`,
   day: `pointer-events-none absolute top-1 ${TEXT.micro}`,
-  summitTag: `pointer-events-none absolute right-1 -translate-y-full pb-0.5 ${TEXT.micro} font-semibold text-ink-strong`,
+  summitTag: `pointer-events-none absolute right-1 -translate-y-full pb-0.5 ${MICRO_SIZE} font-semibold text-ink-strong`,
   key: `mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 ${TEXT.caption}`,
   keyItem: 'inline-flex items-center gap-1.5',
   swatchSummit: 'h-0.5 w-4 bg-ink-strong',
