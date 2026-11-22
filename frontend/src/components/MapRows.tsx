@@ -1,9 +1,9 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import SearchBox, { type SearchBoxHandle } from './SearchBox'
-import { IconMenu } from './icons'
+import { IconMenu, IconSearch } from './icons'
 import { MenuButton } from './Menu'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, MAP_CHIP_SUMMARY_TEXT, MAP_ROWS, MAP_SLOT } from '../styles'
+import { LAYER, MAP_CHIP_SUMMARY_TEXT, MAP_ROWS, MAP_SLOT, MAP_TOOL } from '../styles'
 import type { Place } from '../utils/geocode'
 
 interface MapRowsProps {
@@ -29,8 +29,6 @@ interface MapRowsProps {
   onCloseControls: () => void
   /** The summary chip's words: the When arm and the model (`controlsSummary`). */
   controlsSummary: string
-  /** The Layers chip and its menu (`LayersPopover`). */
-  layers: ReactNode
   /** The Legend chip and its key (`MapLegend`). */
   legend: ReactNode
   /**
@@ -43,6 +41,12 @@ interface MapRowsProps {
   barCard?: ReactNode
   /** A full-screen results sheet stands over the rows (#837), which are out of reach until it comes down. */
   covered?: boolean
+  /**
+   * A phone's map tools, Layers and drawing a loop, which stand in its tool
+   * column with the search button and the 3D, locate and compass slots
+   * (record 0331).
+   */
+  tools?: ReactNode
 }
 
 /**
@@ -77,11 +81,11 @@ export default function MapRows({
   onOpenControls,
   onCloseControls,
   controlsSummary,
-  layers,
   legend,
   covered = false,
   bar,
   barCard,
+  tools,
 }: MapRowsProps) {
   const summaryId = useId()
   const [searching, setSearching] = useState(false)
@@ -101,6 +105,31 @@ export default function MapRows({
   })
   useTakeOrphanedFocus(barFocusRef, phoneBar && !sidebarOpen)
 
+  // A phone's search button opens the field over the bar with the keyboard
+  // in it (record 0331), and it goes when the field gives the keyboard and
+  // its list up, or a place is picked. Only once it has been open: the field
+  // reports itself shut as it mounts. Escape hands the keyboard back to the
+  // button, as a menu's does to its trigger.
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchWasOpen = useRef(false)
+  const searchButtonRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!searchOpen) return
+    searchWasOpen.current = false
+    searchBoxRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setSearchOpen(false)
+      searchButtonRef.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [searchOpen, searchBoxRef])
+  const onSearchExpanded = (expanded: boolean) => {
+    if (expanded) searchWasOpen.current = true
+    else if (searchWasOpen.current) setSearchOpen(false)
+  }
+
   return (
     // A popup keeps clear of the rows (`resultsLayer.ts` finds every
     // `data-map-overlay`), which stand over the top of every map.
@@ -109,8 +138,21 @@ export default function MapRows({
       <div className={desk && bar ? MAP_ROWS.barRow : MAP_ROWS.row}>
         {/* A desk's search is in the Where card (record 0313). */}
         {phoneBar && (
-          <div ref={barRef} className={MAP_ROWS.pill}>
+          <div ref={barRef} className={MAP_ROWS.pillWide}>
             {bar}
+          </div>
+        )}
+        {phoneBar && searchOpen && (
+          <div className={MAP_ROWS.searchOver}>
+            <SearchBox
+              ref={searchBoxRef}
+              onSelect={(place) => {
+                onSearchSelect(place)
+                setSearchOpen(false)
+              }}
+              pointed={searchPointed}
+              onExpandedChange={onSearchExpanded}
+            />
           </div>
         )}
         {!bar && (
@@ -118,15 +160,10 @@ export default function MapRows({
             <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} onExpandedChange={setSearching} />
           </div>
         )}
-        {/* Empty here: the map stands its own 3D and locate buttons in them,
-            so each keeps its states and the locate button its permission
-            prompt. */}
         {/* A desk's sentence bar beside the pill (record 0309), so Legend and
             Layers keep the row under it and the legend's card its place over
             the map's left edge (TJ, 2026-10-18). */}
         {desk && bar && <div className={MAP_ROWS.barSlot}>{bar}</div>}
-        {!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}
-        {!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}
       </div>
       {/* Hidden rather than unmounted while the pill is wide, so an open
           menu's chip and the panel's focus hand-off keep their state. */}
@@ -155,12 +192,29 @@ export default function MapRows({
         {/* Legend first, so its card, the one open by default, hangs over
             the map's left edge and covers less of it (TJ, 2026-10-18). */}
         {legend}
-        {layers}
-        {/* The compass's on a phone, the row's empty right end under the
-            locate button (record 0147): the map stands its own compass in it,
-            which shows only while the map is turned or tilted. */}
-        {!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}
       </div>
+      {/* A phone's tool column under the bar (record 0331). The map stands
+          its own 3D, locate and compass buttons in the three slots, so each
+          keeps its states and the locate button its permission prompt; the
+          compass shows only while the map is turned or tilted. */}
+      {phoneBar && (
+        <div className={MAP_ROWS.phoneTools}>
+          <button
+            ref={searchButtonRef}
+            type="button"
+            aria-label="Search for a place"
+            aria-pressed={searchOpen}
+            onClick={() => setSearchOpen((o) => !o)}
+            className={MAP_TOOL.draw}
+          >
+            <IconSearch />
+          </button>
+          {tools}
+          <div ref={onTerrainSlot} className={MAP_SLOT.tool} />
+          <div ref={onLocateSlot} className={MAP_SLOT.tool} />
+          <div ref={onCompassSlot} className={MAP_SLOT.compass} />
+        </div>
+      )}
       {desk && barCard && <div className={MAP_ROWS.barSlot}>{barCard}</div>}
     </div>
   )

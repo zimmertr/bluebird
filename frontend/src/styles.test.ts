@@ -2692,16 +2692,11 @@ describe('the map rows', () => {
     expect(step(MAP_ROWS.chips, 'gap')).toBe(6)
   })
 
-  // A phone's pill leaves the 3D and locate buttons and the 8px before each
-  // at rest (#799), and takes the whole row while it is searching. A desk's is 320px
-  // either way, with no button beside it (record 0174).
-  it('stands a phone\'s pill beside a 32px round locate button, and a desk\'s alone', () => {
-    expect(step(MAP_SLOT.locate, 'size')).toBe(ROW)
-    expect(tokens(MAP_SLOT.locate)).toEqual(expect.arrayContaining(['absolute', 'right-0', 'top-0']))
-    // The 3D button's slot, one button and one gap left of the locate button.
-    expect(step(MAP_SLOT.terrain, 'size')).toBe(ROW)
-    expect(tokens(MAP_SLOT.terrain)).toEqual(expect.arrayContaining(['absolute', 'top-0']))
-    expect(step(MAP_SLOT.terrain, 'right')).toBe(ROW + GAP)
+  // A phone's bar takes the whole first row, the tools standing in a column
+  // under it (record 0331); a desk's pill is 320px, with no button beside it
+  // (record 0174).
+  it('stands a phone\'s map buttons in a column of 32px slots, under a full-width bar', () => {
+    expect(step(MAP_SLOT.tool, 'size')).toBe(ROW)
     expect(step(MAP_ROUND_BUTTON, 'size')).toBe(ROW)
     expect(step(MAP_PILL, 'h')).toBe(ROW)
     expect(step(MAP_ROWS.pill, 'right')).toBe(2 * (ROW + GAP))
@@ -2713,14 +2708,16 @@ describe('the map rows', () => {
     // The class map.css keys the vendor group's margin on.
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
-    expect(mapRowsSource).toContain('{!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}')
-    expect(mapRowsSource).toContain('{!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}')
-    // A phone's compass, the chip row's last member (record 0147): no size of
-    // its own, so a hidden compass leaves the row's end to the map. A desk
-    // has none of the three slots.
-    expect(mapRowsSource).toContain('{!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}')
-    expect(Object.keys(MAP_SLOT)).toEqual(['locate', 'terrain', 'compass'])
-    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
+    expect(mapRowsSource).toContain('<div ref={onTerrainSlot} className={MAP_SLOT.tool} />')
+    expect(mapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.tool} />')
+    // The compass's slot has no size of its own, so a hidden compass ends
+    // the column at the locate button (record 0147). A desk has no slots.
+    expect(mapRowsSource).toContain('<div ref={onCompassSlot} className={MAP_SLOT.compass} />')
+    expect(Object.keys(MAP_SLOT)).toEqual(['tool', 'compass'])
+    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot'])
+    // The column's buttons are 12px apart, under the bar's 32px row and its 12px gap.
+    expect(step(MAP_ROWS.phoneTools, 'gap')).toBe(GAP)
+    expect(step(MAP_ROWS.phoneTools, 'top')).toBe(ROW + GAP)
   })
 
   // The 3D button (#799) is a map button whose glyph is a word: the round
@@ -4562,10 +4559,13 @@ describe('the results bar buttons', () => {
 })
 
 describe('the phone draw bar', () => {
-  it('floats on the map at the column inset from both sides', () => {
+  // Its right edge clears the phone's tool column (record 0331), whose
+  // 32px buttons stand at the inset with 12px before them.
+  it('floats on the map at the inset, clear of the tool column', () => {
     expect(DRAW_BAR).toContain(SURFACE_FLOATING)
     expect(DRAW_BAR).toContain(MAP_EDGE.left)
-    expect(DRAW_BAR).toContain(MAP_EDGE.right)
+    expect(DRAW_BAR).toContain(MAP_EDGE.rightOfTools)
+    expect(MAP_EDGE.rightOfTools).toBe('right-[calc(var(--map-edge-inset)+2.75rem)]')
     expect(DRAW_BAR).toContain(LAYER.base)
   })
 })

@@ -877,15 +877,16 @@ the chips and the pill (record [0254](architectural-decision-records/0254-map-bu
 each by `map/controls.ts` because the library makes the markup, and a desk's
 zoom pair the same chrome joined (`MAP_ZOOM_PAIR`). A desk stands them in its
 corner (`MAP_CORNER`). A phone stands the locate button and the compass in
-slots at the rows' right ends (`MAP_SLOT`) and leaves its zoom pair hidden in
-the library's corner. While the map is north-up and flat the compass is
-disabled: greyed by `DISABLED` at a desk, so the column keeps one shape, and
-hidden in a phone's chip row. The 3D button (#799) is the one map button the
+slots in its tool column under the sentence bar (`MAP_SLOT`, `MAP_ROWS.phoneTools`,
+record [0331](architectural-decision-records/0331-a-phone-stands-its-map-tools-in-a-column.md)),
+under its search button, Layers and drawing a loop, and leaves its zoom pair
+hidden in the library's corner. While the map is north-up and flat the compass
+is disabled: greyed by `DISABLED` at a desk, so the column keeps one shape, and
+hidden at the foot of a phone's column. The 3D button (#799) is the one map button the
 app draws itself, as a library control so it stands with the rest: the same
 round chrome with the word `3D` at the control size in bold
-(`MAP_TERRAIN_BUTTON`), under the compass at a desk and left of the locate
-button in a phone's search row, which gives up one more button and its gap
-for it. While it is on,
+(`MAP_TERRAIN_BUTTON`), under the compass at a desk and over the locate
+button in a phone's column. While it is on,
 `map.css` fills it with the accent and its label with `--ui-on-fill`, keyed on
 `aria-pressed`, which is the accent fill `ACCENT.fill` paints (white 4.56:1 in
 both themes). The credit line's (i) is the same dark

@@ -537,16 +537,18 @@ export const STYLES = [
     ],
   },
   {
-    // The two rows: the pill and the locate button, then the chips and the
-    // compass. A stacking context orders only its own children, so the layer
-    // is useless unless the stack itself wears it.
+    // The rows, and a phone's tool column under them (record 0331), whose
+    // 3D and locate slots are its round buttons and whose compass slot ends
+    // it. A stacking context orders only its own children, so the layer is
+    // useless unless the stack itself wears it.
     name: 'style-map-rows',
     files: ['src/components/MapRows.tsx'],
     require: [
       { selector: role('MAP_ROWS') + '[property.name="stack"]', message: 'The rows stand in MAP_ROWS.stack.' },
       { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The rows wear LAYER.mapControls.' },
-      { selector: role('MAP_SLOT') + '[property.name="locate"]', message: 'The pill row ends in MAP_SLOT.locate.' },
-      { selector: role('MAP_SLOT') + '[property.name="compass"]', message: 'The chip row ends in MAP_SLOT.compass.' },
+      { selector: role('MAP_ROWS') + '[property.name="phoneTools"]', count: 1, message: 'A phone\'s tools stand in MAP_ROWS.phoneTools.' },
+      { selector: role('MAP_SLOT') + '[property.name="tool"]', count: 2, message: 'The 3D and locate slots are MAP_SLOT.tool.' },
+      { selector: role('MAP_SLOT') + '[property.name="compass"]', count: 1, message: 'The tool column ends in MAP_SLOT.compass.' },
     ],
   },
   {

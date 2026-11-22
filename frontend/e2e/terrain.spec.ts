@@ -218,33 +218,51 @@ test('a link carrying terrain and no camera opens tilted, with the button presse
   await expect(page.locator('.maplibregl-ctrl-compass')).toBeEnabled()
 })
 
-// On a phone the 3D button stands in the top row, left of the locate button,
-// the same round button 12px from it, and the sentence bar ends 12px short of
-// it (record 0328), where the search pill did. The chip row keeps its own end
-// for the map (`legendClickThrough`).
+// On a phone the map's tools stand in a column down the right edge under the
+// sentence bar (record 0331): search, Layers, Draw, 3D and locate, each a
+// 32px round button 12px under the one above, and the bar takes the whole
+// first row above them.
 for (const width of [360, 390]) {
-  test(`a phone stands the 3D button beside the locate button at ${width} px`, async ({ page }) => {
+  test(`a phone stands its map tools in a column under the bar at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
     await page.goto('/?view=-121.76,46.853,11')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     const at = await page.evaluate(() => {
-      const box = (el: Element) => el.getBoundingClientRect()
+      const box = (el: Element) => el.getBoundingClientRect().toJSON()
+      const named = (name: string) => box(document.querySelector(`button[aria-label="${name}"]`)!)
       const group = document.querySelector('[role="group"][aria-label="Forecast"]')!
-      const layers = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Layers')!
       return {
-        terrain: box(document.querySelector('button[aria-label="3D terrain"]')!).toJSON(),
-        locate: box(document.querySelector('.maplibregl-ctrl-geolocate')!).toJSON(),
-        bar: box(group.parentElement!).toJSON(),
-        layers: box(layers).toJSON(),
+        column: ['Search for a place', 'Layers', 'Draw polygon', '3D terrain'].map(named),
+        locate: box(document.querySelector('.maplibregl-ctrl-geolocate')!),
+        bar: box(group.parentElement!),
+        map: box(document.querySelector('.maplibregl-canvas')!),
       }
     })
-    test.info().annotations.push({ type: `top row ${width} px`, description: JSON.stringify(at) })
-    expect(at.terrain.width).toBe(32)
-    expect(at.terrain.height).toBe(at.locate.height)
-    expect(at.terrain.top).toBe(at.locate.top)
-    expect(Math.round(at.locate.left - at.terrain.right)).toBe(12)
-    expect(Math.round(at.terrain.left - at.bar.right)).toBe(12)
-    // Not in the chip row.
-    expect(at.terrain.bottom).toBeLessThanOrEqual(at.layers.top)
+    test.info().annotations.push({ type: `tool column ${width} px`, description: JSON.stringify(at) })
+    const column = [...at.column, at.locate]
+    for (const button of column) {
+      expect(Math.round(button.width)).toBe(32)
+      expect(Math.round(button.height)).toBe(32)
+      expect(Math.round(button.right)).toBe(Math.round(column[0].right))
+    }
+    for (let i = 1; i < column.length; i++) expect(Math.round(column[i].top - column[i - 1].bottom)).toBe(12)
+    expect(Math.round(column[0].top - at.bar.bottom)).toBe(12)
+    // The bar spans the row to the column's right edge.
+    expect(Math.round(at.bar.right)).toBe(Math.round(column[0].right))
   })
 }
+
+// The search button opens the place search over the bar with the keyboard in
+// it, and Escape gives the bar back (record 0331).
+test('a phone opens the place search over the bar from its tool column', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  await page.goto('/?view=-121.76,46.853,11')
+  const open = page.getByRole('button', { name: 'Search for a place' })
+  await open.click()
+  await expect(open).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('combobox')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(open).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByRole('combobox')).toHaveCount(0)
+  await expect(open).toBeFocused()
+})

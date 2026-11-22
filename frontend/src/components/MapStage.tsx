@@ -356,9 +356,8 @@ export default function MapStage({
   const fabBottom = fabBottomPx(footLift, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
-  // Legend and Layers are chips in the row under the search pill at both
-  // widths, each with its menu a card joined to the chip at a desk (#714) and
-  // a bottom sheet on a phone (#696).
+  // Layers is a round tool at both widths (records 0315 and 0331), its menu a
+  // card beside the button at a desk and a bottom sheet on a phone (#696).
   const layers = (
     <LayersPopover
       overlays={overlays}
@@ -369,12 +368,13 @@ export default function MapStage({
       coverage={coverage}
       forcedOpen={layersForcedOpen}
       sheet={!isDesktop}
-      tool={isDesktop}
+      tool
     />
   )
-  // A desk's tool column (record 0315): Layers, and drawing a ring, whose
-  // button reads pressed while one is drawn and a second press lets it go.
-  const tools = isDesktop ? (
+  // The tool column, a desk's in its corner (record 0315) and a phone's under
+  // the sentence bar (record 0331): Layers, and drawing a ring, whose button
+  // reads pressed while one is drawn and a second press lets it go.
+  const tools = (
     <>
       {layers}
       <button
@@ -387,7 +387,7 @@ export default function MapStage({
         <IconLoop />
       </button>
     </>
-  ) : null
+  )
   // At a desk the key stands at the results column's foot while the column
   // does, as the prototype keeps its scale (record 0322).
   const legendInColumn = isDesktop && legendHost !== null
@@ -564,7 +564,7 @@ export default function MapStage({
         onOpenControls={onOpenControls}
         onCloseControls={onCloseControls}
         controlsSummary={controlsSummary}
-        layers={isDesktop ? null : layers}
+        tools={isDesktop ? null : tools}
         legend={legendChip}
         covered={layout.overMapRows}
         bar={bar}

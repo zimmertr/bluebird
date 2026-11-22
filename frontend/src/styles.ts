@@ -1789,6 +1789,11 @@ export const MAP_EDGE = {
    * (`DRAW_BAR`), which stands the same inset off both sides.
    */
   right: 'right-[var(--map-edge-inset)]',
+  /**
+   * The right edge of a box beside a phone's tool column (record 0331): the
+   * inset, the column's 32px and the 12px a finger's press keeps clear.
+   */
+  rightOfTools: 'right-[calc(var(--map-edge-inset)+2.75rem)]',
   /** The top edge the map's rows take. */
   top: 'top-[var(--map-edge-inset)]',
   /**
@@ -1818,7 +1823,7 @@ export const MAP_EDGE = {
  * the map, where they were never out of reach.
  */
 export const DRAW_BAR =
-  `${SURFACE_FLOATING} ${LAYER.base} absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ` +
+  `${SURFACE_FLOATING} ${LAYER.base} absolute ${MAP_EDGE.left} ${MAP_EDGE.rightOfTools} ` +
   'flex items-center gap-2 px-3 py-1.5'
 
 /**
@@ -1891,6 +1896,16 @@ export const MAP_ROWS = {
    */
   chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
   /**
+   * A phone's tool column (record 0331), down the map's right edge under the
+   * sentence bar: search, Layers, drawing a loop, 3D, locate and the compass,
+   * the prototype's column, each a 32px round button 12px from the next,
+   * where a finger's 44px presses meet (record 0254). The bar takes the
+   * whole first row now that no button stands beside it.
+   */
+  phoneTools: 'pointer-events-auto absolute right-0 top-11 flex flex-col items-end gap-3',
+  /** The place search a phone's search button opens, over the sentence bar. */
+  searchOver: 'absolute inset-y-0 left-0 right-0 z-20',
+  /**
    * The draw bar on a phone (#687): under the chip row, 12px below it (88 +
    * 12), so every chip stays in reach while a ring is drawn and the foot of
    * the map stays the notices' and the player's.
@@ -1954,25 +1969,20 @@ export const MAP_ROUND_BUTTON =
 export const MAP_TERRAIN_BUTTON = `map-terrain ${MAP_ROUND_BUTTON} ${TEXT.control} font-bold`
 
 /**
- * Where a phone stands one of those buttons at a row's right end (#696): the
- * map moves its own control into the slot (`placeControl`), so the button
- * keeps the library's states and its permission prompt, and `map.css`, keyed
- * on `map-slot`, takes the library's margin off it. A desk's rows have no
- * slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
+ * Where a phone stands one of those buttons in its tool column (#696, record
+ * 0331): the map moves its own control into the slot (`placeControl`), so the
+ * button keeps the library's states and its permission prompt, and `map.css`,
+ * keyed on `map-slot`, takes the library's margin off it. A desk's rows have
+ * no slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
  *
- * `locate` is a 32px box at the search pill's right, and `terrain` the same
- * box 12px left of it, for the 3D button (#799), so the pill's row ends in
- * two round buttons the way a desk's column stacks them. `compass` is the
- * chip row's last member, under the locate button (record 0147), and takes no
- * room of its own: while the map is north-up the compass is hidden and the
- * slot is nothing, so the row's empty end stays the map's, about 20px at 360
- * wide. While it shows, the slot is the button's 32px and the summary chip,
- * the one member that gives way, gives it up; the button is the row's height.
+ * `tool` is the column's 32px round button, the 3D and locate buttons'.
+ * `compass` takes no room of its own: while the map is north-up the compass
+ * is hidden and the slot is nothing, so the column ends at the locate button
+ * (record 0147).
  */
 export const MAP_SLOT = {
-  locate: 'map-slot absolute right-0 top-0 size-8',
-  terrain: 'map-slot absolute right-11 top-0 size-8',
-  compass: 'map-slot ml-auto flex-shrink-0',
+  tool: 'map-slot size-8',
+  compass: 'map-slot',
 } as const
 
 /**

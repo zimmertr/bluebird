@@ -30,7 +30,6 @@ function rows(over: Partial<Parameters<typeof MapRows>[0]> = {}) {
       onOpenControls={() => {}}
       onCloseControls={() => {}}
       controlsSummary="Current · NOAA GFS"
-      layers={<button>Layers</button>}
       legend={<button>Legend</button>}
       {...over}
     />
@@ -215,9 +214,9 @@ describe('MapRows at a desk', () => {
   // panel closing then leaves the page as they left it.
   it('takes nothing when the focus was not lost', () => {
     const { rerender } = render(rows({ desk: true, sidebarOpen: true }))
-    const layers = screen.getByRole('button', { name: 'Layers' })
-    layers.focus()
-    layers.blur()
+    const legend = screen.getByRole('button', { name: 'Legend' })
+    legend.focus()
+    legend.blur()
     rerender(rows({ desk: true, sidebarOpen: false }))
     expect(document.activeElement).toBe(document.body)
   })
@@ -247,5 +246,30 @@ describe('MapRows at a desk', () => {
     screen.getByRole('button', { name: 'Done' }).focus()
     rerender(page(false))
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Sat 21' }))
+  })
+
+  // A phone's tool column (record 0331): the search button opens the field
+  // over the bar, and the field goes once it has had the keyboard and gives
+  // it up; the map's tools stand under the button.
+  it('on a phone opens the search over the bar from its tool column', () => {
+    render(
+      rows({
+        bar: <div role="group" aria-label="Forecast" />,
+        tools: <button>Layers</button>,
+      }),
+    )
+    const open = screen.getByRole('button', { name: 'Search for a place' })
+    expect(open.getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Layers' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    fireEvent.click(open)
+    expect(open.getAttribute('aria-pressed')).toBe('true')
+    // The field reports itself shut as it mounts, which closes nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    expect(open.getAttribute('aria-pressed')).toBe('false')
   })
 })
