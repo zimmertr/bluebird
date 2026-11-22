@@ -69,7 +69,7 @@ flowchart TD
 
     dev -.->|merge app PR| bbMain
     bbMain --> bbRel
-    bbRel -->|GitVersion, then build| dhImage
+    bbRel -->|version, then build| dhImage
     bbRel -->|build beside it| dhFill
     bbRel --> bbScan
     bbScan -->|passed| ghRelease
@@ -107,12 +107,11 @@ flowchart TD
 release at a time). It calls yggdrasil's **release** module, pinned like
 every other action. It runs on a push to `main` and nothing else: a manual
 dispatch from another branch would build, push and bump that branch into
-production, because GitVersion gives it a prerelease version that sorts above
+production, because the module would give it a version of its own beside
 the newest release (#632). Record:
 [0278](architectural-decision-records/0278-the-release-runs-on-yggdrasils-module.md)
 
-1. **Version**: GitVersion (Mainline, yggdrasil's default rules) computes the
-   SemVer from the squash commit's title (see [Conventions](#conventions)). A
+1. **Version**: yggdrasil's `actions/version` computes the SemVer from the squash commit's title (see [Conventions](#conventions)). A
    merge whose version is already tagged releases nothing.
 2. **Build & Push**: one job per image. Each builds a **multi-arch manifest
    (`linux/amd64` + `linux/arm64`, arm64 via QEMU)** with SBOM + provenance
@@ -138,7 +137,7 @@ the newest release (#632). Record:
    emulated version of that stage cost.
 
    **Build identity.** Three build args are passed here and baked into the
-   image as env vars: `APP_VERSION` (the GitVersion SemVer), `APP_COMMIT`
+   image as env vars: `APP_VERSION` (the release's SemVer), `APP_COMMIT`
    (`github.sha`), and `APP_BUILT_AT` (the image's
    `org.opencontainers.image.created` label, stamped when the job runs,
    because `github.event.repository.updated_at` is the last push rather than
@@ -191,7 +190,7 @@ the newest release (#632). Record:
    the `appVersion` in `Chart.yaml` (bluebird-helm record 0005). It runs
    after step 4, as every bump of the module does.
 
-   Both bumps are made by `peter-evans/create-pull-request`, which pushes the
+   Both bumps are made by yggdrasil's `actions/open-pr`, which pushes the
    branch fresh off the default branch and opens the PR or updates the open
    one, so quick releases leave one PR each rather than a pile. Auto-merge is
    re-armed on every push, because GitHub disables it whenever the head
@@ -205,8 +204,8 @@ module confines to `main`). Like Path 1, every step is a job of yggdrasil's
 **release** module, which since v1.1.0 pushes a chart between its release and
 its deploy bumps (bluebird-helm record 0005, yggdrasil record 0054).
 
-1. **Release** (the module): GitVersion computes the **chart** SemVer from the
-   same title patterns, and the module makes the git tag and the GitHub
+1. **Release** (the module): it computes the **chart** SemVer from the same
+   title rules, and the module makes the git tag and the GitHub
    release. A merge whose version is already tagged releases nothing.
 2. **Push Chart (charts/bluebird)**, after the tag: `helm package
    --dependency-update --version <chartver>`, which fetches the database
@@ -217,7 +216,7 @@ its deploy bumps (bluebird-helm record 0005, yggdrasil record 0054).
 3. **Deploy Bump (zimmertr/Kubernetes-Manifests)**, twice, moves
    `Kubernetes-Manifests` onto the new chart via two PRs, one per consumer,
    the same job that makes Path 1's bumps (`yq` sets the value,
-   `peter-evans/create-pull-request` opens or advances the PR):
+   `actions/open-pr` opens or advances the PR):
    - preview: `chore/bluebird-preview-chart` sets `targetRevision: <chartver>`
      in `public/bluebird-pr/applicationset.yml` (the ephemeral per-PR envs).
      Always **self-merging**; nothing it touches reaches prod.
@@ -448,8 +447,8 @@ code before it: every `uses:` in the three repositories is a full commit SHA
 with its version in a comment (a tag is a pointer its owner can move, and an
 action in a job can rewrite every later step through `$GITHUB_PATH` and
 `$GITHUB_ENV`). Renovate reads the version comments and moves each pin by
-PR, yggdrasil's modules included. GitVersion and Helm are pinned to exact
-versions for the same reason. A value from the event or a step output reaches
+PR, yggdrasil's modules included. Helm is pinned to an exact version for
+the same reason. A value from the event or a step output reaches
 a `run:` script through `env:`, never pasted into it. Every `actions/checkout`
 sets `persist-credentials: false` except the one that pushes a tag (the
 chart's `publish`; this repo's release makes its tag through the API).
@@ -1319,7 +1318,7 @@ flowchart LR
   1 s to install Chromium alone ([The pull request path](#the-pull-request-path)).
 - `pr-title.yml`'s **PR Title** job calls yggdrasil's **pr-title** module,
   which fails a PR whose title doesn't start with one of the ten types
-  yggdrasil's default `GitVersion.yml` names, since that title becomes the squash
+  yggdrasil's release reads, since that title becomes the squash
   commit's and decides the release. It runs on `opened`, `edited`, `reopened`
   and `synchronize`, so fixing the title fixes the check without a push, and it
   is a workflow apart from `pr.yml` so a title edit does not restart the whole
@@ -1604,7 +1603,7 @@ costs](#what-a-stable-chart-bump-costs).
 ## Conventions
 
 - **PR title → bump** (both repos). The squash commit's title is the PR title,
-  and GitVersion reads that line alone:
+  and the release reads that line alone:
 
   | PR title | Bump |
   | --- | --- |
@@ -1616,11 +1615,11 @@ costs](#what-a-stable-chart-bump-costs).
   starts `fix!:`, changes nothing, so a major is always the title's `!`
   ([0080](architectural-decision-records/0080-major-from-the-title-only.md)). A title that starts
   `BREAKING CHANGE:` names no type, so it is not read, and the PR Title check
-  refuses it. GitVersion matches without regard to case. A `!` anywhere else
+  refuses it. The types are lowercase, so the check refuses `Feat:`. A `!` anywhere else
   in the title (`fix: stop the crash!`) is not a major. Renovate's
   `chore(deps):` and `fix(deps):` and the release bot's `chore(release):` titles are patches.
   A title no pattern reads still releases a patch, which is why the `PR Title`
-  check exists. The patterns live in yggdrasil's default `GitVersion.yml`,
+  check exists. The types live in yggdrasil's `actions/version/version.sh`,
   which `bluebird-helm`'s release uses too.
 - **Cutting 1.0.0: the app first, then the chart.** The chart goes to 1.0
   with the app (TJ, 2026-10-01), and neither major happens by itself: each
