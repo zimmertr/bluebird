@@ -194,12 +194,10 @@ export default function App() {
   const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
   const { choice: themeChoice, theme, setChoice: setThemeChoice } = useTheme()
-  // The controls panel is docked on desktop and the Controls sheet on phones
-  // (record 0141). It starts open on a desktop and closed on a phone
-  // (`useDrawer`, #696); a close button collapses it to widen the map.
-  // Shut at a desk too: the sentence bar and its cards stand where the
-  // docked panel stood (record 0309), so a desk has no panel to open.
-  const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(false)
+  // The controls panel is a sentence-bar card at a desk (record 0309) and
+  // the Controls sheet on a phone (record 0141). It starts shut at both: at a
+  // desk it is open while a card is (record 0334).
+  const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer()
   // A phone's Controls sheet under a drag on its grip (record 0146): the height
   // the drag left it at, or null for its own share of the map.
   const [controlsHeld, setControlsHeld] = useHeldSheetPx(sidebarOpen)
@@ -742,8 +740,7 @@ export default function App() {
   // where it is, and the message list opens over the map's Analyze, where the
   // phone's badge is (`useOpenOnFailure` in `PhoneFoot`, #803).
   //
-  // Desktop is unaffected: the panel is docked there and closes only when the
-  // reader closes it.
+  // Desktop is unaffected: its card closes only when the reader closes it.
   useEffect(() => {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
     // Kept: listing `isDesktop` would close the drawer when a window crossed
@@ -816,11 +813,10 @@ export default function App() {
     removeResult: removals.removeResult,
   })
   const { layout, tableView } = resultsView
-  // Which edge of a desk's layout is moving, so the map and the results
-  // hold one size while it moves (record 0202).
+  // Whether a desk's results panes are moving, so the map holds one size
+  // while they move (record 0202).
   const { motion: layoutMotion, onTransitionEnd: onLayoutMoved } = useLayoutMotion({
     isDesktop,
-    open: sidebarOpen,
     mode: layout.resultsMode,
     collapsed: layout.resultsCollapsed,
   })
@@ -887,14 +883,12 @@ export default function App() {
     closure,
     pendingHeights: waitingHeights,
     modelId: analyzed?.forecastModel ?? forecastModel,
-    layoutMotion,
   }
 
-  const renderDrawer = (bar?: { card: PanelSection | null; onCardClose: () => void; search?: ReactNode }) => (
+  const renderDrawer = (bar: { card: PanelSection | null; onCardClose: () => void; search?: ReactNode }) => (
     <AppDrawer
       open={sidebarOpen}
       isDesktop={isDesktop}
-      moving={layoutMotion === 'opening' || layoutMotion === 'closing'}
       sheetHeld={controlsHeld}
       sheetRestPx={controlsSheetPx(layout.mapPx)}
       onSheetHeld={setControlsHeld}
@@ -913,17 +907,15 @@ export default function App() {
       onPointAtMapPois={setPoisPointed}
       onPresetListFailed={setPresetListFailed}
       messages={shownMessages}
-      onAnalyze={handleAnalyze}
       autoAnalyze={autoAnalyze}
       capabilitiesSettled={capsApplied}
       onAutoAnalyze={runAutoAnalyze}
-      actionWord={word}
       onTutorial={tour.start}
       tutorialWaits={tourWaits}
       viewIsArea={searchArea.source === 'view'}
-      card={bar?.card}
-      onCardClose={bar?.onCardClose}
-      search={bar?.search}
+      card={bar.card}
+      onCardClose={bar.onCardClose}
+      search={bar.search}
     />
   )
 
@@ -977,8 +969,6 @@ export default function App() {
         analyzeEnabled: shownMessages.analyzeEnabled,
         word,
         onAnalyze: handleAnalyze,
-        onTutorial: tour.start,
-        tutorialWaits: tourWaits,
         messages: shownMessages,
       }}
       autoAnalyze={false}
@@ -1012,8 +1002,6 @@ export default function App() {
         analyzeEnabled: shownMessages.analyzeEnabled,
         word,
         onAnalyze: handleAnalyze,
-        onTutorial: tour.start,
-        tutorialWaits: tourWaits,
         messages: shownMessages,
       }}
       autoAnalyze={autoAnalyze}

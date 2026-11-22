@@ -188,7 +188,7 @@ export interface SnowDepthRequest {
   end_datetime: string
 }
 
-export interface SnowDay {
+interface SnowDay {
   day: string
   depth_in: number | null
 }

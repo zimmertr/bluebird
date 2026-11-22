@@ -310,7 +310,7 @@ function flag(
  * Snow depth is the exception: `snowdepth` is the snow layer's switch, so its
  * aggregate rides `depth` (#849).
  */
-export function aggregateParam(family: MetricFamily): string {
+function aggregateParam(family: MetricFamily): string {
   return family === 'snow_depth' ? 'depth' : family.replace(/_/g, '')
 }
 

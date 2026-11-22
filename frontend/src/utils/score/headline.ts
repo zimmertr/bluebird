@@ -9,7 +9,7 @@
 import { grouped } from '../numbers'
 import { HOUR_MS } from '../forecastWindow'
 
-export const HEADLINE_BAR = 80
+const HEADLINE_BAR = 80
 
 export interface Headline {
   bar: number

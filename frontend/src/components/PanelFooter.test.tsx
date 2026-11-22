@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import PanelFooter from './PanelFooter'
 import type { FooterMessage } from '../utils/notices'
@@ -7,10 +7,11 @@ import { panelMessages } from '../testSupport/fixtures'
 import { placeAt, render } from '../testSupport/render'
 import { MESSAGE_BADGE } from '../styles'
 
-// The footer draws what `usePanelMessages` decided (record 0208): the Analyze
-// button with the count on its corner, the list the badge opens over it, and
-// the two document links. Which messages exist is that hook's suite; this one
-// is where they land and how the list opens.
+// The sentence bar's button draws what `usePanelMessages` decided (record
+// 0208): the button with the count on its corner and the list the badge opens
+// over it. Which messages exist is that hook's suite; this one is where they
+// land and how the list opens. The bar's label stands in for the word Analyze
+// (record 0309), so the suite labels it Analyze and reads the word either way.
 
 type Props = ComponentProps<typeof PanelFooter>
 
@@ -19,8 +20,8 @@ function props(over: Partial<Props> = {}): Props {
     analyzeEnabled: true,
     word: 'Analyze',
     onAnalyze: () => {},
-    onTutorial: () => {},
     messages: panelMessages(),
+    bar: { label: 'Analyze', widthRef: { current: null } },
     ...over,
   }
 }
@@ -186,37 +187,6 @@ describe('PanelFooter', () => {
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Elsewhere' }))
   })
 
-  it('links the tour at its path and starts it in place on a plain click', async () => {
-    const onTutorial = vi.fn()
-    const { user } = render(<PanelFooter {...props({ onTutorial })} />)
-    const link = screen.getByRole('link', { name: 'Tutorial' })
-    expect(link.getAttribute('href')).toBe('/tutorial')
-    expect(link.getAttribute('target')).toBeNull()
-    await user.click(link)
-    expect(onTutorial).toHaveBeenCalledOnce()
-  })
-
-  it('answers no click on the tour link while it waits, and says so', async () => {
-    const onTutorial = vi.fn()
-    const { user } = render(<PanelFooter {...props({ onTutorial, tutorialWaits: true })} />)
-    const link = screen.getByRole('link', { name: 'Tutorial' })
-    expect(link.getAttribute('aria-disabled')).toBe('true')
-    await user.click(link)
-    expect(onTutorial).not.toHaveBeenCalled()
-  })
-
-  it('links the two document pages in a new tab', () => {
-    render(<PanelFooter {...props()} />)
-    for (const [name, href] of [
-      ['Privacy', '/privacy'],
-      ['Terms', '/terms'],
-    ]) {
-      const link = screen.getByRole('link', { name })
-      expect(link.getAttribute('href')).toBe(href)
-      expect(link.getAttribute('target')).toBe('_blank')
-    }
-  })
-
   // #803: a failure that showed only as a count read as no failure at all,
   // so a run that fails opens the list itself, and the badge says so.
   it('opens the list when a run fails, and closes it as a press would', async () => {
@@ -235,10 +205,10 @@ describe('PanelFooter', () => {
     expect(list()).toBeTruthy()
   })
 
-  // The card is the button's width (#803): a line longer than the slot wraps
-  // inside it rather than widening the card past the panel over the map.
-  // jsdom lays nothing out, so the card is told its lines want 600px.
-  it("stands the list at the button's width, however long a line is", async () => {
+  // The card is the bar's width (#803, record 0309): a line longer than the
+  // bar wraps inside it rather than widening the card over the map. jsdom
+  // lays nothing out, so the card is told its lines want 600px.
+  it("stands the list at the bar's width, however long a line is", async () => {
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(() => 600)
     vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(() => 120)
     const long: FooterMessage = {
@@ -246,8 +216,13 @@ describe('PanelFooter', () => {
       text: 'This search covers 2,613 destinations. The analysis limit is 1,500 destinations.',
       severity: 'error',
     }
-    const { user } = render(<PanelFooter {...props({ messages: panelMessages({ messages: [long] }) })} />)
-    placeAt(analyze().parentElement!, { left: 16, top: 700, width: 328, height: 44 })
+    const span = document.createElement('div')
+    document.body.append(span)
+    onTestFinished(() => span.remove())
+    const bar = { label: 'Analyze', widthRef: { current: span } }
+    const { user } = render(<PanelFooter {...props({ bar, messages: panelMessages({ messages: [long] }) })} />)
+    placeAt(analyze().parentElement!, { left: 16, top: 700, width: 120, height: 44 })
+    placeAt(span, { left: 16, top: 700, width: 328, height: 44 })
     await user.click(badge())
     const card = list().closest<HTMLElement>('[style]')!
     expect(card.style.width).toBe('328px')
@@ -275,30 +250,5 @@ describe('PanelFooter', () => {
     rerender(<PanelFooter {...props({ messages: panelMessages({ messages: MESSAGES, openingSeq: 1, failureSeq: 1 }) })} />)
     expect(list().contains(document.activeElement)).toBe(true)
     field.remove()
-  })
-
-  it('opens nothing on a phone, whose footer has no list', () => {
-    const { rerender } = render(<PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES }) })} />)
-    rerender(<PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES, failureSeq: 1 }) })} />)
-    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
-    rerender(
-      <PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES, failureSeq: 1, openingSeq: 1 }) })} />,
-    )
-    expect(screen.queryByRole('group', { name: 'Messages' })).toBeNull()
-  })
-
-  // A phone's one Analyze is the map's floating button (record 0135), which
-  // wears the badge and the region: the sheet's footer is the links alone.
-  it('draws the links alone on a phone', () => {
-    const { container, rerender } = render(
-      <PanelFooter {...props({ phone: true, messages: panelMessages({ messages: MESSAGES }) })} />,
-    )
-    expect(screen.queryByRole('button')).toBeNull()
-    expect(screen.queryByRole('status')).toBeNull()
-    expect(container.textContent).toBe('Tutorial · Privacy · Terms')
-    // The tour's Analyze step lights the map's button instead.
-    expect(container.querySelector('[data-tour="analyze"]')).toBeNull()
-    rerender(<PanelFooter {...props()} />)
-    expect(screen.getByRole('button', { name: 'Analyze' })).toBeTruthy()
   })
 })

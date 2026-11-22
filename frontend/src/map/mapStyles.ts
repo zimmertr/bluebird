@@ -63,7 +63,7 @@ export const MARKER_HALO = '#0f172b'
  * top five a numbered pill, and a place not yet forecast a smaller grey dot.
  * `rankNum` is the feature's rank as a number, 0 for none.
  */
-export const TOP_RANKS = 5
+const TOP_RANKS = 5
 const TOP: ExpressionSpecification = ['all', ['>=', ['get', 'rankNum'], 1], ['<=', ['get', 'rankNum'], TOP_RANKS]]
 const PILL_RADIUS = 11
 const DOT_RADIUS = 4.5
@@ -77,7 +77,7 @@ export const RESULT_MARKER_PAINT: Omit<CircleLayerSpecification['paint'], 'circl
   'circle-opacity': 1,
 }
 /** A place not yet forecast: grey, smaller, a little faded, as the prototype's idle dot. */
-export const IDLE_COLOR = '#94a3b8'
+const IDLE_COLOR = '#94a3b8'
 export const IDLE_MARKER_PAINT: CircleLayerSpecification['paint'] = {
   'circle-radius': IDLE_RADIUS,
   'circle-color': IDLE_COLOR,
@@ -91,7 +91,7 @@ export const IDLE_MARKER_PAINT: CircleLayerSpecification['paint'] = {
  * halo's line. Sky-500, which reads on the dark slate and the pale ground
  * alike, so one value serves both themes.
  */
-export const HOT_RING = '#0ea5e9'
+const HOT_RING = '#0ea5e9'
 const HOT: ExpressionSpecification = ['boolean', ['feature-state', 'hot'], false]
 const haloPaint = (radius: ExpressionSpecification | number, stroke: ExpressionSpecification | number) =>
   ({

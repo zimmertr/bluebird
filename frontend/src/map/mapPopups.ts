@@ -146,8 +146,6 @@ export interface MapPopupTarget {
   hover?: (feature: maplibregl.MapGeoJSONFeature | null) => void
 }
 
-export type { MapPoint } from '../utils/pointReadout'
-
 /** A layer on the map that answers a card by what it has at the card's point (#737, #832). */
 export interface MapPointTarget {
   target: MapTarget

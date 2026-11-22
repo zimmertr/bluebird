@@ -64,7 +64,7 @@ export interface MapStageProps {
     DrawMode,
     'drawing' | 'handleDrawUpdate' | 'drawPointCount' | 'finishDrawing' | 'handleCancelDrawing' | 'startDrawing'
   >
-  /** A desk keeps Done and Cancel in the docked panel; a phone gets them on the map. */
+  /** A desk hangs Done and Cancel under the sentence bar (`App`); a phone gets them on the map. */
   isDesktop: boolean
   /** The ring, the link's restored points and the searched places, with the setters the map calls. */
   destinationInputs: Pick<DestinationInputs, 'polygon' | 'setPolygon' | 'restoredPoints' | 'places' | 'removePlace'>
@@ -120,7 +120,7 @@ export interface MapStageProps {
   showResults: boolean
   /** Whether the controls panel is open. */
   sidebarOpen: boolean
-  /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
+  /** Whether a desk's results panes are moving, which the map's box holds still for (record 0202). */
   layoutMotion?: LayoutMotion
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
   legendInitiallyOpen: boolean
@@ -394,15 +394,10 @@ export default function MapStage({
     />
   )
 
-  // While the panel moves the box is the window's width, and while a pane
-  // moves the window's height, centred on the column either way, so the map
-  // is resized where the move starts or ends rather than in every frame.
-  const mapBox =
-    layoutMotion === 'opening' || layoutMotion === 'closing'
-      ? LAYOUT_HOLD.mapPush
-      : layoutMotion === 'panes'
-        ? LAYOUT_HOLD.mapPanes
-        : LAYOUT_HOLD.rest
+  // While a pane moves the box is the window's height, centred on the
+  // column, so the map is resized where the move starts or ends rather than
+  // in every frame.
+  const mapBox = layoutMotion === 'panes' ? LAYOUT_HOLD.mapPanes : LAYOUT_HOLD.rest
 
   // The forecast player, alone over the map or hosted by the day strip.
   const transport = (axis: TimelineAxis, embedded: boolean) => (
@@ -471,7 +466,7 @@ export default function MapStage({
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
         isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      } ${layoutMotion ? LAYOUT_HOLD.clip : ''} ${layoutMotion === 'opening' || layoutMotion === 'closing' ? LAYOUT_HOLD.layer : ''}`}
+      } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
       style={
         {
           // A phone's scale and (i) stand in the band over its foot

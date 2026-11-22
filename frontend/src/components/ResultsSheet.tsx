@@ -16,7 +16,7 @@ import { resultsHeading } from '../metrics'
 import type { Lens } from '../utils/score/lenses'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { columnWidthPx } from '../utils/results/resultsSheet'
-import { LAYER, LAYOUT_HOLD, RESULTS_COLUMN, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
+import { LAYER, RESULTS_COLUMN, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
   extends Omit<
@@ -151,7 +151,6 @@ function panelsProps(p: ResultsSheetProps): Omit<ResultsPanelsProps, 'part'> {
     chartPhone: !isDesktop,
     panesMove: isDesktop,
     collapsed: resultsView.layout.resultsCollapsed,
-    layoutMotion: p.layoutMotion ?? null,
     pointSample: p.pointSample,
     forecastTimes: p.forecastTimes,
     playbackIndex: p.playbackIndex,
@@ -218,7 +217,6 @@ export default function ResultsSheet(props: ResultsSheetProps) {
   legendFootRef,
   sortBy,
   pointSample,
-  layoutMotion = null,
   } = props
   const { showTable, layout, charts, tableView } = resultsView
   const { sheetRef, barRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
@@ -305,11 +303,11 @@ export default function ResultsSheet(props: ResultsSheetProps) {
           style={isDesktop && !wide && columnPx !== null ? { width: columnPx } : undefined}
           className={
             isDesktop
-              ? // The column down the map's right edge, on a layer of its own
-                // while it moves (record 0216), or widened over the map
-                // (record 0321).
-                (wide ? RESULTS_COLUMN.wide : RESULTS_COLUMN.column) +
-                (layoutMotion === 'opening' || layoutMotion === 'closing' ? ` ${LAYOUT_HOLD.layer}` : '')
+              ? // The column down the map's right edge, or widened over the
+                // map (record 0321).
+                wide
+                ? RESULTS_COLUMN.wide
+                : RESULTS_COLUMN.column
               : // The sheet's surface runs under a phone's home indicator and
                 // its grip and header stand above it (record 0145). Never
                 // taller than the map: at full screen (#837) its panels are

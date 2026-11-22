@@ -14,7 +14,7 @@ import { clamp } from '../numbers'
  * the box, so the picture's one rule, what stands where, is pinned in node and
  * the component only scales it.
  */
-export interface ProfileHour {
+interface ProfileHour {
   /** The hour's left edge and width, as fractions of the box's width. */
   x: number
   w: number

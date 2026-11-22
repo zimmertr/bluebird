@@ -32,6 +32,3 @@ export function useSearchArea({ mapRef, drawn, drawPointCount, listOnly }: Searc
   const areaKm2 = useMemo(() => (area.polygon ? bboxAreaKm2(ringToPts(area.polygon)) : null), [area.polygon])
   return { ...area, areaKm2, reportView }
 }
-
-/** What `useSearchArea` hands its callers. */
-export type SearchArea = ReturnType<typeof useSearchArea>

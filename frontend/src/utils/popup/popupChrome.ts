@@ -458,7 +458,7 @@ export function bodyLines(lines: readonly (string | null | undefined)[]): string
  * The attribute every pending bar wears, so a reader of the card, a browser
  * test waiting for the values to land, finds a bar whatever its width.
  */
-export const PENDING_ATTR = 'data-pending'
+const PENDING_ATTR = 'data-pending'
 
 export function pendingValue(widthCh?: number): string {
   const width = widthCh === undefined ? '3.5em' : `${widthCh}ch`

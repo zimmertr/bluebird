@@ -119,7 +119,7 @@ export function withScoreColumn(cols: readonly ColDef[], scored: boolean): ColDe
 export const HOURS_COL: ColDef = { key: 'score_hours', label: 'Hours' }
 
 /** The two values the compact table keeps beside the ranking (record 0320). */
-export const COMPACT_KEYS: readonly ColDef['key'][] = ['wind_max_mph', 'temp_min_f']
+const COMPACT_KEYS: readonly ColDef['key'][] = ['wind_max_mph', 'temp_min_f']
 
 /**
  * The prototype's short headers for those two in the compact table (record
@@ -127,7 +127,7 @@ export const COMPACT_KEYS: readonly ColDef['key'][] = ['wind_max_mph', 'temp_min
  * the column past its edge at 44% of a 1389px window. The full table behind
  * the expand button keeps the long names, since it shows every aggregate.
  */
-export const COMPACT_LABELS: Partial<Record<ColDef['key'], string>> = {
+const COMPACT_LABELS: Partial<Record<ColDef['key'], string>> = {
   wind_max_mph: 'Wind (mph)',
   temp_min_f: 'Low (°F)',
 }

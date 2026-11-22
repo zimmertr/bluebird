@@ -58,7 +58,7 @@ export function whenWord(selection: ForecastSelection): string {
 }
 
 /** The Current arm's hours in the sentence: `Peaks in this view for this hour`. */
-export const THIS_HOUR = 'this hour'
+const THIS_HOUR = 'this hour'
 
 /** The button's words when a press would fetch nothing new, which it draws as an outline. */
 export const UP_TO_DATE = 'Up to date'

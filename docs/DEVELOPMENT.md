@@ -378,8 +378,8 @@ how soon it lands. `CPU_SLOWDOWN=4` in the Playwright container's environment
 runs it at about a mid phone's speed.
 
 And it moves a desk's layout (`frontend/e2e/perf/layoutMotion.spec.ts`, #786)
-over a 200-row report with every line charted, in both themes: the panel
-closing and opening, then Table, Chart and Both each way. It prints a
+over a 200-row report with every line charted, in both themes: Table, Chart
+and Both each way. It prints a
 `layout motion` line per move with how long the moving edge took to start and
 to stop, how many places it stood in between, the longest wait between two
 frames, and the main thread's work by kind from Chrome's trace, where `Paint`

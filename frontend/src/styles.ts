@@ -425,7 +425,7 @@ export const SURFACE_CARD =
  * The results sheet on a phone: the panel parked over the map's bottom edge
  * rather than docked below it (#249).
  *
- * The same slate-800 the docked panel wears, so the results do not change colour
+ * The same slate-800 a desk's results column wears, so the results do not change colour
  * with the breakpoint, plus the two things that say it is standing on the map:
  * the slate-600 edge every box floating over the map already carries, and the
  * surface radius on the top corners only, since the bottom pair are off the
@@ -738,7 +738,7 @@ const TRIGGER_STATE =
  * light hover lightens, gaining label contrast (5.33:1) and standing 2.98:1 on
  * the panel, the one state under 3:1. `styles.test.ts` pins every number.
  */
-// Not exported: the two Forecast buttons below are its only callers, and a
+// Not exported: the Forecast button below is its only caller, and a
 // role nothing outside this file imports is one the styles suite fails.
 const ACT = {
   fill: 'bg-act text-on-act',
@@ -750,17 +750,10 @@ export const BUTTON_PRIMARY =
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
- * The button that spends a forecast: `BUTTON_PRIMARY`'s shape in alpenglow
- * (`ACT`, record 0308), so it is the one primary action that does not wear
- * the sky accent.
- */
-export const BUTTON_FORECAST =
-  `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
-  `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING}`
-
-/**
- * The same button in the map's sentence bar (record 0309): as tall as the
- * chips beside it and as wide as its words, which name what it will forecast.
+ * The button that spends a forecast, in the map's sentence bar (record
+ * 0309): alpenglow (`ACT`, record 0308), so it is the one primary action that
+ * does not wear the sky accent, as tall as the chips beside it and as wide as
+ * its words, which name what it will forecast.
  */
 export const BUTTON_FORECAST_BAR =
   `${TEXT.cta} ${TAP.action} whitespace-nowrap h-10 px-4 ${RADIUS.control} transition-colors ` +
@@ -1362,7 +1355,7 @@ export const SPINNER =
  * dialog, because a dialog is modal and a popover is not.
  */
 export const LAYER = {
-  /** Map chrome, the sticky table header, the docked panels. */
+  /** Map chrome, the sticky table header. */
   base: 'z-10',
   /**
    * The results sheet on a phone, which stands on the map rather than beside it
@@ -1845,8 +1838,8 @@ export const MAP_EDGE = {
  * off both sides, and as tall as its 32px buttons plus the box's padding:
  * 366 by 46 on a 390px phone. Its bottom is the player's (`transportBottomPx`),
  * which puts it in the band above the scale bar that the legend stack already
- * clears. Phone only: a desk keeps Done and Cancel in the docked panel beside
- * the map, where they were never out of reach.
+ * clears. Phone only: a desk hangs Done and Cancel under the sentence bar
+ * instead (`SENTENCE_BAR.drawBar`, record 0309).
  */
 export const DRAW_BAR =
   `${SURFACE_FLOATING} ${LAYER.base} absolute ${MAP_EDGE.left} ${MAP_EDGE.rightOfTools} ` +
@@ -2238,8 +2231,6 @@ export const MAP_FOOT = {
  * keyboard on it. Under reduced motion it does not move at all.
  */
 export const MESSAGE_BADGE = {
-  /** The box the button and its badge share, which the badge's corner is placed in. */
-  slot: 'relative',
   base:
     `absolute -right-2.5 -top-2.5 flex h-6 min-w-6 items-center justify-center border-2 border-panel px-1 ${RADIUS.pill} ` +
     `${MICRO_SIZE} font-bold leading-none tabular-nums transition-colors ` +
@@ -2479,23 +2470,22 @@ export const ACTION_ITEM =
  * switch and all four buttons on one line with their words (#687); under that,
  * every control is its glyph alone and keeps the word as its accessible name,
  * as the switch's halves already did on a phone. A container rule, because the
- * bar's width is the viewport less the docked panel.
+ * bar's width is the results column's, which a reader can resize.
  *
  * 584px of the bar's content, measured 2026-10-13 at text-xs: the labelled
  * switch is 176.7px, the labelled group with `Removed (1)` showing 377.8px,
  * and the groups stand at least 16px apart (`gap-x-4`) on the folded line,
  * 570.5px; then two more digits of a Removed count, 13.4px, so a reader with
- * a hundred removals still gets one line. The bar beside the docked panel at
- * 1024 wide has 640px and keeps its words; a phone has 336px at 360 wide and
- * 406px at 430, and shows the switch and the glyphs on one line, Removed or
- * not. It replaces the switch's `sm:` viewport rule, so the bar's words come
+ * a hundred removals still gets one line. The desk column at its widest, 640px,
+ * keeps the words and at its narrowest, 420px, shows the glyphs (record
+ * 0334); a phone has 336px at 360 wide and 406px at 430, and shows the switch
+ * and the glyphs on one line, Removed or not. It replaces the switch's `sm:` viewport rule, so the bar's words come
  * and go together.
  *
  * At a desk the three menu buttons carry chevrons, which a phone's never do
- * (record 0201), and the labelled group is 437.8px, measured 2026-10-20. A
- * desk's bar is never under the 640px it has beside the docked panel at 1024,
- * which holds the line with a two-digit Removed count (637.2px); a
- * three-digit count wraps the group onto a line of its own there.
+ * (record 0201), and the labelled group is 437.8px, measured 2026-10-20. The
+ * column widened over the map (record 0321) is 983px at 1024, which holds the
+ * line with a two-digit Removed count (637.2px).
  */
 export const BAR_LABEL = 'hidden @min-[584px]:inline'
 
@@ -2742,16 +2732,14 @@ export const NOTICE_DISMISS = {
 /**
  * The three weights of rule in the app.
  *
- * `PANEL_EDGE` closes the panel: the line under the app title, the one over
- * the Analyze button, and the panel's right edge where it meets the map and
- * the results. Those are structural: the first two separate the scrolling
- * body from the fixed chrome above and below it, and the third separates the
- * panel from everything beside it, so they are the heavier weight.
+ * `PANEL_EDGE` is the structural rule: the line under a desk card's heading
+ * and the results column's left edge where it meets the map (record 0334).
+ * It separates a surface from everything beside it, so it is the heavier
+ * weight.
  *
- * The right edge was `SURFACE_DIVIDER` until #697, at 1.41:1 on slate-800,
- * which is no boundary at all between the panel and the desktop results
- * sheet, two slate-800 surfaces side by side: they read as one L-shaped
- * block. slate-500 is 3.07:1 on slate-800 and 3.74:1 on slate-900, past the
+ * The docked panel's right edge was `SURFACE_DIVIDER` until #697, at 1.41:1
+ * on slate-800, which is no boundary at all between two slate-800 surfaces
+ * side by side: they read as one L-shaped block. slate-500 is 3.07:1 on slate-800 and 3.74:1 on slate-900, past the
  * 3:1 a boundary owes under WCAG 1.4.11 when it is the only thing separating
  * two surfaces. An 8px slate-900 gutter between the two was mocked and
  * declined beside it, and so was leaving the seam alone (the maintainer,
@@ -3035,31 +3023,6 @@ export const PANEL_BODY =
   `${SCROLL_BARS} ${SCROLL_SHADOW.both}`
 
 /**
- * The panel's header: the logo and the title block beside it (#687).
- *
- * 56px plus its `PANEL_EDGE` rule, down from 81px: the logo is 40px with 8px
- * of panel around it where it was an 80px square edge to edge, and the title
- * block takes `py-2` for the `py-4` it had. The title and the tagline keep
- * their roles and sizes, so the block is 54.5px of text and padding and the
- * logo's 56px sets the height. That is 24px back to the scrolling body on
- * every screen, 9% of a 900px window spent on fixed chrome becoming 6%
- * (measured 2026-10-13: 81 to 57px). The name and the tagline start together
- * at the block's left edge, as they always have: the maintainer tried them
- * centred and had them put back (#801, record 0229).
- */
-export const PANEL_HEADER = {
-  logo: 'm-2 h-10 w-10 flex-shrink-0 object-cover',
-  title: 'flex flex-col justify-center px-3 py-2',
-  /**
-   * Where the header's round buttons stand: the theme switch and the close
-   * button, at the top right, 8px apart (#706). 12px down, so a 32px circle's
-   * centre stands at 28px, on the logo's and the title block's in the 56px
-   * header (#801).
-   */
-  actions: 'absolute top-3 right-2 z-10 flex gap-2',
-} as const
-
-/**
  * A button in a panel's header: the desk panel's close button and the theme
  * menu's trigger beside it, and the trigger again in a phone's Controls sheet
  * beside Done (#706, #843). A 32px square on either pointer, a finger's
@@ -3104,15 +3067,13 @@ export const MOTION = {
   menu: MENU_MOTION,
   /** A phone sheet rising and falling. */
   slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
-  /** The desk panel moving the map's edge as it leaves and returns (`DESK_PANEL`). */
-  push: 'transition-[margin-left] duration-300 ease-in-out motion-reduce:transition-none',
   /** A results pane opening or closing on a Table, Chart or Both press (`RESULTS_PANE`). */
   pane: 'transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none',
   /** A progress bar's fill growing to its next width. */
   progress: 'transition-all duration-300 ease-out motion-reduce:transition-none',
 } as const
 
-/** The duration `MOTION.slide`, `MOTION.push` and `MOTION.pane` share, in milliseconds. */
+/** The duration `MOTION.slide` and `MOTION.pane` share, in milliseconds. */
 export const PANEL_MS = 300
 
 /**
@@ -3226,23 +3187,6 @@ export const SENTENCE_BAR = {
 } as const
 
 /**
- * The controls panel at a desk (#714; record 0202): a column in the page's
- * row beside the map, 360px wide, that stays in the row while it is shut.
- * Shut, its left margin takes its own width back, so it slides off the left
- * edge and the map's column widens in the same frames; open, the margin
- * returns and the column narrows as the panel comes in. One property moves,
- * and the map's edge is the panel's edge in every frame, so nothing is
- * painted over anything.
- *
- * `relative` because the header's buttons stand absolutely in its top right
- * (`PANEL_HEADER.actions`). `LAYER.base` is a docked panel's layer.
- */
-export const DESK_PANEL = {
-  card: `relative ${LAYER.base} flex w-90 flex-shrink-0 flex-col overflow-hidden bg-panel border-r ${PANEL_EDGE} ${MOTION.push}`,
-  shut: '-ml-90',
-} as const
-
-/**
  * A results pane at a desk, the chart or the table with its grip, as a frame
  * that opens on a Table, Chart or Both press or the collapse chevron and
  * closes on the next (#714; record 0202). The frame is one grid row, `1fr`
@@ -3324,44 +3268,20 @@ export const CHART_LEGEND = {
 } as const
 
 /**
- * What holds one size while a desk's layout moves (#714; record 0202,
- * `useLayoutMotion`), so a frame of the move shifts boxes rather than
- * resizing a map canvas or laying out a table of a thousand rows.
+ * What holds one size while a desk's results panes move (#714; record 0202,
+ * `useLayoutMotion`), so a frame of the move shifts the map's box rather than
+ * resizing its canvas.
  *
- * The map's box is the window's width while the panel moves and the window's
- * height while a pane moves, centred on the map's column, which clips it
- * (`clip`). MapLibre keeps the centre on a resize, so the map draws the way
- * it would at every width in between and is resized only where the box
- * changes: at the start of a close and the end of an open, the closed width
- * being the window's. `rest` is the box the rest of the time.
- *
- * The panes' bodies hold a width while the panel moves. The table's box takes
- * the window's, the widest it will be, so a close lays it out once at the
- * start and an open once at the end, with the spare width in its filler
- * column. The chart keeps the width it had (`chartClosing` is the window less
- * the panel), because drawing it is the costliest thing on the page, and is
- * drawn once at the end.
- *
- * While the panel moves, what moves with it stands on a layer of its own
- * (`layer`): the panel, the map's column, the results and each pane's body
- * (record 0216). A frame of the move then shifts layers the GPU already holds
- * rather than painting the panel, the table and the chart again where they
- * now stand, which was 185 ms of painting across a 300 ms close of a 200-row
- * report, and 35 ms on layers (2026-10-22). Only while it moves, because a
- * layer is a containing block for anything fixed inside it, and the table's
- * column-drag ghost is. Not while the panes move: the table stands still on
- * the screen then, the chart is cheap to paint where it now stands, and
- * lifting both onto layers at the press cost more than the frames saved.
+ * The map's box is the window's height while a pane moves, centred on the
+ * map's column, which clips it (`clip`). MapLibre keeps the centre on a
+ * resize, so the map draws the way it would at every height in between and is
+ * resized only where the box changes. `rest` is the box the rest of the time.
+ * The docked panel's width holds and layers went with the panel (record 0334).
  */
 export const LAYOUT_HOLD = {
   rest: 'absolute inset-0',
-  mapPush: 'absolute inset-y-0 left-[calc(50%-50vw)] w-screen',
   mapPanes: 'absolute inset-x-0 top-[calc(50%-50dvh)] h-dvh',
   clip: 'overflow-clip',
-  layer: 'will-change-transform',
-  table: 'w-screen',
-  chartClosing: 'w-[calc(100vw-22.5rem)]',
-  chartOpening: 'w-screen',
 } as const
 
 /**

@@ -25,7 +25,6 @@ function props(over: Partial<Props> = {}): Props {
       analyzeEnabled: true,
       word: 'Analyze',
       onAnalyze: () => {},
-      onTutorial: () => {},
       messages: panelMessages(),
     },
     autoAnalyze: false,

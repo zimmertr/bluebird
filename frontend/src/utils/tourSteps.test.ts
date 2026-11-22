@@ -55,11 +55,10 @@ describe('the tutorial steps', () => {
 
   it('marks every anchor on exactly one control in one component', () => {
     for (const step of TOUR_STEPS) {
-      // The one anchor with a home per width (record 0141): the footer at a
-      // desk, the map's button on a phone, where the footer draws none.
+      // The one anchor with a home per width (record 0141): the sentence
+      // bar's button at a desk, the map's button on a phone.
       if (step.anchor === 'analyze') {
-        expect(occurrences('analyze')).toEqual(['PhoneFoot.tsx'])
-        expect(panelFooterSource).toContain(`${TOUR_ATTR}={phone ? undefined : 'analyze'}`)
+        expect(occurrences('analyze')).toEqual(['PanelFooter.tsx', 'PhoneFoot.tsx'])
         continue
       }
       // The Layers button is one of two elements by width, the chip on the

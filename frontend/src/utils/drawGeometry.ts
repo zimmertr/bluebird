@@ -160,10 +160,10 @@ export function insertOnSegment(
 }
 
 /** How far a hand's stroke may stray from the loop drawn for it, in screen pixels, before a point is kept. */
-export const LOOP_TOLERANCE_PX = 3
+const LOOP_TOLERANCE_PX = 3
 
 /** The smallest stroke that is a loop rather than a slip: its box, in screen pixels, on its longer side. */
-export const LOOP_MIN_SPAN_PX = 12
+const LOOP_MIN_SPAN_PX = 12
 
 function offLine(p: [number, number], a: [number, number], b: [number, number]): number {
   const dx = b[0] - a[0]

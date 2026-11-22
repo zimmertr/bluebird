@@ -73,7 +73,7 @@ export function tintColor(theme: Theme): maplibregl.ExpressionSpecification {
  * without whitening; the light shadow is the green-grey of its valleys at
  * the light strength (0.34), under a half-strength white.
  */
-export function shadePaint(theme: Theme): maplibregl.HillshadeLayerSpecification['paint'] {
+function shadePaint(theme: Theme): maplibregl.HillshadeLayerSpecification['paint'] {
   return theme === 'dark'
     ? {
         'hillshade-method': 'standard',

@@ -2,6 +2,8 @@ import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import ControlPanel from './ControlPanel'
+import PanelFooter from './PanelFooter'
+import type { ActionWord } from '../utils/analyzeGate'
 import { type PanelMessageState, usePanelMessages } from '../hooks/usePanelMessages'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
@@ -11,10 +13,11 @@ import { forecastModel, refusalPanel } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 import { CONTROLS_SHEET, MESSAGE_BADGE, PANEL_BODY, PANEL_RULE } from '../styles'
 
-// The panel's contract with its reader (record 0208): the Analyze button is
-// held up for each reason the gate in `utils/analyzeGate.ts` names, and
-// every message, each of those reasons included, is in the list the
-// button's badge opens and nowhere else in the panel. The gate's own suite pins which reason wins
+// The panel's contract with its reader (record 0208): the Forecast button on
+// the sentence bar is held up for each reason the gate in
+// `utils/analyzeGate.ts` names, and every message, each of those reasons
+// included, is in the list the button's badge opens and nowhere else in the
+// panel. The gate's own suite pins which reason wins
 // and `usePanelMessages`'s what the list holds; this one pins that the panel
 // draws what they decided, where the rule says it goes.
 
@@ -27,7 +30,7 @@ type Props = Omit<ComponentProps<typeof ControlPanel>, 'messages'>
 type State = PanelMessageState
 // One override reaches both the panel's props and the messages' state, so a
 // point count or a type set is spelled once, as App spells it once.
-type Over = Partial<Props> & Partial<State>
+type Over = Partial<Props> & Partial<State> & { onAnalyze?: () => void; actionWord?: ActionWord }
 
 // A panel with nothing to analyze yet: no polygon, no CSV, no pin, and every
 // knob at the value a first visit lands on. Each test overrides the few
@@ -118,11 +121,9 @@ function props(over: Partial<Props> = {}): Props {
     comparedModels: [],
     setComparedModels: noop,
     defaultForecastModel: 'gfs_seamless',
-    onAnalyze: noop,
     autoAnalyze: false,
     capabilitiesSettled: false,
     onAutoAnalyze: noop,
-    actionWord: 'Analyze',
     maxLimit: 1500,
     maxAreaKm2: 100_000,
     archiveDays: 365,
@@ -133,10 +134,26 @@ function props(over: Partial<Props> = {}): Props {
   }
 }
 
-// The panel under the hook that feeds it, wired as App wires the two.
+// The panel under the hook that feeds it, wired as App wires the two: at a
+// desk with the sentence bar's button beside it (record 0309), and on a phone
+// alone, the map's button being the one there (record 0135). The bar's label
+// is the word itself, so the suite reads Analyze either way.
 function Panel(over: Over) {
   const messages = usePanelMessages(state(over))
-  return <ControlPanel {...props(over)} messages={messages} />
+  return (
+    <>
+      <ControlPanel {...props(over)} messages={messages} />
+      {!over.phone && (
+        <PanelFooter
+          analyzeEnabled={messages.analyzeEnabled}
+          word={over.actionWord ?? 'Analyze'}
+          onAnalyze={over.onAnalyze ?? (() => {})}
+          messages={messages}
+          bar={{ label: 'Analyze', widthRef: { current: null } }}
+        />
+      )}
+    </>
+  )
 }
 
 const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…|Try again)$/ }) as HTMLButtonElement

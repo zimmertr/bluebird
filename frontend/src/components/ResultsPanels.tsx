@@ -17,7 +17,6 @@ import {
   FOCUS_RING,
   CHART_LEGEND,
   ICON_ACTION,
-  LAYOUT_HOLD,
   MOTION,
   MUTED,
   RADIUS,
@@ -27,7 +26,6 @@ import {
   SCROLL_SHADOW,
   TEXT,
 } from '../styles'
-import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { usePaneMotion } from '../hooks/usePaneMotion'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 
@@ -146,11 +144,6 @@ export interface ResultsPanelsProps {
    * A phone does not render the panels at all while collapsed.
    */
   collapsed?: boolean
-  /**
-   * Which edge of a desk's layout is moving (`useLayoutMotion`): while the
-   * panel moves, the chart and the table hold a width (`LAYOUT_HOLD`).
-   */
-  layoutMotion?: LayoutMotion
   /** Whether the report is one hour, which relabels the metric columns. */
   pointSample: boolean
   /** The report's hourly grid, and the playhead on it. */
@@ -198,7 +191,6 @@ export default function ResultsPanels({
   part = 'all',
   compactPhone = false,
   collapsed = false,
-  layoutMotion = null,
   pointSample,
   forecastTimes,
   playbackIndex,
@@ -224,20 +216,6 @@ export default function ResultsPanels({
   const chartPane = usePaneMotion(chartShown, chartPanelPx, panesMove)
   const tablePane = usePaneMotion(tableShown, tablePanelPx, panesMove)
   const paneMotion = panesMove ? MOTION.pane : ''
-  // While the panel moves the chart keeps the width it had and the table's
-  // box takes the window's, so neither is drawn again in every frame.
-  const chartWidth =
-    layoutMotion === 'closing' ? LAYOUT_HOLD.chartClosing : layoutMotion === 'opening' ? LAYOUT_HOLD.chartOpening : ''
-  const chartHold = chartWidth
-  const pushing = layoutMotion === 'closing' || layoutMotion === 'opening'
-  const tableHold = pushing ? LAYOUT_HOLD.table : ''
-  // Each body on a layer of its own while the panel moves (record 0216): the
-  // box of a fixed height inside the frame, which moves whole. Not while the
-  // panes move, where the table stands still on the screen and the chart is
-  // cheap to paint where it now stands, and lifting both onto layers at the
-  // press painted them whole: Both to Table started 237 ms after the press
-  // rather than 131 at a quarter of the CPU (2026-10-22).
-  const layer = pushing ? LAYOUT_HOLD.layer : ''
   useScrollShadows(tableScrollRef, tablePane.mounted)
   const { chart, chartMetrics, compare, rowChartColor, shared } = charts
   // Over the tutorial's demonstration the chart draws the tour's own panels
@@ -353,7 +331,7 @@ export default function ResultsPanels({
         data-chart-pane={part === 'wide' ? '' : undefined}
         className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}
       >
-        <div inert={!chartShown} className={`${RESULTS_PANE.top} ${chartHold}`}>
+        <div inert={!chartShown} className={RESULTS_PANE.top}>
           {chartPane.mounted && (
             <>
               <ResizeGrip
@@ -366,7 +344,7 @@ export default function ResultsPanels({
                 // A phone's drag on the grip above sizes this box per move,
                 // straight on the element (#837), and the chart follows it.
                 ref={chartPaneRef}
-                className={`flex min-h-0 flex-shrink-0 flex-col ${layer}`}
+                className="flex min-h-0 flex-shrink-0 flex-col"
                 style={{ height: `${chartPane.px}px` }}
               >
                 <Held holding={!chartShown}>
@@ -421,7 +399,7 @@ export default function ResultsPanels({
       )}
       {panesMove && (part === 'all' || part === 'wide') && (
         <div className={`${RESULTS_PANE.frame} ${legendPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
-          <div inert={!legendShown} className={`${RESULTS_PANE.foot} ${chartHold}`}>
+          <div inert={!legendShown} className={RESULTS_PANE.foot}>
             {legendPane.mounted && <Held holding={!legendShown}>{legendStrip}</Held>}
           </div>
         </div>
@@ -438,7 +416,7 @@ export default function ResultsPanels({
           fills ? (tableShown ? 'min-h-0 flex-1' : '') : panesMove ? 'mt-auto' : ''
         }`}
       >
-        <div inert={!tableShown} className={`${RESULTS_PANE.foot} ${tableHold}`}>
+        <div inert={!tableShown} className={RESULTS_PANE.foot}>
           {tablePane.mounted && (
             <>
               {/* The column's table takes the column's height: nothing to drag. */}
@@ -462,7 +440,7 @@ export default function ResultsPanels({
                 ref={tableScrollRef}
                 className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} ${
                   fills ? 'flex-1' : 'flex-shrink-0'
-                } ${layer}`}
+                }`}
                 // The column's table fills it; elsewhere a table takes its pane's height.
                 style={fills ? undefined : { height: `${tablePane.px}px` }}
               >

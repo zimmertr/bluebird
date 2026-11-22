@@ -146,7 +146,7 @@ export const resultRows = (page: Page) => page.locator('[data-results-table] tbo
 // button reads `Analyze`, the desk's sentence bar names its spend
 // (`Forecast 247 peaks`, `Forecast 31 new`, `Up to date`, record 0309), and
 // either reads `Try again` after a transient failure.
-export const FORECAST_WORD = /^(Analyze|Forecast|Forecast [\d,]+ [a-z]+|Up to date|Try again)$/
+const FORECAST_WORD = /^(Analyze|Forecast|Forecast [\d,]+ [a-z]+|Up to date|Try again)$/
 // A phone's Controls sheet rises from the sentence bar's When phrase, which
 // stands where the Controls chip stood (record 0328).
 export const controlsPhrase = (page: Page) =>

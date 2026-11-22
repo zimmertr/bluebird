@@ -20,8 +20,8 @@ import { DEM_MAXZOOM } from '../utils/terrainSources'
 import { addLayerAt } from './layerOrder'
 import type { DemGrids } from './slope'
 
-export const CLOUD_SCHEME = 'bluebird-cloud'
-export const CLOUD_SOURCE = 'cloud-sea'
+const CLOUD_SCHEME = 'bluebird-cloud'
+const CLOUD_SOURCE = 'cloud-sea'
 export const CLOUD_LAYER = 'cloud-sea'
 
 /** The painted tile's side. Half the elevation's 512, which the deck's kilometres-wide edges never miss. */
@@ -42,7 +42,7 @@ const address = (url: string) => (/(\d+)\/(\d+)\/(\d+)/.exec(url) ?? []).slice(1
 const emptyTile = () => createImageBitmap(new ImageData(1, 1))
 
 /** Registers the scheme once, against the elevation tiles' cache. */
-export function serveCloudTiles(dem: DemGrids, register: typeof addProtocol = addProtocol): void {
+function serveCloudTiles(dem: DemGrids, register: typeof addProtocol = addProtocol): void {
   if (served) return
   served = true
   register(CLOUD_SCHEME, async (request, abort) => {

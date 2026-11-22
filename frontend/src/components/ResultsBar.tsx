@@ -110,9 +110,9 @@ interface ResultsBarProps {
 
 /**
  * Shared header bar for all results views. A container query, not
- * a viewport one: the bar's width is the viewport minus the docked
- * sidebar, so a viewport breakpoint would fold it on a window that
- * never changed size. Wide, everything sits on one line; narrow,
+ * a viewport one: at a desk the bar's width is the results column's,
+ * which a reader resizes, so a viewport breakpoint would fold it on a
+ * window that never changed size. Wide, everything sits on one line; narrow,
  * it folds to exactly two — the title row (which keeps the
  * collapse chevron) and the actions row — never a vertical stack
  * (#242 review). The fold sits at the 896px container step;
@@ -380,7 +380,7 @@ export default function ResultsBar({
               after it. */}
           {/* At the row's right end. On one line `justify-between` stands it
               there already; where a three-digit Removed count wraps it onto a
-              line of its own (beside the docked panel at 1024, #714) the
+              line of its own (in a narrow column, #714) the
               margin keeps it there rather than at the line's start. Not before
               a report, where it is the row's only member. */}
           <div className={`flex items-center gap-2 ${showResults ? 'ml-auto' : ''}`}>

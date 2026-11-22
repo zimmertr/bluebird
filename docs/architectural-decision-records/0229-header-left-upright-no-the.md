@@ -1,6 +1,6 @@
 # 0229. The panel's name and tagline start together at the left, upright, and the tagline is "Weather Window Finder"
 
-- Status: Accepted. Supersedes 0226's lockup clauses (the centred name and the italic tagline); its button centring stands. Amends [0222](0222-one-card-one-close-one-type-ramp.md): the one tagline loses its "The".
+- Status: Accepted; superseded in its header by [0334](0334-the-column-retires-the-stacked-desk.md), which removed the docked panel's header (the welcome dialog keeps the tagline). Supersedes 0226's lockup clauses (the centred name and the italic tagline); its button centring stands. Amends [0222](0222-one-card-one-close-one-type-ramp.md): the one tagline loses its "The".
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), on #801: "Uncenter Bluebird Forecast, Remove `The` from the subheading, and un-italicize it", then choosing that lockup from all eight combinations of alignment, article and style captured on the PR build in both themes
 - Issues and PRs: #801, #802

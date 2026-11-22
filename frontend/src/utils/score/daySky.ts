@@ -10,11 +10,11 @@ import type { DestinationResult } from '../../types'
  */
 
 /** Hours in one block of the sky. */
-export const SKY_BLOCK_HOURS = 3
+const SKY_BLOCK_HOURS = 3
 /** Blocks in a day. */
 export const SKY_BLOCKS = 24 / SKY_BLOCK_HOURS
 /** The share of the field whose score a block shows: the best tenth. */
-export const SKY_TOP_SHARE = 0.1
+const SKY_TOP_SHARE = 0.1
 
 /**
  * Each local day the field's hours reach, keyed `YYYY-MM-DD` as the strip's

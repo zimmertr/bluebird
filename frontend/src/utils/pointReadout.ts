@@ -40,7 +40,7 @@ export interface MapPoint {
  * glyph. The url as given, not escaped: the chrome escapes it into the
  * attribute (`linkIcon` in `popup/popupChrome.ts`), as it does the band's.
  */
-export interface SectionLink {
+interface SectionLink {
   href: string
   label: string
 }

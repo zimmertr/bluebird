@@ -28,7 +28,7 @@ const GAP_PX = CHIP_MENU_GAP_PX
 const VIEWPORT_MARGIN_PX = 8
 
 // What a trigger's panel says it is, so a menu in it stays inside it
-// (`popoverBox`'s `bound`): the control panel, docked or a phone's sheet.
+// (`popoverBox`'s `bound`): the control panel, a desk's card or a phone's sheet.
 const MENU_BOUND = 'data-menu-bound'
 
 // A panel whose height cannot change while it is open measures once and stays

@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from 'react'
+import type { ReactNode } from 'react'
 import { CHEVRON, EXTERNAL_LINK } from '../iconPaths'
 import { ICON } from '../styles'
 import { type AgeBandHours, STARBURST_INNER, starburst } from '../utils/fireActivity'
@@ -156,24 +156,6 @@ export function IconInfo({ className }: IconProps): ReactNode {
   )
 }
 
-/** The map's Controls button: three bars, the standing picture for a panel. */
-export function IconMenu({ className }: IconProps): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={join(ICON.control, className)}
-      aria-hidden="true"
-    >
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="18" x2="21" y2="18" />
-    </svg>
-  )
-}
-
 // The sun's and the moon's marks on the 24-unit grid, drawn once: their own
 // glyphs wear them, and so does System's, smaller (#843).
 const SUN_MARKS = (
@@ -291,41 +273,6 @@ export function IconTable({ className }: IconProps): ReactNode {
       <rect x="2" y="2" width="12" height="12" />
       <line x1="2" y1="6" x2="14" y2="6" />
       <line x1="2" y1="10" x2="14" y2="10" />
-    </svg>
-  )
-}
-
-/**
- * The forecast grid's Smooth style: one field fading across the square, the
- * way the smooth grid paints between its samples. The fade is the glyph's own
- * colour at two strengths, so it follows the control's ink in both themes.
- */
-export function IconGridSmooth({ className }: IconProps): ReactNode {
-  const id = useId()
-  return (
-    <svg viewBox="0 0 16 16" fill="none" className={join(ICON.chip, className)} aria-hidden="true">
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="currentColor" stopOpacity="1" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.2" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="14" height="14" rx="2" fill={`url(#${id})`} />
-    </svg>
-  )
-}
-
-/**
- * The forecast grid's Blocks style: four cells at three strengths, the way
- * the block grid paints one value per sample.
- */
-export function IconGridBlocks({ className }: IconProps): ReactNode {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={join(ICON.chip, className)} aria-hidden="true">
-      <rect x="1" y="1" width="6.5" height="6.5" rx="1" />
-      <rect x="8.5" y="1" width="6.5" height="6.5" rx="1" opacity="0.55" />
-      <rect x="1" y="8.5" width="6.5" height="6.5" rx="1" opacity="0.55" />
-      <rect x="8.5" y="8.5" width="6.5" height="6.5" rx="1" opacity="0.2" />
     </svg>
   )
 }

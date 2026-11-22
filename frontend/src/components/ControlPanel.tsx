@@ -3,26 +3,25 @@ import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import DestinationsSection from './DestinationsSection'
 import ForecastSection from './ForecastSection'
 import MetricsTable from './MetricsTable'
-import PanelFooter from './PanelFooter'
+import DocLinks from './DocLinks'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
-import { CONTROLS_SHEET, PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
+import { CONTROLS_SHEET, PANEL_BODY, PANEL_RULE, TEXT } from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import { MetricFamily } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
-import { type ActionWord, type AutoAnalyzeStep, autoAnalyzeStep } from '../utils/analyzeGate'
+import { type AutoAnalyzeStep, autoAnalyzeStep } from '../utils/analyzeGate'
 import { ForecastSelection } from '../utils/calendar/calendar'
 import { type ForecastModelOption } from '../hooks/useCapabilities'
-import { logoUrl } from '../logo'
 import type { ChartMetric, ChartMetrics } from '../utils/chart/chartData'
 
-// The panel's frame: the header, the three sections and the footer, and the
-// state they share. Each section is its own component taking only the inputs
-// it draws. Every message the panel has to say is composed in
+// The panel's frame: the three sections, one alone in a desk's card or all
+// three in a phone's Controls sheet with the document links under them, and
+// the state they share. Each section is its own component taking only the
+// inputs it draws. Every message the panel has to say is composed in
 // `utils/panelMessages.ts` and held by `usePanelMessages` above the panel,
-// since the phone's map reads it too (record 0208): the footer draws the
-// Analyze button with the badge and the list.
+// since the map's Forecast button reads it too (record 0208).
 
 // Each field that one section alone draws is described on that section's own
 // props, beside the code that reads it.
@@ -81,11 +80,6 @@ interface Props {
   // (`usePanelMessages`): held above the panel, because the phone's map reads
   // the same messages on its own button.
   messages: PanelMessages
-  // What the Analyze button reads (#736): decided by App from the run's
-  // error and the panel, because the phone's floating button reads the same
-  // word and the two must never disagree.
-  actionWord: ActionWord
-  onAnalyze: () => void
   // The link asked for its analysis to run on open (`analyze=1`) and has not
   // run it yet. Held by App, which owns the URL; decided here, which owns
   // the panel. `onAutoAnalyze` is the click plus the URL cleanup on `run`, and
@@ -108,9 +102,8 @@ interface Props {
   // How far ahead air quality reaches, from /api/capabilities: what dims the
   // calendar's later days.
   aqiForecastDays: number
-  // A phone, where the panel is the Controls sheet (#696; record 0141): the
-  // sheet's own head replaces the logo and the title, and the map's floating
-  // button is the one Analyze, so the footer draws none.
+  // A phone, where the panel is the Controls sheet (#696; record 0141), whose
+  // body ends in the document links.
   phone?: boolean
   // The results chart's panels, which each Metrics row's chart toggle draws
   // or takes away (record 0290; `useChartMetrics`).
@@ -118,7 +111,7 @@ interface Props {
   onChart: (keys: readonly ChartMetric[], on: boolean) => void
   /**
    * One section alone, for the card a chip on the map's sentence bar opens
-   * at a desk (record 0309): no header, no footer, and no run-on-open, which
+   * at a desk (record 0309): no document links, and no run-on-open, which
    * the bar runs since it is always mounted where the card is not.
    */
   only?: PanelSection
@@ -171,8 +164,6 @@ export default function ControlPanel({
   setComparedModels,
   defaultForecastModel,
   messages,
-  actionWord,
-  onAnalyze,
   autoAnalyze,
   capabilitiesSettled,
   onAutoAnalyze,
@@ -229,42 +220,11 @@ export default function ControlPanel({
     bodyRef.current?.querySelector(`[data-tour="${scrollTo}"]`)?.scrollIntoView({ block: 'start' })
   }, [scrollTo])
 
-  // At a desk the footer is fixed under the scrolling body, with Analyze and
-  // its badge; on a phone it is the body's last child (#696; record 0141).
-  const footer = (
-    <PanelFooter
-      analyzeEnabled={analyzeEnabled}
-      word={actionWord}
-      onAnalyze={onAnalyze}
-      onTutorial={onTutorial}
-      tutorialWaits={tutorialWaits}
-      messages={messages}
-      phone={phone}
-    />
-  )
-
   return (
     // The panel a menu opened in it stays inside (`usePopover`, record 0201):
     // the model list lines up with its field's right edge rather than
     // spilling over the map.
     <div data-menu-bound="" className="flex flex-col h-full">
-      {/* Header, at a desk: a phone's sheet carries its own (`AppDrawer`). */}
-      {!phone && !only && (
-        <div className={`border-b ${PANEL_EDGE} flex`}>
-          <img
-            src={logoUrl}
-            alt=""
-            width={256}
-            height={256}
-            className={PANEL_HEADER.logo}
-          />
-          <div className={PANEL_HEADER.title}>
-            <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
-            <p className={TEXT.caption}>Weather Window Finder</p>
-          </div>
-        </div>
-      )}
-
       <div
         // One rule between steps, drawn by the stack rather than by each
         // section, so a section added later cannot forget its line or draw a
@@ -347,13 +307,11 @@ export default function ControlPanel({
         />
         )}
 
-        {/* A phone's footer is the document links, the last thing in the
-            body, read only by a reader who scrolls to it: the sheet spends no
-            fixed height on it, and its Analyze and badge are the map's. */}
-        {phone && footer}
+        {/* A phone's sheet ends in the document links, read only by a
+            reader who scrolls to them: the sheet spends no fixed height on
+            them, and its Forecast and badge are the map's. */}
+        {phone && <DocLinks onTutorial={onTutorial} tutorialWaits={tutorialWaits} className={`${TEXT.caption} text-center`} />}
       </div>
-
-      {!phone && !only && footer}
     </div>
   )
 }

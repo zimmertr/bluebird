@@ -26,6 +26,7 @@ analyze  # unused function (app/routes/analyze/route.py:301)
 capabilities  # unused function (app/routes/capabilities.py:377)
 config  # unused function (app/routes/config.py:44)
 geocode  # unused function (app/routes/geocode.py:88)
+snow_depth  # unused function (app/routes/snow_depth.py:85)
 api_not_found  # unused function (app/routes/notfound.py:46)
 landmarks_in_box  # unused function (app/routes/landmarks.py:70)
 fire_activity_in_box  # unused function (app/routes/fire_activity.py:110)
@@ -166,6 +167,17 @@ landmarks_burst  # unused variable (app/routes/capabilities.py:142)
 fire_activity_per_minute  # unused variable (app/routes/capabilities.py:149)
 fire_activity_burst  # unused variable (app/routes/capabilities.py:157)
 fetched_at  # unused variable (app/routes/landmarks.py:35)
+min_snow_depth_in  # unused variable (app/models/analyze.py:229)
+max_snow_depth_in  # unused variable (app/models/analyze.py:240)
+cloud_top_ft  # unused variable (app/models/analyze.py:488)
+snow_depth_avg_in  # unused variable (app/models/analyze.py:611)
+snow_depth_min_in  # unused variable (app/models/analyze.py:612)
+snow_depth_max_in  # unused variable (app/models/analyze.py:613)
+snow_depth_avg  # unused variable (app/models/common.py:98)
+snow_depth_min  # unused variable (app/models/common.py:99)
+snow_depth_max  # unused variable (app/models/common.py:100)
+snow_depth_per_minute  # unused variable (app/routes/capabilities.py:152)
+snow_depth_burst  # unused variable (app/routes/capabilities.py:159)
 
 # Pydantic calls these through @field_validator and @model_validator.
 _.limit_range  # unused method (app/models/analyze.py:291)
@@ -178,6 +190,7 @@ _.validate_destination_types  # unused method (app/models/common.py:379)
 _.polygon_area_limit  # unused method (app/models/common.py:394)
 _.custom_list_cap  # unused method (app/models/common.py:401)
 _.no_range_inverted  # unused method (app/models/common.py:437)
+_.window_in_reach  # unused method (app/routes/snow_depth.py:44)
 
 # Test seams. The two reset() calls clear the per-address buckets and the shared
 # cache's pause between tests, settle() waits out a background refresh,
@@ -196,6 +209,12 @@ hrrr_grid_position  # unused function (app/model_domains.py:86)
 wait_ready  # unused function (app/db/__init__.py:108)
 last_success  # unused variable (app/db/refresh.py:51)
 reset  # unused function (app/ratelimit/shared.py:58)
+# reset_hold() opens Nominatim's gate again between tests (conftest).
+reset_hold  # unused function (app/routes/geocode.py:63)
+
+# Read by the mirrored-constants script and its test (mirror table), which
+# Vulture does not scan.
+SNOW_DEPTH_CEILING_IN  # unused variable (app/services/snodas.py:144)
 
 # HTMLParser overrides, called by HTMLParser.feed.
 _.handle_starttag  # unused method (app/security_headers.py:199)

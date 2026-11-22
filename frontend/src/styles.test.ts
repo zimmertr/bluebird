@@ -5,7 +5,6 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
-  BUTTON_FORECAST,
   BUTTON_FORECAST_BAR,
   BUTTON_FORECAST_QUIET,
   ACCENT_RING,
@@ -73,14 +72,13 @@ import {
   METRIC_LABEL_PITCH,
   MOTION,
   PANEL_MS,
-  DESK_PANEL,
   RESULTS_COLUMN,
+  SENTENCE_BAR,
   RESULTS_HEAD,
   HOUR_STRIP,
   RESULTS_PANE,
   LAYOUT_HOLD,
   PANEL_BODY,
-  PANEL_HEADER,
   SCROLL_BARS,
   SCROLL_SHADOW,
   LINK,
@@ -219,6 +217,7 @@ import bottomSheetSource from './components/BottomSheet.tsx?raw'
 import phoneFootSource from './components/PhoneFoot.tsx?raw'
 import mapStageSource from './components/MapStage.tsx?raw'
 import appDrawerSource from './components/AppDrawer.tsx?raw'
+import sentenceBarSource from './components/SentenceBar.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
@@ -1611,7 +1610,7 @@ describe('shared recipes', () => {
     expect(FIELD).toContain(RADIUS.control)
   })
 
-  // The phone results sheet (#249). It is the docked panel's own fill so the
+  // The phone results sheet (#249). It is the desk column's own fill so the
   // results do not change colour with the breakpoint, it takes the map's
   // floating edge because it now stands on the map, and it rounds the surface
   // step on its top corners only — the bottom pair are off the screen. The
@@ -3200,7 +3199,6 @@ describe('the message badge', () => {
     // 24px plus 10px each side on touch: the 44px a finger needs, drawn by
     // nothing (`touch:before:-inset-2.5`), so the disc stays a disc.
     expect(t).toEqual(expect.arrayContaining(['touch:before:absolute', 'touch:before:-inset-2.5', "touch:before:content-['']"]))
-    expect(MESSAGE_BADGE.slot).toBe('relative')
     // The phone's slot is a positioned box of the button's size, so the
     // badge's corner is the button's there too.
     expect(words(MAP_FOOT.slot)).toContain('relative')
@@ -3270,17 +3268,12 @@ describe('a blocked Analyze and the message list', () => {
     expect(MESSAGE_LIST.sheet).toBe('space-y-2 py-2')
   })
 
-  // The desk card takes the width of the slot the button and its badge share
-  // (#803, record 0233), which is the docked panel less the footer's gutters,
-  // so the 82-character over-cap sentence wraps inside it rather than running
-  // the card past the panel's right edge over the map.
-  // The sentence bar hands its chips' span in place of the slot (record
-  // 0309), where the button alone would wrap every line.
-  it("stands the desk card at the Analyze slot's width, 328px at the docked panel", () => {
-    expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: bar\?\.widthRef \?\? slotRef,/)
-    const panelPx = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) * 4
-    const gutterPx = Number(panelFooterSource.match(/`px-(\d+) py-4 border-t \$\{PANEL_EDGE\}/)![1]) * 4
-    expect(panelPx - 2 * gutterPx).toBe(328)
+  // The desk card takes the sentence bar's span, its chips and the button
+  // (record 0309), so the 82-character over-cap sentence wraps inside it
+  // rather than every line wrapping at the button's width (#803, record 0233).
+  it("stands the desk card at the sentence bar's width", () => {
+    expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: bar\.widthRef,/)
+    expect(sentenceBarSource).toMatch(/widthRef: groupRef/)
   })
 })
 
@@ -4548,14 +4541,21 @@ describe('the results bar buttons', () => {
     const fits = Number(BAR_LABEL.match(/@min-\[(\d+)px\]:inline/)![1])
     expect(BAR_LABEL.startsWith('hidden ')).toBe(true)
     expect(fits).toBe(Math.ceil(MEASURED.switch + MEASURED.group + MEASURED.gap + MEASURED.digits))
-    // The docked bar at 1024 wide has 640px and keeps them; the widest phone
-    // measured, 430, has 406.
-    expect(640).toBeGreaterThanOrEqual(fits)
+    // A desk's bar stands in the results column (record 0325), its content
+    // the column less the bar's px-3 each side and the column's 1px rule: the
+    // widest column keeps the words and the narrowest shows the glyphs. The
+    // widest phone measured, 430, has 406.
+    const [, minRem, , maxRem] = RESULTS_COLUMN.column.match(/w-\[clamp\(([\d.]+)rem,(\d+)vw,([\d.]+)rem\)\]/)!
+    const content = (px: number) => px - 2 * 12 - 1
+    expect(content(Number(maxRem) * 16)).toBeGreaterThanOrEqual(fits)
+    expect(content(Number(minRem) * 16)).toBeLessThan(fits)
     expect(406).toBeLessThan(fits)
     // At a desk the menu buttons carry chevrons (record 0201), measured
-    // 2026-10-20: the docked bar at 1024 still holds a two-digit count.
+    // 2026-10-20: the column widened over the map (record 0321) at 1024 holds
+    // a two-digit count.
     const DESK_GROUP = 437.8
-    expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits / 2).toBeLessThanOrEqual(640)
+    const widePct = Number(RESULTS_COLUMN.wide.match(/w-\[min\(\d+px,(\d+)%\)\]/)![1])
+    expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits / 2).toBeLessThanOrEqual(content((1024 * widePct) / 100))
   })
 })
 
@@ -4783,10 +4783,11 @@ describe('the one menu', () => {
 })
 
 describe('the panel frame', () => {
-  // The seam between the docked panel and the results (#697, record 0128):
-  // the panel's own structural edge, 3.07:1 on slate-800 and 3.74:1 on
-  // slate-900, where SURFACE_DIVIDER's 1.41:1 left the two one block.
-  it("closes the panel's right edge with the structural rule", () => {
+  // The structural edge (#697, record 0128), 3.07:1 on slate-800 and 3.74:1
+  // on slate-900, where SURFACE_DIVIDER's 1.41:1 left the docked panel and
+  // the results one block. Since record 0334 it edges the results column
+  // where it meets the map, and rules a desk card's heading off its body.
+  it('edges the results column and the card heading with the structural rule', () => {
     const MEASURED = { panel: 3.07, page: 3.74, wasBefore: 1.41 }
     const edge = dark(token(PANEL_EDGE, 'border'))
     expect({
@@ -4794,41 +4795,11 @@ describe('the panel frame', () => {
       page: ratio(edge, dark('page')),
       wasBefore: ratio(dark(token(SURFACE_DIVIDER, 'border')), dark('panel')),
     }).toEqual(MEASURED)
-    expect(DESK_PANEL.card).toContain(`border-r ${PANEL_EDGE}`)
-    expect(appDrawerSource).toContain('DESK_PANEL.card')
+    expect(RESULTS_COLUMN.column).toContain(`border-l ${PANEL_EDGE}`)
+    expect(SENTENCE_BAR.head).toContain(`border-b ${PANEL_EDGE}`)
     expect(appDrawerSource).not.toMatch(/SURFACE_DIVIDER/)
     expect(Math.min(MEASURED.panel, MEASURED.page)).toBeGreaterThanOrEqual(3)
     expect(MEASURED.wasBefore).toBeLessThan(3)
-  })
-
-  // 56px of header plus its rule (#687): the logo's box and its margin set
-  // the height, and the title block's padding must not outgrow it.
-  it('keeps the header at 56px, set by the logo', () => {
-    const px = (recipe: string, prefix: string) => stepPx(recipe, prefix)
-    const logo = px(PANEL_HEADER.logo, 'h') + 2 * px(PANEL_HEADER.logo, 'm')
-    expect(logo).toBe(56)
-    expect(px(PANEL_HEADER.logo, 'w')).toBe(px(PANEL_HEADER.logo, 'h'))
-    // The title (18px at leading-tight, 22.5px) and the 16px tagline line,
-    // with the block's padding above and below, fit inside the logo's 56.
-    const TITLE_AND_TAGLINE_PX = 22.5 + 16
-    expect(TITLE_AND_TAGLINE_PX + 2 * px(PANEL_HEADER.title, 'py')).toBeLessThanOrEqual(logo)
-    expect(controlPanelSource).toContain('PANEL_HEADER.logo')
-    expect(controlPanelSource).toContain('PANEL_HEADER.title')
-  })
-
-  // The round buttons centre where the logo and the title block do (#801):
-  // measured 2026-10-22, all three at 28px once the buttons stand 12px down,
-  // where at 8px the buttons' centre was 24.
-  it('centres the header buttons on the logo', () => {
-    const logo = stepPx(PANEL_HEADER.logo, 'h') + 2 * stepPx(PANEL_HEADER.logo, 'm')
-    expect(stepPx(PANEL_HEADER.actions, 'top') + stepPx(HEADER_BUTTON, 'h') / 2).toBe(logo / 2)
-    expect(PANEL_HEADER.title).toContain('justify-center')
-  })
-
-  // The name and the tagline start together at the block's left edge: the
-  // maintainer tried them centred and had them put back (#801, record 0229).
-  it('starts the title and the tagline together', () => {
-    expect(PANEL_HEADER.title.split(' ')).not.toContain('text-center')
   })
 
   // One bar style on every dark surface, and the panel body reserves its
@@ -4878,7 +4849,6 @@ describe('the panel frame', () => {
       expect(recipe).toContain('motion-reduce:transition-none')
     }
     expect(CONTROLS_SHEET.card).toContain(MOTION.slide)
-    expect(DESK_PANEL.card).toContain(MOTION.push)
     expect(appDrawerSource).not.toMatch(/(^|\s)transition-transform duration/)
     expect(analysisOverlaySource).toContain('MOTION.progress')
     expect(resultsPanelsSource).toContain('MOTION.pane')
@@ -4893,45 +4863,25 @@ describe('the panel frame', () => {
     const easing = (recipe: string) => recipe.match(/(?:^|\s)(ease-[a-z-]+)(?=\s|$)/)?.[1]
     expect(PANEL_MS).toBe(300)
     expect(duration(MOTION.menu)).toBe(150)
-    for (const recipe of [MOTION.slide, MOTION.push, MOTION.pane]) {
+    for (const recipe of [MOTION.slide, MOTION.pane]) {
       expect(duration(recipe)).toBe(PANEL_MS)
       expect(easing(recipe)).toBe('ease-in-out')
     }
     // Each names the one property it moves, so a grip's drag on a sheet's or
     // a pane's height never chases the finger.
     expect(MOTION.slide).toMatch(/(^|\s)transition-transform(\s|$)/)
-    expect(MOTION.push).toMatch(/(^|\s)transition-\[margin-left\](\s|$)/)
     expect(MOTION.pane).toMatch(/(^|\s)transition-\[grid-template-rows\](\s|$)/)
     expect(MOTION.menu).toMatch(/(^|\s)transition-\[opacity,translate\](\s|$)/)
   })
 
-  // The desk panel pushes the map's edge (record 0202): it stays in the row
-  // shut, and its margin takes back exactly its own width.
-  it('takes the desk panel out of the row by its own width', () => {
-    const width = DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)?.[1]
-    expect(width).toBe('90')
-    expect(DESK_PANEL.shut).toBe(`-ml-${width}`)
-    expect(DESK_PANEL.card).not.toMatch(/(^|\s)(absolute|fixed)(\s|$)/)
-    expect(DESK_PANEL.card).toMatch(/(^|\s)relative(\s|$)/)
-    expect(DESK_PANEL.card).toContain(LAYER.base)
-  })
-
-  // While a desk's layout moves, the map and the results hold one size
-  // (record 0202). The map's box is the window's width or height, centred on
-  // its column, so MapLibre, which keeps the centre on a resize, draws what it
-  // would at every size in between. The chart closing keeps its open width,
-  // the window less the panel.
-  it('holds the map centred on its column, and the chart at the width it had', () => {
-    expect(words(LAYOUT_HOLD.mapPush)).toEqual(expect.arrayContaining(['absolute', 'inset-y-0', 'w-screen', 'left-[calc(50%-50vw)]']))
+  // While a desk's results panes move, the map holds one size (record 0202).
+  // The map's box is the window's height, centred on its column, so
+  // MapLibre, which keeps the centre on a resize, draws what it would at
+  // every height in between.
+  it('holds the map centred on its column while the panes move', () => {
     expect(words(LAYOUT_HOLD.mapPanes)).toEqual(expect.arrayContaining(['absolute', 'inset-x-0', 'h-dvh', 'top-[calc(50%-50dvh)]']))
     expect(LAYOUT_HOLD.rest).toBe('absolute inset-0')
-    expect(LAYOUT_HOLD.table).toBe('w-screen')
-    expect(LAYOUT_HOLD.chartOpening).toBe('w-screen')
-    const panelRem = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) / 4
-    expect(LAYOUT_HOLD.chartClosing).toBe(`w-[calc(100vw-${panelRem}rem)]`)
     expect(LAYOUT_HOLD.clip).toBe('overflow-clip')
-    // What moves stands on a layer of its own while it moves (record 0216).
-    expect(LAYOUT_HOLD.layer).toBe('will-change-transform')
   })
 
   // A results pane opens to its body's height and shuts to none, and the
@@ -5568,12 +5518,10 @@ describe('sheet handles and pull to refresh', () => {
 describe('the alpenglow fill', () => {
   const tok = (recipe: string, utility: string) => token(recipe, utility)
 
-  it('reads the label at AA on both fills and both hovers', () => {
-    for (const button of [BUTTON_FORECAST, BUTTON_FORECAST_BAR]) {
-      expect(tok(button, 'bg')).toBe('act')
-      expect(tok(button, 'text')).toBe('on-act')
-      expect(tok(button, 'hover:bg')).toBe('act-hover')
-    }
+  it('reads the label at AA on the fill and its hover in both themes', () => {
+    expect(tok(BUTTON_FORECAST_BAR, 'bg')).toBe('act')
+    expect(tok(BUTTON_FORECAST_BAR, 'text')).toBe('on-act')
+    expect(tok(BUTTON_FORECAST_BAR, 'hover:bg')).toBe('act-hover')
     expect(ratio(dark('on-act'), dark('act'))).toBe(7.37)
     expect(ratio(dark('on-act'), dark('act-hover'))).toBe(8.88)
     expect(ratio(light('on-act'), light('act'))).toBe(4.71)
@@ -5588,12 +5536,6 @@ describe('the alpenglow fill', () => {
     expect(tok(BUTTON_FORECAST_QUIET, 'ring')).toBe('rule')
     expect(ratio(dark('ink-soft'), dark('floating'))).toBeGreaterThanOrEqual(4.5)
     expect(ratio(light('ink-soft'), light('floating'))).toBeGreaterThanOrEqual(4.5)
-  })
-
-  it('is the fill the Forecast button wears', () => {
-    expect(tok(BUTTON_FORECAST, 'bg')).toBe('act')
-    expect(tok(BUTTON_FORECAST, 'text')).toBe('on-act')
-    expect(tok(BUTTON_FORECAST, 'hover:bg')).toBe('act-hover')
   })
 
   it('stands the fill 3:1 on the surfaces it sits on', () => {

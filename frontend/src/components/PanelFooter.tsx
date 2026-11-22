@@ -1,6 +1,5 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
-import DocLinks from './DocLinks'
-import { BLOCKED, BUTTON_FORECAST, BUTTON_FORECAST_BAR, BUTTON_FORECAST_QUIET, DISABLED, MESSAGE_BADGE, PANEL_EDGE, SENTENCE_BAR, TEXT } from '../styles'
+import { BLOCKED, BUTTON_FORECAST_BAR, BUTTON_FORECAST_QUIET, DISABLED, SENTENCE_BAR } from '../styles'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import { usePopover } from '../hooks/usePopover'
@@ -21,30 +20,22 @@ interface Props {
   // panel, because the phone's floating button reads the same word.
   word: ActionWord
   onAnalyze: () => void
-  /** Open the guided tutorial (#536). */
-  onTutorial: () => void
-  /** The tour cannot start now (a draw or a run is under way), so the link is inert. */
-  tutorialWaits?: boolean
   // Every message the panel has to say, with its count, its worst severity
   // and its dismissals (`usePanelMessages`). This file decides only where the
   // badge and the list stand.
   messages: PanelMessages
-  // A phone, where the map's floating button is the one Analyze (record
-  // 0135) and wears the badge, so the footer is the document links alone,
-  // the last thing in the Controls sheet's scrolling body.
-  phone?: boolean
   /**
-   * The map's sentence bar holds the button (record 0309): no rule, no
-   * padding and no links, and the button names what it will forecast. The
-   * list takes `widthRef`'s width, the bar's chips and button, where the
-   * button alone would wrap every line.
+   * The map's sentence bar, which holds the button (record 0309): the button
+   * names what it will forecast, and the list takes `widthRef`'s width, the
+   * bar's chips and button, where the button alone would wrap every line.
    */
-  bar?: { label: string; widthRef?: RefObject<HTMLElement | null>; quiet?: boolean }
+  bar: { label: string; widthRef: RefObject<HTMLElement | null>; quiet?: boolean }
 }
 
 /**
- * The panel's footer: the Analyze button with the message badge at its
- * corner, the list the badge opens over it, and the two document links.
+ * The sentence bar's Forecast button with the message badge at its corner and
+ * the list the badge opens over it. A phone's one Forecast is the map's
+ * floating button (`PhoneFoot`, record 0135), which wears the badge there.
  *
  * The messages used to stand in one block under the button (record 0028).
  * Since record 0208 the button carries a count of them in the worst one's
@@ -56,10 +47,7 @@ export default function PanelFooter({
   analyzeEnabled,
   word,
   onAnalyze,
-  onTutorial,
-  tutorialWaits = false,
   messages,
-  phone = false,
   bar,
 }: Props) {
   // A run disables this button under the keyboard that pressed it, and the
@@ -81,7 +69,7 @@ export default function PanelFooter({
   // no failure at all. A check or the basemap failing opens it too, quietly
   // (#834): the keyboard stays where it is, because the line lands while the
   // reader may be typing in a field, and a press or a failed run over it
-  // takes the keyboard in. A phone's footer has no list to open.
+  // takes the keyboard in.
   const { count, blocked, held } = messages
   const [listState, setListState] = useState<ListState>(false)
   const open = listState !== false || held
@@ -92,7 +80,7 @@ export default function PanelFooter({
     onOpenChange: setListState,
     triggerRef: badgeRef,
     anchorRef: slotRef,
-    widthRef: bar?.widthRef ?? slotRef,
+    widthRef: bar.widthRef,
     ownPressRef: analyzeRef,
     takeFocus: listState !== 'quiet',
   })
@@ -101,44 +89,40 @@ export default function PanelFooter({
   }, [count])
   const openList = useCallback(() => setListState(true), [])
   const openQuietly = useCallback(() => setListState((was) => (was === false ? 'quiet' : was)), [])
-  useOpenOnFailure(messages.failureSeq, openList, !phone)
-  useOpenOnFailure(messages.openingSeq, openQuietly, !phone)
+  useOpenOnFailure(messages.failureSeq, openList)
+  useOpenOnFailure(messages.openingSeq, openQuietly)
   const toggle = () => setListState((was) => was === false)
 
   return (
-    // The tour's Analyze step lights this footer at a desk; a phone's Analyze
-    // is the map's button, which carries the anchor there (`PhoneFoot`). On a
-    // phone the wrapper is a plain child of the sheet's body, whose stack
-    // draws the rule above it the way it rules off each section.
-    <div className={phone || bar ? undefined : `px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour={phone ? undefined : 'analyze'}>
-      {!phone && (
-        <div ref={slotRef} className={bar ? SENTENCE_BAR.forecastSlot : MESSAGE_BADGE.slot}>
-          {/* Disabled only while busy: a blocker greys the button and leaves
-              it live, so a press anywhere on it opens the list that says
-              why (the maintainer, 2026-10-21). */}
-          <button
-            ref={analyzeRef}
-            onClick={blocked ? toggle : onAnalyze}
-            disabled={!analyzeEnabled && !blocked}
-            aria-disabled={blocked || undefined}
-            // The bar draws an outline while a press would fetch nothing new
-            // and the button is not saying anything else (record 0314).
-            className={`${bar ? (bar.quiet && word === 'Analyze' ? BUTTON_FORECAST_QUIET : BUTTON_FORECAST_BAR) : BUTTON_FORECAST} ${DISABLED} ${BLOCKED}`}
-          >
-            {bar && word === 'Analyze' ? bar.label : word}
-          </button>
-          <MessageBadge
-            ref={badgeRef}
-            count={count}
-            worst={messages.worst}
-            open={open}
-            onPress={toggle}
-            arrivalSeq={messages.arrivalSeq}
-          />
-          <MessageRegion messages={messages.messages} />
-        </div>
-      )}
-      {!phone && box && (
+    // The tour's Analyze step lights this button at a desk; a phone's is the
+    // map's button, which carries the anchor there (`PhoneFoot`).
+    <div data-tour="analyze">
+      <div ref={slotRef} className={SENTENCE_BAR.forecastSlot}>
+        {/* Disabled only while busy: a blocker greys the button and leaves
+            it live, so a press anywhere on it opens the list that says
+            why (the maintainer, 2026-10-21). */}
+        <button
+          ref={analyzeRef}
+          onClick={blocked ? toggle : onAnalyze}
+          disabled={!analyzeEnabled && !blocked}
+          aria-disabled={blocked || undefined}
+          // An outline while a press would fetch nothing new and the button
+          // is not saying anything else (record 0314).
+          className={`${bar.quiet && word === 'Analyze' ? BUTTON_FORECAST_QUIET : BUTTON_FORECAST_BAR} ${DISABLED} ${BLOCKED}`}
+        >
+          {word === 'Analyze' ? bar.label : word}
+        </button>
+        <MessageBadge
+          ref={badgeRef}
+          count={count}
+          worst={messages.worst}
+          open={open}
+          onPress={toggle}
+          arrivalSeq={messages.arrivalSeq}
+        />
+        <MessageRegion messages={messages.messages} />
+      </div>
+      {box && (
         <MessageList
           messages={messages.messages}
           onDismiss={messages.dismiss}
@@ -146,8 +130,6 @@ export default function PanelFooter({
           held={held}
         />
       )}
-
-      {!bar && <DocLinks onTutorial={onTutorial} tutorialWaits={tutorialWaits} className={`${TEXT.caption} text-center`} />}
     </div>
   )
 }

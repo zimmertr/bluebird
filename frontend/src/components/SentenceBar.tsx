@@ -20,7 +20,7 @@ interface Props {
   /** The Forecast button's words (`forecastLabel`). */
   label: string
   /** The Forecast button: the gate, the messages and the press, as the panel's footer took them. */
-  footer: Omit<ComponentProps<typeof PanelFooter>, 'bar' | 'phone'>
+  footer: Omit<ComponentProps<typeof PanelFooter>, 'bar'>
   /** The one run a link may ask for on open, which the bar runs because it is always mounted. */
   autoAnalyze: boolean
   capabilitiesSettled: boolean

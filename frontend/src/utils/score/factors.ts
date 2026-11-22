@@ -70,7 +70,7 @@ export const AIR_CURVE: Curve = [
 ]
 
 /** How far above a summit a deck's base must stand before it costs nothing more. */
-export const SKY_CLEARANCE_FT = 5000
+const SKY_CLEARANCE_FT = 5000
 
 /**
  * Whether the summit is in the cloud, above it, or under a deck above it.
@@ -95,8 +95,8 @@ export function skyFactor(
 }
 
 /** How much the new snow is worth on the Fresh snow lens. */
-export const FRESH_SNOW_FULL_IN = 6
-export const STILL_SNOWING = 0.3
+const FRESH_SNOW_FULL_IN = 6
+const STILL_SNOWING = 0.3
 
 /**
  * Snow in the 24 hours before this one, against `FRESH_SNOW_FULL_IN`, and

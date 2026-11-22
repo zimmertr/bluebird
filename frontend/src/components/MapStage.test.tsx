@@ -262,23 +262,15 @@ describe('MapStage', () => {
   // The chip row holds Legend and Layers at both widths (#714, record 0174),
   // each handed to the rows rather than drawn beside them; their order is
   // the rows' own (MapRows.test.tsx).
-  // While a desk's layout moves the map's column clips the map it holds to
-  // one size (record 0202), and while the panel moves it stands on a layer
-  // of its own (record 0216).
-  it('clips the map\'s column while the layout moves, and gives it a layer while the panel does', () => {
+  // While a desk's results panes move the map's column clips the map it
+  // holds to one size (record 0202).
+  it('clips the map\'s column while the panes move', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const column = () => container.firstElementChild as HTMLElement
     expect(column().className).toContain('flex-1')
     expect(column().className).not.toContain(LAYOUT_HOLD.clip)
-    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
     rerender(<MapStage {...props({ layoutMotion: 'panes' })} />)
     expect(column().className).toContain(LAYOUT_HOLD.clip)
-    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
-    for (const layoutMotion of ['opening', 'closing'] as const) {
-      rerender(<MapStage {...props({ layoutMotion })} />)
-      expect(column().className).toContain(LAYOUT_HOLD.clip)
-      expect(column().className).toContain(LAYOUT_HOLD.layer)
-    }
   })
 
   // A phone's rows carry Legend and Layers; a desk's carry Legend, and its

@@ -109,12 +109,13 @@ describe('attribute copy', () => {
 // combined /privacy page; the dialog had no URL, and the "Terms" link beside
 // it pointed at the privacy page anyway.
 describe('the document pages', () => {
-  // Spelled once in `DocLinks`, which the panel's footer and a desk's credit
-  // line both render (record 0309).
-  it('are both reachable from the control panel footer and the desk credit line', () => {
+  // Spelled once in `DocLinks`, which a phone's Controls sheet and a desk's
+  // credit line both render (record 0309).
+  it('are both reachable from the phone sheet and the desk credit line', () => {
     expect(docLinks).toMatch(/href="\/privacy"/)
     expect(docLinks).toMatch(/href="\/terms"/)
-    expect(panelFooter).toMatch(/<DocLinks /)
+    expect(controlPanel).toMatch(/<DocLinks /)
+    expect(app).toMatch(/<DocLinks /)
   })
 
   // The failure this replaces: a label that says one thing and navigates

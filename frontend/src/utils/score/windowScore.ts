@@ -22,7 +22,7 @@ import { LENS_WEIGHTS, type Factor, type Lens } from './lenses'
 
 /** How many consecutive hours make the best stretch of a day. */
 export const BEST_RUN_HOURS = 4
-export const BEST_RUN_WEIGHT = 0.75
+const BEST_RUN_WEIGHT = 0.75
 
 export interface RowScore {
   // The window score, a whole number from 0 to 100, or null for a row with no
@@ -45,7 +45,7 @@ function at<T>(arr: readonly T[] | null | undefined, i: number): T | null {
 }
 
 /** One hour's factors for a row, by index on its series. */
-export function hourFactors(row: DestinationResult, i: number): Partial<Record<Factor, number | null>> {
+function hourFactors(row: DestinationResult, i: number): Partial<Record<Factor, number | null>> {
   const s = row.series
   if (!s) return {}
   const temp = at(s.temp_f, i)

@@ -6,7 +6,6 @@ import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
 import ThemeMenu from './ThemeMenu'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { useHeldFailure } from '../hooks/useOpenOnFailure'
 import type { LiveCapabilities } from '../hooks/useCapabilities'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
 import type { DrawMode } from '../hooks/useDrawMode'
@@ -14,24 +13,21 @@ import type { ForecastSelectionState } from '../hooks/useForecastSelection'
 import type { PanelMessages } from '../hooks/usePanelMessages'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { ChartMetricsState } from '../hooks/useChartMetrics'
-import type { ActionWord } from '../utils/analyzeGate'
-import { CONTROLS_SHEET, DESK_PANEL, HEADER_BUTTON, LAYOUT_HOLD, PANEL_HEADER, SENTENCE_BAR, TEXT } from '../styles'
+import { CONTROLS_SHEET, HEADER_BUTTON, SENTENCE_BAR, TEXT } from '../styles'
 import type { ThemeChoice } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
-  /** Whether the panel is open: docked on a desktop, the Controls sheet on a phone. */
+  /** Whether the panel is open: a desk's card, or the Controls sheet on a phone. */
   open: boolean
-  /** A desk, where the panel docks beside the map; a phone raises it as a sheet. */
+  /** A desk, where the panel is a card under the sentence bar; a phone raises it as a sheet. */
   isDesktop: boolean
-  /** A desk's panel is opening or closing (`useLayoutMotion`), on a layer of its own meanwhile. */
-  moving?: boolean
   /** Where a drag left the Controls sheet on a phone, or null for its own share (`sheetRestPx`). */
   sheetHeld: SheetHeight | null
   /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
   sheetRestPx: number
   /** Holds it at a dragged height, or null for its own share. */
   onSheetHeld: (held: SheetHeight | null) => void
-  /** Closes it: its close button at a desk, and on a phone Done, Escape or a press on the dim. */
+  /** Closes the Controls sheet on a phone: Done, Escape or a press on the dim. */
   onClose: () => void
   /**
    * The tutorial runs, and its card has the keyboard: a phone's Controls
@@ -92,27 +88,24 @@ interface AppDrawerProps {
   onPresetListFailed: (failed: boolean) => void
   /** Every message the panel has to say, with the Analyze gate and the blockers by field (`usePanelMessages`). */
   messages: PanelMessages
-  /** Analyze, and the one run a link may ask for on open. */
-  onAnalyze: () => void
+  /** The one run a link may ask for on open, which a phone's panel fires. */
   autoAnalyze: boolean
   capabilitiesSettled: boolean
   onAutoAnalyze: (step: 'run' | 'drop') => void
-  /** What the Analyze button reads (#736). */
-  actionWord: ActionWord
-  /** Open the guided tutorial from the panel footer (#536). */
+  /** Open the guided tutorial from the phone sheet's document links (#536). */
   onTutorial: () => void
-  /** The tour cannot start now (a draw or a run is under way), so the footer's link is inert. */
+  /** The tour cannot start now (a draw or a run is under way), so its link is inert. */
   tutorialWaits?: boolean
   /** The theme choice, and the setter the header's theme menu calls (`useTheme`, #843). */
   themeChoice: ThemeChoice
   onThemeChoice: (choice: ThemeChoice) => void
   /**
    * At a desk, the one section a sentence-bar chip opened, as a card under the
-   * bar, or null with none open (record 0309). Given, the desk draws no docked
-   * panel: the card is the panel. On a phone, the section the phrase that
-   * raised the Controls sheet names, which the sheet scrolls to.
+   * bar, or null with none open (record 0309): the card is the panel, and
+   * nothing is drawn without one (record 0334). On a phone, the section the
+   * phrase that raised the Controls sheet names, which the sheet scrolls to.
    */
-  card?: PanelSection | null
+  card: PanelSection | null
   /** The map's view is the search area while no ring is drawn (record 0309). */
   viewIsArea?: boolean
   /** Closes the card: its close button. */
@@ -130,9 +123,10 @@ const CARD_HEADING: Readonly<Record<PanelSection, string>> = {
 
 /**
  * The controls panel around `ControlPanel` (#409 cut it out of `App.tsx`):
- * docked beside the map at a desk, and on a phone the Controls sheet (#696;
- * record 0141), which the summary chip raises from the map's foot as a modal
- * sheet over the dimmed map, the way Layers and Legend rise (record 0207).
+ * at a desk the one card a sentence-bar chip opens (record 0309), and on a
+ * phone the Controls sheet (#696; record 0141), which the map's phrase raises
+ * as a modal sheet over the dimmed map, the way Layers and Legend rise
+ * (record 0207).
  * Closing on a committed report is App's, because the report is App's, and
  * so are the panel's messages (`usePanelMessages`), which the phone's map
  * reads too: this only draws the panel it is told is open.
@@ -140,7 +134,6 @@ const CARD_HEADING: Readonly<Record<PanelSection, string>> = {
 export default function AppDrawer({
   open,
   isDesktop,
-  moving = false,
   sheetHeld,
   sheetRestPx,
   onSheetHeld,
@@ -157,11 +150,9 @@ export default function AppDrawer({
   onPointAtMapPois,
   onPresetListFailed,
   messages,
-  onAnalyze,
   autoAnalyze,
   capabilitiesSettled,
   onAutoAnalyze,
-  actionWord,
   onTutorial,
   tutorialWaits,
   themeChoice,
@@ -202,15 +193,11 @@ export default function AppDrawer({
     setLimit,
     clearFilters,
   } = rankingKnobs
-  // Opened from the map's summary chip, which unmounts as a desk's panel
-  // opens, the keyboard lands on the panel's own way back out (#576). A
-  // phone's sheet takes the keyboard itself, as a menu sheet does.
+  // Opened from a sentence-bar chip, the keyboard lands on the card's own way
+  // back out when nothing else holds it (#576). A phone's sheet takes the
+  // keyboard itself, as a menu sheet does.
   const closeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(closeRef, open)
-  // A failure that lands while a desk's panel is shut reopens it (App's), and
-  // its list opens once the panel stands still, against a button on the
-  // screen (#803). A phone's panel footer has no list, so nothing waits there.
-  const panelMessages = useHeldFailure(messages, isDesktop && (!open || moving))
   const panel = (
     <ControlPanel
       phone={!isDesktop}
@@ -234,7 +221,7 @@ export default function AppDrawer({
       setCustomCsv={setCustomCsv}
       onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
       onPresetListFailed={onPresetListFailed}
-      messages={panelMessages}
+      messages={messages}
       sortBy={sortBy}
       setSortBy={setSortBy}
       sortDesc={sortDesc}
@@ -256,11 +243,9 @@ export default function AppDrawer({
       maxAreaKm2={caps.maxPolygonAreaKm2}
       archiveDays={caps.archiveDays}
       aqiForecastDays={caps.aqiForecastDays}
-      onAnalyze={onAnalyze}
       autoAnalyze={autoAnalyze}
       capabilitiesSettled={capabilitiesSettled}
       onAutoAnalyze={onAutoAnalyze}
-      actionWord={actionWord}
       onTutorial={onTutorial}
       tutorialWaits={tutorialWaits}
       charted={chartMetrics.metrics}
@@ -270,7 +255,7 @@ export default function AppDrawer({
     />
   )
 
-  if (isDesktop && card !== undefined) {
+  if (isDesktop) {
     if (card === null) return null
     return (
       <section aria-label={CARD_HEADING[card]} className={SENTENCE_BAR.card}>
@@ -286,62 +271,26 @@ export default function AppDrawer({
     )
   }
 
-  if (!isDesktop) {
-    return (
-      // The bottom sheet every phone menu is, kept mounted (record 0207):
-      // modal over the dim while open, with Done, Escape and a press on the
-      // dim closing it, and inert while shut for the reason the desk's panel
-      // is (#576). Its grip and title drag it (record 0146) between the
-      // heights App holds.
-      <BottomSheet
-        heading="Controls"
-        onClose={onClose}
-        kept={{
-          open,
-          tourRuns,
-          held: sheetHeld,
-          restPx: sheetRestPx,
-          onHeld: onSheetHeld,
-          actions: <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} sheet />,
-        }}
-      >
-        {search && <div className={SENTENCE_BAR.phoneSearch}>{search}</div>}
-        <div className={CONTROLS_SHEET.panelBody}>{panel}</div>
-      </BottomSheet>
-    )
-  }
   return (
-    <>
-      {/* The desk's panel, a column beside the map that stays in the row
-          while it is shut (record 0202): its margin takes its width back, so
-          the map's edge travels with the panel's both ways. A phone draws the
-          Controls sheet above instead.
-
-          Inert while closed: off screen is not out of the Tab order, and the
-          closed drawer kept some 45 stops a keyboard walked through blind
-          before reaching the map (#576). On a layer of its own while it
-          moves, so a frame of the move paints none of it (record 0216). */}
-      <aside
-        inert={!open}
-        className={`${DESK_PANEL.card} ${open ? '' : DESK_PANEL.shut} ${moving ? LAYOUT_HOLD.layer : ''}`}
-      >
-        {/* The header's buttons: the theme menu, then the close button,
-            which collapses the panel. */}
-        <div className={PANEL_HEADER.actions}>
-          <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} />
-          <button
-            ref={closeRef}
-            onClick={onClose}
-            aria-label="Close controls"
-            // Flex centres the drawn cross in the circle; why the cross is
-            // drawn rather than typed is `IconClose`'s own comment.
-            className={HEADER_BUTTON}
-          >
-            <IconClose />
-          </button>
-        </div>
-        {panel}
-      </aside>
-    </>
+    // The bottom sheet every phone menu is, kept mounted (record 0207):
+    // modal over the dim while open, with Done, Escape and a press on the
+    // dim closing it, and inert while shut, because off screen is not out of
+    // the Tab order (#576). Its grip and title drag it (record 0146) between the
+    // heights App holds.
+    <BottomSheet
+      heading="Controls"
+      onClose={onClose}
+      kept={{
+        open,
+        tourRuns,
+        held: sheetHeld,
+        restPx: sheetRestPx,
+        onHeld: onSheetHeld,
+        actions: <ThemeMenu choice={themeChoice} onChoice={onThemeChoice} sheet />,
+      }}
+    >
+      {search && <div className={SENTENCE_BAR.phoneSearch}>{search}</div>}
+      <div className={CONTROLS_SHEET.panelBody}>{panel}</div>
+    </BottomSheet>
   )
 }
