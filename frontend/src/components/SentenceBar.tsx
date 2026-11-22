@@ -13,7 +13,7 @@ interface Props {
   area: string | null
   /** Over which hours (`whenLabel`), and the word before it (`whenWord`). */
   when: string
-  whenWord: string | null
+  whenWord: string
   /** The card a chip has open, or null. */
   card: PanelSection | null
   onCard: (card: PanelSection | null) => void
@@ -104,7 +104,7 @@ export default function SentenceBar({
           </MenuButton>
         </>
       )}
-      {whenWord !== null && <span className={SENTENCE_BAR.word}>{whenWord}</span>}
+      <span className={SENTENCE_BAR.word}>{whenWord}</span>
       <MenuButton
         shape="slot"
         data-card="forecast"

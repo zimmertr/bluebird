@@ -18,7 +18,7 @@ interface Props {
  * The draw bar on a phone (#687): the panel's own readout, Done and Cancel,
  * on the map while a ring is drawn.
  *
- * Draw polygon closes the drawer on a phone, because the drawer covers the map
+ * Draw a loop closes the drawer on a phone, because the drawer covers the map
  * the ring is drawn on, and that left the map with the vertices and no way to
  * finish but reopening Controls. Done and Cancel here are the panel's two
  * presses, wired to the same two callbacks (record 0063's Cancel: the ring the
@@ -32,7 +32,7 @@ interface Props {
  * no use while points are being placed.
  *
  * A desk draws on an uncovered map too since the sentence bar (record 0309):
- * Draw polygon shuts the Where card, and the bar hangs in the card's place.
+ * Draw a loop shuts the Where card, and the bar hangs in the card's place.
  */
 export default function MapDrawBar({ drawPointCount, onDone, onCancel, inline = false }: Props) {
   return (

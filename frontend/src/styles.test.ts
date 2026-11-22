@@ -101,6 +101,8 @@ import {
   MENU_GROUP,
   LAYER_GRID,
   LEGEND_GRID_STYLE,
+  LEGEND_SCORE,
+  FIGURES,
   LEGEND_GRID_STYLE_WORDS,
   LAYER_ROW,
   SHEET_ASIDE,
@@ -4558,6 +4560,19 @@ describe('the results bar buttons', () => {
   })
 })
 
+describe('the score key', () => {
+  // One line at the prototype's 8px strip, on the swatches' edge, the ends in
+  // the figures' weight (TJ, 2026-11-21).
+  it('is one line with the strip taking the free width', () => {
+    expect(LEGEND_SCORE.row).toContain('whitespace-nowrap')
+    expect(LEGEND_SCORE.row).toContain(TEXT.control)
+    expect(stepPx(LEGEND_SCORE.strip, 'h')).toBe(8)
+    expect(LEGEND_SCORE.strip).toContain('flex-1')
+    expect(LEGEND_SCORE.strip).toContain('border')
+    expect(LEGEND_SCORE.figure).toContain(FIGURES)
+  })
+})
+
 describe('the phone draw bar', () => {
   // Its right edge clears the phone's tool column (record 0331), whose
   // 32px buttons stand at the inset with 12px before them.
@@ -5019,8 +5034,10 @@ describe('the polygon row', () => {
   // Three equal buttons on the fields' edges (#687): the two button roles with
   // the inset cut to 4px and nothing else changed, because 12px a side would
   // wrap `Draw polygon` (77.4px on a Mac, 78.77px in Inter since record 0304,
-  // 2026-11-16, 73.04px in Archivo since record 0324, 2026-11-21) in a third
-  // of a 295px field.
+  // 2026-11-16, 73.04px in Archivo since record 0324) in a third of a 295px
+  // field. Since the rename to `Draw a loop` (TJ, 2026-11-21) the widest of
+  // the three labels is 64.68px in Archivo at 600, which fits a third at
+  // either inset; the row keeps the 4px one.
   it('is the two button roles at a 4px inset, three to a row', () => {
     expect(DRAW_ROW.secondary).toBe(BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '))
     expect(DRAW_ROW.accent).toBe(BUTTON_ACCENT.replace(' px-3 ', ' px-1 '))
@@ -5028,9 +5045,8 @@ describe('the polygon row', () => {
     expect(DRAW_ROW.accent).not.toBe(BUTTON_ACCENT)
     expect(DRAW_ROW.row).toContain('grid-cols-3')
     const third = (field: number) => (field - 2 * stepPx(DRAW_ROW.row, 'gap')) / 3
-    const need = (inset: number) => 78.77 + 2 * inset
+    const need = (inset: number) => 64.68 + 2 * inset
     expect(need(stepPx(DRAW_ROW.secondary, 'px'))).toBeLessThan(third(295))
-    expect(need(stepPx(BUTTON_SECONDARY, 'px'))).toBeGreaterThan(third(317))
     for (const name of ['DRAW_ROW.row', 'DRAW_ROW.secondary', 'DRAW_ROW.accent', 'DISABLED']) {
       expect(destinationsSource).toContain(name)
     }

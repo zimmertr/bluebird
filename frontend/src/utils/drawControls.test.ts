@@ -11,7 +11,7 @@ describe('drawControls', () => {
     })
   })
 
-  it('offers Edit polygon and Clear over a ring', () => {
+  it('offers Edit loop and Clear over a ring', () => {
     expect(drawControls(false, 3)).toEqual({
       mode: 'edit',
       modeEnabled: true,

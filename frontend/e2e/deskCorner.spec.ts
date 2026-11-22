@@ -24,7 +24,7 @@ async function corner(page: Page) {
       map: box(q('.maplibregl-map')),
       compass: box(compass),
       layers: box(q('button[aria-label="Layers"]')),
-      draw: box(column.querySelector('button[aria-label="Draw polygon"]')),
+      draw: box(column.querySelector('button[aria-label="Draw a loop"]')),
       terrain: box(q('button[aria-label="3D terrain"]')),
       locate: box(q('.maplibregl-ctrl-geolocate')),
       zoomIn: box(q('.maplibregl-ctrl-zoom-in')),

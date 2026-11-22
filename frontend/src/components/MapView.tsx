@@ -761,7 +761,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         frameOpening(map)
 
         // A restored polygon hydrates the same points array the draw handlers
-        // edit, so a shared link is adjustable the moment Edit polygon is
+        // edit, so a shared link is adjustable the moment Edit loop is
         // pressed. It arrives with drawing off: a link opens on a finished
         // area, not mid-gesture.
         if (restoredPolygonRef.current) {

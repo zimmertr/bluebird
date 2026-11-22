@@ -391,10 +391,11 @@ export const STYLES = [
     // button's corner, which the maintainer chose over a trigger shape,
     // opening the one list, and which keeps its severity colour while the
     // list is out because the colour is its message (the maintainer,
-    // 2026-10-30).
+    // 2026-10-30). The other is a compact row's disclosure, which opens
+    // content in place rather than a menu (TJ, 2026-11-21).
     name: 'style-menu-trigger',
     files: SOURCES,
-    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge],
+    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge, 'src/components/DisclosureButton.tsx'],
     probe: 'src/components/ResultsBar.tsx',
     ban: [
       {

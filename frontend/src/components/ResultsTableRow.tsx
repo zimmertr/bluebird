@@ -2,6 +2,7 @@ import { createContext, Fragment, memo, useContext, useEffect, useId, useState }
 import type { MouseEvent, ReactNode } from 'react'
 import type { DestinationResult } from '../types'
 import HourStrip from './HourStrip'
+import DisclosureButton from './DisclosureButton'
 import OpenedRow from './OpenedRow'
 import {
   CLOSURE_KEY,
@@ -44,7 +45,7 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/results/resultsCells'
-import { CHOICE_INPUT, FIGURES, ICON_ACTION, LINK_QUIET, OPENED_ROW, SR_ONLY, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, FIGURES, ICON_ACTION, LINK_QUIET, OPENED_ROW, ROW_DISCLOSURE, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
@@ -679,9 +680,14 @@ function ResultsTableRow({
       {/* The filler column also holds the row's one copy of the Windy
           sentence every metric link points at, as the header's filler holds
           the sort hint: a reference resolves through aria-hidden, so the
-          links are described while the filler stays out of the tree. */}
-      <td aria-hidden="true" className="p-0">
-        <span id={windyNoteId(rowId)} className={SR_ONLY}>
+          links are described while the filler stays out of the tree. In the
+          compact table it holds the row's disclosure too, so the sentence
+          is hidden on its own there. */}
+      <td aria-hidden={onToggleOpen ? undefined : 'true'} className={onToggleOpen ? ROW_DISCLOSURE.cell : 'p-0'}>
+        {onToggleOpen && (
+          <DisclosureButton expanded={opened} onToggle={() => onToggleOpen(key)} label={`Details for ${row.name}`} />
+        )}
+        <span id={windyNoteId(rowId)} className={SR_ONLY} aria-hidden="true">
           {`Open ${row.name} on Windy. Opens in a new tab.`}
         </span>
       </td>

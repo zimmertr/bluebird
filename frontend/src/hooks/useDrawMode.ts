@@ -43,7 +43,7 @@ export function useDrawMode({ mapRef, polygon, restoredPolygon, uncoverMap }: Dr
     setDrawPointCount(count)
   }, [])
 
-  // The ring as it stood when Draw polygon or Edit polygon was pressed. Every
+  // The ring as it stood when Draw a loop or Edit loop was pressed. Every
   // edit reaches the polygon and the URL as it happens, so this is the only
   // copy of the ring a Cancel can put back (#478).
   const drawStartRingRef = useRef<GeoPolygon | null>(null)

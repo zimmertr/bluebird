@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { forecastLabel, kindsPhrase, whenWord, whereLabel, wherePhrases } from './sentenceBar'
+import { forecastLabel, kindsPhrase, whenLabel, whenWord, whereLabel, wherePhrases } from './sentenceBar'
 
 describe('kindsPhrase', () => {
   it('names the kinds in one order, joined the way a sentence is', () => {
@@ -31,8 +31,9 @@ describe('wherePhrases', () => {
 })
 
 describe('whenWord', () => {
-  it('says on before days and nothing before Current', () => {
-    expect(whenWord({ kind: 'now' })).toBeNull()
+  it('says on before days and for before this hour', () => {
+    expect(whenWord({ kind: 'now' })).toBe('for')
+    expect(whenLabel({ kind: 'now' }, new Date())).toBe('this hour')
     expect(whenWord({ kind: 'days', startDate: '2026-11-21', endDate: '2026-11-22' })).toBe('on')
   })
 })

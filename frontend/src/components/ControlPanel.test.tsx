@@ -411,4 +411,18 @@ describe('the body on a phone', () => {
     expect(screen.queryByRole('button', { name: /^(Analyze|\d+ messages?)$/ })).toBeNull()
     unmount()
   })
+  // A phrase raises the sheet at its own section (TJ, 2026-11-21), and a
+  // second phrase moves it to the next.
+  it('scrolls the section a phrase names to the top of the body', () => {
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView')
+    const { rerender } = render(<Panel phone />)
+    expect(scrolled).not.toHaveBeenCalled()
+    rerender(<Panel phone scrollTo="metrics" />)
+    expect(scrolled).toHaveBeenCalledOnce()
+    expect((scrolled.mock.contexts[0] as Element).getAttribute('data-tour')).toBe('metrics')
+    expect(scrolled.mock.calls[0][0]).toEqual({ block: 'start' })
+    rerender(<Panel phone scrollTo="forecast" />)
+    expect((scrolled.mock.contexts[1] as Element).getAttribute('data-tour')).toBe('forecast')
+    scrolled.mockRestore()
+  })
 })

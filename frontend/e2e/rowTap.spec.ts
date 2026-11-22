@@ -34,8 +34,15 @@ test('a click on a row opens its popup, and its chart box does not, at 1280 px',
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('a tap on a row lowers the sheet and opens the popup', async ({ page }) => {
+  // The full table, whose Type cell a tap lands on: a phone's compact rows
+  // open in place instead (record 0330), so these widen the sheet first.
+  async function analyzeWide(page: Page) {
     await analyze(page)
+    await page.getByRole('button', { name: 'Every column' }).first().tap()
+  }
+
+  test('a tap on a row lowers the sheet and opens the popup', async ({ page }) => {
+    await analyzeWide(page)
     const row = resultRows(page).nth(1)
     const name = (await row.getByRole('button', { name: /^Center map on / }).textContent())!.trim()
     await (await typeCell(page, row)).tap()
@@ -47,7 +54,7 @@ test.describe('on a phone', () => {
   // is the card's (#696): the tap opens it, and its button takes the row out
   // the way the × does.
   test('a row is removed from the card its tap opens', async ({ page }) => {
-    await analyze(page)
+    await analyzeWide(page)
     const row = resultRows(page).nth(1)
     const name = (await row.getByRole('button', { name: /^Center map on / }).textContent())!.trim()
     await expect(row.getByRole('button', { name: `Remove ${name}` })).toBeHidden()

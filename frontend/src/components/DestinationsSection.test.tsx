@@ -137,10 +137,10 @@ describe('DestinationsSection', () => {
   describe('the draw button', () => {
     // The row is always the same three (#687), with a button that does
     // nothing yet greyed rather than missing.
-    it('shows Draw polygon, Cancel and Clear before any ring, with only the first live', () => {
+    it('shows Draw a loop, Cancel and Clear before any ring, with only the first live', () => {
       render(<DestinationsSection {...props()} />)
-      expect(polygonButtons()).toEqual(['Draw polygon', 'Cancel', 'Clear'])
-      expect(disabled('Draw polygon')).toBe(false)
+      expect(polygonButtons()).toEqual(['Draw a loop', 'Cancel', 'Clear'])
+      expect(disabled('Draw a loop')).toBe(false)
       expect(disabled('Cancel')).toBe(true)
       expect(disabled('Clear')).toBe(true)
     })
@@ -149,10 +149,10 @@ describe('DestinationsSection', () => {
       const onStartDrawing = vi.fn()
       const onClearDrawing = vi.fn()
       const { user, rerender } = render(<DestinationsSection {...props({ onStartDrawing })} />)
-      await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
+      await user.click(screen.getByRole('button', { name: 'Draw a loop' }))
       expect(onStartDrawing).toHaveBeenCalledOnce()
       rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0, onClearDrawing })} />)
-      expect(polygonButtons()).toEqual(['Edit polygon', 'Cancel', 'Clear'])
+      expect(polygonButtons()).toEqual(['Edit loop', 'Cancel', 'Clear'])
       expect(disabled('Cancel')).toBe(true)
       await user.click(screen.getByRole('button', { name: 'Clear' }))
       expect(onClearDrawing).toHaveBeenCalledOnce()
@@ -174,13 +174,13 @@ describe('DestinationsSection', () => {
     // first button that can still act, rather than the body (#576).
     it('hands the keyboard to Cancel on entering the mode and back to Draw on leaving it', async () => {
       const { user, rerender } = render(<DestinationsSection {...props()} />)
-      await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
+      await user.click(screen.getByRole('button', { name: 'Draw a loop' }))
       rerender(<DestinationsSection {...props({ drawing: true })} />)
       // Done is disabled before three points, so Cancel is the first that can take it.
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
       rerender(<DestinationsSection {...props()} />)
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw polygon' }))
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw a loop' }))
     })
 
     // Clear disables itself under the press that empties the ring, so the
@@ -194,10 +194,10 @@ describe('DestinationsSection', () => {
       rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0 })} />)
       await user.click(screen.getByRole('button', { name: 'Clear' }))
       rerender(<DestinationsSection {...props()} />)
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw polygon' }))
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw a loop' }))
     })
 
-    // Done turns back into Edit polygon on the same button, which is still
+    // Done turns back into Edit loop on the same button, which is still
     // live, so the keyboard stays where the press put it.
     it('keeps the keyboard on the mode button when Done leaves the mode', async () => {
       const { user, rerender } = render(
@@ -205,7 +205,7 @@ describe('DestinationsSection', () => {
       )
       await user.click(screen.getByRole('button', { name: 'Done' }))
       rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0 })} />)
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit polygon' }))
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit loop' }))
     })
 
     // Clear starts the ring over; only Cancel leaves the mode.

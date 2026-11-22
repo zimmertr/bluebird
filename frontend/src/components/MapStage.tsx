@@ -339,6 +339,7 @@ export default function MapStage({
     overlays,
     grid,
     scored,
+    scoreRange: scoreColouring?.range ?? null,
     gridScale: scored ? metricScale : null,
   }
   const legend = legendSections(legendInputs, smokeId)
@@ -379,7 +380,7 @@ export default function MapStage({
       {layers}
       <button
         type="button"
-        aria-label="Draw polygon"
+        aria-label="Draw a loop"
         aria-pressed={drawMode.drawing}
         onClick={drawMode.drawing ? drawMode.handleCancelDrawing : drawMode.startDrawing}
         className={MAP_TOOL.draw}

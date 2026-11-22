@@ -67,13 +67,13 @@ describe('SentenceBar', () => {
   })
 
   // The sentence reads `Peaks in this view on Sat 21 – Sun 22` (record
-  // 0314): a list drops the place, Current drops the `on`.
-  it('joins the phrases with in and on, and leaves out what a list or Current lacks', () => {
+  // 0314), and Current `for this hour`: a list drops the place.
+  it('joins the phrases with in and on, and leaves out the place a list lacks', () => {
     const { container, rerender } = render(<SentenceBar {...props()} />)
     const group = () => screen.getByRole('group', { name: 'Forecast' }).textContent
     expect(group()).toContain('Peaksinthis viewonSat 21 – Sun 22')
-    rerender(<SentenceBar {...props({ what: 'Your list', area: null, when: 'Current', whenWord: null })} />)
-    expect(group()).toContain('Your listCurrent')
+    rerender(<SentenceBar {...props({ what: 'Your list', area: null, when: 'this hour', whenWord: 'for' })} />)
+    expect(group()).toContain('Your listforthis hour')
     expect(container.textContent).not.toMatch(/\bin\b|\bon\b/)
   })
 

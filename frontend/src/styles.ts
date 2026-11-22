@@ -825,11 +825,12 @@ export const BUTTON_ACCENT =
  *
  * The two button roles at a 4px inset rather than 12px, and nothing else
  * changed. In a third the cell sets the width and the label is centred in it,
- * so the inset is only the floor under the widest label, `Draw polygon`
- * (77.4px at 12px on a Mac): at 12px a side it needs 101.4px, where a third of
- * the row is 100.3px on a desktop and 93px on a 360px phone (the row is
- * 317px and 295px, less two 8px gaps), so the label would wrap; at 4px it
- * needs 85.4px and fits both. Derived from the roles rather than spelled
+ * so the inset is only the floor under the widest label, which was `Draw
+ * polygon` (77.4px at 12px on a Mac): at 12px a side it needed 101.4px, where
+ * a third of the row is 100.3px on a desktop and 93px on a 360px phone (the
+ * row is 317px and 295px, less two 8px gaps), so the label would wrap; at 4px
+ * it needed 85.4px and fit both. Since the rename to `Draw a loop` (64.68px in
+ * Archivo, TJ 2026-11-21) either inset fits. Derived from the roles rather than spelled
  * again, so the fill, the type and the tap target cannot drift from the
  * buttons everywhere else.
  */
@@ -1081,6 +1082,21 @@ export const SWATCH_RAMP =
  * rather than a chip per number, so the numbers read along one baseline on one
  * ground instead of as four dark blocks punched through a six-band scale.
  */
+/**
+ * The score's key as the prototype prints it at the column's foot (TJ,
+ * 2026-11-21): one line, `Fog 64`, the ramp, `87 Bluebird`, the field's own
+ * lowest and highest scores at its ends in the figures' weight, so the key
+ * names the range the colours were stretched over rather than ticking the
+ * thresholds between. The strip is the ramp the markers wear, on the edge
+ * every swatch wears, 8px tall as the prototype draws it and taking the
+ * line's free width.
+ */
+export const LEGEND_SCORE = {
+  row: `flex items-center gap-2 whitespace-nowrap ${TEXT.control}`,
+  figure: `font-semibold ${FIGURES}`,
+  strip: `h-2 min-w-0 flex-1 ${RADIUS.pill} border`,
+} as const
+
 export const SWATCH_RAMP_SCRIM =
   'pointer-events-none absolute inset-x-0 bottom-0 h-[11px] bg-recessed/70'
 
@@ -1149,6 +1165,16 @@ export const ICON_BUTTON = `px-1 text-ink-soft ${ACCENT.hoverText} transition-co
  * utilities are allowed here and nowhere a component spells one.
  */
 export const CARD_FOLD = `flex h-6 w-6 shrink-0 items-center justify-center ${RADIUS.control} transition-colors ${FOCUS_RING} touch:h-8 touch:w-8`
+
+/**
+ * A compact row's disclosure (TJ, 2026-11-21): the card fold's 24px box at
+ * the row's right edge in the table's filler cell, 32 under a finger, in the
+ * icon buttons' ink and their accent under a pointer.
+ */
+export const ROW_DISCLOSURE = {
+  cell: 'p-0 pr-1 text-right',
+  button: `${CARD_FOLD} ml-auto text-ink-soft ${ACCENT.hoverText}`,
+} as const
 
 /**
  * The resize handle in a card's bottom-right corner (#832, TJ 2026-11-03): a

@@ -109,7 +109,8 @@ interface AppDrawerProps {
   /**
    * At a desk, the one section a sentence-bar chip opened, as a card under the
    * bar, or null with none open (record 0309). Given, the desk draws no docked
-   * panel: the card is the panel.
+   * panel: the card is the panel. On a phone, the section the phrase that
+   * raised the Controls sheet names, which the sheet scrolls to.
    */
   card?: PanelSection | null
   /** The map's view is the search area while no ring is drawn (record 0309). */
@@ -265,6 +266,7 @@ export default function AppDrawer({
       charted={chartMetrics.metrics}
       onChart={chartMetrics.chart}
       only={isDesktop && card ? card : undefined}
+      scrollTo={isDesktop ? null : (card ?? null)}
     />
   )
 

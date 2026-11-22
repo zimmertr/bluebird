@@ -1065,7 +1065,7 @@ export default function App() {
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
 
-      {!isDesktop && renderDrawer({ card: null, onCardClose: closeDrawer, search: phoneSearch })}
+      {!isDesktop && renderDrawer({ card: sidebarOpen ? barCard : null, onCardClose: closeDrawer, search: phoneSearch })}
 
       {/* Map + results column. On a phone the results leave the flow and stand
           on the map as a sheet, so the column is what positions them; on

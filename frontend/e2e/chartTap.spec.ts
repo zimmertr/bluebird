@@ -21,6 +21,8 @@ async function openChart(page: Page) {
   // drawer closed and inert (#696).
   await forecastButton(page.getByRole('main')).tap()
   await expect(resultRows(page).first()).toBeAttached()
+  // A phone's chart waits behind Every column (record 0330).
+  await page.getByRole('button', { name: 'Every column' }).first().tap()
   await page.getByRole('button', { name: 'Show chart only' }).tap()
   const surface = page.locator('svg.recharts-surface').first()
   await expect(surface).toBeVisible()
@@ -91,6 +93,8 @@ test.describe('on a 390 px phone', () => {
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await forecastButton(page.getByRole('main')).tap()
     await expect(resultRows(page).first()).toBeAttached()
+    // A phone's chart waits behind Every column (record 0330).
+    await page.getByRole('button', { name: 'Every column' }).first().tap()
   }
   const sheetTop = async (page: Page) => (await page.locator('[data-tour="results"]').boundingBox())!.y
 

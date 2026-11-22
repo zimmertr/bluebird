@@ -5,7 +5,7 @@ import { useLayoutEffect, type RefObject } from 'react'
  *
  * A pressed button that unmounts, turns disabled or lands inside an `inert`
  * drawer takes the focus with it, and the browser parks it on `<body>`: the
- * next Tab starts again from the top of the page. Draw polygon, Analyze, Close
+ * next Tab starts again from the top of the page. Draw a loop, Analyze, Close
  * controls and every popover's last row all did that. The fix is the same in
  * each place, so it is one rule here: the control that REPLACES the pressed
  * one takes the focus, and only when the focus really was lost.

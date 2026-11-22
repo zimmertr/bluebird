@@ -9,6 +9,7 @@ import {
   CHIP_CARD_W,
   CONTROL_SIZE,
   LEGEND_GRID_STYLE,
+  LEGEND_SCORE,
   LEGEND_GRID_STYLE_WORDS,
   LINK,
   MAP_CHIP_MENU,
@@ -41,6 +42,7 @@ import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, SMOKE_ROW_LABEL, smokeSwatch } f
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
 import { SLOPE_BANDS, slopeRampCss, slopeTicks } from '../utils/slopeAngle'
 import { MAPTERHORN_HREF } from '../utils/terrainSources'
+import { grouped } from '../utils/numbers'
 import { NIFC_HREF, WILDFIRE_ROW_LABEL, wildfireSwatch } from '../utils/wildfires'
 
 // Every name the grid style's button can say, which its word is held to the widest of.
@@ -72,6 +74,7 @@ function legendSection({
   credit,
   swatch,
   ramp,
+  ends,
 }: {
   label: string
   credit?: { href: string; name: string }
@@ -79,7 +82,30 @@ function legendSection({
   swatch?: ReactNode
   /** The strip and its numbers, for a section keyed on a scale. */
   ramp?: { css: string; ticks: RampTick[]; bands: number }
+  /**
+   * The score's key: the field's lowest and highest scores, printed as
+   * `Fog {low}` and `{high} Bluebird` at the strip's ends in place of the
+   * label and the ticks (`LEGEND_SCORE`).
+   */
+  ends?: { low: string; high: string }
 }) {
+  if (ramp && ends) {
+    return (
+      <div className={LEGEND_SCORE.row}>
+        <span>
+          Fog <span className={LEGEND_SCORE.figure}>{ends.low}</span>
+        </span>
+        <span
+          className={LEGEND_SCORE.strip}
+          style={{ backgroundImage: ramp.css, borderColor: SWATCH_EDGE }}
+          aria-hidden="true"
+        />
+        <span>
+          <span className={LEGEND_SCORE.figure}>{ends.high}</span> Bluebird
+        </span>
+      </div>
+    )
+  }
   const name = (
     <span className={TEXT.control}>
       {label}
@@ -164,6 +190,8 @@ export interface LegendInputs {
   hasColoredMarkers: boolean
   /** Whether a lens ranks the field, so the markers wear the score and the key says so (record 0307). */
   scored?: boolean
+  /** The field's lowest and highest scores the ramp is stretched over, or null: the key's two ends. */
+  scoreRange?: { lo: number; hi: number } | null
   /** Whether the ranked metric has any value on the rows shown (`fieldHasValue`). */
   rankedFieldHasValue: boolean
   /**
@@ -199,7 +227,17 @@ export type LegendSectionSpec = Parameters<typeof legendSection>[0]
  * and, with a suffix of their own, the fire chips'.
  */
 export function legendSections(
-  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid, scored = false, gridScale = null }: LegendInputs,
+  {
+    sortBy,
+    markerScale,
+    hasColoredMarkers,
+    rankedFieldHasValue,
+    overlays,
+    grid,
+    scored = false,
+    scoreRange = null,
+    gridScale = null,
+  }: LegendInputs,
   smokeId: string,
 ): LegendSectionSpec[] {
   const {
@@ -276,6 +314,11 @@ export function legendSections(
             // Under a lens the markers wear the score, and the key says so.
             label: scored ? 'Score' : metricLabel(familyOf(sortBy), undefined, markerScale.unit),
             ...(snowKeyed ? { credit: { href: NOHRSC_HREF, name: 'NOHRSC' } } : {}),
+            // Under a lens the key is the prototype's line, the field's own
+            // range from fog to bluebird (TJ, 2026-11-21).
+            ...(scored && scoreRange !== null
+              ? { ends: { low: grouped(Math.round(scoreRange.lo)), high: grouped(Math.round(scoreRange.hi)) } }
+              : {}),
             ramp: {
               css: snowKeyed ? snowRampCss() : scaleRampCss(markerScale),
               ticks: snowKeyed ? snowTicks() : scaleTicks(markerScale),

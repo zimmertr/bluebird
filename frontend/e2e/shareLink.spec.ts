@@ -16,7 +16,7 @@ test('a share link restores the ring, the types, the window and the model', asyn
 
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await openCard(page, 'Where')
-  await expect(page.getByRole('button', { name: 'Edit polygon' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Edit loop' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'Peaks', exact: true })).toBeChecked()
   await openCard(page, 'When')
   await expect(page.getByRole('button', { name: `Forecast model: ${model.label}`, exact: true })).toBeVisible()
@@ -161,7 +161,7 @@ test('a link reopens at its camera, with its removals and its table order', asyn
 // loaded. Escape then cancels draw mode and leaves no ring behind.
 async function waitForMapLoad(page: Page) {
   // In the Where card at a desk (record 0309), shut again once drawing.
-  await inWhere(page, () => page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click())
+  await inWhere(page, () => page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw a loop' }).click())
   const counted = message(page, 'Add at least 2 more points')
   await expect(async () => {
     if ((await counted.count()) === 0) await page.locator('.maplibregl-canvas').click({ position: { x: 520, y: 260 } })

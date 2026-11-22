@@ -121,6 +121,19 @@ describe('MapLegend', () => {
     const scored = legendSections({ ...BASE, markerScale: SCORE_MAP_SCALE, hasColoredMarkers: true, scored: true }, 'id')
     expect(scored.map((s) => s.label)).toEqual(['Score'])
     expect(scored[0].ramp?.bands).toBe(SCORE_MAP_SCALE.colors.length)
+    expect(scored[0].ends).toBeUndefined()
+  })
+
+  // With the field's range in hand the key is the prototype's one line (TJ,
+  // 2026-11-21): the lowest score after Fog, the highest before Bluebird.
+  it('prints the score key as the field\'s range from Fog to Bluebird', () => {
+    const inputs = { ...BASE, markerScale: SCORE_MAP_SCALE, hasColoredMarkers: true, scored: true, scoreRange: { lo: 63.6, hi: 87.2 } }
+    const sections = legendSections(inputs, 'id')
+    expect(sections[0].ends).toEqual({ low: '64', high: '87' })
+    render(<LegendSections sections={sections} />)
+    expect(document.body.textContent).toBe('Fog 6487 Bluebird')
+    // Without a lens the range keys nothing.
+    expect(legendSections({ ...inputs, scored: false, markerScale: rankedScale('temp_avg_f') }, 'id')[0].ends).toBeUndefined()
   })
 
   // The grid paints the metric whatever ranks (#246), so under a lens it keys

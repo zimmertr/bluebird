@@ -122,6 +122,11 @@ interface Props {
    * the bar runs since it is always mounted where the card is not.
    */
   only?: PanelSection
+  /**
+   * On a phone, the section the sentence-bar phrase that raised the sheet
+   * names (TJ, 2026-11-21), which the sheet scrolls to the top of its body.
+   */
+  scrollTo?: PanelSection | null
 }
 
 /** The panel's three sections, as the sentence bar's cards name them. */
@@ -181,6 +186,7 @@ export default function ControlPanel({
   charted,
   onChart,
   only,
+  scrollTo = null,
 }: Props) {
   // A line pasted twice is one destination, and the count says so (#579).
   // Parsed once per change for the count; the gate reads App's parse.
@@ -213,6 +219,15 @@ export default function ControlPanel({
   // own whether there is more above or below (#697).
   const bodyRef = useRef<HTMLDivElement>(null)
   useScrollShadows(bodyRef)
+
+  // A phone's phrase raises the sheet at its own section rather than at the
+  // top (TJ, 2026-11-21): each section's anchor is its tour name, which is
+  // the phrase's section name too. At once, with no glide, since the sheet's
+  // own rise is the motion.
+  useEffect(() => {
+    if (scrollTo === null) return
+    bodyRef.current?.querySelector(`[data-tour="${scrollTo}"]`)?.scrollIntoView({ block: 'start' })
+  }, [scrollTo])
 
   // At a desk the footer is fixed under the scrolling body, with Analyze and
   // its badge; on a phone it is the body's last child (#696; record 0141).

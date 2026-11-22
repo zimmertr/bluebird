@@ -305,13 +305,13 @@ describe('MapStage', () => {
     const startDrawing = vi.fn()
     const handleCancelDrawing = vi.fn()
     const { user, rerender } = render(<MapStage {...props({ drawMode: { ...DRAW, startDrawing, handleCancelDrawing } })} />)
-    const draw = screen.getByRole('button', { name: 'Draw polygon' })
+    const draw = screen.getByRole('button', { name: 'Draw a loop' })
     expect(draw.getAttribute('aria-pressed')).toBe('false')
     await user.click(draw)
     expect(startDrawing).toHaveBeenCalledTimes(1)
     rerender(<MapStage {...props({ drawMode: { ...DRAW, drawing: true, startDrawing, handleCancelDrawing } })} />)
-    expect(screen.getByRole('button', { name: 'Draw polygon' }).getAttribute('aria-pressed')).toBe('true')
-    await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
+    expect(screen.getByRole('button', { name: 'Draw a loop' }).getAttribute('aria-pressed')).toBe('true')
+    await user.click(screen.getByRole('button', { name: 'Draw a loop' }))
     expect(handleCancelDrawing).toHaveBeenCalledTimes(1)
   })
 
@@ -322,7 +322,7 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 
-  // Draw polygon closes the drawer on a phone, so Done and Cancel come to the
+  // Draw a loop closes the drawer on a phone, so Done and Cancel come to the
   // map (#687). They are the panel's own two presses, the bar stands under the
   // chip row (#696), and the player steps out while it is up.
   it('puts Done and Cancel on the map while a phone draws, and the player away', async () => {

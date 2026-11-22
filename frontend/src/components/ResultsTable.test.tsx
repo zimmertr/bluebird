@@ -468,4 +468,25 @@ describe('compact', () => {
     fireEvent.click(ground(rows()[0]))
     expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(0)
   })
+
+  // The row's disclosure is the way in for a keyboard (TJ, 2026-11-21): a
+  // chevron that reads expanded while the row stands open, and a press on it
+  // is its own, so it opens once rather than once for it and once for the row.
+  it('opens and shuts a compact row from its disclosure button', () => {
+    const scored = ROWS.map((r) => ({ ...r, score: 80, score_hours: [80], score_lit: [true], score_best: [0, 1] as [number, number] }))
+    render(<ResultsTable {...props({ results: scored, columns: compactColumns('temp_avg_f', true), compact: true })} />)
+    const toggle = screen.getByRole('button', { name: `Details for ${scored[0].name}` })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(toggle)
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: `Details for ${scored[0].name}` }).getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: `Details for ${scored[0].name}` }))
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(0)
+  })
+
+  // The full table opens the popup instead, so it carries no disclosure.
+  it('draws no disclosure in the full table', () => {
+    render(<ResultsTable {...props()} />)
+    expect(screen.queryAllByRole('button', { name: /^Details for / })).toHaveLength(0)
+  })
 })

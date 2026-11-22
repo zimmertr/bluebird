@@ -9,7 +9,6 @@ import { grouped } from './numbers'
 import { type ForecastSelection, selectionLocalWindow } from './calendar/calendarSelection'
 import { windowCaption } from './calendar/calendarPhrases'
 import { isPointSample } from './forecastWindow'
-import { WHEN_ARM_LABEL } from './controlsSummary'
 
 const KIND_PLURAL: Readonly<Record<DiscoveryType, string>> = {
   peak: 'peaks',
@@ -49,10 +48,17 @@ export function wherePhrases(
   return { what: kindsPhrase(types), area: source === 'view' ? 'this view' : 'your area' }
 }
 
-/** The word before the When phrase: `on` before days, nothing before `Current`. */
-export function whenWord(selection: ForecastSelection): string | null {
-  return selection.kind === 'now' ? null : 'on'
+/**
+ * The word before the When phrase: `on` before days, `for` before the
+ * Current arm's `this hour` (TJ, 2026-11-21), since Current forecasts the
+ * hour of the press.
+ */
+export function whenWord(selection: ForecastSelection): string {
+  return selection.kind === 'now' ? 'for' : 'on'
 }
+
+/** The Current arm's hours in the sentence: `Peaks in this view for this hour`. */
+export const THIS_HOUR = 'this hour'
 
 /** The button's words when a press would fetch nothing new, which it draws as an outline. */
 export const UP_TO_DATE = 'Up to date'
@@ -86,11 +92,11 @@ export function forecastLabel({ count, fresh, noun }: ForecastLabelInputs): stri
 
 /**
  * The When chip: the window in the words the results bar prints for an
- * analysed one (`windowCaption`), the Current arm's own word, or a prompt for
- * the Dates arm with no day picked.
+ * analysed one (`windowCaption`), `this hour` for the Current arm, or a
+ * prompt for the Dates arm with no day picked.
  */
 export function whenLabel(selection: ForecastSelection, now: Date): string {
-  if (selection.kind === 'now') return WHEN_ARM_LABEL.now
+  if (selection.kind === 'now') return THIS_HOUR
   const local = selectionLocalWindow(selection, now)
   if (local === null) return 'Pick the days'
   const startMs = Date.parse(local.start)

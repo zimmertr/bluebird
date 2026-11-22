@@ -379,7 +379,7 @@ export async function inWhere(page: Page, act: () => Promise<void>) {
 
 export async function drawRing(page: Page) {
   await inWhere(page, async () => {
-    await page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click()
+    await page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw a loop' }).click()
     await placeVertices(page, [
       [520, 260],
       [760, 300],
@@ -388,13 +388,13 @@ export async function drawRing(page: Page) {
   })
 }
 
-// Replaces the ring on the map with a new one through Clear and Draw polygon,
-// the way a reader moves the search area after a report. Draw polygon shuts
+// Replaces the ring on the map with a new one through Clear and Draw a loop,
+// the way a reader moves the search area after a report. Draw a loop shuts
 // the Where card at a desk, so its Done is the map's draw bar.
 export async function redrawRing(page: Page, vertices: readonly [number, number][]) {
   await inWhere(page, async () => {
     await page.getByRole('button', { name: 'Clear', exact: true }).last().click()
-    await page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw polygon' }).click()
+    await page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw a loop' }).click()
     await placeVertices(page, vertices)
   })
 }

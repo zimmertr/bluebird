@@ -232,7 +232,7 @@ for (const width of [360, 390]) {
       const named = (name: string) => box(document.querySelector(`button[aria-label="${name}"]`)!)
       const group = document.querySelector('[role="group"][aria-label="Forecast"]')!
       return {
-        column: ['Search for a place', 'Layers', 'Draw polygon', '3D terrain'].map(named),
+        column: ['Search for a place', 'Layers', 'Draw a loop', '3D terrain'].map(named),
         locate: box(document.querySelector('.maplibregl-ctrl-geolocate')!),
         bar: box(group.parentElement!),
         map: box(document.querySelector('.maplibregl-canvas')!),
