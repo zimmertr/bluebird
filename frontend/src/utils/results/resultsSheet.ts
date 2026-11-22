@@ -171,8 +171,10 @@ export const SHEET_HEADER_PX = 112
 export const SHEET_HEADER_COMPACT_PX = 86
 
 /**
- * The map's key at a phone sheet's foot once a report stands (record 0333),
- * which the sheet's chrome counts beside its header: `h-14`, one fixed height
+ * The map's key at a phone's compact sheet's foot once a report stands
+ * (record 0333), which the compact sheet's chrome counts beside its header;
+ * a widened sheet, the chart's and the full table's room, leaves the key to
+ * the Legend chip: `h-14`, one fixed height
  * whatever the key holds, the height of one ramp section (its 16px name, the
  * 4px gap and the 20px strip, in 6px of padding each way and the 1px rule
  * over it). One number because a map overlay must never change the height of
@@ -551,6 +553,8 @@ export function phoneCornerLiftPx(fabBottom: number): number {
  * button stands under the sheet's dim (record 0207), so nothing above the
  * sheet needs the 164px under the rows; the sheet keeps them so it opens at
  * the height a reader knows, and taking them back is the maintainer's call.
+ * The foot has stood taller than this since its days drew a sky track
+ * (record 0333), and stands under the dim with the button.
  */
 export const CONTROLS_MAP_PX = 256
 

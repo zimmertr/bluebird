@@ -3,8 +3,6 @@ import { act, renderHook } from '@testing-library/react'
 import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
 import {
-  SHEET_HEADER_PX,
-  SHEET_KEY_PX,
   draggedMapFloorPx,
   fullScreenMapFloorPx,
 } from '../utils/results/resultsSheet'
@@ -297,11 +295,8 @@ describe('useResultsLayout', () => {
       act(() => result.current[grip].onDrag(up))
       act(() => result.current[grip].onDragEnd())
     }
-    // A phone's sheet counts the map's key at its foot beside its header
-    // (record 0333).
-    const PHONE_HEADER_PX = SHEET_HEADER_PX + SHEET_KEY_PX
-    const capPx = VIEWPORT - draggedMapFloorPx(1, false, PHONE_HEADER_PX)
-    const fullPx = VIEWPORT - fullScreenMapFloorPx(1, PHONE_HEADER_PX)
+    const capPx = VIEWPORT - draggedMapFloorPx(1)
+    const fullPx = VIEWPORT - fullScreenMapFloorPx(1)
 
     it('opens at rest, and goes full when let go near the top', () => {
       const { result } = phone()
@@ -395,7 +390,7 @@ describe('useResultsLayout', () => {
     // share, and the divider trades the pair without bringing it down.
     it('fills Both with the table under the chart, and keeps it through the divider', () => {
       const { result } = phone({ modeChosen: 'both' })
-      const fullBoth = VIEWPORT - fullScreenMapFloorPx(2, PHONE_HEADER_PX)
+      const fullBoth = VIEWPORT - fullScreenMapFloorPx(2)
       drag(result, 'chartGrip', 2000)
       expect(result.current.overMapRows).toBe(true)
       expect(result.current.chartPanelPx + result.current.tablePanelPx).toBe(fullBoth)
@@ -433,11 +428,10 @@ describe('useResultsLayout', () => {
       drag(result, 'chartGrip', 2000)
       expect(result.current.overMapRows).toBe(true)
       const sum = result.current.chartPanelPx + result.current.tablePanelPx
-      // 30 rather than 100 since the widened header grew to 112 (record
-      // 0330) and the key joined the foot (record 0333), which left the
-      // table 34px over its floor here.
-      drag(result, 'tableGrip', -30)
-      expect(result.current.tablePanelPx).toBe(table - 30)
+      // 80 rather than 100 since the widened header grew to 112 (record
+      // 0330), which left the table 90px over its floor here.
+      drag(result, 'tableGrip', -80)
+      expect(result.current.tablePanelPx).toBe(table - 80)
       act(() => result.current.tableGrip.onReset())
       expect(result.current.overMapRows).toBe(true)
       expect(result.current.tablePanelPx).toBe(rest.table)

@@ -15,12 +15,13 @@ Side by side with the prototype on a phone, three things after a forecast differ
 
 - **The phone's days draw each day's sky after a forecast**, the window's days widened, as the desk's do ([0323](0323-the-day-strip-plays-the-window-after-a-forecast.md)). The Forecast button under them keeps reading `Up to date`. The days scrub the hours only while the forecast player is on, a phone's default being off: with it off a press on a day picks that day, and no playhead is drawn (`StripZoom.scrub`).
 - **The foot keeps one height, 120px** (`FAB_PX`, `MAP_FOOT.card`'s `h-30`), from 96. Before a forecast each day's sky track stands empty on the recessed ground, so the foot does not grow under the reader when a report lands.
-- **The phone's key stands at the results sheet's foot once a report stands**, as the desk's stands at the column's (record 0322), and under a folded sheet too, where the map it keys is open. The `Legend` chip keys the map only before a report. The foot is one fixed height, `h-14` (`SHEET_KEY_PX`, 56px, one ramp section), which the sheet's chrome counts beside its header, because a map overlay must never change the height of the results; a second section scrolls inside it.
+- **The phone's key stands at the compact results sheet's foot once a report stands**, as the desk's stands at the column's (record 0322), and under a folded sheet too, where the map it keys is open. The `Legend` chip keys the map before a report, and while Every column has widened the sheet: that sheet is the chart's and the full table's room, mostly over the map, and the 56px cost the tour's four stacked plots two of them in CI. The foot is one fixed height, `h-14` (`SHEET_KEY_PX`, 56px, one ramp section), which the compact sheet's chrome counts beside its header, because a map overlay must never change the height of the results; a second section scrolls inside it.
 - **The score column's header is the lens's name** (`Bluebird`, `Calm summit`, `Clean air`, `Fresh snow`, `Warmest`), at both widths and in the CSV (`labelScore`). One label for the table and the file, as every column has.
 
 ## Consequences
 
 - The phone's map floor under a dragged sheet rises by the foot's growth: `DRAGGED_MAP_PX` is 268, and `draggedMapFloorPx(2)` 428.
-- A phone's sheet header estimate is 56px taller, so the table at rest is 56px shorter on a phone.
+- A phone's compact sheet header estimate is 56px taller, so its table at rest is 56px shorter.
+- The Controls sheet keeps its 256px: the foot now stands taller than that under its dim, as the button always has (record 0207), and the sheet still leaves the rows.
 - A score ramp's key fits the foot with room to spare; a column's ramp fills it.
 - No new strings: the header reuses the lens chips' approved names.

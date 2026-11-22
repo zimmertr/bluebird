@@ -363,8 +363,8 @@ export function useResultsLayout({
   // a reader who pulls the panels up has chosen a shorter map, and the stack
   // scrolls rather than the drag stopping short.
   // A compact sheet's header is shorter than a widened one's (record 0330),
-  // and a phone's sheet carries the map's key at its foot (record 0333).
-  const headerPx = (tableOnly ? SHEET_HEADER_COMPACT_PX : SHEET_HEADER_PX) + (isDesktop ? 0 : SHEET_KEY_PX)
+  // and a phone's compact sheet carries the map's key at its foot (record 0333).
+  const headerPx = tableOnly ? SHEET_HEADER_COMPACT_PX + SHEET_KEY_PX : SHEET_HEADER_PX
   const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount, playerOn, headerPx)
   // Past that cap a drag on a phone runs on to the top of the map (#837), and
   // its release decides whether the sheet stays there (`sheetTopRelease`).

@@ -383,13 +383,17 @@ export default function ResultsSheet(props: ResultsSheetProps) {
               compactPhone={!isDesktop && !wide}
             />
           )}
-          {/* The map's key at the foot (record 0322), on a phone too, where
-              it stands under a collapsed sheet's header as well (record 0333). */}
-          <div
-            ref={legendFootRef}
-            data-legend-foot=""
-            className={isDesktop ? RESULTS_COLUMN.foot : RESULTS_COLUMN.footPhone}
-          />
+          {/* The map's key at the foot (record 0322), and in a phone's compact
+              sheet, folded or not, where the map stays open beside the rows;
+              a widened sheet is the chart's and the full table's room, and
+              leaves the key to the Legend chip (record 0333). */}
+          {(isDesktop || !wide) && (
+            <div
+              ref={legendFootRef}
+              data-legend-foot=""
+              className={isDesktop ? RESULTS_COLUMN.foot : RESULTS_COLUMN.footPhone}
+            />
+          )}
         </div>
       )}
 

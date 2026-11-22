@@ -524,11 +524,13 @@ describe('the default panel heights', () => {
 // the button, plus the 76px the notice band on its edge used to take. The
 // band went with the message badge (record 0208) and the number stayed, so
 // the sheet opens where it did; taking the band's room back is a call of its
-// own.
+// own. The foot grew past it with the days' sky track (record 0333): the
+// sheet keeps its height, since the foot stands under its dim, and still
+// leaves the rows.
 describe('the Controls sheet', () => {
   it('leaves the rows, the button\'s strip and the room the band had above it', () => {
     expect(CONTROLS_MAP_PX).toBe(256)
-    expect(CONTROLS_MAP_PX).toBeGreaterThan(DRAGGED_MAP_PX)
+    expect(CONTROLS_MAP_PX).toBeGreaterThan(MAP_ROWS_PX)
     expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
   })
 

@@ -172,14 +172,19 @@ describe('ResultsSheet', () => {
   })
 
   // The map's key stands at the results' foot at either width (records 0322
-  // and 0333), and under a phone's folded sheet too, where the map is open.
-  it('keeps a foot for the map\'s key at either width, folded or not', () => {
+  // and 0333), and under a phone's folded sheet too, where the map is open;
+  // a phone's widened sheet is the chart's room and leaves it to the chip.
+  it('keeps a foot for the map\'s key at either width, folded or not, and none in a phone\'s widened sheet', () => {
     const foot = () => document.querySelector('[data-legend-foot]')
     const { rerender } = render(<ResultsSheet {...props()} />)
     expect(foot()).not.toBeNull()
     rerender(<ResultsSheet {...props({ isDesktop: false })} />)
     expect(foot()).not.toBeNull()
     rerender(<ResultsSheet {...props({ isDesktop: false, resultsCollapsed: true })} />)
+    expect(foot()).not.toBeNull()
+    rerender(<ResultsSheet {...props({ isDesktop: false })} wide />)
+    expect(foot()).toBeNull()
+    rerender(<ResultsSheet {...props()} wide />)
     expect(foot()).not.toBeNull()
   })
 
