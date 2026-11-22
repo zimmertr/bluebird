@@ -51,10 +51,11 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
   await name.hover()
   await expect.poll(async () => (await look(name)).line).toBe('underline')
 
-  // The popup the row opens says it the same way, and its link-out glyph
-  // rests in a grey and takes the accent under the pointer, as its forecast
-  // section's fold does (#832).
-  await row.locator('td').nth(3).click()
+  // The popup the row's name opens says it the same way, and its link-out
+  // glyph rests in a grey and takes the accent under the pointer, as its
+  // forecast section's fold does (#832). The name, since a press on the
+  // compact row's ground opens the row in place (record 0327).
+  await name.click()
   const popup = page.locator('.maplibregl-popup')
   await expect(popup).toHaveCount(1)
   await groundLanded(page)

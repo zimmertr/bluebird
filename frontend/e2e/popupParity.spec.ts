@@ -72,7 +72,8 @@ for (const theme of ['dark', 'light'] as const) {
     else await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
     await forecastButton(page).click()
     await expectRanked(page)
-    await resultRows(page).nth(1).locator('td').nth(3).click()
+    // The name's fly-to, since a press on the compact row opens it in place (record 0327).
+    await resultRows(page).nth(1).getByRole('button', { name: /^Center map on / }).click()
     const popup = page.locator('.maplibregl-popup')
     await expect(popup).toHaveCount(1)
 

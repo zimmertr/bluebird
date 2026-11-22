@@ -45,13 +45,14 @@ describe('summitProfile', () => {
 
   it('stands the summit two thirds up a box of half again its height, and boxes the best hours', () => {
     const p = summitProfile(row(), GRID)!
-    // 6,000 ft against a box of 8,000 ft x 1.05 (the freezing level is the highest mark).
-    expect(p.summit).toBeCloseTo(1 - 6000 / 8400, 6)
+    // 6,000 ft against a box of 9,000 ft (half again the summit, above every
+    // mark here) x 1.05.
+    expect(p.summit).toBeCloseTo(1 - 6000 / 9450, 6)
     expect(p.best).toEqual({ x0: 0.25, x1: 0.75 })
     expect(p.freeze).toEqual([
-      { x: 0, w: 0.25, y: 1 - 8000 / 8400 },
-      { x: 0.5, w: 0.25, y: 1 - 7000 / 8400 },
-      { x: 0.75, w: 0.25, y: 1 - 7500 / 8400 },
+      { x: 0, w: 0.25, y: 1 - 8000 / 9450 },
+      { x: 0.5, w: 0.25, y: 1 - 7000 / 9450 },
+      { x: 0.75, w: 0.25, y: 1 - 7500 / 9450 },
     ])
   })
 
