@@ -1,6 +1,6 @@
 name: Release
 
-# Every merge to main releases through yggdrasil's release module. GitVersion
+# Every merge to main releases through yggdrasil's release module, which
 # reads the bump from the squash commit's title; both images are built for
 # linux/amd64 and linux/arm64, pushed under that version with signed
 # provenance, and scanned on each platform; the commit is tagged and released only when every scan passes;
