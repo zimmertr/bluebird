@@ -3521,9 +3521,14 @@ export const DAY_STRIP = {
   card:
     `${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex ` +
     'w-[min(40rem,calc(100%-8rem))] flex-col gap-1.5 px-2 py-1.5',
-  row: 'flex select-none',
+  /**
+   * The row of days. `touch-none` hands a finger's drag across it to the
+   * strip, which picks a run of days or scrubs the hours, rather than to the
+   * browser's pan, which would cancel the press part way (record 0336).
+   */
+  row: 'flex select-none touch-none',
   /** The row a phone's foot holds (record 0329), as tall as the foot gives it. */
-  rowBare: 'flex h-full select-none',
+  rowBare: 'flex h-full select-none touch-none',
   day: `relative flex min-w-0 flex-1 flex-col items-center py-0.5 ${TEXT.control} ${FIGURES} cursor-pointer transition-colors ${FOCUS_RING}`,
   weekday: `${TEXT.micro} leading-none`,
   /**

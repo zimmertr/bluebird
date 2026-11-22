@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import DayStrip, { type StripZoom } from './DayStrip'
-import { render } from '../testSupport/render'
-import { DAY } from '../styles'
+import { placeAt, render } from '../testSupport/render'
+import { DAY, DAY_STRIP } from '../styles'
 import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
 
 // The day strip at a desk's map foot (record 0311): a press picks a day, a
@@ -42,6 +42,32 @@ describe('DayStrip', () => {
     fireEvent.pointerEnter(day('2026-07-17'))
     fireEvent.pointerUp(window)
     expect(onSelection).toHaveBeenLastCalledWith({ kind: 'days', startDate: '2026-07-17', endDate: '2026-07-19' })
+  })
+
+  // A finger's pointer stays with the day it pressed, so no other day hears
+  // it enter: the strip reads the day under it from its x (record 0336). The
+  // days stand 20px wide from the row's left edge here.
+  it('picks a run of days a finger drags across, and nothing when the browser cancels', () => {
+    const onSelection = strip()
+    const buttons = [...screen.getByRole('group', { name: 'Forecast day' }).querySelectorAll<HTMLElement>('[data-day]')]
+    buttons.forEach((b, i) => placeAt(b, { left: i * 20, top: 0, width: 20, height: 40 }))
+    fireEvent.pointerDown(day('2026-07-17'), { button: 0, pointerType: 'touch' })
+    fireEvent.pointerMove(window, { clientX: 3 * 20 + 10, pointerType: 'touch' })
+    fireEvent.pointerMove(window, { clientX: 5 * 20 + 10, pointerType: 'touch' })
+    fireEvent.pointerUp(window)
+    expect(onSelection).toHaveBeenLastCalledWith({ kind: 'days', startDate: '2026-07-17', endDate: '2026-07-20' })
+    onSelection.mockClear()
+    fireEvent.pointerDown(day('2026-07-17'), { button: 0, pointerType: 'touch' })
+    fireEvent.pointerMove(window, { clientX: 4 * 20 + 10, pointerType: 'touch' })
+    fireEvent.pointerCancel(window)
+    fireEvent.pointerUp(window)
+    expect(onSelection).not.toHaveBeenCalled()
+  })
+
+  // The browser's pan would cancel the press part way.
+  it('keeps a finger on the row from panning the page', () => {
+    expect(DAY_STRIP.row.split(' ')).toContain('touch-none')
+    expect(DAY_STRIP.rowBare.split(' ')).toContain('touch-none')
   })
 
   it('extends from the window’s first day on a Shift press, and picks on a key', () => {

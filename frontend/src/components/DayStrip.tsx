@@ -112,7 +112,27 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
   // where the pointer is. The selection commits on pointerup, as the
   // calendar's does. A press that never left its day picks that day alone,
   // even on a range's end, where a drag moves the end.
+  //
+  // The day under the pointer is read from its x on every move rather than
+  // from the day the pointer enters, because a finger's pointer is captured
+  // by the day it pressed, so no other day ever hears it enter (record
+  // 0336). A cancel, the browser taking the gesture after all, picks nothing.
   const [drag, setDrag] = useState<{ from: string; anchor: string; to: string } | null>(null)
+  const dragging = drag !== null
+  useEffect(() => {
+    if (!dragging) return
+    const move = (e: PointerEvent) => {
+      const to = dayAt(e.clientX)
+      if (to !== null) setDrag((was) => (was && was.to !== to ? { ...was, to } : was))
+    }
+    const cancel = () => setDrag(null)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointercancel', cancel)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointercancel', cancel)
+    }
+  }, [dragging])
   useEffect(() => {
     if (drag === null) return
     const end = () => {
@@ -151,6 +171,14 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
   const [scrubbing, setScrubbing] = useState(false)
   const zoomRef = useRef(zoom)
   zoomRef.current = zoom
+  // The day whose box holds an x, the last day past the row's end and the
+  // first before its start.
+  function dayAt(clientX: number): string | null {
+    const buttons = [...(rowRef.current?.querySelectorAll<HTMLElement>('[data-day]') ?? [])]
+    if (buttons.length === 0) return null
+    const hit = buttons.find((el) => clientX <= el.getBoundingClientRect().right) ?? buttons[buttons.length - 1]
+    return hit.dataset.day ?? null
+  }
   function indexAt(clientX: number): number | null {
     const z = zoomRef.current
     const skies = [...(rowRef.current?.querySelectorAll<HTMLElement>('[data-sky]') ?? [])]
@@ -173,9 +201,11 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
     const end = () => setScrubbing(false)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
     return () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
     }
   }, [scrubbing])
   const drawn = drag === null ? chosen : drag.to === drag.from ? orderDays(drag.from, drag.from) : orderDays(drag.anchor, drag.to)
