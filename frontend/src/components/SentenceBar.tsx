@@ -79,13 +79,27 @@ export default function SentenceBar({
   const phrases = (
     <>
       {/* What and where both open the Where card, which holds both. */}
-      <MenuButton shape="slot" data-card="destinations" open={card === 'destinations'} onClick={() => toggle('destinations')} className={SENTENCE_BAR.slot}>
+      <MenuButton
+        shape="slot"
+        data-card="destinations"
+        open={card === 'destinations'}
+        onClick={() => toggle('destinations')}
+        chevron={!phone}
+        className={phone ? SENTENCE_BAR.phoneKeep : SENTENCE_BAR.slot}
+      >
         <span className={MAP_CHIP_SUMMARY_TEXT}>{what}</span>
       </MenuButton>
       {area !== null && (
         <>
           <span className={SENTENCE_BAR.word}>in</span>
-          <MenuButton shape="slot" data-card="destinations" open={card === 'destinations'} onClick={() => toggle('destinations')} className={SENTENCE_BAR.slot}>
+          <MenuButton
+        shape="slot"
+        data-card="destinations"
+        open={card === 'destinations'}
+        onClick={() => toggle('destinations')}
+        chevron={!phone}
+        className={phone ? SENTENCE_BAR.phoneKeep : SENTENCE_BAR.slot}
+      >
             <span className={MAP_CHIP_SUMMARY_TEXT}>{area}</span>
           </MenuButton>
         </>
@@ -96,7 +110,8 @@ export default function SentenceBar({
         data-card="forecast"
         open={card === 'forecast'}
         onClick={() => toggle('forecast')}
-        className={phone ? `${SENTENCE_BAR.slot} ${SENTENCE_BAR.phoneWhen}` : SENTENCE_BAR.slot}
+        chevron={!phone}
+        className={SENTENCE_BAR.slot}
       >
         <span className={MAP_CHIP_SUMMARY_TEXT}>{when}</span>
       </MenuButton>

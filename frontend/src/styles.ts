@@ -3205,11 +3205,12 @@ export const SENTENCE_BAR = {
   phoneLogo: 'h-5 w-5 flex-shrink-0 rounded-full object-cover',
   phoneGroup: 'flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden',
   /**
-   * The When phrase on a phone gives way first, eight times as fast as the
-   * others, because it is the long one (`Sun, Nov 22 to Mon, Nov 23`) and an
-   * even share cut `Peaks` to two letters at 500px.
+   * On a phone the what and where phrases keep their words, which come from a
+   * short fixed set (`Peaks`, `this view`, `your area`), and the When phrase
+   * takes the whole cut, being the long one (`Sun, Nov 22 to Mon, Nov 23`):
+   * any shrink on the short ones cut `Peaks` to `Pe…` at 500px.
    */
-  phoneWhen: 'shrink-[8]',
+  phoneKeep: 'shrink-0',
   /** The place search at the head of a phone's Controls sheet (record 0328). */
   phoneSearch: 'relative z-[1] h-9 flex-shrink-0 mx-4 mt-3',
   /** The draw bar at a desk, hung where the cards hang and as wide as one. */

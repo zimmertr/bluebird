@@ -4,7 +4,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import SentenceBar from './SentenceBar'
 import { panelMessages } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
-import { BUTTON_FORECAST_QUIET } from '../styles'
+import { BUTTON_FORECAST_QUIET, SENTENCE_BAR } from '../styles'
 
 // The desk's sentence bar (record 0309): which card each chip opens, what the
 // button says, and the run a link may ask for on open, which the bar now owns
@@ -117,5 +117,12 @@ describe('SentenceBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Peaks' }))
     expect(onCard.mock.calls.map((c) => c[0])).toEqual(['forecast', 'destinations'])
     expect(onAutoAnalyze).not.toHaveBeenCalled()
+    // The short phrases keep their words and the When phrase takes the cut,
+    // and no phrase spends width on a chevron.
+    for (const name of ['Peaks', 'this view']) {
+      expect(screen.getByRole('button', { name }).className).toContain(SENTENCE_BAR.phoneKeep)
+    }
+    expect(screen.getByRole('button', { name: 'Sat 21 – Sun 22' }).className).not.toContain(SENTENCE_BAR.phoneKeep)
+    for (const button of screen.getAllByRole('button')) expect(button.querySelector('svg')).toBeNull()
   })
 })
