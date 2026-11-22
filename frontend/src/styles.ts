@@ -1895,14 +1895,10 @@ export const MAP_ROWS = {
   stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-3 pointer-events-none`,
   row: `relative h-8 ${YIELD_EMPTY}`,
   /**
-   * Where the pill stands: on a phone across the row less the 3D and locate
-   * buttons and the 12px before each (`right-22`, 2 × (32 + 12)) at rest, and
-   * across the whole row while the field has the keyboard or its list is
-   * open, over the buttons. At a desk 320px either way (`lg:w-80`), with no
-   * button beside it. Raised so its results list paints over the chip row and
-   * the map.
+   * Where a phone's sentence bar stands: across the whole first row, the
+   * tools standing in a column under it (record 0331). Raised so the place
+   * search over it paints its results list over the chip row and the map.
    */
-  pill: 'absolute inset-y-0 left-0 right-22 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
   /**
    * A desk's sentence bar, and the card one of its phrases opened under the
@@ -1926,9 +1922,13 @@ export const MAP_ROWS = {
    * sentence bar: search, Layers, drawing a loop, 3D, locate and the compass,
    * the prototype's column, each a 32px round button 12px from the next,
    * where a finger's 44px presses meet (record 0254). The bar takes the
-   * whole first row now that no button stands beside it.
+   * whole first row now that no button stands beside it. A sibling of the
+   * rows rather than one of them, on the map chrome's layer under the
+   * results sheet: it runs some 300px down the map's edge, past the rows the
+   * sheet's full stop leaves clear, and the sheet stands over it there. Its
+   * menus are sheets portalled to the page, so its layer does not bound them.
    */
-  phoneTools: 'pointer-events-auto absolute right-0 top-11 flex flex-col items-end gap-3',
+  phoneTools: `pointer-events-auto absolute ${MAP_EDGE.right} top-[calc(var(--map-edge-inset)+2.75rem)] ${LAYER.base} flex flex-col items-end gap-3`,
   /** The place search a phone's search button opens, over the sentence bar. */
   searchOver: 'absolute inset-y-0 left-0 right-0 z-20',
   /**

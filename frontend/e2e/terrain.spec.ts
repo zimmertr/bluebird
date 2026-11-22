@@ -258,11 +258,14 @@ test('a phone opens the place search over the bar from its tool column', async (
   await page.setViewportSize({ width: 390, height: 800 })
   await page.goto('/?view=-121.76,46.853,11')
   const open = page.getByRole('button', { name: 'Search for a place' })
+  // The Controls sheet keeps a search of its own at its head (record 0328),
+  // so the one over the bar is the field among the map's rows.
+  const field = page.locator('[data-map-overlay] [role="combobox"]')
   await open.click()
   await expect(open).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByRole('combobox')).toBeFocused()
+  await expect(field).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(open).toHaveAttribute('aria-pressed', 'false')
-  await expect(page.getByRole('combobox')).toHaveCount(0)
+  await expect(field).toHaveCount(0)
   await expect(open).toBeFocused()
 })

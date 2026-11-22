@@ -2701,11 +2701,7 @@ describe('the map rows', () => {
     expect(step(MAP_SLOT.tool, 'size')).toBe(ROW)
     expect(step(MAP_ROUND_BUTTON, 'size')).toBe(ROW)
     expect(step(MAP_PILL, 'h')).toBe(ROW)
-    expect(step(MAP_ROWS.pill, 'right')).toBe(2 * (ROW + GAP))
     expect(MAP_ROWS.pillWide).toMatch(/(^|\s)right-0(\s|$)/)
-    for (const pill of [MAP_ROWS.pill, MAP_ROWS.pillWide]) {
-      expect(tokens(pill)).toEqual(expect.arrayContaining(['lg:right-auto', 'lg:w-80']))
-    }
     for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON]) expect(tokens(recipe)).toContain(RADIUS.pill)
     // The class map.css keys the vendor group's margin on.
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
@@ -2719,7 +2715,10 @@ describe('the map rows', () => {
     expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot'])
     // The column's buttons are 12px apart, under the bar's 32px row and its 12px gap.
     expect(step(MAP_ROWS.phoneTools, 'gap')).toBe(GAP)
-    expect(step(MAP_ROWS.phoneTools, 'top')).toBe(ROW + GAP)
+    expect(MAP_ROWS.phoneTools).toContain(MAP_EDGE.right)
+    expect(MAP_ROWS.phoneTools).toContain(`top-[calc(var(--map-edge-inset)+${(ROW + GAP) / 16}rem)]`)
+    // Under the results sheet, which stands over the column's foot.
+    expect(MAP_ROWS.phoneTools).toContain(LAYER.base)
   })
 
   // The 3D button (#799) is a map button whose glyph is a word: the round

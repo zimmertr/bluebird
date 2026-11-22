@@ -91,7 +91,6 @@ import {
   decodeLink,
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
-import { controlsSummary } from './utils/controlsSummary'
 import { buildCustomList, customListSize, pendingDestinations } from './utils/customList'
 import { analysisPoints } from './utils/model/modelDomain'
 import { actionWord, retryStands } from './utils/analyzeGate'
@@ -1106,9 +1105,6 @@ export default function App() {
           sidebarOpen={sidebarOpen}
           layoutMotion={layoutMotion}
           legendInitiallyOpen={storedView.legendOpen ?? true}
-          onOpenControls={openDrawer}
-          onCloseControls={closeDrawer}
-          controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
           messages={shownMessages}
           actionWord={word}
           actionLabel={barLabel}

@@ -64,27 +64,23 @@ vi.mock('./PhoneFoot', () => ({
 vi.mock('./MapRows', () => ({
   default: (props: {
     desk: boolean
-    onOpenControls: () => void
     onSearchSelect: (place: Place) => void
     onLocateSlot: (slot: HTMLDivElement | null) => void
     onCompassSlot: (slot: HTMLDivElement | null) => void
     onTerrainSlot: (slot: HTMLDivElement | null) => void
-    controlsSummary: string
-    layers: ReactNode
+    tools: ReactNode
     legend: ReactNode
     covered: boolean
   }) => (
     <div
       data-testid="rows"
       data-desk={String(props.desk)}
-      data-summary={props.controlsSummary}
       data-covered={String(props.covered)}
     >
-      <button onClick={props.onOpenControls}>Controls</button>
       <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
       <div data-testid="terrain" ref={props.onTerrainSlot} />
       <div data-testid="locate" ref={props.onLocateSlot} />
-      {props.layers}
+      {props.tools}
       {props.legend}
       <div data-testid="compass" ref={props.onCompassSlot} />
     </div>
@@ -180,7 +176,6 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
     theme: 'dark',
     layersForcedOpen: false,
-    onCloseControls: NOOP,
     mapRef: MAP_REF,
     coverage: {},
     drawMode: DRAW,
@@ -205,8 +200,6 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     onBasemapFailed: ON_BASEMAP_FAILED,
     maxPolygonPoints: MAX_POLYGON_POINTS,
     lowerSheetFirst: LOWER_SHEET_FIRST,
-    onOpenControls: NOOP,
-    controlsSummary: 'Current · NOAA GFS',
     messages: MESSAGES,
     actionWord: 'Analyze',
     onAnalyze: NOOP,
@@ -290,10 +283,14 @@ describe('MapStage', () => {
 
   // A phone's rows carry Legend and Layers; a desk's carry Legend, and its
   // Layers stands in the map's tool column with the draw button (record 0315).
-  it('hands the rows the Legend chip at both widths, and Layers to a desk\'s tool column', () => {
+  // Layers is a round tool at both widths (records 0315 and 0331): in a
+  // phone's column, which the rows hold, and in a desk's corner.
+  it('hands the rows the Legend chip at both widths, and Layers to the tool column', () => {
     const { container, rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     const rows = () => screen.getByTestId('rows')
     expect(rows().contains(screen.getByTestId('layers')) && rows().contains(screen.getByTestId('legend'))).toBe(true)
+    expect(screen.getByTestId('layers').dataset.tool).toBe('true')
+    expect(rows().contains(screen.getByRole('button', { name: 'Draw a loop' }))).toBe(true)
     rerender(<MapStage {...props()} />)
     expect(rows().contains(screen.getByTestId('legend'))).toBe(true)
     const corner = container.querySelector('.map-corner')!
@@ -359,13 +356,6 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 
-  it('reopens the controls', () => {
-    const onOpenControls = vi.fn()
-    render(<MapStage {...props({ onOpenControls })} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Controls' }))
-    expect(onOpenControls).toHaveBeenCalledOnce()
-  })
-
   // A searched place is framed for the sheet it is about to open, and only
   // then registered, which is what opens that sheet (#696).
   it('frames a searched place for the sheet it is about to open', () => {
@@ -381,12 +371,10 @@ describe('MapStage', () => {
 
   // The rows carry the summary, and Layers opens as a sheet on a phone and
   // as a joined menu at a desk.
-  it('hands the rows the summary, and Layers as a sheet on a phone only', () => {
+  it('opens Layers as a sheet on a phone only', () => {
     const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(screen.getByTestId('rows').dataset.summary).toBe('Current · NOAA GFS')
     expect(screen.getByTestId('layers').dataset.sheet).toBe('true')
     rerender(<MapStage {...props()} />)
-    expect(screen.getByTestId('rows').dataset.summary).toBe('Current · NOAA GFS')
     expect(screen.getByTestId('layers').dataset.sheet).toBe('false')
   })
 

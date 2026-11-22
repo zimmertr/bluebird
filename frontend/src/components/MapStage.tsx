@@ -124,12 +124,6 @@ export interface MapStageProps {
   layoutMotion?: LayoutMotion
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
   legendInitiallyOpen: boolean
-  /** Reopens the controls panel. */
-  onOpenControls: () => void
-  /** Lowers a phone's Controls sheet from the chip that raised it. */
-  onCloseControls: () => void
-  /** The summary chip's words: the When arm and the model (`controlsSummary`). */
-  controlsSummary: string
   /** The panel's messages and Analyze gate (`usePanelMessages`), which the phone's Analyze button and its badge read (record 0208). */
   messages: PanelMessages
   /** What the panel's Analyze reads (#736, `actionWord`), which the phone's button reads too. */
@@ -223,9 +217,6 @@ export default function MapStage({
   sidebarOpen,
   layoutMotion = null,
   legendInitiallyOpen,
-  onOpenControls,
-  onCloseControls,
-  controlsSummary,
   messages,
   actionWord,
   actionLabel,
@@ -562,13 +553,10 @@ export default function MapStage({
         onTerrainSlot={setTerrainSlot}
         desk={isDesktop}
         sidebarOpen={sidebarOpen}
-        onOpenControls={onOpenControls}
-        onCloseControls={onCloseControls}
-        controlsSummary={controlsSummary}
         tools={isDesktop ? null : tools}
         legend={legendChip}
         covered={layout.overMapRows}
-        bar={bar}
+        bar={bar ?? null}
         barCard={barCard?.(cardSearch)}
       />
       {/* A desk's map buttons, credit line and scale, in the map's

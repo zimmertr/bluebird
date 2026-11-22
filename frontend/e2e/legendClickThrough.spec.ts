@@ -67,14 +67,15 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
   await expect(legend).toBeEnabled()
   await expect(page.getByText('Active wildfires')).toHaveCount(0)
 
-  // About 20px at 360 wide, where the three chips take 316 of 336. Layers is
-  // the row's last chip, after Legend (TJ, 2026-10-18).
-  const end = await page.getByRole('button', { name: 'Layers', exact: true }).evaluate((chip) => {
-    const row = chip.parentElement!.getBoundingClientRect()
+  // Legend is the chip row's one chip since the tools moved into the column
+  // down the right edge (record 0331), so the row's middle, between the chip
+  // and the column's search button, is the map's.
+  const end = await legend.evaluate((chip) => {
     const right = chip.getBoundingClientRect().right
-    const x = Math.round((right + row.right) / 2)
-    const y = Math.round(row.top + row.height / 2)
-    return { free: Math.round(row.right - right), hit: !!document.elementFromPoint(x, y)?.closest('.maplibregl-canvas-container') }
+    const column = document.querySelector('button[aria-label="Search for a place"]')!.getBoundingClientRect()
+    const x = Math.round((right + column.left) / 2)
+    const y = Math.round(chip.getBoundingClientRect().top + chip.getBoundingClientRect().height / 2)
+    return { free: Math.round(column.left - right), hit: !!document.elementFromPoint(x, y)?.closest('.maplibregl-canvas-container') }
   })
   expect(end.free).toBeGreaterThan(10)
   expect(end.hit).toBe(true)
