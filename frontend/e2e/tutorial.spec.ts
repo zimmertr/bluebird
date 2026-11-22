@@ -417,6 +417,8 @@ test.describe('on a phone with a report', () => {
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await forecastButton(page.getByRole('main')).click()
     await expect(resultRows(page)).toHaveCount(5)
+    // A phone's chart waits behind Every column (record 0330).
+    await page.getByRole('button', { name: 'Every column' }).first().tap()
     await page.getByRole('button', { name: 'Show chart only' }).first().tap()
     await expect(resultRows(page).first()).toBeHidden()
     await page.getByRole('button', { name: 'Collapse results' }).first().tap()

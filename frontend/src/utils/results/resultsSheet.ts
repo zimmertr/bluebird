@@ -141,15 +141,19 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
 /**
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
- * 71px on a coarse pointer: 12px of padding, the 20px title row, the 4px
- * gap, the 34px actions line (the mode switch and the button group, 32px
- * controls in a 1px-bordered well, record 0223, side by side on one line
- * since #687 drops their words where the bar is narrow, `BAR_LABEL`), and the
- * sheet's own 1px top border. The rule under the bar is the grip's, counted
- * in `GRIP_PX`. Measured 2026-10-22 at 360, 390, 402 and 430 wide on a coarse
- * pointer. It was 84 with 44px controls and a rule of its own, 104 when the
- * actions were links that wrapped onto a second row, and briefly 106 when
- * they were buttons that wrapped onto three.
+ * Two since record 0330, by whether Every column has widened the sheet.
+ * Widened, 112px (`SHEET_HEADER_PX`): 12px of padding, the 24px headline over
+ * its 16px subtitle, the 4px gap, the 34px actions line, the row of lenses and
+ * limits with the 6px over it, and the sheet's own 1px top border. Compact,
+ * 86px (`SHEET_HEADER_COMPACT_PX`): the same with no actions line. Measured
+ * 2026-11-21: 84.5 and 110.5 on a Mac at 500 wide, plus the border, and the
+ * compact one 85.5 in CI's Chromium at 390. The rule under the bar is the
+ * grip's, counted in `GRIP_PX`.
+ *
+ * It was 71 with the title on one line and no chip row (measured 2026-10-22
+ * at 360, 390, 402 and 430 wide on a coarse pointer), 84 with 44px controls
+ * and a rule of its own, 104 when the actions were links that wrapped onto a
+ * second row, and briefly 106 when they were buttons that wrapped onto three.
  *
  * Re-measure when the bar gains a member, because one glyph more than the
  * line holds at 360px wide wraps the group and moves this number.
@@ -161,7 +165,8 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 71
+export const SHEET_HEADER_PX = 112
+export const SHEET_HEADER_COMPACT_PX = 86
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but
@@ -266,9 +271,14 @@ export function dockedMapFloorPx(gripCount: number, barPx: number = RESULTS_BAR_
  */
 export const DEFAULT_PANEL_HEIGHT = 220
 
-/** The sheet's own chrome: the header bar plus each grip it renders. */
-export function sheetChromePx(gripCount: number): number {
-  return SHEET_HEADER_PX + gripCount * GRIP_PX
+/**
+ * The sheet's own chrome: the header bar plus each grip it renders. The
+ * header's estimate defaults to the widened sheet's; a compact sheet passes
+ * its own (`SHEET_HEADER_COMPACT_PX`, record 0330), and so does every floor
+ * below that is worked out from this one.
+ */
+export function sheetChromePx(gripCount: number, headerPx = SHEET_HEADER_PX): number {
+  return headerPx + gripCount * GRIP_PX
 }
 
 /**
@@ -276,8 +286,8 @@ export function sheetChromePx(gripCount: number): number {
  * sheet's chrome is part of what covers the map, so the panels inside it may
  * only have what is left.
  */
-export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
-  return DRAGGED_MAP_PX + (playerOn ? PLAYER_ROOM_PX : 0) + sheetChromePx(gripCount)
+export function draggedMapFloorPx(gripCount: number, playerOn = false, headerPx = SHEET_HEADER_PX): number {
+  return DRAGGED_MAP_PX + (playerOn ? PLAYER_ROOM_PX : 0) + sheetChromePx(gripCount, headerPx)
 }
 
 /**
@@ -288,8 +298,8 @@ export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
  * (`draggedMapFloorPx`, record 0155) and the tutorial holds the same, so full
  * screen is never a default.
  */
-export function fullScreenMapFloorPx(gripCount: number): number {
-  return sheetChromePx(gripCount)
+export function fullScreenMapFloorPx(gripCount: number, headerPx = SHEET_HEADER_PX): number {
+  return sheetChromePx(gripCount, headerPx)
 }
 
 /** Where a phone's results sheet goes when a drag on its map grip is let go. */
@@ -317,8 +327,8 @@ export function sheetTopRelease(panelPx: number, capPx: number, fullPx: number):
  * stack to sit above the sheet", and it is bigger than the docked floor because
  * the sheet's own chrome is part of what covers the map.
  */
-export function restingMapFloorPx(gripCount: number): number {
-  return RESTING_MAP_PX + sheetChromePx(gripCount)
+export function restingMapFloorPx(gripCount: number, headerPx = SHEET_HEADER_PX): number {
+  return RESTING_MAP_PX + sheetChromePx(gripCount, headerPx)
 }
 
 /**
@@ -329,13 +339,15 @@ export function sheetHeightPx({
   collapsed,
   gripCount,
   panelsPx,
+  headerPx = SHEET_HEADER_PX,
 }: {
   collapsed: boolean
   gripCount: number
   panelsPx: number
+  headerPx?: number
 }): number {
-  if (collapsed) return SHEET_HEADER_PX
-  return sheetChromePx(gripCount) + panelsPx
+  if (collapsed) return headerPx
+  return sheetChromePx(gripCount, headerPx) + panelsPx
 }
 
 /**
@@ -395,6 +407,7 @@ export function restingLiftPx({
   chartPx,
   tablePx,
   availPx,
+  headerPx = SHEET_HEADER_PX,
 }: {
   collapsed: boolean
   gripCount: number
@@ -403,14 +416,15 @@ export function restingLiftPx({
   chartPx: number
   tablePx: number
   availPx: number
+  headerPx?: number
 }): number {
   const { chart, table } = resolvePanelHeights(chartPx, tablePx, {
     chartShown,
     tableShown,
     availPx,
-    mapMinPx: restingMapFloorPx(gripCount),
+    mapMinPx: restingMapFloorPx(gripCount, headerPx),
   })
-  return sheetHeightPx({ collapsed, gripCount, panelsPx: chart + table })
+  return sheetHeightPx({ collapsed, gripCount, panelsPx: chart + table, headerPx })
 }
 
 /**

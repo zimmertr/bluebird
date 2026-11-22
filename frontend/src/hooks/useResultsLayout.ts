@@ -22,6 +22,8 @@ import {
   restingMapFloorPx,
   resolveSheetLift,
   sheetHeightPx,
+  SHEET_HEADER_COMPACT_PX,
+  SHEET_HEADER_PX,
   sheetTopRelease,
 } from '../utils/results/resultsSheet'
 import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
@@ -359,10 +361,12 @@ export function useResultsLayout({
   // default heights. The DRAG floor stays `clampPanelHeight`'s own, as it was:
   // a reader who pulls the panels up has chosen a shorter map, and the stack
   // scrolls rather than the drag stopping short.
-  const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount, playerOn)
+  // A compact sheet's header is shorter than a widened one's (record 0330).
+  const headerPx = tableOnly ? SHEET_HEADER_COMPACT_PX : SHEET_HEADER_PX
+  const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount, playerOn, headerPx)
   // Past that cap a drag on a phone runs on to the top of the map (#837), and
   // its release decides whether the sheet stays there (`sheetTopRelease`).
-  const fullFloorPx = isDesktop ? undefined : fullScreenMapFloorPx(gripCount)
+  const fullFloorPx = isDesktop ? undefined : fullScreenMapFloorPx(gripCount, headerPx)
   const atFullScreen = !isDesktop && fullScreen
   // Leaving Chart forgets its drag, so the next pick lifts it again.
   if (resultsMode !== 'chart' && chartDragged) setChartDragged(false)
@@ -380,7 +384,7 @@ export function useResultsLayout({
     ? dockedMapFloorPx(chartShowing ? 1 : 0, 0)
     : heldFull
       ? dragFloorPx
-      : restingMapFloorPx(gripCount)
+      : restingMapFloorPx(gripCount, headerPx)
   // A map grip's drag runs on the full-screen floor for its length; the
   // divider's does not, since it trades a fixed sum, and giving it that floor
   // at the press let both panels grow to their stored heights under a
@@ -520,6 +524,7 @@ export function useResultsLayout({
             collapsed: resultsCollapsed,
             gripCount,
             panelsPx: chartPanelPx + tablePanelPx,
+            headerPx,
           }) + footPx,
         footPx,
       })
@@ -543,7 +548,7 @@ export function useResultsLayout({
     : chartLifted
       ? // A phone's Chart rests at its full stop, which is a fixed height
         // rather than a live one, so the camera frames above it.
-        sheetHeightPx({ collapsed: resultsCollapsed, gripCount, panelsPx: chartPanelPx + tablePanelPx }) + footPx
+        sheetHeightPx({ collapsed: resultsCollapsed, gripCount, panelsPx: chartPanelPx + tablePanelPx, headerPx }) + footPx
       : restingLiftPx({
         collapsed: resultsCollapsed,
         gripCount,
@@ -552,6 +557,7 @@ export function useResultsLayout({
         chartPx: DEFAULT_CHART_HEIGHT,
         tablePx: DEFAULT_TABLE_HEIGHT,
         availPx: usableH,
+        headerPx,
       }) + footPx
   const cameraPadBottomPx = showTable ? sheetPadBottomPx : 0
 
