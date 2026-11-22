@@ -69,10 +69,10 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
 
   // Legend is the chip row's one chip since the tools moved into the column
   // down the right edge (record 0331), so the row's middle, between the chip
-  // and the column's search button, is the map's.
+  // and the column's Layers button, is the map's.
   const end = await legend.evaluate((chip) => {
     const right = chip.getBoundingClientRect().right
-    const column = document.querySelector('button[aria-label="Search for a place"]')!.getBoundingClientRect()
+    const column = document.querySelector('button[aria-label="Layers"]')!.getBoundingClientRect()
     const x = Math.round((right + column.left) / 2)
     const y = Math.round(chip.getBoundingClientRect().top + chip.getBoundingClientRect().height / 2)
     return { free: Math.round(column.left - right), hit: !!document.elementFromPoint(x, y)?.closest('.maplibregl-canvas-container') }

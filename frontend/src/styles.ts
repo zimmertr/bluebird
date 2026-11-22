@@ -1919,7 +1919,7 @@ export const MAP_ROWS = {
   chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
   /**
    * A phone's tool column (record 0331), down the map's right edge under the
-   * sentence bar: search, Layers, drawing a loop, 3D, locate and the compass,
+   * sentence bar: Layers, drawing a loop, search, 3D, locate and the compass,
    * the prototype's column, each a 32px round button 12px from the next,
    * where a finger's 44px presses meet (record 0254). The bar takes the
    * whole first row now that no button stands beside it. A sibling of the

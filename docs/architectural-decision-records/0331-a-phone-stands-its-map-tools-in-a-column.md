@@ -14,7 +14,7 @@ The prototype's phone keeps its map tools in one column down the map's right edg
 ## Decision
 
 - **The bar takes the whole first row** (`MAP_ROWS.pillWide`).
-- **The tools stand in a column under it** (`MAP_ROWS.phoneTools`), 12px apart: a search button, Layers, drawing a loop, 3D, locate, and the compass while the map is turned or tilted. Each is a 32px round button (`MAP_SLOT.tool`, `MAP_TOOL.draw`), and Layers is the desk's round tool, its menu a bottom sheet.
+- **The tools stand in a column under it** (`MAP_ROWS.phoneTools`), 12px apart: Layers, drawing a loop, a search button, 3D, locate, and the compass while the map is turned or tilted. Each is a 32px round button (`MAP_SLOT.tool`, `MAP_TOOL.draw`), and Layers is the desk's round tool, its menu a bottom sheet.
 - **The search button opens the place search over the bar** (`MAP_ROWS.searchOver`) with the keyboard in it, and reads pressed while it stands. The field goes when a place is picked, when it gives up the keyboard and its list, or on Escape, which hands the keyboard back to the button. The search at the head of the Controls sheet stays.
 - **The draw bar ends clear of the column** (`MAP_EDGE.rightOfTools`).
 - **The column stands under the results sheet**, on the map chrome's layer beside the rows rather than in them: it runs some 300px down the map, past the rows the sheet's full stop leaves clear, and a raised sheet stands over it. Its Layers menu is a sheet portalled to the page, so the layer does not bound it.

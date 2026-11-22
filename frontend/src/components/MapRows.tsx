@@ -129,12 +129,15 @@ export default function MapRows({
         <div className={MAP_ROWS.chips}>{legend}</div>
         {desk && barCard && <div className={MAP_ROWS.barSlot}>{barCard}</div>}
       </div>
-      {/* A phone's tool column under the bar (record 0331). The map stands
+      {/* A phone's tool column under the bar (record 0331), Layers first as
+          the prototype's is, so the tour's Layers card keeps the band between
+          the button and its sheet. The map stands
           its own 3D, locate and compass buttons in the three slots, so each
           keeps its states and the locate button its permission prompt; the
           compass shows only while the map is turned or tilted. */}
       {!desk && (
         <div data-map-overlay="" className={MAP_ROWS.phoneTools} inert={covered}>
+          {tools}
           <button
             ref={searchButtonRef}
             type="button"
@@ -145,7 +148,6 @@ export default function MapRows({
           >
             <IconSearch />
           </button>
-          {tools}
           <div ref={onTerrainSlot} className={MAP_SLOT.tool} />
           <div ref={onLocateSlot} className={MAP_SLOT.tool} />
           <div ref={onCompassSlot} className={MAP_SLOT.compass} />

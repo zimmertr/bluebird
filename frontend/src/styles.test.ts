@@ -2765,14 +2765,14 @@ describe('the map rows', () => {
     expect(tokens(MAP_CHIP)).not.toContain('font-semibold')
   })
 
-  // The summary is the one chip that gives way, by an ellipsis on its words;
-  // every other chip keeps its width, and nothing claims the row's right end.
-  it('lets the summary alone shrink, and leaves the right end empty', () => {
+  // Every chip keeps its width, and nothing claims the row's right end. The
+  // summary chip that gave way went with the sentence bar (record 0331); its
+  // truncating words are the bar's phrases now.
+  it('keeps each chip whole, and leaves the right end empty', () => {
     // The chip says nothing about shrinking; each call site says it.
     expect(MAP_CHIP).not.toMatch(/(^|\s)(flex-)?shrink(-0)?(\s|$)/)
     expect(layersPopoverSource).toMatch(/shape="chip"[\s\S]*?className="flex-shrink-0"/)
     expect(mapLegendSource).toMatch(/shape="chip"[\s\S]*?className="flex-shrink-0"/)
-    expect(mapRowsSource).toMatch(/shape="chip"[\s\S]*?className="min-w-0"/)
     expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toEqual(['min-w-0', 'truncate'])
     expect(token(MAP_CHIP, 'aria-expanded:bg')).toBe(token(ACCENT.fill, 'bg'))
     for (const recipe of [MAP_CHIP, MAP_ROWS.chips]) expect(recipe).not.toMatch(/(^|\s)(ml-auto|justify-between)(\s|$)/)

@@ -67,9 +67,10 @@ describe('MapRows on a phone', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Sat 21' }))
   })
 
-  // The tool column (record 0331): the search button, the tools it is handed,
-  // then the 3D, locate and compass slots the map stands its own buttons in.
-  it('stands the search button, the tools and the three slots in one column', () => {
+  // The tool column (record 0331): the tools it is handed, Layers first, then
+  // the search button and the 3D, locate and compass slots the map stands its
+  // own buttons in.
+  it('stands the tools, the search button and the three slots in one column', () => {
     const onTerrainSlot = vi.fn()
     const onLocateSlot = vi.fn()
     const onCompassSlot = vi.fn()
@@ -79,8 +80,8 @@ describe('MapRows on a phone', () => {
     const locate = onLocateSlot.mock.calls[0][0] as HTMLDivElement
     const compass = onCompassSlot.mock.calls[0][0] as HTMLDivElement
     expect([...column.children]).toEqual([
-      screen.getByRole('button', { name: 'Search for a place' }),
       screen.getByRole('button', { name: 'Layers' }),
+      screen.getByRole('button', { name: 'Search for a place' }),
       terrain,
       locate,
       compass,

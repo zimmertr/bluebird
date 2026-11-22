@@ -219,7 +219,7 @@ test('a link carrying terrain and no camera opens tilted, with the button presse
 })
 
 // On a phone the map's tools stand in a column down the right edge under the
-// sentence bar (record 0331): search, Layers, Draw, 3D and locate, each a
+// sentence bar (record 0331): Layers, Draw, search, 3D and locate, each a
 // 32px round button 12px under the one above, and the bar takes the whole
 // first row above them.
 for (const width of [360, 390]) {
@@ -232,7 +232,7 @@ for (const width of [360, 390]) {
       const named = (name: string) => box(document.querySelector(`button[aria-label="${name}"]`)!)
       const group = document.querySelector('[role="group"][aria-label="Forecast"]')!
       return {
-        column: ['Search for a place', 'Layers', 'Draw a loop', '3D terrain'].map(named),
+        column: ['Layers', 'Draw a loop', 'Search for a place', '3D terrain'].map(named),
         locate: box(document.querySelector('.maplibregl-ctrl-geolocate')!),
         bar: box(group.parentElement!),
         map: box(document.querySelector('.maplibregl-canvas')!),
