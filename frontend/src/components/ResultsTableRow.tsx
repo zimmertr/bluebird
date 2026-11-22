@@ -203,6 +203,8 @@ interface NameTdProps {
 }
 
 function NameTd({ cellClass, widths, label, name, onCenter, link, sub }: NameTdProps) {
+  // The compact table's name leads its two lines (record 0326).
+  const strong = sub === undefined ? '' : ` ${TABLE.nameStrong}`
   // A crag's search names its state once the outlines arrive, and the cell
   // draws again then.
   const href = destinationUrl(link, useUsStates(link.type === 'crag'))
@@ -217,7 +219,7 @@ function NameTd({ cellClass, widths, label, name, onCenter, link, sub }: NameTdP
             // Where the keyboard lands when a restore brings the row back (`ResultsSheet`).
             data-row-name=""
             aria-label={`Center map on ${name}`}
-            className={`${LINK_QUIET} ${TABLE.nameText}`}
+            className={`${LINK_QUIET} ${TABLE.nameText}${strong}`}
           >
             {label}
           </button>
@@ -506,6 +508,14 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   }
   const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample, ctx.scoreRange)
   // The score carries its hours beside it (record 0307).
+  if (key === SCORE_KEY && ctx.compact) {
+    // The compact score on the row's ground (record 0326).
+    return (
+      <td className={cellClass}>
+        {sized(ctx.widths, key, <span className={TABLE.scoreCompact}>{display}</span>)}
+      </td>
+    )
+  }
   if (key === SCORE_KEY) {
     return (
       <td className={cellClass} style={colorSty}>
@@ -514,7 +524,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
           key,
           <>
             {display}
-            {!ctx.compact && <HourStrip row={row} range={ctx.scoreRange} />}
+            <HourStrip row={row} range={ctx.scoreRange} />
           </>,
         )}
       </td>

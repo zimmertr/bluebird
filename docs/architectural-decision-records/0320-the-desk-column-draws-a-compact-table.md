@@ -1,6 +1,6 @@
 # 0320. The desk's column draws a compact table
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. The strip's width amended by [0325](0325-the-column-takes-the-prototypes-proportion.md).
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. The strip's width amended by [0325](0325-the-column-takes-the-prototypes-proportion.md); the headers, name and score by [0326](0326-the-desk-column-reads-like-the-prototype.md).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-17, keeping the prototype's results column; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

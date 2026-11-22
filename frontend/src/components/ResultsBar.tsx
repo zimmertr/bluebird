@@ -30,6 +30,7 @@ import {
   DISABLED,
   ICON_BUTTON,
   PANEL_EDGE,
+  RESULTS_HEAD,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
@@ -269,7 +270,7 @@ export default function ResultsBar({
       ref={barRef}
       className={`@container flex-shrink-0 px-3 py-1.5 bg-raised ${sheet ? '' : `border-t ${PANEL_EDGE}`}`}
     >
-      <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
+      <div className="flex flex-col gap-1 @6xl:flex-row @6xl:items-center @6xl:gap-2">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           {/* Before the first analysis the title is the same ranked
               phrase the sidebar has selected, with a zero count —
@@ -282,7 +283,9 @@ export default function ResultsBar({
               sheet keeps them on one line, which its height is worked out
               from. */}
           <div className={sheet ? 'contents' : 'flex min-w-0 flex-1 flex-col'}>
-          <span className={`${TEXT.subheading} min-w-0 truncate`}>
+          <span
+            className={`${!sheet && lens !== null && scoreHeadline !== null ? RESULTS_HEAD.headline : TEXT.subheading} min-w-0 truncate`}
+          >
             {lens !== null && scoreHeadline !== null
               ? scoreHeadline
               : resultsHeading(sortBy, sortDesc, pointSample, rowCount, pendingCount)}
@@ -311,7 +314,7 @@ export default function ResultsBar({
           <button
             onClick={toggleCollapsed}
             aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-            className={`${ICON_BUTTON} ${wide !== undefined && onWide && showResults ? '' : 'ml-auto'} ${toolbar ? '@4xl:hidden' : ''}`}
+            className={`${ICON_BUTTON} ${wide !== undefined && onWide && showResults ? '' : 'ml-auto'} ${toolbar ? '@6xl:hidden' : ''}`}
           >
             <IconChevron up={resultsCollapsed} className={sideways} />
           </button>
@@ -324,7 +327,7 @@ export default function ResultsBar({
             apart (gap-x-4): at 360px the two glyph groups leave the line 19px,
             which 24 would have wrapped. */}
         {toolbar && (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 @4xl:gap-x-6">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 @6xl:gap-x-6">
           {/* Mode switch: table, chart, or both — fluid width, since
               three icon-plus-label halves cannot fit the panel's
               144px column (SEGMENT_FLUID exists because this shipped
@@ -396,7 +399,7 @@ export default function ResultsBar({
             <button
               onClick={toggleCollapsed}
               aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-              className={`${ICON_BUTTON} hidden @4xl:flex`}
+              className={`${ICON_BUTTON} hidden @6xl:flex`}
             >
               <IconChevron up={resultsCollapsed} className={sideways} />
             </button>

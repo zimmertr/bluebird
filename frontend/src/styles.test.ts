@@ -5618,6 +5618,9 @@ describe('RESULTS_HEAD', () => {
     expect(box(RESULTS_HEAD.lensOn)).toEqual(box(RESULTS_HEAD.lens))
     expect(RESULTS_HEAD.lensOn).toContain(ACCENT.fill)
   })
+  it('sets the desk headline as large as the panel\'s own title', () => {
+    expect(RESULTS_HEAD.headline).toBe(TEXT.appTitle)
+  })
   it('stands every pill at one height', () => {
     for (const cls of [RESULTS_HEAD.lens, RESULTS_HEAD.lensOn, RESULTS_HEAD.limit, RESULTS_HEAD.add]) {
       expect(cls.split(' ')).toContain('h-7')

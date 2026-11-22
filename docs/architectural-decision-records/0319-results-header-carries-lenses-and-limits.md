@@ -1,6 +1,6 @@
 # 0319. The results header carries the lenses and the limits
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. The headline's size amended by [0326](0326-the-desk-column-reads-like-the-prototype.md).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-17, keeping the prototype's results header; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

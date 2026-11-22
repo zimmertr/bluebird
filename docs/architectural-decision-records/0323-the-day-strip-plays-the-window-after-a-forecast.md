@@ -1,6 +1,6 @@
 # 0323. After a forecast the day strip draws each day's sky and plays the window
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. The window's days amended by [0326](0326-the-desk-column-reads-like-the-prototype.md).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-17, keeping the prototype's day strip with plain days before a run; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

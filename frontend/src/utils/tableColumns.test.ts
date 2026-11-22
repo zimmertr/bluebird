@@ -710,4 +710,11 @@ describe('compactColumns', () => {
     expect(compactColumns('precip_total_in', false).map((c) => c.key)).toEqual(['name', 'precip_total_in', 'wind_max_mph', 'temp_min_f'])
     expect(compactColumns('wind_max_mph', false).map((c) => c.key)).toEqual(['name', 'wind_max_mph', 'temp_min_f'])
   })
+
+  it('names the wind and the low by the short headers, and leaves the full table its long ones', () => {
+    const labels = Object.fromEntries(compactColumns('temp_avg_f', true).map((c) => [c.key, c.label]))
+    expect(labels.wind_max_mph).toBe('Wind (mph)')
+    expect(labels.temp_min_f).toBe('Low (°F)')
+    expect(COLUMNS.find((c) => c.key === 'wind_max_mph')!.label).not.toBe('Wind (mph)')
+  })
 })

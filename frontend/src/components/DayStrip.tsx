@@ -219,8 +219,17 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
                 setFocusDay(d.date)
                 if (e.detail === 0 || e.shiftKey) pick(d.date, e.shiftKey)
               }}
+              // Once the strip plays the window, its days wear the range's tint
+              // end to end, the prototype's, so the sky inside them reads
+              // rather than sitting in an accent block (record 0326).
               className={`${DAY_STRIP.day} ${RADIUS.control} ${d.today ? DAY.today : ''} ${
-                mark === 'end' ? DAY.selected : mark === 'range' ? `${DAY.full} ${DAY.range}` : DAY.full
+                zoom !== null && inWindow(d.date)
+                  ? `${DAY.full} ${DAY.range}`
+                  : mark === 'end'
+                    ? DAY.selected
+                    : mark === 'range'
+                      ? `${DAY.full} ${DAY.range}`
+                      : DAY.full
               }`}
             >
               <span aria-hidden="true" className={DAY_STRIP.weekday}>

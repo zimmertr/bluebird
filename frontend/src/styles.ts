@@ -3137,6 +3137,13 @@ export const RESULTS_HEAD = {
   limitRemove: `inline-flex size-5 items-center justify-center ${RADIUS.control} text-ink-mid ${ACCENT.hoverText} ${FOCUS_RING}`,
   add: `inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-rule px-2.5 ${CONTROL_SIZE} font-semibold text-ink-mid ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`,
   hidden: CAPTION_LIFTED,
+  /**
+   * The headline over a desk's column while a lens ranks (record 0326), the
+   * prototype's 17px bold, as large as the panel's own title: it is the
+   * answer the reader came for. A phone's sheet keeps the bar's subheading,
+   * whose height its rest positions are worked out from.
+   */
+  headline: TEXT.appTitle,
 } as const
 
 /**
@@ -4449,6 +4456,14 @@ export const TABLE = {
    */
   nameSub: `block truncate ${TEXT.caption} font-sans`,
   nameSubWhen: 'font-semibold text-ink',
+  /**
+   * The compact table's name and score (record 0326), the prototype's: the
+   * name a weight up so it leads its two lines, and the score a step larger
+   * and heavier, standing on the row's ground, since its strip beside it
+   * carries the colour the full table paints the cell with.
+   */
+  nameStrong: 'font-semibold',
+  scoreCompact: 'text-base font-semibold text-ink-strong',
   /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover

@@ -112,6 +112,17 @@ export const HOURS_COL: ColDef = { key: 'score_hours', label: 'Hours' }
 export const COMPACT_KEYS: readonly ColDef['key'][] = ['wind_max_mph', 'temp_min_f']
 
 /**
+ * The prototype's short headers for those two in the compact table (record
+ * 0326): the full table's `Wind · Max (mph)` and `Temperature · Min (°F)` ran
+ * the column past its edge at 44% of a 1389px window. The full table behind
+ * the expand button keeps the long names, since it shows every aggregate.
+ */
+export const COMPACT_LABELS: Partial<Record<ColDef['key'], string>> = {
+  wind_max_mph: 'Wind (mph)',
+  temp_min_f: 'Low (°F)',
+}
+
+/**
  * The compact table's columns (record 0320): the name, then what ranks the
  * field (the score and its hours while a lens ranks, the ranked metric
  * otherwise), then the highest wind and the lowest temperature, the two a
@@ -121,7 +132,11 @@ export const COMPACT_KEYS: readonly ColDef['key'][] = ['wind_max_mph', 'temp_min
 export function compactColumns(sortBy: SortBy, scored: boolean): ColDef[] {
   const byKey = (key: ColDef['key']) => COLUMNS.find((c) => c.key === key)
   const lead = scored ? [SCORE_COL, HOURS_COL] : [byKey(sortBy)]
-  const rest = COMPACT_KEYS.filter((k) => scored || k !== sortBy).map(byKey)
+  const rest = COMPACT_KEYS.filter((k) => scored || k !== sortBy).map((k) => {
+    const col = byKey(k)
+    const label = COMPACT_LABELS[k]
+    return col && label ? { ...col, label } : col
+  })
   return [byKey('name'), ...lead, ...rest].filter((c): c is ColDef => c !== undefined)
 }
 

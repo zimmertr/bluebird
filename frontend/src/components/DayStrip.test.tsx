@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import DayStrip, { type StripZoom } from './DayStrip'
 import { render } from '../testSupport/render'
+import { DAY } from '../styles'
 import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
 
 // The day strip at a desk's map foot (record 0311): a press picks a day, a
@@ -97,6 +98,9 @@ describe('DayStrip', () => {
       expect(Number(day('2026-07-17').style.flexGrow)).toBeGreaterThan(1)
       expect(day('2026-07-16').style.flexGrow).toBe('')
       expect(sky.textContent).toBe('12p')
+      // The window's days wear the range's tint, not the accent (record 0326).
+      expect(day('2026-07-17').className).toContain(DAY.range)
+      expect(day('2026-07-17').className).not.toContain(DAY.selected)
     })
 
     it('draws the meta row in the player\'s place: play, the hour and the model', () => {

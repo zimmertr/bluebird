@@ -443,5 +443,11 @@ describe('compact', () => {
     const head = within(table).getAllByRole('columnheader')
     expect(head.some((th) => th.textContent === 'SatSun')).toBe(true)
     expect(screen.getByText('14,411 ft · best', { exact: false }).textContent).toBe('14,411 ft · best Sat 8a–10a')
+    // The score stands on the row's ground in its own larger face (record 0326),
+    // and the name leads its two lines.
+    const score = within(table).getAllByText('80')[0]
+    expect(score.className).toBe(TABLE.scoreCompact)
+    expect(score.closest('td')!.getAttribute('style')).toBeNull()
+    expect(within(table).getAllByRole('button', { name: /^Center map on/ })[0].className).toContain(TABLE.nameStrong)
   })
 })
