@@ -3361,7 +3361,9 @@ describe('the Controls sheet', () => {
     }
     for (const part of words(MOTION.slide)) expect(words(CONTROLS_SHEET.card)).toContain(part)
     expect(CONTROLS_SHEET.shut).toBe('translate-y-full')
-    expect(words(CONTROLS_SHEET.panel)).toEqual(['min-h-0', 'flex-1'])
+    // A column, the place search over the panel (record 0328).
+    expect(words(CONTROLS_SHEET.panel)).toEqual(['flex', 'min-h-0', 'flex-1', 'flex-col'])
+    expect(words(CONTROLS_SHEET.panelBody)).toEqual(['min-h-0', 'flex-1'])
   })
 
   // Its dim is the whole screen, fixed to the viewport like a menu sheet's,

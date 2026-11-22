@@ -163,11 +163,16 @@ describe('MapRows at a desk', () => {
 
   // The search is in the Where card once the sentence bar stands on the
   // row (record 0313); a phone keeps its pill.
+  // A phone's bar stands in the pill's place too since record 0328, and a
+  // phone with no bar keeps the pill.
   it('carries no search pill beside the sentence bar', () => {
     const { rerender } = render(rows({ desk: true, bar: <div>bar</div> }))
     expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
     expect(screen.getByText('bar')).toBeTruthy()
     rerender(rows({ desk: false, bar: <div>bar</div> }))
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    expect(screen.getByText('bar')).toBeTruthy()
+    rerender(rows({ desk: false }))
     expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
   })
 
