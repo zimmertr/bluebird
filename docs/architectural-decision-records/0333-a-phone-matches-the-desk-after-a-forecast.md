@@ -22,6 +22,7 @@ Side by side with the prototype on a phone, three things after a forecast differ
 
 - The phone's map floor under a dragged sheet rises by the foot's growth: `DRAGGED_MAP_PX` is 268, and `draggedMapFloorPx(2)` 428.
 - A phone's compact sheet header estimate is 56px taller, so its table at rest is 56px shorter.
+- The tutorial's Chart and Panels cards hold a phone's sheet at full screen, over the map's rows, rather than at the drag's cap: at the cap the taller foot left the Panels card's four stacked panels one short at 390 by 844 (CI, 2026-11-21). A reader's own fourth panel already grows the results as far as the window allows.
 - The Controls sheet keeps its 256px: the foot now stands taller than that under its dim, as the button always has (record 0207), and the sheet still leaves the rows.
 - A score ramp's key fits the foot with room to spare; a column's ramp fills it.
 - No new strings: the header reuses the lens chips' approved names.

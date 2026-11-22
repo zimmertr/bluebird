@@ -95,10 +95,12 @@ export interface ResultsLayoutInputs {
    */
   restView?: SinglePanel | null
   /**
-   * Hold a phone's sheet at its full stop, as high as a drag takes it, for as
-   * long as this is true, and give it back to the height it had after (#696).
-   * The tutorial's Chart step sets it, because at rest the plot is too short
-   * for a readout of five lines to stand inside it beside them.
+   * Hold a phone's sheet at full screen for as long as this is true, and give
+   * it back to the height it had after (#696). The tutorial's Chart step sets
+   * it, because at rest the plot is too short for a readout of five lines to
+   * stand inside it beside them, and its Panels card, for four stacked
+   * panels. It held the drag's cap until the foot grew a sky track (record
+   * 0333), which left the four one panel short at 390 by 844.
    */
   fullOverride?: boolean
   /**
@@ -369,7 +371,7 @@ export function useResultsLayout({
   // Past that cap a drag on a phone runs on to the top of the map (#837), and
   // its release decides whether the sheet stays there (`sheetTopRelease`).
   const fullFloorPx = isDesktop ? undefined : fullScreenMapFloorPx(gripCount, headerPx)
-  const atFullScreen = !isDesktop && fullScreen
+  const atFullScreen = !isDesktop && (fullScreen || fullOverride)
   // Leaving Chart forgets its drag, so the next pick lifts it again.
   if (resultsMode !== 'chart' && chartDragged) setChartDragged(false)
   // A phone's Chart alone at its full stop: the drag cap with every panel

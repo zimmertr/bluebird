@@ -359,7 +359,8 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
      * after (#696): at rest the plot is about 68px tall at 390x844 and the
      * five-line readout 129px, so the readout stood over every line it read.
      * The Panels card after it holds the stop too, for its four stacked
-     * panels (#850).
+     * panels (#850). The hold is full screen since the foot grew a sky track
+     * (record 0333), which left the four one panel short at the drag's cap.
      */
     sheetFull: showingChart || step?.reveal === 'panels',
     /** The chart's readout stands on this hour while the demonstration is up, or follows the reader. */

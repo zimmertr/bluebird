@@ -264,15 +264,21 @@ describe('useResultsLayout', () => {
       expect(result.current.tablePanelPx).toBe(table + 30)
     })
 
-    it("holds the full stop for the tutorial's Chart step, and gives the reader's drag back", () => {
+    // The tutorial's Chart and Panels cards hold the sheet at full screen,
+    // over the map's rows, which leave reach as they do under a reader's own
+    // full screen (record 0333).
+    it("holds full screen for the tutorial's Chart step, and gives the reader's drag back", () => {
       const { result, rerender, PHONE } = phone()
       act(() => result.current.chooseResultsMode('chart'))
       const full = result.current.chartPanelPx
       drag(result, 'chartGrip', -200)
       rerender({ ...PHONE, fullOverride: true })
-      expect(result.current.chartPanelPx).toBe(full)
+      expect(result.current.chartPanelPx).toBe(1000 - fullScreenMapFloorPx(1))
+      expect(result.current.chartPanelPx).toBeGreaterThan(full)
+      expect(result.current.overMapRows).toBe(true)
       rerender({ ...PHONE, fullOverride: false })
       expect(result.current.chartPanelPx).toBe(full - 200)
+      expect(result.current.overMapRows).toBe(false)
     })
   })
 
