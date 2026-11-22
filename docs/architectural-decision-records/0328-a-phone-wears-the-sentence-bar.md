@@ -1,6 +1,6 @@
 # 0328. A phone wears the sentence bar, and its search heads the Controls sheet
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amends [0135](0135-phone-opens-on-the-map.md) and [0313](0313-a-desk-searches-from-the-where-card.md).
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amends [0135](0135-phone-opens-on-the-map.md) and [0313](0313-a-desk-searches-from-the-where-card.md). Amended by [0331](0331-a-phone-stands-its-map-tools-in-a-column.md) (the tools leave the first row for a column).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-17 and 2026-11-21, keeping the prototype's phone and putting it third in the order of work; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

@@ -1,6 +1,6 @@
 # 0220. At a desk the results wear the panel's edge where they meet the map
 
-- Status: Accepted
+- Status: Accepted. Superseded by [0334](0334-the-column-retires-the-stacked-desk.md) (the column meets the map along its left edge).
 - Date: 2026-10-22
 - Decider: the maintainer (TJ), on PR #796, asking why the panel had a line beside the results and the map's other edges had none; choosing "Add top edge" from the options put to them.
 - Issues and PRs: #795, #796

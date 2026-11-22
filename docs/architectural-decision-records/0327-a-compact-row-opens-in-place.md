@@ -1,6 +1,6 @@
 # 0327. A press on a compact row opens it in place
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amends [0143](0143-row-opens-its-popup.md) for the desk's compact table only.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amends [0143](0143-row-opens-its-popup.md) for the desk's compact table only. Amended by [0332](0332-the-review-answers-of-2026-11-21.md) (the maintainer's review answers).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-17 and 2026-11-21, keeping the prototype's opened row and putting it second in the order of work; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

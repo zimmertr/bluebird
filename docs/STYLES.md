@@ -99,7 +99,7 @@ The app has two themes since #706, and since #843 it opens in the device's own s
 | `SCROLL_SHADOW` | A slate-950 shade at 70% (in light, the ink at 12%) over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label a finger's 32px (#687, record 0130, record [0223](architectural-decision-records/0223-finger-controls-draw-32.md)) |
 | `MOTION` | Movement that answers an action and stops under a reduced-motion setting, at two speeds (#714): `menu` at 150ms for a menu or a card, a fade and a 4px slide from its trigger's side and back, with a closed card kept for its exit by `useExit`, and at 300ms `slide` for the phone's Controls sheet, `push` for the desk panel and `pane` for a results pane on a press or the collapse chevron, each naming the one property it moves. `progress` is the analysis card's bar (#687). `PANEL_MS` is the slower speed in numbers, for script that waits out a move. The tutorial wears no transition: at a desk its light and card glide in script (`glide` in `tour/place.ts`), and on a phone it cuts from card to card and stands every transition in the app down while it runs (`data-touring="cut"`, record [0214](architectural-decision-records/0214-phone-tour-cuts-desk-tour-glides.md)) |
-| `DESK_PANEL` | The controls panel at a desk: a 360px column in the row beside the map, which stays in the row while shut and gives its width back through its left margin (`shut`), so the map's edge moves with the panel's (#714) |
+| `DESK_PANEL` | The controls panel at a desk: a 360px column in the row beside the map, which stays in the row while shut and gives its width back through its left margin (`shut`), so the map's edge moves with the panel's (#714). A desk no longer opens it (record [0334](architectural-decision-records/0334-the-column-retires-the-stacked-desk.md)): `AppDrawer` is always handed a card there |
 | `RESULTS_PANE` | A results pane at a desk, the chart or the table with its grip: a one-row grid frame, `1fr` open and `0fr` shut, around a body mounted at the press at the height it will stand at and kept, inert, while the pane is shut (#786), held to the results bar (`top`, the chart) or to the column's foot (`foot`, the table) (#714) |
 | `CHART_LEGEND` | The chart-only legend: one chip per charted line, two rows of chips at most, then it scrolls. At a desk it is a results pane of its own between the chart's and the table's, held to the foot, so Chart to Both shuts it as the table opens; on a phone it stands in the chart's box. Its tallest strip fits inside the table's floor, which a desk's Chart keeps free under the chart (#795). Since #850 it stands inside the room a press hands the chart, measured |
 | `LAYOUT_HOLD` | What keeps one size while a desk's layout moves (#714): the map's box at the window's width or height, centred on its column, which clips it (`clip`); the table's box at the window's width and the chart at the width it had while the panel moves. `rest` is the map's box the rest of the time. `layer` puts what moves with the panel on a layer of its own while it moves: the panel, the map's column, the results and each pane's body (#786) |
@@ -995,6 +995,14 @@ reduced-motion setting. `PANEL_MS` is the slower speed in numbers, and
 `styles.test.ts` holds each class to its speed. The one movement nobody's
 press started is the message badge's, once per arrival, in `MESSAGE_BADGE`
 rather than here.
+
+A desk now opens its controls as a card under the sentence bar and never the
+docked panel, so the panel's push in the next paragraph, and the layers for
+its move after that, describe code a desk no longer reaches. The pane frames
+still open and close the chart and the table inside the widened column, and
+the room under the map the last paragraph here describes is gone with the
+panes that stood there.
+Record: [0334](architectural-decision-records/0334-the-column-retires-the-stacked-desk.md)
 
 The desk panel pushes the map's edge rather than sliding over the map
 (`DESK_PANEL`). It stays in the row while it is shut and its left margin takes

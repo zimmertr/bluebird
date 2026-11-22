@@ -1,6 +1,6 @@
 # 0316. A loop is drawn in one stroke
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amended by [0332](0332-the-review-answers-of-2026-11-21.md) (the maintainer's review answers).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-17, keeping the prototype's idea that a loop is drawn freehand in one stroke; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

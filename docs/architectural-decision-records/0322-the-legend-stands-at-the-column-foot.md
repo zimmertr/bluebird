@@ -1,6 +1,6 @@
 # 0322. The legend stands at the foot of the desk's results column
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amended by [0332](0332-the-review-answers-of-2026-11-21.md) (the maintainer's review answers). On a phone amended by [0333](0333-a-phone-matches-the-desk-after-a-forecast.md).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, moving the legend to the results column's foot; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

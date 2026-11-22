@@ -1,6 +1,6 @@
 # 0329. A phone's foot holds the days and the Forecast button
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Supersedes the floating button of [0135](0135-phone-opens-on-the-map.md) and the corner placement of [0140](0140-phone-notices-on-the-map.md).
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Supersedes the floating button of [0135](0135-phone-opens-on-the-map.md) and the corner placement of [0140](0140-phone-notices-on-the-map.md). The foot's height and days amended by [0333](0333-a-phone-matches-the-desk-after-a-forecast.md).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-17 and 2026-11-21, keeping the prototype's phone and putting it third in the order of work; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

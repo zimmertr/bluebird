@@ -1,6 +1,6 @@
 # 0271. At a desk a press on Table, Chart or Both keeps the results' height
 
-- Status: Accepted. Supersedes [0218](0218-chart-legend-is-a-pane.md) in part: its second Decision bullet, Chart sizing the chart the way Both does.
+- Status: Accepted. Supersedes [0218](0218-chart-legend-is-a-pane.md) in part: its second Decision bullet, Chart sizing the chart the way Both does. Superseded by [0334](0334-the-column-retires-the-stacked-desk.md) (the room under the map is gone with the column).
 - Date: 2026-11-04
 - Decider: the maintainer (TJ), on PR #851, 2026-11-04: "Can we also make sure that when we switch to Chart-only the vertical size of the results area doesn't change?" Asked whether for the tutorial alone or everywhere: "Everywhere. Lets fold it into this PR though." Told that this reverses record 0218's chart at one size in every mode: "Yes, area keeps its height". The remembered split, the legend measured inside the room and the hold while the panes move are Claude's, for review on the PR.
 - Issues and PRs: #850, #851, #795, #789
