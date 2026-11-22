@@ -20,6 +20,7 @@ Side by side with the prototype on a phone, three things after a forecast differ
 
 ## Consequences
 
+- The window's days widen to the desk's share only where the row has room: never so far that a day outside the window is drawn under 18px (`windowGrow`, `STRIP_DAY_MIN_PX`). At the desk's share a phone's other days ran their numbers together (the preview, 2026-11-21). On a 360px phone two window days widen a little; on a desk nothing changes.
 - The phone's map floor under a dragged sheet rises by the foot's growth: `DRAGGED_MAP_PX` is 268, and `draggedMapFloorPx(2)` 428.
 - A phone's compact sheet header estimate is 56px taller, so its table at rest is 56px shorter.
 - The tutorial's Chart and Panels cards hold a phone's sheet at full screen, over the map's rows, rather than at the drag's cap: at the cap the taller foot left the Panels card's four stacked panels one short at 390 by 844 (CI, 2026-11-21). A reader's own fourth panel already grows the results as far as the window allows.

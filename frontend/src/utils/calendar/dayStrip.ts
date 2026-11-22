@@ -46,3 +46,27 @@ export function stripMark(drawn: { startDate: string; endDate: string } | null, 
   if (date === drawn.startDate || date === drawn.endDate) return 'end'
   return date > drawn.startDate && date < drawn.endDate ? 'range' : null
 }
+
+/**
+ * The narrowest a day outside the window may be drawn once the window's days
+ * widen (record 0333): a two-digit date at the control size, 14px of figures,
+ * with 2px either side. A phone's strip at 360 wide had its other days'
+ * numbers run together at the desk's share.
+ */
+export const STRIP_DAY_MIN_PX = 18
+
+/**
+ * How much wider than a plain day each of the window's `windowCount` days is
+ * drawn, of `total`, on a row `widthPx` wide (record 0323): about half the
+ * strip, the prototype's share, so an hour is a few pixels wide; never so
+ * much that a day outside the window is drawn under `STRIP_DAY_MIN_PX`, and
+ * never narrower than plain. 1 with no window, and before the row is laid out.
+ */
+export function windowGrow(total: number, windowCount: number, widthPx: number | null): number {
+  if (windowCount === 0 || windowCount >= total) return 1
+  const others = total - windowCount
+  let share = Math.min(0.6, 0.22 + 0.17 * windowCount)
+  if (widthPx !== null && widthPx > 0) share = Math.min(share, 1 - (others * STRIP_DAY_MIN_PX) / widthPx)
+  if (share <= windowCount / total) return 1
+  return (share * others) / (windowCount * (1 - share))
+}

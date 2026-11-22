@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type BandLimits, bandEnd } from './calendarBand'
-import { selectedDays, stripDays, stripMark } from './dayStrip'
+import { STRIP_DAY_MIN_PX, selectedDays, stripDays, stripMark, windowGrow } from './dayStrip'
 
 // Local noon on a Wednesday in July, as the band's own tests use.
 const NOW = new Date(2026, 6, 15, 12, 0)
@@ -40,5 +40,37 @@ describe('selectedDays and stripMark', () => {
       null,
     ])
     expect(stripMark(null, '2026-07-17')).toBeNull()
+  })
+})
+
+// The window's days widen to about half the strip (record 0323), and on a
+// narrow row no further than leaves every other day its number (record 0333).
+describe('windowGrow', () => {
+  const widthOf = (total: number, n: number, grow: number, px: number) => ({
+    other: px / (total - n + n * grow),
+    window: (px * grow) / (total - n + n * grow),
+  })
+
+  it('draws plain days with no window, or before the row is laid out on a window of all', () => {
+    expect(windowGrow(16, 0, 800)).toBe(1)
+    expect(windowGrow(4, 4, 800)).toBe(1)
+  })
+
+  it('gives two window days the desk\'s share on a wide row', () => {
+    const grow = windowGrow(16, 2, 800)
+    const { window } = widthOf(16, 2, grow, 800)
+    expect((2 * window) / 800).toBeCloseTo(0.56, 5)
+  })
+
+  it('keeps every other day its number on a phone\'s row', () => {
+    for (const px of [296, 328, 452]) {
+      const grow = windowGrow(16, 2, px)
+      expect(grow).toBeGreaterThanOrEqual(1)
+      expect(widthOf(16, 2, grow, px).other).toBeGreaterThanOrEqual(STRIP_DAY_MIN_PX - 1e-9)
+    }
+  })
+
+  it('never draws the window narrower than plain', () => {
+    expect(windowGrow(16, 2, 250)).toBe(1)
   })
 })

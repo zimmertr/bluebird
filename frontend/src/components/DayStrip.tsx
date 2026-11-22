@@ -17,6 +17,7 @@ import {
   selectedDays,
   stripDays,
   stripMark,
+  windowGrow,
 } from '../utils/calendar/calendar'
 import { transportBottomPx } from '../utils/results/resultsSheet'
 
@@ -130,9 +131,19 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
   const inWindow = (date: string) => chosen !== null && date >= chosen.startDate && date <= chosen.endDate
   // The window's days widen to about half the strip, the prototype's share,
   // so an hour is a few pixels wide and easy to find.
+  // On a narrow row no further than leaves every other day its number
+  // (record 0333), so the row's width is read as it changes.
   const windowCount = zoom === null ? 0 : days.filter((d) => inWindow(d.date)).length
-  const share = Math.min(0.6, 0.22 + 0.17 * windowCount)
-  const grow = windowCount === 0 ? 1 : (share * (days.length - windowCount)) / (windowCount * (1 - share))
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [rowPx, setRowPx] = useState<number | null>(null)
+  useEffect(() => {
+    const el = rowRef.current
+    if (el === null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => setRowPx(el.getBoundingClientRect().width))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+  const grow = windowGrow(days.length, windowCount, rowPx)
   const scrubs = zoom !== null && zoom.scrub !== false
   const head = zoom !== null && scrubs ? headAt(zoom.times[zoom.index]) : null
 
@@ -177,7 +188,6 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
       : chosen !== null && days.some((d) => d.date === chosen.startDate)
         ? chosen.startDate
         : days[0]?.date
-  const rowRef = useRef<HTMLDivElement>(null)
 
   function pick(date: string, extend: boolean) {
     if (extend && chosen !== null) onSelection(applyDayDrag(selection, chosen.startDate, date))
