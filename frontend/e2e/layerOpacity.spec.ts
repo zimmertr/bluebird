@@ -10,6 +10,8 @@ import { test, expect } from './fixtures'
 // assigns `_canvasContainer` on the map it is building, so a setter on
 // Object's prototype is handed that map once, before the app runs, and
 // leaves a plain property behind it. Nothing in the app changes for it.
+// The map's cooperative gestures handler assigns the same name since
+// maplibre-gl 6.18, so only an object with the map's `getStyle` is kept.
 async function captureMap(page: Page) {
   await page.addInitScript(() => {
     const seen = window as unknown as { maps: object[] }
@@ -18,7 +20,7 @@ async function captureMap(page: Page) {
       configurable: true,
       set(value: unknown) {
         Object.defineProperty(this, '_canvasContainer', { value, writable: true, configurable: true, enumerable: true })
-        seen.maps.push(this)
+        if (typeof (this as { getStyle?: unknown }).getStyle === 'function') seen.maps.push(this)
       },
     })
   })
