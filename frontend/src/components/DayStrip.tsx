@@ -40,7 +40,9 @@ interface Props {
   zoom?: StripZoom | null
   /**
    * The days row alone, with no card, player or placement of its own, for a
-   * phone's foot to hold over its Forecast button (record 0329).
+   * phone's foot to hold over its Forecast button (record 0329). Its sky
+   * track stands empty before a forecast, so the foot keeps one height
+   * (record 0333).
    */
   bare?: boolean
 }
@@ -60,6 +62,12 @@ export interface StripZoom {
   /** The model the forecast came from, which opens the When card. */
   model: string
   onModel: () => void
+  /**
+   * Whether the window's days scrub the hours, with the playhead drawn: false
+   * on a phone while the forecast player is off, where the sky still shows
+   * and a press on a day picks it (record 0333).
+   */
+  scrub?: boolean
 }
 
 const NO_SKY: readonly (number | null)[] = Array.from({ length: SKY_BLOCKS }, () => null)
@@ -125,7 +133,8 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
   const windowCount = zoom === null ? 0 : days.filter((d) => inWindow(d.date)).length
   const share = Math.min(0.6, 0.22 + 0.17 * windowCount)
   const grow = windowCount === 0 ? 1 : (share * (days.length - windowCount)) / (windowCount * (1 - share))
-  const head = zoom === null ? null : headAt(zoom.times[zoom.index])
+  const scrubs = zoom !== null && zoom.scrub !== false
+  const head = zoom !== null && scrubs ? headAt(zoom.times[zoom.index]) : null
 
   // A drag across the window's days moves the hour, as the prototype's does.
   const [scrubbing, setScrubbing] = useState(false)
@@ -202,7 +211,7 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
               // The main button alone; a Shift press is the click's below.
               if (e.button > 0 || e.shiftKey) return
               // Inside a forecast window a drag scrubs the hours.
-              if (zoom !== null && inWindow(d.date)) {
+              if (zoom !== null && scrubs && inWindow(d.date)) {
                 zoom.onPlaying(false)
                 const i = indexAt(e.clientX)
                 if (i !== null) zoom.onIndex(i)
@@ -235,16 +244,20 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
               {d.weekday}
             </span>
             <span aria-hidden="true">{d.day}</span>
-            {zoom !== null && (
-              <span aria-hidden="true" data-sky={inWindow(d.date) ? d.date : undefined} className={DAY_STRIP.sky}>
-                {(zoom.sky.get(d.date) ?? NO_SKY).map((v, i) => (
+            {(zoom !== null || bare) && (
+              <span
+                aria-hidden="true"
+                data-sky={scrubs && inWindow(d.date) ? d.date : undefined}
+                className={DAY_STRIP.sky}
+              >
+                {(zoom?.sky.get(d.date) ?? NO_SKY).map((v, i) => (
                   <span
                     key={i}
                     className={DAY_STRIP.skyCell}
-                    style={v === null ? undefined : { backgroundColor: scoreColor(v, zoom.range) }}
+                    style={v === null || zoom === null ? undefined : { backgroundColor: scoreColor(v, zoom.range) }}
                   />
                 ))}
-                {head !== null && head.date === d.date && (
+                {zoom !== null && head !== null && head.date === d.date && (
                   <>
                     <span className={DAY_STRIP.head} style={{ left: `${head.frac * 100}%` }} />
                     <span className={DAY_STRIP.headTag} style={{ left: `${head.frac * 100}%` }}>

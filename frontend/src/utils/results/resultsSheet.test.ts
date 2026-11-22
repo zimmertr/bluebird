@@ -284,8 +284,8 @@ describe('the drag cap', () => {
   it('leaves the rows and the foot\'s strip: 88 and 16 + 96 + 44', () => {
     expect(MAP_ROWS_PX).toBe(88)
     expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + TRANSPORT_GAP_PX)
-    expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 96, 156])
-    expect(DRAGGED_MAP_PX).toBe(244)
+    expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 120, 180])
+    expect(DRAGGED_MAP_PX).toBe(268)
   })
 
   // With the player on, a full sheet also leaves the bar its room over the

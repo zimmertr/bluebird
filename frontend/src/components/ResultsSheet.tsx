@@ -383,7 +383,13 @@ export default function ResultsSheet(props: ResultsSheetProps) {
               compactPhone={!isDesktop && !wide}
             />
           )}
-          {isDesktop && <div ref={legendFootRef} data-legend-foot="" className={RESULTS_COLUMN.foot} />}
+          {/* The map's key at the foot (record 0322), on a phone too, where
+              it stands under a collapsed sheet's header as well (record 0333). */}
+          <div
+            ref={legendFootRef}
+            data-legend-foot=""
+            className={isDesktop ? RESULTS_COLUMN.foot : RESULTS_COLUMN.footPhone}
+          />
         </div>
       )}
 

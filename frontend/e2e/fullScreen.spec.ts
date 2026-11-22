@@ -81,9 +81,9 @@ test('a release short of the top falls back to the strip under the chips', async
   // goes that much lower.
   const below = grip.y - (await sheet.boundingBox())!.y
   await dragTo(page, grip, 120 + below)
-  // The cap leaves the rows and the foot's strip, 244px of map (record 0329).
+  // The cap leaves the rows and the foot's strip, 268px of map (record 0329).
   const top = async () => (await sheet.boundingBox())!.y
-  await expect.poll(top).toBeGreaterThan(238)
-  expect(await top()).toBeLessThan(250)
+  await expect.poll(top).toBeGreaterThan(262)
+  expect(await top()).toBeLessThan(274)
   await expect(analyze).toBeVisible()
 })

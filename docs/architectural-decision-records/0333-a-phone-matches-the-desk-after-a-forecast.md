@@ -1,0 +1,26 @@
+# 0333. A phone matches the desk after a forecast
+
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amends [0329](0329-a-phone-foot-holds-the-days-and-the-forecast-button.md) (the foot's height and its days), [0322](0322-the-legend-stands-at-the-column-foot.md) (the key's place on a phone) and [0307](0307-a-score-with-lenses-ranks-the-field.md) (the score column's header).
+- Date: 2026-11-21
+- Decider: the maintainer, 2026-11-21, answering the phone side-by-side review
+- Issues and PRs: #825
+- Cited in code as: record 0333
+- Guide: `frontend/src/components/CLAUDE.md` (`DayStrip.tsx`, `MapStage.tsx`, `ResultsSheet.tsx`); `frontend/src/utils/CLAUDE.md` (`tableColumns.ts`); `frontend/src/utils/results/CLAUDE.md` (`resultsSheet.ts`); `docs/STYLES.md` (`MAP_FOOT`, `RESULTS_COLUMN.footPhone`)
+
+## Context
+
+Side by side with the prototype on a phone, three things after a forecast differed from the desk. The phone's days stayed plain while the desk's drew each day's sky. The score key stayed behind the `Legend` chip, a tap away from the rows it explains. And the score column read `Score` whatever the lens, so a reader on `Calm summit` saw a number with no word for what it scored.
+
+## Decision
+
+- **The phone's days draw each day's sky after a forecast**, the window's days widened, as the desk's do ([0323](0323-the-day-strip-plays-the-window-after-a-forecast.md)). The Forecast button under them keeps reading `Up to date`. The days scrub the hours only while the forecast player is on, a phone's default being off: with it off a press on a day picks that day, and no playhead is drawn (`StripZoom.scrub`).
+- **The foot keeps one height, 120px** (`FAB_PX`, `MAP_FOOT.card`'s `h-30`), from 96. Before a forecast each day's sky track stands empty on the recessed ground, so the foot does not grow under the reader when a report lands.
+- **The phone's key stands at the results sheet's foot once a report stands**, as the desk's stands at the column's (record 0322), and under a folded sheet too, where the map it keys is open. The `Legend` chip keys the map only before a report. The foot is one fixed height, `h-14` (`SHEET_KEY_PX`, 56px, one ramp section), which the sheet's chrome counts beside its header, because a map overlay must never change the height of the results; a second section scrolls inside it.
+- **The score column's header is the lens's name** (`Bluebird`, `Calm summit`, `Clean air`, `Fresh snow`, `Warmest`), at both widths and in the CSV (`labelScore`). One label for the table and the file, as every column has.
+
+## Consequences
+
+- The phone's map floor under a dragged sheet rises by the foot's growth: `DRAGGED_MAP_PX` is 268, and `draggedMapFloorPx(2)` 428.
+- A phone's sheet header estimate is 56px taller, so the table at rest is 56px shorter on a phone.
+- A score ramp's key fits the foot with room to spare; a column's ramp fills it.
+- No new strings: the header reuses the lens chips' approved names.

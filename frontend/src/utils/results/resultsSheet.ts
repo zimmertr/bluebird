@@ -39,15 +39,17 @@ export const RESTING_TOP_PX = 156
 /**
  * The phone's foot (record 0329): one card across the map, 16px in from each
  * edge and off whatever it stands on (`FAB_INSET_PX`), holding the day strip
- * and the full-width Forecast button under it. 96px tall (`FAB_PX`): 8px of
- * padding, the days' 32px row, 6px, the button's 40px, 8px and the card's
- * two 1px edges, the height `MAP_FOOT.card` sets. It was the 56px floating
+ * and the full-width Forecast button under it. 120px tall (`FAB_PX`): 8px of
+ * padding, the days' 56px row (the weekday, the date and the 18px track each
+ * day's hours of sky stand in after a forecast, TJ 2026-11-21), 6px, the
+ * button's 40px, 8px and the card's two 1px edges, the height `MAP_FOOT.card`
+ * sets. It was 96 while the days were plain. It was the 56px floating
  * Analyze button at the map's bottom right until then (#696; record 0135),
  * and keeps that button's names, since everything that rode the button rides
  * the card. `FAB_STRIP_PX`, the map a full sheet leaves it, is below, beside
  * the corner band it includes.
  */
-export const FAB_PX = 96
+export const FAB_PX = 120
 export const FAB_INSET_PX = 16
 
 /**
@@ -167,6 +169,16 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  */
 export const SHEET_HEADER_PX = 112
 export const SHEET_HEADER_COMPACT_PX = 86
+
+/**
+ * The map's key at a phone sheet's foot once a report stands (record 0333),
+ * which the sheet's chrome counts beside its header: `h-14`, one fixed height
+ * whatever the key holds, the height of one ramp section (its 16px name, the
+ * 4px gap and the 20px strip, in 6px of padding each way and the 1px rule
+ * over it). One number because a map overlay must never change the height of
+ * the results; a second section scrolls inside it.
+ */
+export const SHEET_KEY_PX = 56
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but

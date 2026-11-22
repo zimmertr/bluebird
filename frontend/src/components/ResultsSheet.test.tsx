@@ -171,6 +171,18 @@ describe('ResultsSheet', () => {
     expect(screen.queryByTestId('panels')).toBeNull()
   })
 
+  // The map's key stands at the results' foot at either width (records 0322
+  // and 0333), and under a phone's folded sheet too, where the map is open.
+  it('keeps a foot for the map\'s key at either width, folded or not', () => {
+    const foot = () => document.querySelector('[data-legend-foot]')
+    const { rerender } = render(<ResultsSheet {...props()} />)
+    expect(foot()).not.toBeNull()
+    rerender(<ResultsSheet {...props({ isDesktop: false })} />)
+    expect(foot()).not.toBeNull()
+    rerender(<ResultsSheet {...props({ isDesktop: false, resultsCollapsed: true })} />)
+    expect(foot()).not.toBeNull()
+  })
+
   // The column holds the compact table, and widened over the map it holds
   // every pane, as a phone's sheet does (record 0321).
   it('draws a desk\'s compact column, and every pane once it is widened', () => {

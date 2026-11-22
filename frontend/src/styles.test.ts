@@ -155,7 +155,7 @@ import { CHEVRON_PX, EXTERNAL_LINK_PX, GRIP_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX, COLUMN_MIN_PX, FAB_PX } from './utils/results/resultsSheet'
+import { CHIP_MENU_GAP_PX, COLUMN_MIN_PX, FAB_PX, SHEET_KEY_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
@@ -3093,8 +3093,8 @@ describe('the phone chrome\'s hit areas', () => {
 describe('the foot on a phone', () => {
   const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
-  // 96px, the height `FAB_PX` places it by, 16px in from each edge.
-  it('is a 96px card across the map, 16px in from each edge', () => {
+  // 120px, the height `FAB_PX` places it by, 16px in from each edge (record 0333).
+  it('is a 120px card across the map, 16px in from each edge', () => {
     expect(Number(MAP_FOOT.card.match(/(?:^|\s)h-(\d+)(?:\s|$)/)![1]) * 4).toBe(FAB_PX)
     expect(tokens(MAP_FOOT.card)).toEqual(expect.arrayContaining(['absolute', 'inset-x-4', LAYER.mapControls]))
     for (const part of tokens(SURFACE_FLOATING)) expect(tokens(MAP_FOOT.card)).toContain(part)
@@ -4965,6 +4965,18 @@ describe('the panel frame', () => {
     expect(RESULTS_COLUMN.chips).not.toMatch(/max-h-/)
     expect(RESULTS_COLUMN.chips.split(' ')).toEqual(expect.arrayContaining(['flex-1', 'min-h-0', 'overflow-y-auto']))
     expect(RESULTS_COLUMN.expand.startsWith(MAP_ROUND_BUTTON)).toBe(true)
+  })
+
+  // A phone's key at the sheet's foot (record 0333) is one fixed height, the
+  // one the sheet's chrome counts, whatever it holds, and holds one ramp
+  // section: its 16px name, the 4px gap and the 20px strip inside 6px of
+  // padding each way and the 1px rule over it.
+  it('holds a phone\'s key at the one height the sheet counts', () => {
+    const foot = RESULTS_COLUMN.footPhone.split(' ')
+    expect(Number(RESULTS_COLUMN.footPhone.match(/(?:^|\s)h-(\d+)(?:\s|$)/)![1]) * 4).toBe(SHEET_KEY_PX)
+    expect(foot).toEqual(expect.arrayContaining(['flex-shrink-0', 'overflow-y-auto', 'border-t', 'py-1.5']))
+    expect(foot.some((t) => t.startsWith('max-h-') || t.startsWith('min-h-'))).toBe(false)
+    expect(1 + 2 * 6 + 16 + 4 + 20).toBeLessThanOrEqual(SHEET_KEY_PX)
   })
 
   // The chart-only legend's tallest strip (#795): two rows of 26px chips and

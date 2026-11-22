@@ -93,6 +93,16 @@ export const SCORE_COL: ColDef = {
   csv: (v) => String(Math.round(Number(v))),
 }
 
+/**
+ * The score's header named for the lens that made it (`Bluebird`, `Calm
+ * summit`), at either width and in the file (record 0333), so the number says
+ * what kind of day it scores. `Score` is the column's name only where no lens
+ * is named.
+ */
+export function labelScore(cols: readonly ColDef[], label: string): ColDef[] {
+  return cols.map((c) => (c.key === SCORE_KEY && c.label !== label ? { ...c, label } : c))
+}
+
 /** The columns with the score after the name while a lens ranks the field. */
 export function withScoreColumn(cols: readonly ColDef[], scored: boolean): ColDef[] {
   if (!scored) return [...cols]

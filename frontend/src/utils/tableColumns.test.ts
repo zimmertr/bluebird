@@ -29,6 +29,7 @@ import {
   HOURS_COL,
   SCORE_COL,
   compactColumns,
+  labelScore,
 } from './tableColumns'
 import { FAMILY_KEYS, RANKED_FAMILIES, familyOf, NOUN, SEP } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
@@ -691,6 +692,22 @@ describe('the terrain height mark', () => {
     expect(TERRAIN_HEIGHT_MARK).toBe('†')
     expect(TERRAIN_HEIGHT_NOTE.startsWith(`${TERRAIN_HEIGHT_MARK} `)).toBe(true)
     expect(TERRAIN_HEIGHT_NOTE).not.toMatch(/[—–]/)
+  })
+})
+
+// The score's header is the lens's name (record 0333), and nothing else moves.
+describe('labelScore', () => {
+  it('names the score column for the lens and leaves every other column as it was', () => {
+    const cols = compactColumns('temp_avg_f', true)
+    const named = labelScore(cols, 'Calm summit')
+    expect(named.map((c) => c.label)).toEqual(cols.map((c) => (c.key === SCORE_COL.key ? 'Calm summit' : c.label)))
+    expect(named.find((c) => c.key === SCORE_COL.key)!.format).toBe(SCORE_COL.format)
+    expect(named.filter((c) => c.key !== SCORE_COL.key).every((c, i) => c === cols.filter((d) => d.key !== SCORE_COL.key)[i])).toBe(true)
+  })
+
+  it('keeps the column itself under its own name', () => {
+    const cols = compactColumns('temp_avg_f', true)
+    expect(labelScore(cols, SCORE_COL.label)[1]).toBe(SCORE_COL)
   })
 })
 

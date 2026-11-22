@@ -391,15 +391,19 @@ describe('MapStage', () => {
     expect(legend().sheet).toBe('true')
   })
 
-  // At a desk the key stands at the results column's foot while the column
-  // does (record 0322), and the chip leaves the map; a phone keeps its chip.
-  it('draws the key into the desk column\'s foot, and no chip while it stands', () => {
+  // The key stands at the results' foot while they do (record 0322), at a
+  // desk and on a phone alike (record 0333), and the chip leaves the map; with
+  // no foot, before a report, the chip keys the map.
+  it('draws the key into the results\' foot at either width, and no chip while it stands', () => {
     const host = document.createElement('div')
     document.body.append(host)
     const { rerender } = render(<MapStage {...props({ legendHost: host })} />)
     expect(screen.queryByTestId('legend')).toBeNull()
     expect(host.childElementCount).toBeGreaterThan(0)
     rerender(<MapStage {...props({ legendHost: host, isDesktop: false, sidebarOpen: false })} />)
+    expect(screen.queryByTestId('legend')).toBeNull()
+    expect(host.childElementCount).toBeGreaterThan(0)
+    rerender(<MapStage {...props({ legendHost: null, isDesktop: false, sidebarOpen: false })} />)
     expect(screen.getByTestId('legend')).toBeTruthy()
     host.remove()
   })

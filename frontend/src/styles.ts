@@ -2182,7 +2182,7 @@ export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate'
 /**
  * The phone's foot (record 0329): one card across the map, on the chrome's
  * floating surface and the map controls' layer, 16px in from each edge
- * (`FAB_INSET_PX`) and 96px tall (`FAB_PX` in `resultsSheet.ts`, which
+ * (`FAB_INSET_PX`) and 120px tall (`FAB_PX` in `resultsSheet.ts`, which
  * places it by its bottom), holding the day strip over the full-width
  * Forecast button, the prototype's. The button is the desk bar's own
  * (`BUTTON_FORECAST_BAR`, outlined as `BUTTON_FORECAST_QUIET` while a press
@@ -2192,7 +2192,7 @@ export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate'
  * map's bottom right (record 0135).
  */
 export const MAP_FOOT = {
-  card: `absolute inset-x-4 ${LAYER.mapControls} ${SURFACE_FLOATING} flex h-24 flex-col gap-1.5 p-2`,
+  card: `absolute inset-x-4 ${LAYER.mapControls} ${SURFACE_FLOATING} flex h-30 flex-col gap-1.5 p-2`,
   days: 'min-h-0 flex-1',
   slot: 'relative flex',
   button: `${BUTTON_FORECAST_BAR} w-full`,
@@ -3298,6 +3298,12 @@ export const RESULTS_COLUMN = {
    * nothing.
    */
   foot: `${SCROLL_BARS} flex max-h-[20%] flex-shrink-0 flex-col gap-1 overflow-y-auto border-t border-rule px-3 py-2 empty:hidden`,
+  /**
+   * The same key at a phone sheet's foot (record 0333), at the one height
+   * `SHEET_KEY_PX` counts (`h-14`), whatever it holds, so an overlay toggled
+   * never moves the sheet; a second section scrolls inside it.
+   */
+  footPhone: `${SCROLL_BARS} flex h-14 flex-shrink-0 flex-col justify-center gap-1 overflow-y-auto border-t border-rule px-3 py-1.5`,
   expand: `${MAP_ROUND_BUTTON} pointer-events-auto absolute right-3 top-3 ${LAYER.base} flex items-center justify-center`,
 } as const
 

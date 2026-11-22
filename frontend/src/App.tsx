@@ -14,6 +14,7 @@ import AppDrawer from './components/AppDrawer'
 import type { ScoreColouring } from './utils/resultFeatures'
 import MapDrawBar from './components/MapDrawBar'
 import SentenceBar from './components/SentenceBar'
+import { LENS_LABEL } from './components/LensChips'
 import SearchBox from './components/SearchBox'
 import DocLinks from './components/DocLinks'
 import ThemeMenu from './components/ThemeMenu'
@@ -781,6 +782,7 @@ export default function App() {
     tableOnly: !isDesktop && !sheetWide,
     // The tour's demonstration ranks by its own metric, so its table carries no score.
     scored: demo === null && lens !== null,
+    scoreLabel: lens === null ? undefined : LENS_LABEL[lens],
     showResults: showResults || demo !== null,
     collapsedOverride: tour.sheetCollapsed,
     restView: tour.sheetView,

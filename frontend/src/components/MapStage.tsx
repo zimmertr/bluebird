@@ -380,9 +380,10 @@ export default function MapStage({
       </button>
     </>
   )
-  // At a desk the key stands at the results column's foot while the column
-  // does, as the prototype keeps its scale (record 0322).
-  const legendInColumn = isDesktop && legendHost !== null
+  // The key stands at the results' foot while they do, as the prototype
+  // keeps its scale (record 0322), at a desk and on a phone (record 0333);
+  // the Legend chip keys the map before a report.
+  const legendInColumn = legendHost !== null
   const legendChip = legendInColumn ? null : (
     <MapLegend
       sections={legend}
@@ -424,8 +425,12 @@ export default function MapStage({
 
   // After a forecast the strip draws each day's sky and hosts the hours
   // itself (record 0323), while a lens ranks the field and the strip still
-  // shows the window the report was fetched for.
-  const skyShown = isDesktop && scored && dayStrip?.fresh === true && timelineShown && timelineAxis === 'forecast'
+  // shows the window the report was fetched for. A phone's strip draws the
+  // sky whether or not the player is on, and scrubs only while it is
+  // (record 0333).
+  const scrubbing = timelineShown && timelineAxis === 'forecast'
+  const skyShown =
+    scored && dayStrip?.fresh === true && (isDesktop ? scrubbing : timeline.forecastTimes.length > 0)
   const sky = useMemo(
     () => (skyShown ? daySky(report.results, timeline.forecastTimes) : null),
     [skyShown, report.results, timeline.forecastTimes],
@@ -444,6 +449,7 @@ export default function MapStage({
           label: 'Score time',
           model: tableView.analysisModelLabel ?? '',
           onModel: dayStrip.onModel,
+          scrub: scrubbing,
         }
       : null
 
@@ -577,6 +583,7 @@ export default function MapStage({
                 band={dayStrip.band}
                 liftPx={0}
                 transport={null}
+                zoom={stripZoom}
               />
             ) : null
           }

@@ -11,6 +11,8 @@ import type { SinglePanel } from '../utils/layout'
 export interface ResultsViewInputs {
   /** A lens ranks the field, so the table carries the Score column (record 0307). */
   scored?: boolean
+  /** The score column's header, the lens's name (record 0333). */
+  scoreLabel?: string
   /** The reader has the forecast player on (`useResultsLayout`'s `playerOn`). */
   playerOn?: boolean
   /** A phone's home indicator band (`useResultsLayout`'s `safeBottomPx`). */
@@ -84,6 +86,7 @@ export interface ResultsViewInputs {
  */
 export function useResultsView({
   scored = false,
+  scoreLabel,
   collapsedOverride = null,
   restView = null,
   fullOverride = false,
@@ -177,6 +180,7 @@ export function useResultsView({
     fire,
     closure,
     scored,
+    scoreLabel,
   })
 
   // Stable identities for the table's callbacks, for the reason `NO_TIMES`
