@@ -39,6 +39,22 @@ describe('useHoverLink', () => {
     expect(hotMarker).toHaveBeenCalledTimes(2)
   })
 
+  it('rests the ring on the row opened in place once the pointer leaves the rows', () => {
+    const wrap = table()
+    wrap.querySelectorAll('tr')[1].setAttribute('data-open', '')
+    const hotMarker = vi.fn()
+    renderHook(() => useHoverLink({ current: { hotMarker } as unknown as MapViewHandle }))
+    const over = (el: Element) => {
+      const event = new MouseEvent('pointerover', { bubbles: true })
+      Object.defineProperty(event, 'pointerType', { value: 'mouse' })
+      el.dispatchEvent(event)
+    }
+    over(wrap.querySelector('span')!)
+    expect(hotMarker).toHaveBeenLastCalledWith('47.5,-121.5')
+    over(document.body)
+    expect(hotMarker).toHaveBeenLastCalledWith('46.85,-121.76')
+  })
+
   it('marks the row of the marker under the pointer, and clears it as the pointer leaves', () => {
     const wrap = table()
     const { result } = renderHook(() => useHoverLink({ current: null }))

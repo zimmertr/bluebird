@@ -22,7 +22,8 @@ export function useHoverLink(mapRef: RefObject<MapViewHandle | null>): (key: str
     function onOver(e: PointerEvent) {
       if (e.pointerType === 'touch') return
       const row = e.target instanceof Element ? e.target.closest<HTMLElement>(ROW) : null
-      const key = row?.dataset.key ?? null
+      // Off every row the ring rests on the row opened in place (record 0327).
+      const key = row?.dataset.key ?? document.querySelector<HTMLElement>(`${ROW}[data-open]`)?.dataset.key ?? null
       if (key === over) return
       over = key
       mapRef.current?.hotMarker(key)

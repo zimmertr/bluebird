@@ -450,4 +450,22 @@ describe('compact', () => {
     expect(score.closest('td')!.getAttribute('style')).toBeNull()
     expect(within(table).getAllByRole('button', { name: /^Center map on/ })[0].className).toContain(TABLE.nameStrong)
   })
+
+  // A press on a compact row opens it in place (record 0327): its profile,
+  // facts and actions under it, the map left where it is until Show on map.
+  it('opens a row in place on a press, shuts it on a second, and flies the map only from Show on map', () => {
+    const onFocusResult = vi.fn()
+    const scored = ROWS.map((r) => ({ ...r, score: 80, score_hours: [80], score_lit: [true], score_best: [0, 1] as [number, number] }))
+    render(<ResultsTable {...props({ results: scored, columns: compactColumns('temp_avg_f', true), compact: true, onFocusResult })} />)
+    const rows = () => screen.getAllByRole('row').filter((r) => r.hasAttribute('data-key'))
+    const ground = (r: HTMLElement) => r.querySelectorAll('td')[r.querySelectorAll('td').length - 1]
+    fireEvent.click(ground(rows()[0]))
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(1)
+    expect(rows()[0].hasAttribute('data-open')).toBe(true)
+    expect(onFocusResult).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Show on map' }))
+    expect(onFocusResult).toHaveBeenCalledWith(scored[0])
+    fireEvent.click(ground(rows()[0]))
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(0)
+  })
 })

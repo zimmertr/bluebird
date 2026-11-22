@@ -3514,6 +3514,38 @@ export const HOUR_STRIP = {
 } as const
 
 /**
+ * An opened row in the compact table (record 0327), the prototype's: the row
+ * on the raised ground, and under it, across the table, the summit against
+ * the cloud (`profile` and its marks, boxes placed in percentages), a key, the facts in two
+ * rows of four, and the row's two actions. The profile's marks are the
+ * theme's own inks: the deck in the soft ink, nights on the panel's ground,
+ * the summit and the best four hours in the strong ink and the freezing level
+ * in the accent, dashed, as the prototype keys it.
+ */
+export const OPENED_ROW = {
+  row: 'bg-raised',
+  cell: 'bg-raised px-3 pb-3 pt-1',
+  profile: `relative h-28 overflow-hidden ${RADIUS.control} bg-recessed`,
+  night: 'absolute inset-y-0 bg-panel',
+  cloud: 'absolute bg-ink-soft/45',
+  summit: 'absolute inset-x-0 h-0.5 -translate-y-1/2 bg-ink-strong',
+  freeze: 'absolute border-t-2 border-dashed border-accent',
+  best: `absolute inset-y-px border-2 border-ink-strong ${RADIUS.control}`,
+  day: `pointer-events-none absolute top-1 ${TEXT.micro} text-ink-mid`,
+  summitTag: `pointer-events-none absolute right-1 -translate-y-full pb-0.5 ${TEXT.micro} font-semibold text-ink-strong`,
+  key: `mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 ${TEXT.caption}`,
+  keyItem: 'inline-flex items-center gap-1.5',
+  swatchSummit: 'h-0.5 w-4 bg-ink-strong',
+  swatchCloud: `h-2 w-4 ${RADIUS.control} bg-ink-soft/45`,
+  swatchFreeze: 'h-0 w-4 border-t-2 border-dashed border-accent',
+  facts: 'mt-3 grid grid-cols-4 gap-x-4 gap-y-2',
+  factLabel: `block ${TEXT.caption}`,
+  factValue: `block ${TEXT.control} font-semibold text-ink-strong ${FIGURES}`,
+  actions: 'mt-3 flex flex-wrap gap-2',
+  action: `${BUTTON_SECONDARY} inline-flex items-center gap-1.5`,
+} as const
+
+/**
  * The day strip at a desk's map foot (record 0311): the days ahead as one row
  * of cells, the window's days lit as the calendar lights them (`DAY`), and the
  * forecast player under the row once a report spans hours. Placed where the

@@ -1,7 +1,8 @@
-import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
+import { createContext, Fragment, memo, useContext, useEffect, useId, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import type { DestinationResult } from '../types'
 import HourStrip from './HourStrip'
+import OpenedRow from './OpenedRow'
 import {
   CLOSURE_KEY,
   HOURS_COL,
@@ -43,7 +44,7 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/results/resultsCells'
-import { CHOICE_INPUT, FIGURES, ICON_ACTION, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, FIGURES, ICON_ACTION, LINK_QUIET, OPENED_ROW, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
@@ -596,6 +597,10 @@ interface RowProps {
   onRemove?: (row: DestinationResult) => void
   onFocusResult?: (row: DestinationResult) => void
   compact?: boolean
+  /** The compact table's row opened in place (record 0327). */
+  opened?: boolean
+  /** Present in the compact table: a press on the row's ground opens it in place rather than flying the map. */
+  onToggleOpen?: (key: string) => void
 }
 
 function ResultsTableRow({
@@ -622,6 +627,8 @@ function ResultsTableRow({
   onRemove,
   onFocusResult,
   compact = false,
+  opened = false,
+  onToggleOpen,
 }: RowProps) {
   const rowId = useId()
   const ctx: CellContext = {
@@ -648,13 +655,20 @@ function ResultsTableRow({
   // any control in the row is that control's alone (`rowTapOpens`). A pointer
   // shortcut beside the name's button, which stays the row's way in for a
   // keyboard and a screen reader, so the row itself takes no role or focus.
+  // In the compact table the same press opens the row in place instead
+  // (record 0327), and the opened row's Show on map is the fly-to.
+  const key = geoKey(row.latitude, row.longitude)
   const openFromRow = (e: MouseEvent<HTMLTableRowElement>) => {
-    if (onFocusResult && rowTapOpens(e.target, e.currentTarget, window.getSelection()?.toString() ?? '')) onFocusResult(row)
+    if (!rowTapOpens(e.target, e.currentTarget, window.getSelection()?.toString() ?? '')) return
+    if (onToggleOpen) onToggleOpen(key)
+    else onFocusResult?.(row)
   }
   return (
+    <Fragment>
     <tr
-      data-key={geoKey(row.latitude, row.longitude)}
-      className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`}
+      data-key={key}
+      data-open={opened ? '' : undefined}
+      className={`${TABLE.row} ${onFocusResult || onToggleOpen ? TABLE.rowOpens : ''} ${opened ? OPENED_ROW.row : ''}`}
       onClick={openFromRow}
     >
       {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
@@ -672,6 +686,14 @@ function ResultsTableRow({
         </span>
       </td>
     </tr>
+    {opened && (
+      <tr>
+        <td colSpan={columns.length + (chartBox ? 3 : 2)} className={OPENED_ROW.cell}>
+          <OpenedRow row={row} times={times ?? NO_TIMES} onCenter={() => onFocusResult?.(row)} />
+        </td>
+      </tr>
+    )}
+    </Fragment>
   )
 }
 

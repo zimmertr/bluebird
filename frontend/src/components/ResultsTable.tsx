@@ -1,4 +1,4 @@
-import { memo, useId, useMemo, useRef } from 'react'
+import { memo, useCallback, useId, useMemo, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { selectionState } from '../utils/chart/chartData'
@@ -185,6 +185,10 @@ function ResultsTable({
   // series to chart; rows without series (e.g. pinned search forecasts) render
   // an empty cell so the columns stay aligned.
   const showChartCol = !!onToggleChart && !compact
+  // The compact table's one row opened in place (record 0327), by its place's
+  // key, so a re-rank keeps it open on the same place.
+  const [openedKey, setOpenedKey] = useState<string | null>(null)
+  const toggleOpen = useCallback((key: string) => setOpenedKey((open) => (open === key ? null : key)), [])
   // The day names over the compact strip, read off the first row with a
   // score; every row shares the field's days.
   const dayLabels = useMemo(() => {
@@ -310,6 +314,8 @@ function ResultsTable({
                   onRemove={onRemove}
                   onFocusResult={onFocusResult}
                   compact={compact}
+                  opened={compact && openedKey === at}
+                  onToggleOpen={compact ? toggleOpen : undefined}
                 />
               )
             })}
