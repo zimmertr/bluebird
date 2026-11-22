@@ -6,7 +6,11 @@ import type { Page } from '@playwright/test'
 // before its click, so on a phone a tap did nothing. The playhead is read from
 // the transport's range input, which is the map's own record of the hour.
 
-test.use({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true })
+// 780 tall rather than 740 since the foot's days drew a sky track (record
+// 0333): at 740 the chart's own height holds the sheet's top at 343px, and
+// the player wants the map down to 352 to stand between the rows and the
+// foot, so it is not drawn while the chart is up there.
+test.use({ viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true })
 
 // A phone's chart reads the hour under a finger with the player on screen,
 // so the sheet stands at its own height rather than the full stop Chart
