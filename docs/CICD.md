@@ -125,6 +125,12 @@ the newest release (#632). Record:
    a re-run of a pushed image builds it again under the same tag; see
    [Finishing a failed release](#finishing-a-failed-release).
 
+   Each image is then attested with GitHub's signed build provenance, kept
+   by GitHub and pushed to GHCR beside the image, which is why `release.yml`
+   grants `attestations: write` and `id-token: write`. To check one:
+   `gh attestation verify oci://ghcr.io/zimmertr/bluebird:<semver> --owner zimmertr --signer-workflow zimmertr/yggdrasil/.github/workflows/release.yml`.
+   Record: [0306](architectural-decision-records/0306-ci-takes-yggdrasil-v3.md)
+
    Only the *backend* halves of the image are built per architecture. The
    frontend stage carries `--platform=$BUILDPLATFORM`, so the SPA is compiled
    once on the runner's own architecture and both images copy the same
@@ -1007,13 +1013,16 @@ cache keys, which fed straight into the budget problem below. The trade is that
 a branch pushed with no pull request open gets no checks until one is opened.
 Every check branch protection requires is a `pull_request` check anyway.
 
-Branch protection requires nine contexts: `Python Lint`,
-`Docker Build / Docker Build`, `Frontend Typecheck & Tests`, `Backend Tests`,
-`Browser Smoke & Axe`, `PR Title / PR Title`, `Lighthouse Budgets`,
-`Database Tests` and `Planet Fill` (read from the branch protection API on
-2026-10-27; `Lighthouse Budgets` joined on 2026-10-06 under #375, after 54
-passes and 0 failures over its first 60 PR runs). The two with a ` / ` call
-a yggdrasil module, and GitHub names such a check `<this job> / <module job>`
+Branch protection requires sixteen contexts, set in zimmertr/yggdrasil's
+`repos/zimmertr/bluebird.yml`: `Python Lint`, `Frontend Typecheck & Tests`,
+`Backend Tests`, `Database Tests`, `Planet Fill`,
+`Docker Build / Docker Build (zimmertr/bluebird)`,
+`Docker Build / Docker Build (zimmertr/bluebird-fill)`, `Browser Smoke & Axe`,
+`Lighthouse / Lighthouse`, `Dependency Review / Dependency Review`,
+`PR Title / PR Title` and the five `Lint /` checks (record [0306](architectural-decision-records/0306-ci-takes-yggdrasil-v3.md)). The
+Lighthouse gate joined on 2026-10-06 under #375, as `Lighthouse Budgets`,
+after 54 passes and 0 failures over its first 60 PR runs. The ones with a
+` / ` call a yggdrasil module, and GitHub names such a check `<this job> / <module job>`
 (record 0276). **A job here cannot be renamed or deleted on its own**: branch
 protection matches the name exactly, and a name it requires that no longer
 reports strands every open pull request. That is also why `Browser Smoke & Axe`
@@ -1043,7 +1052,7 @@ Where it was going:
 GitHub scopes a cache to the ref that wrote it and **never reclaims a closed
 pull request's** — 18 closed, merged pull requests were still holding 32% of
 the whole budget. `cache-cleanup.yml` now deletes a pull request's caches when
-it closes, and the npm cache is gone, which together is about 6.2 GB that stops
+it closes, through yggdrasil's `cache-cleanup` module, and the npm cache is gone, which together is about 6.2 GB that stops
 competing with the Docker layers.
 
 Caches expire on their own after 7 days unread, so the cleanup only removes
@@ -1223,8 +1232,9 @@ flowchart LR
   the fixtures and fails unless each ban reports its own violation and nothing
   else, and each per-file check reports every message it carries: a selector
   that matches nothing otherwise reads as a clean tree.
-- `pr.yml`'s docker-build job calls yggdrasil's **docker-build** module, which
-  lints the Dockerfile, builds the amd64 image into the runner and scans it
+- `pr.yml`'s docker-build job calls yggdrasil's **docker-build** module with
+  the release's two images, the app and the fill, as one matrix job each. Each
+  lints its Dockerfile, builds the amd64 image into the runner and scans it
   with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
   report lands in the job step summary and as a **sticky PR comment** (matched
   by its `image-scan` header, so it can't clobber the preview-URL comment).
@@ -1234,8 +1244,8 @@ flowchart LR
   image and the gates that check it later cannot disagree. Today its only
   entry skips pip's vendored-source SBOM, which Trivy would otherwise read as
   installed inventory (this repo found it, in its own copy, record 0278). This repo passes
-  the module its build arguments, the Actions layer cache, and
-  **`tests/structure-test.yaml`**, which container-structure-test runs against
+  the module its build arguments, and for the app's image the Actions layer
+  cache and **`tests/structure-test.yaml`**, which container-structure-test runs against
   the built image for what only a built image can show: the sentinel
   `APP_VERSION` reaches `/api/version` and the schema, `/docs` loads Swagger UI
   from the image and names no third-party host, the SPA and Swagger UI's files
@@ -1255,27 +1265,25 @@ flowchart LR
   over TCP for up to two minutes. It is a job of its own so `Backend Tests`
   keeps its time; `Backend Tests` skips those tests, since it has no database.
   `make test-backend-db` is the same run locally.
-- `pr.yml`'s **Planet Fill** job (#760) lints `fill/Dockerfile` with hadolint,
-  builds the fill image and its test stage while the same test database starts
-  in the background, runs the fill's suite against it (unit tests, and an end
-  to end fill of a small fixture planet), and scans the fill image with Trivy
-  under the same fixable Critical/High gate as `Docker Build`, with no scan
-  settings: the default's one rule is for pip, which the fill image doesn't
-  install. It posts no PR comment: the app's sticky comment stays the
-  one place to look, and this job's summary carries the table when it fails.
+- `pr.yml`'s **Planet Fill** job (#760) builds the fill's test stage while the
+  same test database starts in the background, and runs the fill's suite
+  against it (unit tests, and an end to end fill of a small fixture planet).
+  `Docker Build` lints, builds and scans the fill's image beside the app's,
+  under the same fixable Critical/High gate, with a sticky comment of its own
+  (record [0306](architectural-decision-records/0306-ci-takes-yggdrasil-v3.md)).
   It keeps no Actions layer cache, for the reason the fill's release build
   keeps none. `make test-fill` is the same run locally, and `Python Lint` checks
   `fill/` beside `backend/`.
-- `pr.yml`'s **Lighthouse Budgets** job runs after `docker-build`, loads the
-  image that job saved as an artifact, serves it, and audits `/` three
-  times with **Lighthouse CI**. It fails the PR when the first screen crosses a
+- `pr.yml`'s **Lighthouse** job runs after `docker-build` through yggdrasil's
+  `lighthouse` module, which loads the image that job saved as an artifact,
+  serves it, and audits `/` three times with **Lighthouse CI**. It fails the PR when the first screen crosses a
   byte or timing budget. The budgets and the reasoning live in
   **`.github/lighthouserc.js`**; two choices there make it a gate rather than a
   weather report: every third-party host is blocked (a gate that goes red when
   OpenFreeMap is slow teaches everyone to ignore it), and the default mobile
   preset is used, whose throttling is a simulation and therefore reproducible to
-  the millisecond. It reports as `Lighthouse Budgets` and is a required check
-  (#375, 2026-10-06), which is what closes the one path around it: a
+  the millisecond. It reports as `Lighthouse / Lighthouse` and is a required
+  check (#375, 2026-10-06, then as `Lighthouse Budgets`), which is what closes the one path around it: a
   Renovate update below a major arms auto-merge, and GitHub completes that on `main`'s
   required checks alone, so before this a bump that crossed a budget could
   merge and release with the job red. It became required only after its
@@ -1285,6 +1293,10 @@ flowchart LR
   over the 60 PR runs before that. It also asserts the
   **accessibility category** as an error, because that score is a set of pass
   or fail markup checks rather than a timing curve.
+- `pr.yml`'s **Dependency Review** job calls yggdrasil's `dependency-review`
+  module, which fails a PR that adds a package version with a known High or
+  Critical vulnerability. It reports as `Dependency Review / Dependency
+  Review`. Record: [0306](architectural-decision-records/0306-ci-takes-yggdrasil-v3.md)
 - `pr.yml`'s **Browser Smoke & Axe** job (issue #412) also runs after
   `docker-build` and loads the same artifact. It serves the image on the
   runner, installs **Chromium alone** with `npx playwright install chromium`
@@ -1467,6 +1479,13 @@ This job scans a published image rather than a checkout, and reads the same
 scan settings as the PR gate, yggdrasil's default `trivy.yaml`. That is
 deliberate: without the PR gate's exclusions, an image could pass `pr.yml`
 and then fail here on findings that gate had already ruled out.
+
+## Scorecard
+
+`scorecard.yml` runs yggdrasil's `scorecard` module every Monday and on every
+push to `main`. OpenSSF Scorecard's findings go to the Security tab, and
+nothing fails a PR. Record:
+[0306](architectural-decision-records/0306-ci-takes-yggdrasil-v3.md)
 
 ## Dependency updates
 

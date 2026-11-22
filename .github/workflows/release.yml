@@ -2,8 +2,8 @@ name: Release
 
 # Every merge to main releases through yggdrasil's release module. GitVersion
 # reads the bump from the squash commit's title; both images are built for
-# linux/amd64 and linux/arm64, pushed under that version and scanned on each
-# platform; the commit is tagged and released only when every scan passes;
+# linux/amd64 and linux/arm64, pushed under that version with signed
+# provenance, and scanned on each platform; the commit is tagged and released only when every scan passes;
 # then two self-merging PRs point Kubernetes-Manifests and bluebird-helm at
 # the release. Decision records 0278 and 0280.
 #
@@ -28,10 +28,12 @@ permissions: {}
 jobs:
   release:
     name: Release
-    uses: zimmertr/yggdrasil/.github/workflows/release.yml@471e1dd37cbd51b1f247fc02f80556677de2a876 # v2.2.1
+    uses: zimmertr/yggdrasil/.github/workflows/release.yml@e229a6868b9d1bf4a596e0a8844452770a543a6c # v3.0.0
     permissions:
       contents: write # the tag and release
       packages: write # the two images, pushed to ghcr.io/zimmertr
+      attestations: write # their signed build provenance
+      id-token: write # the token Sigstore signs it with
     with:
       # amd64 for the cluster, arm64 for Apple Silicon and Graviton pulls. The
       # planet fill (#760) is released beside the app at the same version,
