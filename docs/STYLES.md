@@ -544,9 +544,9 @@ The accent fill answers four measured constraints at once and must pass WCAG AA 
 - Against the slate-800 panel it reads **3.20:1** against 3:1 WCAG 1.4.11 (UI boundary)
 - On `DAY.range` (sky-950 background) it measures **3.04:1** (the binding edge)
 - On the segment track it measures **3.91:1**
-- The hover state (`sky-600`, white label) is **4.02:1** — deliberate exception, documented below
+- The hover state (`sky-600`, white label) is **4.02:1**, deliberate exception, documented below
 
-**Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.56 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
+**Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.56 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast: a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
 
@@ -717,7 +717,7 @@ The panel is 360px on desktop (100vw − 2rem capped at 360 on phones).
 **No indent:** the messages in the list the Analyze button opens are stacked rows
 separated by a 1px rule (`NOTICE_DIVIDER`), never a bulleted list. The
 budget above is measured with the whole text column, and a list indent
-plus its marker take 16px of it — enough to wrap a line that fit on its
+plus its marker take 16px of it: enough to wrap a line that fit on its
 own before a second message joined it.
 
 **The dismiss X costs the column 20px, not 44:** on a coarse pointer the
@@ -733,8 +733,8 @@ tall as a blocker's box without one, and the target overhangs its row
 instead (the maintainer, 2026-10-21 on PR #789).
 
 **Line allowance:** messages in the panel body hold to one line. The list
-the Analyze button opens — blockers, commit cues, refusals, provider
-errors, and the warnings that qualify a report — may run to two lines,
+the Analyze button opens (blockers, commit cues, refusals, provider
+errors, and the warnings that qualify a report) may run to two lines,
 because that is where the app explains why it will not or could not act
 and a truncated reason is worse than a second line.
 
@@ -744,7 +744,7 @@ The results bar is one line when its container is 896px or wider, and two lines 
 
 The four actions are one `ACTION_GROUP` of `ACTION_ITEM` buttons, the mode switch's sibling in look and height, each a glyph and a word (#687). They were underlined links, so the one bar carried four control styles; the linter's `style-results-bar` check now requires the four items, the one group and `BAR_LABEL` on all seven words, and fails a link anywhere in the bar. The Open-Meteo credit that stood at the end of the row is on the map's attribution line at the bottom right, beside MapLibre's and the basemap's credits, where a credit reads as one rather than as a fifth action, and where it stands in every results mode. Record: [0133](architectural-decision-records/0133-results-bar-buttons-and-footnote-credit.md)
 
-The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
+The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit. That mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 
 ### Map chrome
 
@@ -1025,7 +1025,7 @@ Every stacked panel control composes `CONTROL_W = 'w-[118px]'` = 118px.
 
 118px is not a taste. It is 2 x `METRIC_BOX_W` + the Metrics grid's `gap-x-1.5`, so the Forecast section's model picker and its two segments stand on exactly the edges the bound boxes below them do. The panel is one column at 225 and 343, measured. It was 144px, set by the widest segment label, until the Metrics row's label budget forced the narrower boxes and left the two sections 26px apart. `styles.test.ts` derives the sum from the roles.
 
-The Metrics table still sizes nothing by that token. Its row is the panel's widest — radio, label, the chart toggle (`METRIC_CHART`, 18px), aggregate menu (`SELECT_W_AGGREGATE`, 64px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content, which is 317px beside the 10px scroll bar the body keeps room for since #697, and inside a phone's Controls sheet, 328px with no bar kept (#586). The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
+The Metrics table still sizes nothing by that token. Its row is the panel's widest: radio, label, the chart toggle (`METRIC_CHART`, 18px), aggregate menu (`SELECT_W_AGGREGATE`, 64px), Min box and Max box (`METRIC_BOX_W`, 56px each), and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content, which is 317px beside the 10px scroll bar the body keeps room for since #697, and inside a phone's Controls sheet, 328px with no bar kept (#586). The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
 
 Four controls in that section share one pair of edges: the direction segment, the results cap box, the Clear filters button, and every bound pair. The three wide ones span the two box columns rather than spelling their sum, so the width lives in `METRIC_BOX_W` alone. Clear filters is always drawn and disables when there is nothing to clear, so the section's last row never moves.
 
@@ -1033,7 +1033,7 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 **Segment arithmetic:** 118px less the 2px border and the 1px divider is 57.5px a half. The longest words are `Highest` at 43.69px and `Current` at 42.89px, both at text-xs, so `SEGMENT_ITEM` carries a 4px inset leaving 49.5px. An 8px inset leaves 41.5px and clips them both, which is why there is one inset for every segment in the panel rather than two. Checked in `styles.test.ts`.
 
-**The chevron:** the field trigger reserves `pr-6` = 24px, which is the chevron's own box and nothing more — `ICON_ADORNMENT` puts a 16px glyph 8px from the edge. It reserved 32px until the column came down to 118px, where those 8px were the difference between `UK Met Office` (79.69px) fitting the model picker's 84px of label and truncating. `Meteo-France ARPEGE` at 130.03px fits no trigger the panel can offer and truncated at 144px too.
+**The chevron:** the field trigger reserves `pr-6` = 24px, which is the chevron's own box and nothing more: `ICON_ADORNMENT` puts a 16px glyph 8px from the edge. It reserved 32px until the column came down to 118px, where those 8px were the difference between `UK Met Office` (79.69px) fitting the model picker's 84px of label and truncating. `Meteo-France ARPEGE` at 130.03px fits no trigger the panel can offer and truncated at 144px too.
 
 **Arithmetic:** `327 − 14 (radio) − 10 (label gap) − 3 × 6 (grid gaps) − 72 − 2 × 56 = 101px` for the label, and 91px with the 10px bar's room taken off. The noun's measured width is pinned beside that sum in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
 
@@ -1051,16 +1051,16 @@ The welcome dialog is a `max-w-md` card on a `p-4` backdrop, so it is 448px wide
 
 ## Tailwind v4 facts
 
-**Color resolution:** competing color utilities resolve by their order in the generated stylesheet, not their order in the class list. So a role's color cannot be overridden at a call site — the role always wins. This is why every hue is centralized: a component cannot brighten or dim a color it was handed.
+**Color resolution:** competing color utilities resolve by their order in the generated stylesheet, not their order in the class list. So a role's color cannot be overridden at a call site: the role always wins. This is why every hue is centralized: a component cannot brighten or dim a color it was handed.
 
-**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string. The `content` list in `tailwind.config.js` is not the whole scanned set: v4 auto-detects sources beside it, and `frontend/tools/` was being scanned until `@source not "../tools"` went into `src/index.css`. Measured on 2026-09-15: without that line the ESLint fixtures emitted five real utilities into the text-page bundle, and a stray `.lowercase` had already been leaking from `tools/` before they existed. That exclusion is what lets the ESLint rules spell a class where `styles.test.ts` may not, and `styles.test.ts` pins the line.
+**Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name: e.g., using regex alternation instead of quoting the exact string. The `content` list in `tailwind.config.js` is not the whole scanned set: v4 auto-detects sources beside it, and `frontend/tools/` was being scanned until `@source not "../tools"` went into `src/index.css`. Measured on 2026-09-15: without that line the ESLint fixtures emitted five real utilities into the text-page bundle, and a stray `.lowercase` had already been leaking from `tools/` before they existed. That exclusion is what lets the ESLint rules spell a class where `styles.test.ts` may not, and `styles.test.ts` pins the line.
 
 ## Copy rules
 
 ### Tooltips need permission
 
 Knowledge belongs in labels, captions, empty states, or docs. A tooltip is the
-last resort, and adding one is **not a call a contributor makes alone** — ask
+last resort, and adding one is **not a call a contributor makes alone**: ask
 the maintainer first. Recommending one is welcome; adding one unasked is not.
 
 This was an absolute ban until 2026-08-04, enforced by a lint. The ban is now a
@@ -1076,8 +1076,8 @@ usually to shorten the label, fix the control, or delete the sentence instead.
 The ones in the tree today, each approved on its own:
 
 - The Metrics table's *"Destinations with no air quality forecast are
-  included."* rides as a `title` on the air-quality row — its label and both
-  bound boxes, the one row whose value can genuinely be missing — rather than as
+  included."* rides as a `title` on the air-quality row (its label and both
+  bound boxes, the one row whose value can genuinely be missing) rather than as
   a standing line under the table. That bought back the line of height that made
   the panel scroll, and the fact stays discoverable in the table (a dash) and in
   `docs/DATA.md`.
@@ -1185,7 +1185,7 @@ solved, because one box holding a strip of blocks beside a strip of gradient
 reads as two systems (TJ, 2026-09-22). A blend makes a band an anchor at a
 boundary rather than a block between two, so colour `i` lands at boundary
 `i + 1` and a tick naming that band is placed there. The ticks are
-the thresholds themselves, formatted — never a caption written beside them — and
+the thresholds themselves, formatted (never a caption written beside them) and
 they carry no unit: the section's label does, composed by `metricLabel` in
 `metrics.ts` from the SCALE's own unit, so playback's swap to the hourly rate
 relabels the strip with its bands.
@@ -1197,7 +1197,7 @@ metric ramp and all eleven snow bands have an end like each of those. So the
 numbers sit on a `bg-slate-900/70` band along the strip's bottom edge, where
 slate-200 measures **6.48:1** against the worst band under it. A text shadow was
 the alternative and is not measurable, which is the whole reason this one is
-pinned in `styles.test.ts` as `RAMP_INK` — change the ramp colours or the scrim's
+pinned in `styles.test.ts` as `RAMP_INK`: change the ramp colours or the scrim's
 opacity and the number has to be taken again.
 
 **The marker's rank digit stays white on its band, with no halo.** It lands on
@@ -1216,7 +1216,7 @@ The one message mirrored between backend and frontend: "{label} has no forecast 
 
 A range input is worth taking over a hand-rolled track for what it arrives
 knowing: arrow keys, Home and End, an announced value, and a drag a finger can
-do. What it does not arrive with is a look — it paints from the *system*
+do. What it does not arrive with is a look: it paints from the *system*
 palette, so a light-mode OS renders a pale track inside a dark map card, the
 same trap `TRIGGER_FIELD` documents.
 
@@ -1257,7 +1257,7 @@ ramp, and let it set `aria-hidden` itself. A step that does not exist yet is a
 new role: add it to `ICON` with its rationale and pin its pixels in
 `styles.test.ts`, the same way as below. The ramp is four steps and each one
 states the number that chose it (#436), so a fifth arrives with a measurement
-or not at all — the key set is pinned as well as the values.
+or not at all: the key set is pinned as well as the values.
 
 **The two glyphs drawn twice.** A map popup is an HTML string handed to
 MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
