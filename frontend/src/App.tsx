@@ -853,11 +853,12 @@ export default function App() {
   const { setConstraints } = rankingKnobs
   const removeLimit = useCallback((key: keyof Constraints) => setConstraints((c) => ({ ...c, [key]: null })), [setConstraints])
   // The Limits card hangs under the sentence bar, which the widened column
-  // stands over, so the pill narrows it first.
+  // stands over, so the pill narrows it first. On a phone it raises the
+  // Controls sheet at its Metrics section, as the phrases raise it at theirs.
   const openLimits = useCallback(() => {
+    setBarCard('metrics')
     if (!isDesktop) return openDrawer()
     setResultsWide(false)
-    setBarCard('metrics')
   }, [isDesktop, openDrawer])
   const limits = useMemo(() => ({ constraints, onRemove: removeLimit, onAdd: openLimits }), [constraints, removeLimit, openLimits])
 
