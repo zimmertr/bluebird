@@ -21,6 +21,8 @@ export interface ResultsViewInputs {
   restView?: SinglePanel | null
   /** Hold a phone's sheet at its full stop (`useResultsLayout`'s `fullOverride`). */
   fullOverride?: boolean
+  /** A phone's compact sheet, laid out as Table (`useResultsLayout`'s `tableOnly`, record 0330). */
+  tableOnly?: boolean
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
@@ -85,6 +87,7 @@ export function useResultsView({
   collapsedOverride = null,
   restView = null,
   fullOverride = false,
+  tableOnly = false,
   showResults,
   response,
   ownResponse = response,
@@ -132,6 +135,7 @@ export function useResultsView({
     collapsedOverride,
     restView,
     fullOverride,
+    tableOnly,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────

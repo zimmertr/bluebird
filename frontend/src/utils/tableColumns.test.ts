@@ -711,6 +711,13 @@ describe('compactColumns', () => {
     expect(compactColumns('wind_max_mph', false).map((c) => c.key)).toEqual(['name', 'wind_max_mph', 'temp_min_f'])
   })
 
+  // A phone's rows stop after the ranking, the prototype's `# name score
+  // days` (record 0330).
+  it('stops a phone\'s rows after the ranking', () => {
+    expect(compactColumns('temp_avg_f', true, true).map((c) => c.key)).toEqual(['name', SCORE_COL.key, HOURS_COL.key])
+    expect(compactColumns('precip_total_in', false, true).map((c) => c.key)).toEqual(['name', 'precip_total_in'])
+  })
+
   it('names the wind and the low by the short headers, and leaves the full table its long ones', () => {
     const labels = Object.fromEntries(compactColumns('temp_avg_f', true).map((c) => [c.key, c.label]))
     expect(labels.wind_max_mph).toBe('Wind (mph)')

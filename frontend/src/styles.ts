@@ -3093,6 +3093,15 @@ export const PANEL_MS = 300
  */
 export const RESULTS_HEAD = {
   lenses: 'flex max-w-full gap-1.5 overflow-x-auto',
+  /**
+   * A phone's one row of lenses and limits (record 0330), the prototype's:
+   * one line that scrolls sideways under the headline, the lenses first, so
+   * the sheet's header keeps one height however many limits stand. Each
+   * group sits in it whole (`lensesInline`, `limitsInline`).
+   */
+  phoneRow: `mt-1.5 flex items-center gap-1.5 overflow-x-auto ${SCROLL_BARS}`,
+  lensesInline: 'flex flex-none gap-1.5',
+  limitsInline: 'flex flex-none items-center gap-1.5 whitespace-nowrap',
   lens: `inline-flex h-7 flex-none items-center rounded-full border border-rule px-2.5 ${CONTROL_SIZE} font-semibold whitespace-nowrap text-ink-mid ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`,
   lensOn: `inline-flex h-7 flex-none items-center rounded-full border border-transparent px-2.5 ${CONTROL_SIZE} font-semibold whitespace-nowrap ${ACCENT.fill} ${FOCUS_RING}`,
   limits: 'flex flex-wrap items-center gap-1.5',
@@ -3529,7 +3538,9 @@ export const OPENED_ROW = {
   swatchSummit: 'h-0.5 w-4 bg-ink-strong',
   swatchCloud: `h-2 w-4 ${RADIUS.control} bg-ink-soft/45`,
   swatchFreeze: 'h-0 w-4 border-t-2 border-dashed border-accent',
-  facts: 'mt-3 grid grid-cols-4 gap-x-4 gap-y-2',
+  // Two columns on a phone's sheet (record 0330), four from 400px of table,
+  // which a desk's column always has.
+  facts: 'mt-3 grid grid-cols-2 gap-x-4 gap-y-2 @[25rem]:grid-cols-4',
   factLabel: `block ${TEXT.caption}`,
   factValue: `block ${CONTROL_SIZE} font-semibold text-ink-strong ${FIGURES}`,
   actions: 'mt-3 flex flex-wrap gap-2',

@@ -1,6 +1,6 @@
 # 0307. A score with lenses ranks the field, and every metric stays a sortable column
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves the formula and merges it.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves the formula and merges it. Amended by 0330 (a phone opens on the default lens too).
 - Date: 2026-11-17
 - Decider: the maintainer, 2026-11-17 ("Score, metrics as columns")
 - Issues and PRs: #825

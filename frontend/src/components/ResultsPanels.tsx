@@ -101,6 +101,7 @@ export interface ResultsPanelsProps {
     | 'tableRows'
     | 'tableColumns'
     | 'compactTableColumns'
+    | 'phoneTableColumns'
     | 'tableColWidths'
     | 'setTableColWidths'
     | 'analysisModelLabel'
@@ -135,6 +136,11 @@ export interface ResultsPanelsProps {
    * widened over the map: every pane, the table filling what the chart leaves.
    */
   part?: 'all' | 'chart' | 'column' | 'wide'
+  /**
+   * A phone's sheet before Every column widens it (record 0330): the compact
+   * rows with the phone's own columns, the sheet laid out as Table.
+   */
+  compactPhone?: boolean
   /**
    * Whether the results are collapsed to their bar, which shuts both panes.
    * A phone does not render the panels at all while collapsed.
@@ -190,6 +196,7 @@ export default function ResultsPanels({
   chartPhone,
   panesMove = false,
   part = 'all',
+  compactPhone = false,
   collapsed = false,
   layoutMotion = null,
   pointSample,
@@ -241,6 +248,7 @@ export default function ResultsPanels({
     tableRows,
     tableColumns,
     compactTableColumns,
+    phoneTableColumns,
     tableColWidths,
     setTableColWidths,
     analysisModelLabel,
@@ -468,8 +476,8 @@ export default function ResultsPanels({
                     onDetailSort={sortDetail}
                     pointSample={pointSample}
                     scoreRange={scoreRange}
-                    columns={column ? compactTableColumns : tableColumns}
-                    compact={column}
+                    columns={column ? compactTableColumns : compactPhone ? phoneTableColumns : tableColumns}
+                    compact={column || compactPhone}
                     columnWidths={tableColWidths}
                     onColumnWidthsChange={setTableColWidths}
                     modelFallbackLabel={analysisModelLabel}

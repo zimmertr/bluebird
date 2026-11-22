@@ -4,7 +4,7 @@ import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
 import { NO_CONSTRAINTS } from '../utils/constraints'
-import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER, PANEL_EDGE } from '../styles'
+import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER, PANEL_EDGE, RESULTS_HEAD } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
 const NOOP = () => {}
@@ -80,8 +80,23 @@ describe('ResultsBar', () => {
     expect(screen.queryByRole('group', { name: 'Limits' })).toBeNull()
   })
 
+  // A phone's sheet holds the lenses and the limits in one row that scrolls
+  // sideways (record 0330), each group whole in it, and the headline stands
+  // over its subtitle as a desk's does.
+  it('holds a phone\'s lenses and limits in one scrolling row', () => {
+    const limits = { constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 }, onRemove: NOOP, onAdd: NOOP, hidden: 0 }
+    render(<ResultsBar {...props({ sheet: true, limits, lens: 'bluebird', onLens: NOOP, scoreHeadline: 'Bluebird windows' })} />)
+    const lenses = screen.getByRole('group', { name: 'Lenses' })
+    const row = lenses.parentElement!
+    expect(row.className).toBe(RESULTS_HEAD.phoneRow)
+    expect(lenses.className).toBe(RESULTS_HEAD.lensesInline)
+    expect(screen.getByRole('group', { name: 'Limits' }).parentElement).toBe(row)
+    expect(screen.getByRole('group', { name: 'Limits' }).className).toBe(RESULTS_HEAD.limitsInline)
+    expect(screen.getByText('Bluebird windows').className).toContain(RESULTS_HEAD.headline)
+  })
+
   // A desk's compact column keeps the toolbar behind its expand button, and
-  // widened it shows it (record 0321); a phone has no expand button.
+  // widened it shows it (record 0321), as a phone's sheet does (record 0330).
   it('hides the toolbar behind the expand button in a desk\'s compact column', () => {
     const onWide = vi.fn()
     const { rerender } = render(<ResultsBar {...props({ wide: false, onWide })} />)
@@ -92,8 +107,10 @@ describe('ResultsBar', () => {
     rerender(<ResultsBar {...props({ wide: true, onWide })} />)
     expect(screen.getByRole('button', { name: 'Show chart only' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Narrow the table' }).getAttribute('aria-pressed')).toBe('true')
-    rerender(<ResultsBar {...props({ sheet: true })} />)
-    expect(screen.queryByRole('button', { name: 'Every column' })).toBeNull()
+    // A phone's sheet widens the same way (record 0330).
+    rerender(<ResultsBar {...props({ sheet: true, wide: false, onWide })} />)
+    expect(screen.getByRole('button', { name: 'Every column' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Show chart only' })).toBeNull()
   })
 
   // Disabled rather than removed, so the two beside it do not move.

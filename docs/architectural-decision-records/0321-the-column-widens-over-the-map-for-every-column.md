@@ -1,6 +1,6 @@
 # 0321. The column widens over the map for every column, the toolbar and the chart
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Amended by 0330 (a phone's sheet widens by the same button).
 - Date: 2026-11-21
 - Decider: the maintainer, 2026-11-21, putting the results toolbar behind the expand button; built while the maintainer was away, 2026-11-21
 - Issues and PRs: #825

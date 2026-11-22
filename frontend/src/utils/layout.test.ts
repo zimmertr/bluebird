@@ -209,6 +209,15 @@ describe('heldResultsMode', () => {
   it('never holds a desktop', () => {
     expect(heldResultsMode('both', { ...PHONE, isDesktop: true })).toBe('both')
   })
+
+  // A phone's compact sheet is the table alone, a press or a report
+  // notwithstanding, until Every column widens it (record 0330).
+  it('holds a compact phone sheet to the table outright', () => {
+    const compact = { ...PHONE, pendingOnly: false, pressed: true, tableOnly: true }
+    expect(heldResultsMode('chart', compact)).toBe('table')
+    expect(heldResultsMode('both', compact)).toBe('table')
+    expect(heldResultsMode('chart', { ...compact, tableOnly: false })).toBe('chart')
+  })
 })
 
 describe('panelOf', () => {

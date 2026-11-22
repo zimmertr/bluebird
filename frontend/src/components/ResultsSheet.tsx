@@ -370,14 +370,18 @@ export default function ResultsSheet(props: ResultsSheetProps) {
             bestHours={bestHours}
             modelLabel={tableView.analysisModelLabel}
             limits={limits && { ...limits, hidden: hiddenByLimits }}
-            wide={isDesktop ? wide : undefined}
+            wide={wide}
             onWide={onWide}
           />
           {/* A desk's column holds the compact table, and widened it holds
               every pane, as a phone's sheet does, which drops them while
               collapsed (record 0321). */}
           {(isDesktop || !resultsCollapsed) && (
-            <ResultsPanels {...panelsProps(props)} part={isDesktop ? (wide ? 'wide' : 'column') : 'all'} />
+            <ResultsPanels
+              {...panelsProps(props)}
+              part={isDesktop ? (wide ? 'wide' : 'column') : 'all'}
+              compactPhone={!isDesktop && !wide}
+            />
           )}
           {isDesktop && <div ref={legendFootRef} data-legend-foot="" className={RESULTS_COLUMN.foot} />}
         </div>

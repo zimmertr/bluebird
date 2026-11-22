@@ -14,6 +14,8 @@ export const LENS_LABEL: Readonly<Record<Lens, string>> = {
 interface Props {
   lens: Lens | null
   onLens: (lens: Lens | null) => void
+  /** In a phone's one scrolling row with the limits (record 0330), which scrolls for both. */
+  inline?: boolean
 }
 
 /**
@@ -22,9 +24,9 @@ interface Props {
  * by the metric the Metrics table names, as it did before the score. Each is
  * a toggle (`aria-pressed`), since none of them opens anything.
  */
-export default function LensChips({ lens, onLens }: Props) {
+export default function LensChips({ lens, onLens, inline = false }: Props) {
   return (
-    <div role="group" aria-label="Lenses" className={RESULTS_HEAD.lenses}>
+    <div role="group" aria-label="Lenses" className={inline ? RESULTS_HEAD.lensesInline : RESULTS_HEAD.lenses}>
       {LENSES.map((name) => (
         <button
           key={name}

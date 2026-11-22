@@ -168,10 +168,9 @@ export default function App() {
     forgetPreClamp,
   } = forecastSelection
   const isDesktop = useIsDesktop()
-  // A desk opens on the default lens; a phone keeps today's metric ranking
-  // in this PR, its sheet having no room budgeted for the lens row (record
-  // 0307), unless a link brings a lens.
-  const rankingKnobs = useRankingKnobs(restored, caps.maxLimit, isDesktop ? DEFAULT_LENS : null)
+  // Both widths open on the default lens (record 0307; a phone since record
+  // 0330, whose sheet carries the lens row).
+  const rankingKnobs = useRankingKnobs(restored, caps.maxLimit, DEFAULT_LENS)
   const {
     sortBy,
     sortDesc,
@@ -772,7 +771,15 @@ export default function App() {
   const bannerPx = preview.enabled ? 32 : 0
   // The results sheet's view: its layout, the comparison chart, the table's
   // shape and file, and the table's callbacks (useResultsView).
+  // The results widened by the expand button (record 0321): a desk's column
+  // over the map, a phone's sheet from its compact rows to every column and
+  // the chart (record 0330); held wide while the tour's chart cards point at
+  // the chart in it.
+  const [resultsWide, setResultsWide] = useState(false)
+  const sheetWide = resultsWide || tour.sheetView === 'chart'
   const resultsView = useResultsView({
+    // A phone's compact sheet is the table alone (record 0330).
+    tableOnly: !isDesktop && !sheetWide,
     // The tour's demonstration ranks by its own metric, so its table carries no score.
     scored: demo === null && lens !== null,
     showResults: showResults || demo !== null,
@@ -839,14 +846,10 @@ export default function App() {
   // Limits card there (record 0319), which no longer stands in the sentence.
   // A phone has no cards: the pill opens the Controls sheet, where the
   // Limits section stands with the rest.
-  // A desk's column widened over the map by its expand button (record 0321),
-  // and held wide while the tour's chart cards point at the chart in it.
-  const [resultsWide, setResultsWide] = useState(false)
   // The desk column's foot, where the map's legend stands while the column
   // does (record 0322).
   const [legendHost, setLegendHost] = useState<HTMLDivElement | null>(null)
   const toggleWide = useCallback(() => setResultsWide((w) => !w), [])
-  const deskWide = isDesktop && (resultsWide || tour.sheetView === 'chart')
   const { setConstraints } = rankingKnobs
   const removeLimit = useCallback((key: keyof Constraints) => setConstraints((c) => ({ ...c, [key]: null })), [setConstraints])
   // The Limits card hangs under the sentence bar, which the widened column
@@ -867,11 +870,9 @@ export default function App() {
     report,
     removals,
     analysisSeq,
-    onLens: isDesktop || lens !== null ? rankingKnobs.setLens : undefined,
-    // A desk's for now: the phone's sheet gets its scrolling row of lenses
-    // and limits with its own layout (task 17 of the from-scratch PR).
-    limits: isDesktop ? limits : undefined,
-    wide: deskWide,
+    onLens: rankingKnobs.setLens,
+    limits,
+    wide: sheetWide,
     onWide: toggleWide,
     legendFootRef: setLegendHost,
     sortBy: view.sortBy,

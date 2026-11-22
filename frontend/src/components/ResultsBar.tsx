@@ -278,13 +278,12 @@ export default function ResultsBar({
               the same before and after and the zero says nothing has
               been ranked yet. The window timestamp joins once a
               report exists (windowTitle below). */}
-          {/* The headline over its subtitle at a desk, the prototype's two
-              lines, so neither cuts the other short (record 0319); a phone's
-              sheet keeps them on one line, which its height is worked out
-              from. */}
-          <div className={sheet ? 'contents' : 'flex min-w-0 flex-1 flex-col'}>
+          {/* The headline over its subtitle, the prototype's two lines, so
+              neither cuts the other short (record 0319), on a phone's sheet
+              too since record 0330. */}
+          <div className="flex min-w-0 flex-1 flex-col">
           <span
-            className={`${!sheet && lens !== null && scoreHeadline !== null ? RESULTS_HEAD.headline : TEXT.subheading} min-w-0 truncate`}
+            className={`${lens !== null && scoreHeadline !== null ? RESULTS_HEAD.headline : TEXT.subheading} min-w-0 truncate`}
           >
             {lens !== null && scoreHeadline !== null
               ? scoreHeadline
@@ -409,12 +408,20 @@ export default function ResultsBar({
       </div>
       {/* The lenses, a row of their own under the title and the buttons:
           they rank the field, which is the bar's whole subject. */}
-      {onLens && showResults && (
+      {/* A phone's sheet holds both in one row that scrolls sideways
+          (record 0330), so its header keeps one height. */}
+      {sheet && (onLens || limits) && showResults && (
+        <div className={RESULTS_HEAD.phoneRow}>
+          {onLens && <LensChips lens={lens} onLens={onLens} inline />}
+          {limits && <LimitChips {...limits} inline />}
+        </div>
+      )}
+      {!sheet && onLens && showResults && (
         <div className="mt-1.5 flex">
           <LensChips lens={lens} onLens={onLens} />
         </div>
       )}
-      {limits && showResults && (
+      {!sheet && limits && showResults && (
         <div className="mt-1.5">
           <LimitChips {...limits} />
         </div>

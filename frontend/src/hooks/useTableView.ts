@@ -363,6 +363,8 @@ export function useTableView({
   // The desk column's compact table (record 0320), whatever the Columns menu
   // holds: that menu shapes the table the column's expand button opens.
   const compactTableColumns = useMemo(() => compactColumns(sortBy, scored), [sortBy, scored])
+  // A phone's compact rows (record 0330): the name and what ranks, no more.
+  const phoneTableColumns = useMemo(() => compactColumns(sortBy, scored, true), [sortBy, scored])
 
   // Every column there is, in the reader's order: what the Columns picker
   // lists, and the list a move is made within.
@@ -483,6 +485,7 @@ export function useTableView({
     tableRows,
     tableColumns,
     compactTableColumns,
+    phoneTableColumns,
     allColumns,
     pickerVisibleKeys,
     columnsAtDefault,

@@ -127,12 +127,14 @@ export const COMPACT_LABELS: Partial<Record<ColDef['key'], string>> = {
  * field (the score and its hours while a lens ranks, the ranked metric
  * otherwise), then the highest wind and the lowest temperature, the two a
  * reader checks first on a summit. Every other column waits behind the
- * column's expand button.
+ * column's expand button. A phone's rows stop after the ranking (record
+ * 0330), the prototype's `# name score days`, since the two values would
+ * squeeze the name to a few letters at 360px.
  */
-export function compactColumns(sortBy: SortBy, scored: boolean): ColDef[] {
+export function compactColumns(sortBy: SortBy, scored: boolean, phone = false): ColDef[] {
   const byKey = (key: ColDef['key']) => COLUMNS.find((c) => c.key === key)
   const lead = scored ? [SCORE_COL, HOURS_COL] : [byKey(sortBy)]
-  const rest = COMPACT_KEYS.filter((k) => scored || k !== sortBy).map((k) => {
+  const rest = (phone ? [] : COMPACT_KEYS).filter((k) => scored || k !== sortBy).map((k) => {
     const col = byKey(k)
     const label = COMPACT_LABELS[k]
     return col && label ? { ...col, label } : col

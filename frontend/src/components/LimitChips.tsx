@@ -11,6 +11,8 @@ interface Props {
   onAdd: () => void
   /** How many rows the bounds hide. */
   hidden: number
+  /** In a phone's one scrolling row with the lenses (record 0330), on one line. */
+  inline?: boolean
 }
 
 /**
@@ -19,11 +21,11 @@ interface Props {
  * rows the bounds hide. The prototype's idea 11, so a reader sees what is
  * narrowing the field without opening a card.
  */
-export default function LimitChips({ constraints, onRemove, onAdd, hidden }: Props) {
+export default function LimitChips({ constraints, onRemove, onAdd, hidden, inline = false }: Props) {
   const chips = limitChips(constraints)
   const hiddenLine = hiddenText(hidden)
   return (
-    <div role="group" aria-label="Limits" className={RESULTS_HEAD.limits}>
+    <div role="group" aria-label="Limits" className={inline ? RESULTS_HEAD.limitsInline : RESULTS_HEAD.limits}>
       {chips.map((chip) => (
         <span key={chip.key} className={RESULTS_HEAD.limit}>
           {chip.text}

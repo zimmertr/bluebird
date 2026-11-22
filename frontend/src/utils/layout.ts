@@ -155,10 +155,20 @@ export function resolveResultsMode(
 // answering it, so it wins: a segment that does nothing when pressed reads as
 // broken (the #242 review's lesson). A desktop is never held, because the
 // results are docked beside the map there and an empty chart covers nothing.
+//
+// A phone's compact sheet is held to the table outright (`tableOnly`, record
+// 0330): it draws the compact rows and no chart until Every column widens
+// it, and the saved mode comes back then.
 export function heldResultsMode(
   mode: ResultsMode,
-  { pendingOnly, pressed, isDesktop }: { pendingOnly: boolean; pressed: boolean; isDesktop: boolean },
+  {
+    pendingOnly,
+    pressed,
+    isDesktop,
+    tableOnly = false,
+  }: { pendingOnly: boolean; pressed: boolean; isDesktop: boolean; tableOnly?: boolean },
 ): ResultsMode {
+  if (tableOnly) return 'table'
   return pendingOnly && !pressed && !isDesktop ? 'table' : mode
 }
 

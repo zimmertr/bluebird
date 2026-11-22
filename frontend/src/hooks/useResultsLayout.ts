@@ -99,6 +99,12 @@ export interface ResultsLayoutInputs {
    */
   fullOverride?: boolean
   /**
+   * A phone's compact sheet (record 0330): the compact rows and no chart, so
+   * the sheet lays out as Table whatever mode the reader last chose, which
+   * comes back when Every column widens it.
+   */
+  tableOnly?: boolean
+  /**
    * The reader has the forecast player on, so a phone's full sheet leaves it
    * room above the Analyze button (#696, `PLAYER_ROOM_PX`).
    */
@@ -134,6 +140,7 @@ export function useResultsLayout({
   collapsedOverride = null,
   restView = null,
   fullOverride = false,
+  tableOnly = false,
   playerOn = false,
   safeBottomPx = 0,
 }: ResultsLayoutInputs) {
@@ -328,6 +335,7 @@ export function useResultsLayout({
     pendingOnly: response === null,
     pressed: pressedRef.current,
     isDesktop,
+    tableOnly,
   })
   // Which panels are visible: the mode and the collapse chevron alone decide.
   // Deliberately NOT gated on having data — a mode with nothing to draw shows
