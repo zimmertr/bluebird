@@ -37,18 +37,18 @@ export const MAP_ROWS_PX = 88
 export const RESTING_TOP_PX = 156
 
 /**
- * The phone's Analyze button (#696; record 0135), an extended floating action
- * button in Material's sense: 56px tall (`FAB_PX`), 16px off the map's right
- * edge and off whatever it stands on (`FAB_INSET_PX`). `FAB_STRIP_PX` is the
- * map a full sheet leaves it, the button and an inset above and below, so the
- * sheet's highest stop is that strip under the chip row.
+ * The phone's foot (record 0329): one card across the map, 16px in from each
+ * edge and off whatever it stands on (`FAB_INSET_PX`), holding the day strip
+ * and the full-width Forecast button under it. 96px tall (`FAB_PX`): 8px of
+ * padding, the days' 32px row, 6px, the button's 40px, 8px and the card's
+ * two 1px edges, the height `MAP_FOOT.card` sets. It was the 56px floating
+ * Analyze button at the map's bottom right until then (#696; record 0135),
+ * and keeps that button's names, since everything that rode the button rides
+ * the card. `FAB_STRIP_PX`, the map a full sheet leaves it, is below, beside
+ * the corner band it includes.
  */
-export const FAB_PX = 56
+export const FAB_PX = 96
 export const FAB_INSET_PX = 16
-export const FAB_STRIP_PX = FAB_INSET_PX + FAB_PX + FAB_INSET_PX
-
-/** The gap the player keeps above the button. */
-export const FAB_GAP_PX = 8
 
 /**
  * What the legend needs to render with no scrolling: ONE card holding the
@@ -113,6 +113,14 @@ export const LEGEND_GAP_PX = 32
 export const CORNER_CONTROL_PX = 24
 export const CORNER_MARGIN_PX = 10
 export const TRANSPORT_GAP_PX = CORNER_CONTROL_PX + 2 * CORNER_MARGIN_PX
+
+/**
+ * The map a full sheet leaves a phone's foot (record 0329): an inset under
+ * the card, the card, and the corner band over it, where the scale and the (i)
+ * stand now that the card spans the map's width, so the sheet's highest stop
+ * keeps the band clear of the chip row.
+ */
+export const FAB_STRIP_PX = FAB_INSET_PX + FAB_PX + TRANSPORT_GAP_PX
 
 /**
  * The transport's own height, in its tallest state: the axis switch appears
@@ -183,12 +191,13 @@ export const RESTING_MAP_PX = RESTING_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_
 export const DRAGGED_MAP_PX = MAP_ROWS_PX + FAB_STRIP_PX
 
 /**
- * The room the player takes above the button: its bar and the gap under it.
+ * The room the player takes above the foot: its bar and an inset over it, the
+ * corner band under it being the strip's already (record 0329).
  * A full sheet leaves it while the reader has the player on (`draggedMapFloorPx`),
  * so a chart and its playhead stay on screen together; with the player off,
  * a phone's default, the sheet stops at the button's strip alone.
  */
-export const PLAYER_ROOM_PX = FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+export const PLAYER_ROOM_PX = TRANSPORT_HEIGHT_PX + FAB_INSET_PX
 
 /**
  * The results bar above the docked panels: the mode segment, the row count and
@@ -479,7 +488,7 @@ export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
  * a list it opens.
  */
 export function fabBottomPx(liftPx: number, mapPx: number): number {
-  const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
+  const highest = mapPx - MAP_ROWS_PX - TRANSPORT_GAP_PX - FAB_PX
   return Math.min(liftPx + FAB_INSET_PX, highest)
 }
 
@@ -496,17 +505,15 @@ export function fabShiftPx(liftPx: number, risePx: number, mapPx: number): numbe
 }
 
 /**
- * Where a phone's scale and (i) stand: on the Analyze button's row, at its
- * left, each with its bottom on the button's bottom edge (record 0140; TJ,
- * 2026-10-14). `map.css` stands each control on the library's 10px margin
- * inside the corner band, so the band starts that margin under the button,
- * and the opened credit line, taller than the band, grows up from the same
- * edge. They were centred on the button's middle until the maintainer read
- * it on a Pixel: the credit line opened above the button's top and the
- * collapsed controls stood 6px higher than the button's foot.
+ * Where a phone's scale and (i) stand: in the corner band on the foot's top
+ * edge (record 0329), each on the library's 10px margin over the card, and
+ * the opened credit line, taller than the band, grows up from the same edge.
+ * They stood on the Analyze button's row at its left (record 0140; TJ,
+ * 2026-10-14) until the foot spanned the map's width and left no row beside
+ * it.
  */
 export function phoneCornerLiftPx(fabBottom: number): number {
-  return fabBottom - CORNER_MARGIN_PX
+  return fabBottom + FAB_PX
 }
 
 /**
@@ -533,13 +540,13 @@ export function controlsSheetPx(mapPx: number): number {
 }
 
 /**
- * The player on a phone stands on the Analyze button rather than on the sheet
- * (#696): its bottom edge 8px above the button's top. Answered as the edge
- * `transportBottomPx` measures from, so the bar keeps one way of placing
- * itself.
+ * The player on a phone stands on the foot rather than on the sheet (#696),
+ * over the corner band as a desk's stands over its results (record 0329).
+ * Answered as the edge `transportBottomPx` measures from, so the bar keeps
+ * one way of placing itself.
  */
 export function transportStandPx(fabBottom: number): number {
-  return fabBottom + FAB_PX + FAB_GAP_PX - TRANSPORT_GAP_PX
+  return fabBottom + FAB_PX
 }
 
 /**
@@ -550,7 +557,7 @@ export function transportStandPx(fabBottom: number): number {
  * than standing over the chips.
  */
 export function transportFits(fabBottom: number, mapPx: number): boolean {
-  const top = fabBottom + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+  const top = fabBottom + FAB_PX + TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
   return top <= mapPx - MAP_ROWS_PX - FAB_INSET_PX
 }
 

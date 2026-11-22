@@ -262,10 +262,6 @@ export default function MapStage({
   // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
   // locate button, the zoom pair, the credit line and the scale.
   const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
-  // The Analyze button's width, which a phone's opened credit line stops
-  // short of (`--map-fab-w`, read by map.css); `PhoneFoot` measures it,
-  // since it is the wider word's in whatever face the phone draws.
-  const [fabPx, setFabPx] = useState(0)
   const smokeId = useId()
   const { registerPlace, removeResult } = removals
   const { removePlace } = destinationInputs
@@ -480,11 +476,10 @@ export default function MapStage({
       } ${layoutMotion ? LAYOUT_HOLD.clip : ''} ${layoutMotion === 'opening' || layoutMotion === 'closing' ? LAYOUT_HOLD.layer : ''}`}
       style={
         {
-          // A phone's scale and (i) stand on the Analyze button's row
-          // (record 0140), a desk's on the results' edge.
+          // A phone's scale and (i) stand in the band over its foot
+          // (record 0329), a desk's on the results' edge.
           '--map-corner-lift': `${isDesktop ? layout.mapCornerLift : phoneCornerLiftPx(fabBottom)}px`,
           '--map-corner-band': `${TRANSPORT_GAP_PX}px`,
-          ...(isDesktop ? {} : { '--map-fab-w': `${fabPx}px` }),
         } as React.CSSProperties
       }
     >
@@ -584,7 +579,18 @@ export default function MapStage({
       {!isDesktop && (
         <PhoneFoot
           fabBottomPx={fabBottom}
-          onFabPx={setFabPx}
+          strip={
+            dayStrip ? (
+              <DayStrip
+                bare
+                selection={dayStrip.selection}
+                onSelection={dayStrip.onSelection}
+                band={dayStrip.band}
+                liftPx={0}
+                transport={null}
+              />
+            ) : null
+          }
           analyzeEnabled={messages.analyzeEnabled}
           word={actionWord}
           label={actionLabel}

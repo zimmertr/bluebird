@@ -38,6 +38,11 @@ interface Props {
    * with play, the hour and the model in place of `transport`.
    */
   zoom?: StripZoom | null
+  /**
+   * The days row alone, with no card, player or placement of its own, for a
+   * phone's foot to hold over its Forecast button (record 0329).
+   */
+  bare?: boolean
 }
 
 export interface StripZoom {
@@ -84,7 +89,7 @@ const dayName = (key: string) =>
  * The days are one tab stop, and the arrows walk them, as the calendar's grid
  * does. It names itself as the calendar's grid does, so no new words.
  */
-export default function DayStrip({ selection, onSelection, band, transport, liftPx, now = systemClock, zoom = null }: Props) {
+export default function DayStrip({ selection, onSelection, band, transport, liftPx, now = systemClock, zoom = null, bare = false }: Props) {
   // The day changes under a tab left open overnight: read the clock with the
   // band, and once a minute is plenty for a row of days.
   const [clock, setClock] = useState(now)
@@ -181,6 +186,85 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
     rowRef.current?.querySelector<HTMLButtonElement>(`[data-day="${date}"]`)?.focus()
   }
 
+  const row = (
+    <div ref={rowRef} role="group" aria-label="Forecast day" className={bare ? DAY_STRIP.rowBare : DAY_STRIP.row} onKeyDown={onKeyDown}>
+      {days.map((d) => {
+        const mark = stripMark(drawn, d.date)
+        return (
+          <button
+            key={d.date}
+            type="button"
+            data-day={d.date}
+            aria-pressed={mark !== null}
+            tabIndex={d.date === stop ? 0 : -1}
+            style={zoom !== null && inWindow(d.date) ? { flexGrow: grow } : undefined}
+            onPointerDown={(e) => {
+              // The main button alone; a Shift press is the click's below.
+              if (e.button > 0 || e.shiftKey) return
+              // Inside a forecast window a drag scrubs the hours.
+              if (zoom !== null && inWindow(d.date)) {
+                zoom.onPlaying(false)
+                const i = indexAt(e.clientX)
+                if (i !== null) zoom.onIndex(i)
+                setScrubbing(true)
+                return
+              }
+              setDrag({ from: d.date, anchor: dragAnchor(selection, d.date), to: d.date })
+            }}
+            onPointerEnter={() => setDrag((was) => (was ? { ...was, to: d.date } : was))}
+            // A keyboard's press, and a Shift press with the mouse; a plain
+            // press is the drag's, committed on pointerup.
+            onClick={(e: MouseEvent<HTMLButtonElement>) => {
+              setFocusDay(d.date)
+              if (e.detail === 0 || e.shiftKey) pick(d.date, e.shiftKey)
+            }}
+            // Once the strip plays the window, its days wear the range's tint
+            // end to end, the prototype's, so the sky inside them reads
+            // rather than sitting in an accent block (record 0326).
+            className={`${DAY_STRIP.day} ${RADIUS.control} ${d.today ? DAY.today : ''} ${
+              zoom !== null && inWindow(d.date)
+                ? `${DAY.full} ${DAY.range}`
+                : mark === 'end'
+                  ? DAY.selected
+                  : mark === 'range'
+                    ? `${DAY.full} ${DAY.range}`
+                    : DAY.full
+            }`}
+          >
+            <span aria-hidden="true" className={DAY_STRIP.weekday}>
+              {d.weekday}
+            </span>
+            <span aria-hidden="true">{d.day}</span>
+            {zoom !== null && (
+              <span aria-hidden="true" data-sky={inWindow(d.date) ? d.date : undefined} className={DAY_STRIP.sky}>
+                {(zoom.sky.get(d.date) ?? NO_SKY).map((v, i) => (
+                  <span
+                    key={i}
+                    className={DAY_STRIP.skyCell}
+                    style={v === null ? undefined : { backgroundColor: scoreColor(v, zoom.range) }}
+                  />
+                ))}
+                {head !== null && head.date === d.date && (
+                  <>
+                    <span className={DAY_STRIP.head} style={{ left: `${head.frac * 100}%` }} />
+                    <span className={DAY_STRIP.headTag} style={{ left: `${head.frac * 100}%` }}>
+                      {hourShort(zoom.times[zoom.index])}
+                    </span>
+                  </>
+                )}
+              </span>
+            )}
+            {/* The day's full name is the button's, read where the cell
+                shows an initial and a number. Hidden text rather than a
+                label, so the name never disagrees with the visible letters. */}
+            <span className={SR_ONLY}>{dayName(d.date)}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+  if (bare) return row
+
   return (
     <div
       // A popup keeps clear of the strip, as it did of the player.
@@ -188,81 +272,7 @@ export default function DayStrip({ selection, onSelection, band, transport, lift
       className={DAY_STRIP.card}
       style={{ bottom: transportBottomPx(liftPx) }}
     >
-      <div ref={rowRef} role="group" aria-label="Forecast day" className={DAY_STRIP.row} onKeyDown={onKeyDown}>
-        {days.map((d) => {
-          const mark = stripMark(drawn, d.date)
-          return (
-            <button
-              key={d.date}
-              type="button"
-              data-day={d.date}
-              aria-pressed={mark !== null}
-              tabIndex={d.date === stop ? 0 : -1}
-              style={zoom !== null && inWindow(d.date) ? { flexGrow: grow } : undefined}
-              onPointerDown={(e) => {
-                // The main button alone; a Shift press is the click's below.
-                if (e.button > 0 || e.shiftKey) return
-                // Inside a forecast window a drag scrubs the hours.
-                if (zoom !== null && inWindow(d.date)) {
-                  zoom.onPlaying(false)
-                  const i = indexAt(e.clientX)
-                  if (i !== null) zoom.onIndex(i)
-                  setScrubbing(true)
-                  return
-                }
-                setDrag({ from: d.date, anchor: dragAnchor(selection, d.date), to: d.date })
-              }}
-              onPointerEnter={() => setDrag((was) => (was ? { ...was, to: d.date } : was))}
-              // A keyboard's press, and a Shift press with the mouse; a plain
-              // press is the drag's, committed on pointerup.
-              onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                setFocusDay(d.date)
-                if (e.detail === 0 || e.shiftKey) pick(d.date, e.shiftKey)
-              }}
-              // Once the strip plays the window, its days wear the range's tint
-              // end to end, the prototype's, so the sky inside them reads
-              // rather than sitting in an accent block (record 0326).
-              className={`${DAY_STRIP.day} ${RADIUS.control} ${d.today ? DAY.today : ''} ${
-                zoom !== null && inWindow(d.date)
-                  ? `${DAY.full} ${DAY.range}`
-                  : mark === 'end'
-                    ? DAY.selected
-                    : mark === 'range'
-                      ? `${DAY.full} ${DAY.range}`
-                      : DAY.full
-              }`}
-            >
-              <span aria-hidden="true" className={DAY_STRIP.weekday}>
-                {d.weekday}
-              </span>
-              <span aria-hidden="true">{d.day}</span>
-              {zoom !== null && (
-                <span aria-hidden="true" data-sky={inWindow(d.date) ? d.date : undefined} className={DAY_STRIP.sky}>
-                  {(zoom.sky.get(d.date) ?? NO_SKY).map((v, i) => (
-                    <span
-                      key={i}
-                      className={DAY_STRIP.skyCell}
-                      style={v === null ? undefined : { backgroundColor: scoreColor(v, zoom.range) }}
-                    />
-                  ))}
-                  {head !== null && head.date === d.date && (
-                    <>
-                      <span className={DAY_STRIP.head} style={{ left: `${head.frac * 100}%` }} />
-                      <span className={DAY_STRIP.headTag} style={{ left: `${head.frac * 100}%` }}>
-                        {hourShort(zoom.times[zoom.index])}
-                      </span>
-                    </>
-                  )}
-                </span>
-              )}
-              {/* The day's full name is the button's, read where the cell
-                  shows an initial and a number. Hidden text rather than a
-                  label, so the name never disagrees with the visible letters. */}
-              <span className={SR_ONLY}>{dayName(d.date)}</span>
-            </button>
-          )
-        })}
-      </div>
+      {row}
       {zoom !== null ? (
         <div className={DAY_STRIP.meta}>
           <button

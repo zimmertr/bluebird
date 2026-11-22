@@ -468,7 +468,7 @@ button against the panel's in a browser. Record: [0163](architectural-decision-r
 | The legend is one box, in the Layers menu's order | `styles.test.ts` | One `SURFACE_CHIP_CARD.key` in the block, every section built by `legendSection`, and the sections written in the menu's order with the metric key first and no sort |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
 | The chip cards hang one way, the legend at its width and the Layers menu at its content's | `styles.test.ts`, `checks/styles.js` | `MAP_CHIP_MENU` and `CHIP_CARD_W.key` worn once by the legend card, `MAP_CHIP_MENU` and `CHIP_CARD_W.menu` once by the Layers menu; `style-map-chrome` fails a width, offset or chip height spelled beside the roles |
-| The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 32 on a finger, 44 around the chips | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 32px rows, the chips at the control size, the message badge's 20px disc and its 44px to a finger, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
+| The map's rows, a phone's sheets and its Analyze button are built from one sum, and every target is 32 on a finger, 44 around the chips | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FOOT`'s 96px card and the bar's button at its width, `BOTTOM_SHEET`'s 32px rows, the chips at the control size, the message badge's 20px disc and its 44px to a finger, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend card |
 | The accent ratios are pinned | `styles.test.ts` | 4.56, 3.20, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
@@ -776,8 +776,8 @@ The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role b
 ### Map chrome
 
 The map carries two rows across its top at both widths, and a phone's map one
-button at its foot as well
-(`MAP_ROWS`, `MAP_PILL`, `MAP_ROUND_BUTTON`, `MAP_CHIP`, `MAP_FAB` in `styles.ts`).
+card at its foot as well
+(`MAP_ROWS`, `MAP_PILL`, `MAP_ROUND_BUTTON`, `MAP_CHIP`, `MAP_FOOT` in `styles.ts`).
 The rows are four numbers, the map's 12px inset, the 32px first row, 12px
 between and the 32px chip row, so they end 88px down; the draw bar, the
 compass, the bottom sheet's card and the results sheet's highest stop are all
@@ -829,19 +829,15 @@ its 1px border; the locate button 40 seen and 44 pressed, by a 3px rim
 pressed (`MAP_PILL_FIELD`). Each is the role's, never a `touch:` utility at a
 call site.
 
-Analyze is Material's extended floating action button: 56px tall, 16px off
-the right edge and off whatever it stands on, a 16px corner, the call to
-action's type on `BUTTON_PRIMARY`'s fill. Its three words (`Analyze`,
-`Analyzing…`, `Try again`; record 0169) stand in one grid cell, so it is as
-wide as the widest. Measured 2026-10-14 in the Playwright
-image's Chromium at 360, 390 and 430 wide: the summary chip 169.4px, Layers
-65.0 and Legend 69.4, 315.8 with the gaps, which leaves 20.2, 50.2 and 90.2px
-of the row empty; the button 120.1px, `Analyze` 52.9 and `Analyzing…` 80.1.
-The mockup measured the same three at 289px in Chrome on a Mac, whose system
-face is narrower. Re-measure when a chip or a model label grows. A press
-shows by `MAP_FAB_PRESSED`, Material's pressed state: a state layer of the
-label's white at 12% and the shadow a step lower while held, on either
-pointer, and never a grey after a run.
+A phone's foot is one card across the map (`MAP_FOOT`, record
+[0329](architectural-decision-records/0329-a-phone-foot-holds-the-days-and-the-forecast-button.md)):
+16px in from each edge and off whatever it stands on, 96px tall, the
+floating surface with the day strip's days over the desk bar's own Forecast
+button at the card's width (`BUTTON_FORECAST_BAR`, outlined as
+`BUTTON_FORECAST_QUIET` while a press would fetch nothing new). The scale and
+the (i) stand in the corner band on its top edge, and the player over that.
+It replaced Material's extended floating action button, 56px tall at the
+bottom right, which this paragraph described until then.
 Record: [0135](architectural-decision-records/0135-phone-opens-on-the-map.md)
 
 The chart's pickers stand in one row above the panels at a desk, 8px apart;

@@ -2144,60 +2144,23 @@ export const MAP_CHIP_MENU = 'absolute left-0 top-full mt-1 px-2.5 py-2'
 export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate'
 
 /**
- * The button's pressed state, Material's for a floating button (TJ,
- * 2026-10-14): a state layer of the label's white at 12% over the whole
- * button, and the shadow dropping from `ELEVATION.overlay` to
- * `ELEVATION.raised` while a finger or a mouse holds it down. A run that
- * reuses every forecast it holds finishes in a frame, so a press had nothing
- * on screen to show it landed; the press itself now does, and the button is
- * never greyed after a run, since a re-run is always the reader's to make.
- * Spelled out rather than built from `ELEVATION.raised`, because Tailwind
- * cannot compile a variant on an interpolated class. `enabled:` keeps a
- * disabled button from answering a press it will not act on.
+ * The phone's foot (record 0329): one card across the map, on the chrome's
+ * floating surface and the map controls' layer, 16px in from each edge
+ * (`FAB_INSET_PX`) and 96px tall (`FAB_PX` in `resultsSheet.ts`, which
+ * places it by its bottom), holding the day strip over the full-width
+ * Forecast button, the prototype's. The button is the desk bar's own
+ * (`BUTTON_FORECAST_BAR`, outlined as `BUTTON_FORECAST_QUIET` while a press
+ * would fetch nothing new) at the card's width, in a `relative` slot so the
+ * count badge stands at its corner as a sibling, outside a blocked button's
+ * grey (record 0208). It replaced the 56px floating Analyze button at the
+ * map's bottom right (record 0135).
  */
-const MAP_FAB_PRESSED =
-  'after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-on-fill ' +
-  'after:opacity-0 after:transition-opacity enabled:active:after:opacity-[0.12] enabled:active:shadow-lg'
-
-/**
- * The phone's Analyze (#696; record 0135): an extended floating action
- * button in Material's sense, the form for a screen's one primary action. 56px
- * tall (`FAB_PX` in `resultsSheet.ts`, which places it), a 16px corner rather
- * than the capsule the chips wear, and the label in the call to action's 14px
- * semibold. The accent fill is `BUTTON_PRIMARY`'s, `ACCENT.fill` on
- * `--color-sky-650`, so the white label keeps its 4.56:1 (record 0008); the
- * call site adds `DISABLED` and `BLOCKED`, the panel's grey, because the gate
- * is the panel's. The deepest shadow, since it stands over the map and over
- * the sheet's edge alike.
- *
- * It stands in `MAP_FAB_SLOT`, which is what is placed: 16px off the map's
- * right edge on the map chrome's layer, with the button's bottom set in
- * pixels by `fabBottomPx`. The slot rather than the button, so the count
- * badge the button wears (`MESSAGE_BADGE`, record 0208) can stand at its
- * corner as a sibling, outside the button's own grey when it is blocked. The
- * button is `relative` for its pressed state's layer.
- *
- * No icon: none of `icons.tsx` says "run this" without also meaning
- * something else on the same screen (the player's triangle plays the
- * timeline), so the button is its label.
- */
-export const MAP_FAB_SLOT = `absolute right-4 ${LAYER.mapControls}`
-export const MAP_FAB =
-  `relative h-14 rounded-2xl px-5 ${ELEVATION.overlay} ` +
-  `${TEXT.cta} transition-[color,background-color,box-shadow] ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING} ` +
-  MAP_FAB_PRESSED
-
-
-/**
- * The button's words in one cell, the ones not showing kept invisible, so the
- * button is always as wide as the widest of `Analyze`, `Analyzing…` and `Try
- * again` (`ACTION_WORDS`, #736) and never resizes as a run starts, ends or
- * fails. A grid rather than a measured width: the cell is the words' own, in
- * whatever face the reader's system draws.
- */
-export const MAP_FAB_WORDS = {
-  cell: 'grid place-items-center [&>*]:col-start-1 [&>*]:row-start-1',
-  hidden: 'invisible',
+export const MAP_FOOT = {
+  card: `absolute inset-x-4 ${LAYER.mapControls} ${SURFACE_FLOATING} flex h-24 flex-col gap-1.5 p-2`,
+  days: 'min-h-0 flex-1',
+  slot: 'relative flex',
+  button: `${BUTTON_FORECAST_BAR} w-full`,
+  quiet: `${BUTTON_FORECAST_QUIET} w-full`,
 } as const
 
 /**
@@ -3587,6 +3550,8 @@ export const DAY_STRIP = {
     `${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex ` +
     'w-[min(40rem,calc(100%-8rem))] flex-col gap-1.5 px-2 py-1.5',
   row: 'flex select-none',
+  /** The row a phone's foot holds (record 0329), as tall as the foot gives it. */
+  rowBare: 'flex h-full select-none',
   day: `relative flex min-w-0 flex-1 flex-col items-center py-0.5 ${TEXT.control} ${FIGURES} cursor-pointer transition-colors ${FOCUS_RING}`,
   weekday: `${TEXT.micro} leading-none`,
   /**

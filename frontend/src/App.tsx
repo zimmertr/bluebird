@@ -1129,7 +1129,7 @@ export default function App() {
           // The strip's days are the panel's, which the tour's demonstration
           // does not use, so the tour plays its hours on the player alone.
           dayStrip={
-            isDesktop && demo === null
+            demo === null
               ? {
                   selection,
                   onSelection: forecastSelection.changeSelection,

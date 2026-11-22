@@ -1,21 +1,20 @@
 import { useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen, within } from '@testing-library/react'
 import PhoneFoot from './PhoneFoot'
 import BottomSheet from './BottomSheet'
-import { render, placeAt } from '../testSupport/render'
+import { render } from '../testSupport/render'
 import { panelMessages } from '../testSupport/fixtures'
-import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS, MESSAGE_BADGE } from '../styles'
+import { BLOCKED, DISABLED, MAP_FOOT, MESSAGE_BADGE } from '../styles'
 import type { FooterMessage } from '../utils/notices'
 
-// The foot of a phone's map (#696): the Analyze button (record 0135),
-// Material's extended floating action button, with the message badge at its
-// corner, which opens the panel's messages as a bottom sheet (record 0208).
+// The foot of a phone's map (record 0329): one card holding the day strip
+// and the full-width Forecast button, with the message badge at its corner,
+// which opens the panel's messages as a bottom sheet (record 0208).
 function foot(over: Partial<Parameters<typeof PhoneFoot>[0]> = {}) {
   return (
     <PhoneFoot
       fabBottomPx={120}
-      onFabPx={() => {}}
       analyzeEnabled
       word="Analyze"
       onAnalyze={() => {}}
@@ -28,39 +27,19 @@ const MESSAGES: FooterMessage[] = [
   { key: 'blocker:types', text: 'Info line.', severity: 'info' },
   { key: 'cue:model-changed', text: 'First warning.', severity: 'warn' },
 ]
-// The button's observer, fired by hand.
-function stubResizeObserver() {
-  const callbacks: (() => void)[] = []
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      constructor(cb: () => void) {
-        callbacks.push(cb)
-      }
-      observe() {}
-      disconnect() {}
-    },
-  )
-  return () => callbacks.forEach((cb) => cb())
-}
-const button = () => screen.getByRole('button', { name: /^(Analyz|Try again)/ }) as HTMLButtonElement
+const button = () => screen.getByRole('button', { name: /^(Analyz|Try again|Forecast|Up to date)/ }) as HTMLButtonElement
+const card = () => button().closest('[data-map-overlay]') as HTMLElement
 const badge = () => screen.getByRole('button', { name: /^\d+ messages?$/ })
-
-// In an afterEach so a failed assertion cannot leave the fake observer behind.
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
 
 describe('PhoneFoot', () => {
   // A card a tap opens keeps clear of the button and its badge, as it does
   // of the rows and the player (TJ, 2026-11-04): the fit finds every
-  // `data-map-overlay` at the click. The slot carries the mark, so the badge
-  // at its corner is inside the box the card avoids.
+  // `data-map-overlay` at the click. The foot carries the mark, so the badge
+  // at the button's corner is inside the box the card avoids.
   it('is a surface a card keeps clear of, the badge with it', () => {
     render(foot({ messages: panelMessages({ messages: MESSAGES, count: 2 }) }))
-    const slot = button().parentElement!
-    expect(slot.hasAttribute('data-map-overlay')).toBe(true)
-    expect(slot.contains(badge())).toBe(true)
+    expect(card().hasAttribute('data-map-overlay')).toBe(true)
+    expect(card().contains(badge())).toBe(true)
     expect(document.querySelectorAll('[data-map-overlay]')).toHaveLength(1)
   })
 
@@ -68,9 +47,11 @@ describe('PhoneFoot', () => {
     const onAnalyze = vi.fn()
     render(foot({ onAnalyze }))
     expect(button().disabled).toBe(false)
-    expect(button().className).toBe(`${MAP_FAB} ${DISABLED} ${BLOCKED}`)
-    // In a slot that places it, so the badge at its corner shares the place.
-    expect(button().parentElement!.className).toBe(MAP_FAB_SLOT)
+    expect(button().className).toBe(`${MAP_FOOT.button} ${DISABLED} ${BLOCKED}`)
+    // In a slot of its own size, so the badge at its corner shares its box,
+    // inside the card the foot places.
+    expect(button().parentElement!.className).toBe(MAP_FOOT.slot)
+    expect(card().className).toBe(MAP_FOOT.card)
     // A phone's one Analyze is the tour's Analyze step (#536).
     expect(button().dataset.tour).toBe('analyze')
     fireEvent.click(button())
@@ -82,13 +63,12 @@ describe('PhoneFoot', () => {
   // the sheet moves it by `--sheet-shift`, as a transform.
   it('goes out of reach under a full-screen sheet, and rides a drag by transform', () => {
     const { rerender } = render(foot())
-    const slot = () => button().parentElement!
-    expect(slot().hasAttribute('inert')).toBe(false)
-    expect(slot().style.transform).toBe('translateY(var(--sheet-shift, 0px))')
+    expect(card().hasAttribute('inert')).toBe(false)
+    expect(card().style.transform).toBe('translateY(var(--sheet-shift, 0px))')
     rerender(foot({ covered: true }))
-    expect(slot().hasAttribute('inert')).toBe(true)
+    expect(card().hasAttribute('inert')).toBe(true)
     rerender(foot({ covered: false }))
-    expect(slot().hasAttribute('inert')).toBe(false)
+    expect(card().hasAttribute('inert')).toBe(false)
   })
 
   it('disables while busy, and reads the word it is handed', () => {
@@ -101,23 +81,13 @@ describe('PhoneFoot', () => {
     expect(button().disabled).toBe(false)
   })
 
-  // The width is the widest word's whichever is showing: every word stands
-  // in one cell, the others invisible and out of the name.
-  it('reserves the width of every word, and names itself by the one it shows', () => {
-    const { rerender } = render(foot())
-    const words = () => [...button().firstElementChild!.children] as HTMLElement[]
-    expect(button().firstElementChild!.className).toBe(MAP_FAB_WORDS.cell)
-    expect(words().map((w) => w.textContent)).toEqual(['Analyze', 'Analyzing…', 'Try again'])
-    for (const hidden of words().slice(1)) {
-      expect(hidden.className).toBe(MAP_FAB_WORDS.hidden)
-      expect(hidden.getAttribute('aria-hidden')).toBe('true')
-    }
-    expect(button().textContent).toContain('Analyzing…')
-    expect(screen.getByRole('button', { name: 'Analyze' })).toBeTruthy()
-    rerender(foot({ word: 'Analyzing…' }))
-    expect(words().map((w) => w.textContent)).toEqual(['Analyzing…', 'Analyze', 'Try again'])
-    rerender(foot({ word: 'Try again' }))
-    expect(words().map((w) => w.textContent)).toEqual(['Try again', 'Analyze', 'Analyzing…'])
+  // The days stand over the button in the same card (record 0329).
+  it('holds the day strip over its button', () => {
+    render(foot({ strip: <div data-testid="days" /> }))
+    const days = screen.getByTestId('days')
+    expect(card().contains(days)).toBe(true)
+    expect(days.parentElement!.className).toBe(MAP_FOOT.days)
+    expect(days.compareDocumentPosition(button()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   // It names the spend as the desk's bar does (record 0328), and gives way to
@@ -127,24 +97,15 @@ describe('PhoneFoot', () => {
     expect(screen.getByRole('button', { name: 'Forecast 31 peaks' })).toBeTruthy()
     rerender(foot({ label: 'Forecast 31 peaks', word: 'Try again' }))
     expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+    // Outlined while a press would fetch nothing new, as the desk's is.
+    rerender(foot({ label: 'Up to date' }))
+    expect(button().className).toBe(`${MAP_FOOT.quiet} ${DISABLED} ${BLOCKED}`)
   })
 
-  // Placed where it is told: the slot, not the button, since the badge rides
-  // the same place.
+  // Placed where it is told: the card, which carries the button and its badge.
   it('stands where it is told', () => {
     render(foot())
-    expect(button().parentElement!.style.bottom).toBe('120px')
-  })
-
-  // The opened credit line stops short of the button, so its width is
-  // reported.
-  it('reports the button\'s width', () => {
-    const fire = stubResizeObserver()
-    const onFabPx = vi.fn()
-    render(foot({ onFabPx }))
-    placeAt(button(), { left: 254, top: 674, width: 120.1, height: 56 })
-    act(() => fire())
-    expect(onFabPx).toHaveBeenLastCalledWith(120.1)
+    expect(card().style.bottom).toBe('120px')
   })
 
   // The badge on the button's corner opens the messages as a sheet headed
@@ -156,7 +117,7 @@ describe('PhoneFoot', () => {
     expect(badge().className).toContain(MESSAGE_BADGE.warn)
     expect(badge().parentElement).toBe(button().parentElement)
     const region = screen.getByRole('status')
-    expect(region.parentElement).toBe(button().parentElement)
+    expect(region.parentElement).toBe(card())
     expect(region.textContent).toContain('First warning.')
     expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.click(badge())
@@ -265,8 +226,8 @@ describe('PhoneFoot', () => {
         expect(document.querySelector('[data-tour="analyze"]')).toBe(fab)
         expect(fab.hasAttribute('inert')).toBe(false)
         expect(fab.disabled).toBe(false)
-        expect(fab.parentElement!.style.bottom).toBe('120px')
-        expect(fab.className).toBe(`${MAP_FAB} ${DISABLED} ${BLOCKED}`)
+        expect(card().style.bottom).toBe('120px')
+        expect(fab.className).toBe(`${MAP_FOOT.button} ${DISABLED} ${BLOCKED}`)
       }
       asItWas()
       fireEvent.click(screen.getByRole('button', { name: 'Open' }))

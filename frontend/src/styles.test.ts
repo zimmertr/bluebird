@@ -109,9 +109,7 @@ import {
   MENU_TRIGGER,
   MAP_CHIP_MENU,
   MAP_CHIP_SUMMARY_TEXT,
-  MAP_FAB,
-  MAP_FAB_SLOT,
-  MAP_FAB_WORDS,
+  MAP_FOOT,
   MESSAGE_BADGE,
   MESSAGE_LIST,
   BLOCKED,
@@ -155,7 +153,7 @@ import { CHEVRON_PX, EXTERNAL_LINK_PX, GRIP_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX, COLUMN_MIN_PX } from './utils/results/resultsSheet'
+import { CHIP_MENU_GAP_PX, COLUMN_MIN_PX, FAB_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
@@ -3087,58 +3085,33 @@ describe('the phone chrome\'s hit areas', () => {
     expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib\.maplibregl-compact:not\(\.maplibregl-compact-show\) \{\s*background: transparent;\s*border-width: 0;/)
   })
 
-  it('leaves the Analyze button at 56, over the floor already', () => {
-    expect(steps(MAP_FAB, /(?:^|\s)h-(\d+)(?:\s|$)/)).toBe(56)
+  it('leaves the foot\'s button at 40, over the floor already', () => {
+    expect(steps(MAP_FOOT.button, /(?:^|\s)h-(\d+)(?:\s|$)/)).toBe(40)
   })
 })
 
-// The phone's Analyze (#696; record 0135): Material's extended floating
-// action button, on the panel's primary fill and gate.
-describe('the Analyze button on a phone', () => {
+// The phone's foot (record 0329): one card across the map, the day strip
+// over the desk bar's own Forecast button at the card's width.
+describe('the foot on a phone', () => {
   const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
-  // The slot places the button and its badge together (record 0208); the
-  // button itself is the slot's box, so the badge's corner is its corner.
-  it('is 56px tall with a 16px corner, in a slot 16px off the right edge', () => {
-    expect(tokens(MAP_FAB)).toEqual(expect.arrayContaining(['relative', 'h-14', 'rounded-2xl']))
-    expect(tokens(MAP_FAB_SLOT)).toEqual(['absolute', 'right-4', LAYER.mapControls])
-    expect(MAP_FAB).not.toMatch(/(^|\s)(absolute|right-|z-)/)
-    expect(MAP_FAB).toContain(ELEVATION.overlay)
+  // 96px, the height `FAB_PX` places it by, 16px in from each edge.
+  it('is a 96px card across the map, 16px in from each edge', () => {
+    expect(Number(MAP_FOOT.card.match(/(?:^|\s)h-(\d+)(?:\s|$)/)![1]) * 4).toBe(FAB_PX)
+    expect(tokens(MAP_FOOT.card)).toEqual(expect.arrayContaining(['absolute', 'inset-x-4', LAYER.mapControls]))
+    for (const part of tokens(SURFACE_FLOATING)) expect(tokens(MAP_FOOT.card)).toContain(part)
+    // The days take what the button leaves.
+    expect(tokens(MAP_FOOT.days)).toEqual(['min-h-0', 'flex-1'])
   })
 
-  // A press shows on the button itself (TJ, 2026-10-14), Material's way: a
-  // white state layer at 12% and the shadow dropping a step, on a mouse and a
-  // finger alike, and never on a disabled button.
-  it('shows a press with a state layer and a lower shadow', () => {
-    const t = tokens(MAP_FAB)
-    expect(t).toEqual(
-      expect.arrayContaining([
-        'after:absolute',
-        'after:inset-0',
-        `after:bg-${token(ACCENT.fill, 'text')}`,
-        'after:opacity-0',
-        'enabled:active:after:opacity-[0.12]',
-        'after:pointer-events-none',
-      ]),
-    )
-    expect(ELEVATION.raised).toBe('shadow-lg')
-    expect(t).toContain(`enabled:active:${ELEVATION.raised}`)
-    expect(t.some((c) => c.startsWith('disabled:') || c === 'active:after:opacity-[0.12]')).toBe(false)
-  })
-
-  // The primary fill, so the white label keeps record 0008's contrast; the
-  // call to action's type; the panel's grey from the call site.
-  it('wears BUTTON_PRIMARY\'s fill and the call to action\'s type', () => {
-    for (const part of [ACCENT.fill, ACCENT.fillHover, FOCUS_RING, TEXT.cta]) expect(MAP_FAB).toContain(part)
-    for (const part of [ACCENT.fill, TEXT.cta]) expect(BUTTON_PRIMARY).toContain(part)
-    expect(phoneFootSource).toContain('${MAP_FAB} ${DISABLED} ${BLOCKED}')
-  })
-
-  // Both words in one grid cell, so the width is the wider word's.
-  it('reserves the wider word\'s width by stacking both', () => {
-    expect(tokens(MAP_FAB_WORDS.cell)).toEqual(['grid', 'place-items-center', '[&>*]:col-start-1', '[&>*]:row-start-1'])
-    expect(MAP_FAB_WORDS.hidden).toBe('invisible')
-    expect(phoneFootSource).toContain('aria-hidden="true" className={MAP_FAB_WORDS.hidden}')
+  // The desk bar's button at the card's width, outlined while a press would
+  // fetch nothing new; the panel's grey from the call site; the badge's slot
+  // a positioned box of the button's size.
+  it('wears the bar\'s button at full width, in a slot the badge stands on', () => {
+    expect(MAP_FOOT.button).toBe(`${BUTTON_FORECAST_BAR} w-full`)
+    expect(MAP_FOOT.quiet).toBe(`${BUTTON_FORECAST_QUIET} w-full`)
+    expect(tokens(MAP_FOOT.slot)).toEqual(['relative', 'flex'])
+    expect(phoneFootSource).toContain('${quiet ? MAP_FOOT.quiet : MAP_FOOT.button} ${DISABLED} ${BLOCKED}')
   })
 })
 
@@ -3153,7 +3126,8 @@ describe('the bottom sheet', () => {
     // it stands, and the sheet's modality keeps it from a press, so the foot
     // neither hides it nor makes it inert (record 0207). The one inert is a
     // full-screen results sheet's, which covers the button whole (#837).
-    expect(zOf(MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
+    expect(zOf(LAYER.mapControls)).toBeLessThan(zOf(LAYER.popover))
+    expect(MAP_FOOT.card).toContain(LAYER.mapControls)
     expect(phoneFootSource.match(/\binert\b/g)).toEqual(['inert'])
     expect(phoneFootSource).toContain('inert={covered}')
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
@@ -3229,9 +3203,9 @@ describe('the message badge', () => {
     // nothing (`touch:before:-inset-2.5`), so the disc stays a disc.
     expect(t).toEqual(expect.arrayContaining(['touch:before:absolute', 'touch:before:-inset-2.5', "touch:before:content-['']"]))
     expect(MESSAGE_BADGE.slot).toBe('relative')
-    // The phone's slot is the positioned box, so the badge's corner is the
-    // button's there too.
-    expect(words(MAP_FAB_SLOT)).toContain('absolute')
+    // The phone's slot is a positioned box of the button's size, so the
+    // badge's corner is the button's there too.
+    expect(words(MAP_FOOT.slot)).toContain('relative')
   })
 
   // #834: a message arriving swells the disc and spreads a ring of its own
@@ -3372,7 +3346,7 @@ describe('the Controls sheet', () => {
   it('dims the whole screen one layer under the card', () => {
     expect(words(CONTROLS_SHEET.scrim)).toEqual(['fixed', 'inset-0', LAYER.scrim])
     expect(zOf(LAYER.scrim)).toBeLessThan(zOf(LAYER.drawer))
-    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls, MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1]]) {
+    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls]) {
       expect(zOf(under)).toBeLessThan(zOf(LAYER.scrim))
     }
     expect(bottomSheetSource).toContain('kept ? CONTROLS_SHEET.scrim : BOTTOM_SHEET.scrim')
@@ -4112,18 +4086,14 @@ describe('the attribution beside the scale', () => {
     expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
   })
 
-  // On a phone the credit line sits at the bottom left beside the scale, and
-  // its row stops so the line ends 8px short of the Analyze button (#696):
-  // the button's measured width, its 16px inset and the 8px clear, less the
-  // compact credit's own 10px margin inside the row. Measured 2026-10-14 at
-  // 360, 390 and 430 wide: a 120.1px button, the row ending 134.1px from the
-  // map's right edge, the line 8px short of the button.
-  it('caps a phone\'s credit row short of the Analyze button', () => {
+  // On a phone the credit line sits at the bottom left beside the scale, in
+  // the band over the foot, which spans the map (record 0329), so its row
+  // spans the map too and nothing publishes a button's width for it.
+  it('lets a phone\'s credit row span the map over the foot', () => {
     const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-left:has\(> \.maplibregl-ctrl-attrib\) \{[^}]*\}/)?.[0] ?? ''
-    const clear = Number(rule.match(/right: calc\(var\(--map-fab-w, 0px\) \+ (\d+)px\);/)?.[1])
-    expect(clear).toBe(16 + CLEAR_PX - ATTRIB_MARGIN_PX)
-    expect(MAP_FAB_SLOT.split(/\s+/)).toContain('right-4')
-    expect(mapStageSource).toContain("'--map-fab-w': `${fabPx}px`")
+    expect(rule).toMatch(/right: 0;/)
+    expect(mapStageSource).not.toContain('--map-fab-w')
+    expect(mapCss).not.toContain('--map-fab-w')
   })
 
   // Three lines at 360px wide: the corner grows up over the map, never down

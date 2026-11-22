@@ -6,7 +6,6 @@ import {
   columnWidthPx,
   DEFAULT_PANEL_HEIGHT,
   DRAGGED_MAP_PX,
-  FAB_GAP_PX,
   FAB_INSET_PX,
   FAB_PX,
   FAB_STRIP_PX,
@@ -280,17 +279,18 @@ describe('the resting height', () => {
 // strip under the chip row (#696). The resting reserve above holds only until
 // the reader takes hold of a grip; this one holds however far they pull.
 describe('the drag cap', () => {
-  it('leaves the rows and the button\'s strip: 88 and 16 + 56 + 16', () => {
+  // The foot and the corner band over it (record 0329): 16 + 96 + 44.
+  it('leaves the rows and the foot\'s strip: 88 and 16 + 96 + 44', () => {
     expect(MAP_ROWS_PX).toBe(88)
-    expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + FAB_INSET_PX)
-    expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 56, 88])
-    expect(DRAGGED_MAP_PX).toBe(176)
+    expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + TRANSPORT_GAP_PX)
+    expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 96, 156])
+    expect(DRAGGED_MAP_PX).toBe(244)
   })
 
   // With the player on, a full sheet also leaves the bar its room over the
   // button, so a chart and its playhead stay on screen together.
   it('leaves the player its room while it is on, and it fits there', () => {
-    expect(PLAYER_ROOM_PX).toBe(FAB_GAP_PX + TRANSPORT_HEIGHT_PX)
+    expect(PLAYER_ROOM_PX).toBe(TRANSPORT_HEIGHT_PX + FAB_INSET_PX)
     expect(draggedMapFloorPx(2, true) - draggedMapFloorPx(2)).toBe(PLAYER_ROOM_PX)
     const mapPx = 740
     const lift = mapPx - DRAGGED_MAP_PX - PLAYER_ROOM_PX
@@ -318,10 +318,10 @@ describe('the drag cap', () => {
     const lift = (panelsPx: number) => sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx })
     const capped = lift(clampPanelHeight(table, 600, 0, VIEWPORT, draggedMapFloorPx(1)))
     expect(capped).toBe(VIEWPORT - DRAGGED_MAP_PX)
-    // The button at the sheet's edge and an inset under the rows.
+    // The foot at the sheet's edge and its corner band under the rows.
     const fab = fabBottomPx(capped, VIEWPORT)
     expect(fab).toBe(capped + FAB_INSET_PX)
-    expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+    expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + TRANSPORT_GAP_PX)
   })
 })
 
@@ -353,7 +353,7 @@ describe('full screen', () => {
     expect(fabShiftPx(200, 0, mapPx)).toBe(0)
     expect(fabShiftPx(200, 100, mapPx)).toBe(-100)
     expect(fabShiftPx(200, -50, mapPx)).toBe(50)
-    const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
+    const highest = mapPx - MAP_ROWS_PX - TRANSPORT_GAP_PX - FAB_PX
     expect(fabShiftPx(200, 2000, mapPx)).toBe(fabBottomPx(200, mapPx) - highest)
   })
 
@@ -373,14 +373,12 @@ describe('the Analyze button', () => {
     for (const lift of [0, 84, 300]) expect(fabBottomPx(lift, 844)).toBe(lift + FAB_INSET_PX)
   })
 
-  // The scale, the (i) and the opened credit line stand on the button's
-  // row with their bottoms on the button's bottom edge (TJ, 2026-10-14): each
-  // stands on the library's 10px margin inside the corner band, so the band
-  // starts that margin under the button.
-  it('stands the map corners on the button\'s bottom edge', () => {
+  // The scale, the (i) and the opened credit line stand in the corner band
+  // on the foot's top edge (record 0329), the card spanning the map's width.
+  it('stands the map corners on the foot\'s top edge', () => {
     const fab = 120
     expect(CORNER_MARGIN_PX).toBe(10)
-    expect(phoneCornerLiftPx(fab) + CORNER_MARGIN_PX).toBe(fab)
+    expect(phoneCornerLiftPx(fab)).toBe(fab + FAB_PX)
   })
 
   // A sheet dragged to its cap puts the button under the chip row, and no
@@ -389,15 +387,15 @@ describe('the Analyze button', () => {
     const lift = 844 - DRAGGED_MAP_PX
     expect(fabBottomPx(lift, 844)).toBe(lift + FAB_INSET_PX)
     const fab = fabBottomPx(lift + 60, 844)
-    expect(844 - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+    expect(844 - fab - FAB_PX).toBe(MAP_ROWS_PX + TRANSPORT_GAP_PX)
   })
 
-  // The player's bottom 8px over the button's top, and off the map while
-  // that would cross the rows.
+  // The player over the corner band on the foot's top, and off the map
+  // while that would cross the rows.
   it('carries the player, which steps off when there is no room', () => {
-    expect(transportBottomPx(transportStandPx(120))).toBe(120 + FAB_PX + FAB_GAP_PX)
+    expect(transportBottomPx(transportStandPx(120))).toBe(120 + FAB_PX + TRANSPORT_GAP_PX)
     expect(transportFits(16, 844)).toBe(true)
-    const top = (fab: number) => fab + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+    const top = (fab: number) => fab + FAB_PX + TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
     const highest = 844 - MAP_ROWS_PX - FAB_INSET_PX
     expect(transportFits(highest - top(0), 844)).toBe(true)
     expect(transportFits(highest - top(0) + 1, 844)).toBe(false)
