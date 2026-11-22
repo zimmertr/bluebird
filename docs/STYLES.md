@@ -1364,6 +1364,9 @@ row drag the sheet, to the top of the screen, shut, or anywhere between, and a
 double tap on the grip puts it back at its own height, through the gesture
 the results sheet's grips use. Every sheet, the Controls sheet too, shares that
 ceiling: the screen less the status bar's band (`BOTTOM_SHEET.topBand`).
+A sheet the tutorial holds open for a step opens at half the screen at most
+(`BOTTOM_SHEET.toured`) and scrolls its rows, so the tour's card has room
+above it. Record: [0337](architectural-decision-records/0337-a-phone-draws-the-cloud-sea.md)
 Record: [0291](architectural-decision-records/0291-every-phone-sheet-rises-to-the-top.md) Record: [0136](architectural-decision-records/0136-phone-menus-are-bottom-sheets.md) Record: [0146](architectural-decision-records/0146-sheet-grips-drag.md) Record: [0201](architectural-decision-records/0201-one-menu-for-every-trigger.md)
 
 ### Adding a new role

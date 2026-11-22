@@ -336,19 +336,9 @@ export default function LayersPopover({
         },
         { key: 'snow', label: SNOW_ROW_LABEL, checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
         // The cloud sea (record 0310), grey until a report holds a deck to
-        // draw, with no `note`, for the player's reason. A desk's alone until
-        // the phone's shell, which draws none.
-        ...(sheet
-          ? []
-          : [
-              {
-                key: 'cloud',
-                label: 'Cloud deck',
-                checked: showCloud,
-                onChange: setShowCloud,
-                disabled: !cloudOffered,
-              },
-            ]),
+        // draw, with no `note`, for the player's reason. In both lists, a
+        // phone's sheet too (record 0337).
+        { key: 'cloud', label: 'Cloud deck', checked: showCloud, onChange: setShowCloud, disabled: !cloudOffered },
         // Grey, too, with nothing to grid (#803, M5): before any report, and
         // over one whose ranked metric has no number anywhere. Those two carry
         // no `note`, for the player's reason; the archive's older sentence stays.

@@ -1,6 +1,6 @@
 # 0310. The cloud sea is drawn on the ground from the deck the report already holds
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves it and merges it. Superseded in part by [0337](0337-a-phone-draws-the-cloud-sea.md): a phone draws it too.
 - Date: 2026-11-18
 - Decider: the maintainer, 2026-11-17 ("From fetched destinations")
 - Issues and PRs: #825

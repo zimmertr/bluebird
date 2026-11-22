@@ -2909,6 +2909,14 @@ export const BOTTOM_SHEET = {
    */
   opening: 'max-h-[calc(100dvh-100px)]',
   /**
+   * The most a sheet the tutorial holds open for a step opens at, half the
+   * screen, its rows scrolling under that: the tour's card stands between
+   * the control it lights and the sheet's top (`sheetBetween`), and a
+   * sheet as tall as its rows left the card no room once Layers had its
+   * fourteenth, the Cloud deck (record 0337).
+   */
+  toured: 'max-h-[50dvh]',
+  /**
    * The most any sheet stands at, the Controls sheet too: the box it stands
    * in less the status bar's band (record 0291). A percentage of that box
    * rather than a number, so a rotation clamps a held sheet to the screen it

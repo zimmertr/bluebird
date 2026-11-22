@@ -656,16 +656,15 @@ export const STYLES = [
     ],
   },
   {
-    // Every layer row is in the list every time, so switching one layer never
-    // moves the rows under it. A row out of play greys and says nothing else.
-    // The one spread allowed is on `sheet`, a device's rather than a moment's:
-    // the cloud deck's row stays off a phone, which draws no cloud sea yet
-    // (record 0310), and nothing a reader does there moves it.
+    // Every layer row is in the list every time, at a desk and on a phone, so
+    // switching one layer never moves the rows under it. A row out of play
+    // greys and says nothing else. The one spread the cloud deck's row once
+    // had, on `sheet`, went when a phone drew the cloud sea (record 0337).
     name: 'style-layer-rows',
     files: ['src/components/LayersPopover.tsx'],
     ban: [
       {
-        selector: 'VariableDeclarator[id.name="MAP_LAYERS"] SpreadElement:not([argument.test.name="sheet"])',
+        selector: 'VariableDeclarator[id.name="MAP_LAYERS"] SpreadElement',
         message: 'Spread no row in and out of MAP_LAYERS.',
       },
       { selector: `${PLAYER_ROW} > Property[key.name="note"]`, message: 'Write the player row no note.' },

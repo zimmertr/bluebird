@@ -387,15 +387,15 @@ export default function App() {
   // ── The cloud sea (record 0310) ──────────────────────────────────────────
   // The deck every destination in the held field carries, at the hour the
   // player stands on, or the window's middle hour while it is off: the
-  // report's own numbers, so drawing it asks nothing of Open-Meteo. A desk's
-  // alone until the phone's shell, whose sheets have no room for its row yet.
+  // report's own numbers, so drawing it asks nothing of Open-Meteo. A phone
+  // draws it too (record 0337).
   const cloudHour = playbackIndex ?? (forecastTimes.length > 0 ? Math.floor(forecastTimes.length / 2) : null)
   const cloudDeck = useMemo(
     () =>
-      !isDesktop || !showCloud || cloudHour === null || shownUniverse === null || shownUniverse.length === 0
+      !showCloud || cloudHour === null || shownUniverse === null || shownUniverse.length === 0
         ? null
         : deckPoints(shownUniverse, cloudHour),
-    [isDesktop, showCloud, cloudHour, shownUniverse],
+    [showCloud, cloudHour, shownUniverse],
   )
 
   // ── The forecast grid (#246) ──────────────────────────────────────────────

@@ -450,12 +450,12 @@ describe('LayersPopover', () => {
   })
 
   // The cloud sea draws the held report's deck (record 0310), so its row
-  // greys before a report, with no note, and is on until turned off.
-  // A phone's sheet has no room for it until the phone's shell, which draws no cloud.
-  it('leaves the cloud deck row off a phone\'s sheet', () => {
+  // greys before a report, with no note, and is on until turned off. A
+  // phone's sheet carries it too (record 0337).
+  it('carries the cloud deck row on a phone\'s sheet', () => {
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered cloudOffered sheet />)
     open()
-    expect(screen.queryByRole('checkbox', { name: 'Cloud deck' })).toBeNull()
+    expect(screen.getByRole('checkbox', { name: 'Cloud deck' })).toBeTruthy()
   })
 
   it('greys the cloud deck row until a report is held, and turns it off', () => {
