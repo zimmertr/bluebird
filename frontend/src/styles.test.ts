@@ -510,12 +510,14 @@ describe('the reading tier', () => {
     expect(PROSE.subtitle.replace('text-sm', 'text-xs')).toBe(TEXT.caption)
   })
 
-  // The tagline is each surface's secondary line, upright: the maintainer
-  // tried it in italics and had it put back (#801, record 0229).
-  it('keeps the tagline upright on the roles it wears', () => {
+  // The tagline is the welcome dialog's secondary line, upright: the
+  // maintainer tried it in italics and had it put back (#801, record 0229).
+  // The panel's header that wore it too went with the docked panel (record
+  // 0334).
+  it('keeps the tagline upright', () => {
     expect(TEXT.caption).not.toContain('italic')
     expect(PROSE.subtitle).not.toContain('italic')
-    expect(controlPanelSource).toContain('<p className={TEXT.caption}>Weather Window Finder</p>')
+    expect(controlPanelSource).not.toContain('Weather Window Finder')
     expect(welcomeSource).toContain('<p className={PROSE.subtitle}>Weather Window Finder</p>')
   })
 

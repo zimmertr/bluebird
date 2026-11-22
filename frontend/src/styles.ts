@@ -6,11 +6,10 @@
  * something else. The reading surfaces — the welcome and privacy dialogs, and
  * the analysis overlay card — are wide, and you read them once, carefully.
  *
- * They are not two scales. The dialog title is the panel header's title, one
- * size for both since #687 (both are the name of the surface they head), and
- * the dialog subtitle is the caption step one size up, the same recipe the
- * tagline under the app title wears, and both say "Weather Window Finder"
- * (record 0222).
+ * They are not two scales. The dialog title is `TEXT.appTitle`, the size
+ * the docked panel's header wore since #687 (both name the surface they
+ * head), and the dialog subtitle, "Weather Window Finder", is the caption step
+ * one size up (record 0222).
  * And the reading tier's small step lands exactly on the compact tier's base,
  * so the two share the 12px rung rather than running past each other. Naming
  * them as one ramp keeps a dialog from drifting into a second look.
