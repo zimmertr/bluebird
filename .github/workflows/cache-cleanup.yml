@@ -26,6 +26,6 @@ permissions: {}
 jobs:
   cleanup:
     name: Cache Cleanup
-    uses: zimmertr/yggdrasil/.github/workflows/cache-cleanup.yml@c8d95dfce582c36045b95a5c0b38eb62c4d4fae0 # v3.1.0
+    uses: zimmertr/yggdrasil/.github/workflows/cache-cleanup.yml@100f98842aa28262e9e73ebd153af00712bad535 # v3.1.1
     permissions:
       actions: write # gh cache delete
