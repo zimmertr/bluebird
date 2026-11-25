@@ -116,7 +116,7 @@ Over the 30 days to 2026-11-25 the pod answered no 5xx on any route. Discovery t
 
 ### Open-Meteo Fails Rarely, but Alone
 
-Open-Meteo's measured failures are few: on 2026-11-13 `api.open-meteo.com` gave no answer for over a minute while its archive and air-quality hosts answered at once, and every analysis failed, on wifi and on a phone (#934); on 2026-10-20 it refused a 262-destination run for holding too many requests open (#783); and every probe on 2026-11-25 answered. That is a thin record, and it is not why this plan replaces it. The reason is that it sits alone on the path, so the day it is down for a week, nothing else can answer.
+Open-Meteo's measured failures are few: on 2026-11-13 `api.open-meteo.com` gave no answer for over a minute while its archive and air-quality hosts answered at once, and every analysis failed, on wifi and on a phone (#934); on 2026-10-20 it refused a 262-destination run for holding too many requests open (#783); and at 02:21 on 2026-11-25 a probe caught it again (see the table below). That is a thin record, and it is not why this plan replaces it. The reason is that it sits alone on the path, so the day it is down for a week, nothing else can answer.
 
 One number I first read as Open-Meteo's is not. Until 2026-10-27 the release's canary ran one analysis through the pod, and between 2026-09-24 and 2026-10-22 that answered `502` 96 times out of 101. However, the pod's own counter saw only 13 Open-Meteo requests in those 60 days, and the days of the `502`s line up with Overpass failing during discovery on the same route. So most of those were Overpass.
 
@@ -132,15 +132,17 @@ Over 30 days the snapshot refreshes failed 63 times for NIFC, 21 for SNODAS, 21 
 
 I sent a small sample of requests to each provider from a container at home, the same requests the app makes, a few at a time and two seconds apart. A sample this small says how a provider behaves at that hour, not how often it fails, so the rounds repeat through the night and the table keeps every round.
 
-| Provider | Round at 01:30 on 2026-11-25 |
-|---|---|
-| Open-Meteo forecast, archive, air quality | 16 of 16 answered; 0.07 s, 0.73 s and 0.69 s at the median |
-| OpenFreeMap style and tiles | 12 of 12; 0.08 s |
-| Mapterhorn, USGS, EOX tiles | 16 of 16; EOX the slowest at 0.73 s |
-| IEM radar, NOAA snow, NOAA smoke | 10 of 10 |
-| The two ArcGIS hosts (NIFC, Forest Service) | 6 of 6; 1.1 s and 4.2 s |
-| Overpass, both mirrors | 2 of 6; `overpass-api.de` timed out at 30 s and answered `502`, `maps.mail.ru` answered `504` twice |
-| bluebirdforecast.com, the page and `/api/capabilities` | 12 of 12; 0.14 s and 0.12 s |
+| Provider | Round at 01:30 on 2026-11-25 | Round at 02:21 |
+|---|---|---|
+| Open-Meteo forecast, archive, air quality | 16 of 16 answered; 0.07 s, 0.73 s and 0.69 s at the median | **The forecast host 0 of 4**: every request failed its TLS handshake after 22 to 24 s, while the archive and air-quality hosts answered 4 of 4 in 0.7 s |
+| OpenFreeMap style and tiles | 12 of 12; 0.08 s | 12 of 12 |
+| Mapterhorn, USGS, EOX tiles | 16 of 16; EOX the slowest at 0.73 s | 16 of 16 |
+| IEM radar, NOAA snow, NOAA smoke | 10 of 10 | 10 of 10 |
+| The two ArcGIS hosts (NIFC, Forest Service) | 6 of 6; 1.1 s and 4.2 s | 6 of 6 |
+| Overpass, both mirrors | 2 of 6; `overpass-api.de` timed out at 30 s and answered `502`, `maps.mail.ru` answered `504` twice | 3 of 6; `overpass-api.de` answered `502` and timed out twice, `maps.mail.ru` answered all three in 23 s |
+| bluebirdforecast.com, the page and `/api/capabilities` | 12 of 12; 0.14 s and 0.12 s | 12 of 12 |
+
+The 02:21 round caught the failure #934 describes, live: the forecast host alone stopped answering, and its two sister hosts on the same service answered at once. Whether the fault was Open-Meteo's or on the path from this house to it, a reader there would have seen every analysis fail. One host answering every forecast is the single point this plan's weather sources exist to remove.
 
 ### Nobody Is Told
 
