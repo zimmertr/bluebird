@@ -156,16 +156,18 @@ class UpstreamBudget:
         self._sem = asyncio.Semaphore(self.capacity)
 
     @asynccontextmanager
-    async def slot(self) -> AsyncIterator[None]:
+    async def slot(self, *, wait_s: float | None = None) -> AsyncIterator[None]:
+        """Hold one slot, queueing up to ``wait_s`` (the budget's own wait by default)."""
+        wait = self._wait_s if wait_s is None else min(self._wait_s, max(0.0, wait_s))
         queued_from = time.perf_counter()
         try:
-            await asyncio.wait_for(self._sem.acquire(), timeout=self._wait_s)
+            await asyncio.wait_for(self._sem.acquire(), timeout=wait)
         except TimeoutError:
             log.warning(
                 "event=budget_exhausted provider=%s capacity=%d waited_s=%.0f",
                 self.provider,
                 self.capacity,
-                self._wait_s,
+                wait,
             )
             telemetry.UPSTREAM_SHED.labels(
                 provider=self.provider, mechanism="queue"

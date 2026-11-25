@@ -71,8 +71,8 @@ An analysis has three stages, and each leans on different things. So I list them
 | Dependency | What you see when it fails | Rides it out today |
 |---|---|---|
 | `POST /api/destinations`, answered from the places table | `OpenStreetMap is not available. Try again later.` | The table itself needs no third party, so as long as the pod and the database are up |
-| PostgreSQL behind it | Each discovery waits 5 s for a connection, then falls to Overpass | As long as Overpass answers. The pod never notices the database is gone, so every request pays the 5 s again |
-| Overpass, the fallback (two donated mirrors) | The same message, after up to 55 s, or 110 s when the mirrors' slots are full | Barely. The two mirrors fail together, and they answer about one request in seven (see the evidence) |
+| PostgreSQL behind it | The first discovery waits up to 5 s for a connection, then falls to Overpass | As long as Overpass answers. Since mitigation 7 the pod notices: it skips the database for 30 s after a failure, then one request tries it again |
+| Overpass, the fallback (two donated mirrors) | The same message, after at most 20 s, since mitigation 7 asks both mirrors at once inside one deadline | Barely. The two mirrors fail together, and they answer about one request in seven (see the evidence) |
 | A pasted list's elevation lookup | Rows keep no elevation and are read at the ground's height | Always. It is best effort |
 
 ### Forecasting
@@ -259,7 +259,7 @@ Ranked by how much failure each removes for the work it takes. The ones in this 
 | 4 | **Never Hold a Finished Table** - snow depth given 3 s and filled in late, air quality stopped on its first timeout, `/api/capabilities` given 5 s, one retry and a last good copy | Up to 110 s held after the forecasts land; a session stuck on one model |
 | 5 | **The Pacer's Bookkeeping** - a cancelled or failed run's bookings released, an analysis booked ahead of the grid and the comparison, rows with no elevation read from the cache | A minute's wait on calls never sent; a grid holding the next run for two minutes |
 | 6 | **The Cloud Column Degrades** - a failed cloud batch reads null, as air quality does | Half the requests that can each fail a run |
-| 7 | **The Database in the Pod** - a database that stops answering is skipped for 30 s, every read has a statement timeout, the connection has a connect timeout and keepalives, every `psycopg.Error` on a read path takes the fallback, and discovery has one deadline of about 20 s | 5 s added to every request while the database is down; a hang on a half-open connection; 222 s worst-case discovery |
+| 7 | **The Database in the Pod** (built) - a database that stops answering is skipped for 30 s, every read has a statement timeout, the connection has a connect timeout and keepalives, every `psycopg.Error` on a read path takes the fallback, and discovery has one deadline of about 20 s | 5 s added to every request while the database is down; a hang on a half-open connection; 222 s worst-case discovery |
 | 8 | **Discovery in the Browser** - a 15 s deadline and one retry in place of 110 s and none, and the pod named rather than OpenStreetMap when the edge answers `502` or `530` | A dead pod read as "OpenStreetMap is not available" |
 | 9 | **The Map Without Its Tile Host** - the style, glyphs and sprites in the app's own assets, a timed retry, the ring tool mounted without the remote style | An OpenFreeMap outage stopping you drawing |
 | 10 | **The Overlays Say When They Fail** - each layer's approved "unavailable" sentence shown in the message list rather than only logged | "No fires" and "the fire feed is down" looking the same |

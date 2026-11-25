@@ -129,6 +129,57 @@ async def test_a_connection_the_server_dropped_is_not_handed_out(database):
     assert after and after[0] not in {pid for pid, _ in cut}
 
 
+# ── The bounds on every call (docs/RELIABILITY.md, mitigation 7) ──────────
+
+
+@pytest.fixture
+def short_statements(monkeypatch):
+    # Set before the `database` fixture opens the pool, whose connections take
+    # the statement timeout when each is made.
+    monkeypatch.setattr(db, "STATEMENT_TIMEOUT_S", 0.5)
+
+
+async def _setting(conn) -> str:
+    row = await (await conn.execute("SHOW statement_timeout")).fetchone()
+    assert row
+    return row[0]
+
+
+async def test_every_pooled_connection_carries_the_statement_timeout(database):
+    async with db.connection() as conn:
+        assert await _setting(conn) == f"{db.STATEMENT_TIMEOUT_S:.0f}s"
+
+
+async def test_a_statement_past_its_timeout_fails_that_call_and_pauses_nothing(short_statements, database):
+    with pytest.raises(db.DatabaseUnavailable, match="statement timeout"):
+        async with db.connection() as conn:
+            await conn.execute("SELECT pg_sleep(2)")
+    assert db.available()
+    async with db.connection() as conn:
+        assert await (await conn.execute("SELECT 1")).fetchone() == (1,)
+
+
+async def test_work_that_runs_long_lifts_the_timeout_until_its_connection_is_returned(
+    short_statements, database
+):
+    async with db.connection(unbounded=True) as conn:
+        assert await _setting(conn) == "0"
+        await conn.execute("SELECT pg_sleep(0.8)")
+        row = await (await conn.execute("SELECT pg_backend_pid()")).fetchone()
+    assert row
+    lifted = row[0]
+    # The pool hands its connections out in turn, so check out until the
+    # lifted one comes back and read its setting there.
+    for _ in range(4 * db.POOL_MAX):
+        async with db.connection() as conn:
+            pid = await (await conn.execute("SELECT pg_backend_pid()")).fetchone()
+            if pid and pid[0] == lifted:
+                assert await _setting(conn) == "500ms"
+                break
+    else:
+        pytest.fail("the lifted connection never came back from the pool")
+
+
 def test_backoff_doubles_from_a_minute_to_an_hour():
     mid = lambda lo, hi: 1.0  # noqa: E731  no jitter
     assert refresh.backoff_s(1, rand=mid) == 60

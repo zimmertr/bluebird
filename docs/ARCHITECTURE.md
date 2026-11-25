@@ -48,7 +48,7 @@ of a regex.
 
 None of the external APIs need a key. The three on the analysis path:
 
-- **Overpass** handles the OSM feature queries when the places table cannot answer: a deployment with no database, one whose first fill has not finished, or a search the database dropped. Two public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru` (ordered by measured success rate and latency; see the dated table in `osm/mirrors.py`). A third, `overpass.kumi.systems`, was dropped after it answered none of eight attempts in 30 days.
+- **Overpass** handles the OSM feature queries when the places table cannot answer: a deployment with no database, one whose first fill has not finished, or a search the database dropped. Two public endpoints are tried in order on the analyze routes: `overpass-api.de`, then `maps.mail.ru` (ordered by measured success rate and latency; see the dated table in `osm/mirrors.py`). `POST /api/destinations` asks both at once instead and takes the first good answer, because its one 20 s deadline is shorter than two attempts in turn. A third, `overpass.kumi.systems`, was dropped after it answered none of eight attempts in 30 days.
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request, and the archive that answers a window older than the forecast endpoint's reach.
 - **OpenFreeMap** serves the vector map tiles.
 
@@ -153,10 +153,17 @@ The database is optional, and a pod runs in one of three modes:
   data the fill can rebuild. Record:
   [0183](architectural-decision-records/0183-previews-read-production-read-only.md)
 
-A database that drops or stops answering mid-request sends that request down
-the pod's own path, so a database fault never becomes a `500`. For the counters a call is
-bounded at 0.5 s, and one that fails pauses the shared path on that pod for
-30 s, so an outage costs one slow request rather than one per request. The
+A database that drops, refuses a statement or stops answering mid-request
+sends that request down the pod's own path, so a database fault never becomes
+a `500`. Every statement has a 3 s timeout on the server and every call a 5 s
+deadline on the pod, since a server on a half-open connection cannot enforce
+its own, and a new connection gives up after 3 s and keeps itself alive with
+TCP keepalives. A call that finds the database gone or stalled pauses every
+reader on that pod for 30 s, after which one request tries it again, so an
+outage costs one slow request rather than one per request. A statement past
+its timeout fails that call alone. For the counters a call is bounded at
+0.5 s, and one that fails pauses the counters' shared path on that pod for
+the same 30 s. The
 forecast cache stays per pod: only keyed API callers use it, so sharing it
 would change nothing a visitor sees.
 
