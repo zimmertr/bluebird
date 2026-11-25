@@ -499,7 +499,7 @@ async def test_closing_the_analysis_cancels_the_phase_tasks_before_it_returns(
         tasks.append(asyncio.current_task())
         await asyncio.Event().wait()
 
-    async def hang_discovery(polygon, destination_types, on_status=None, include_unnamed_peaks=False):
+    async def hang_discovery(polygon, destination_types, on_status=None, include_unnamed_peaks=False, **_kwargs):
         await on_status("Trying backup map server 2 of 3…")
         await hang()
 

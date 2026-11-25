@@ -613,7 +613,7 @@ async def test_a_discovery_past_the_deadline_answers_502_in_time(monkeypatch):
         async def __aexit__(self, *exc):
             return False
 
-        async def post(self, url, data=None, timeout=None):
+        async def post(self, url, data=None, timeout=None, **_kwargs):
             await stall()
 
     monkeypatch.setattr(osm_mod.mirrors.httpx, "AsyncClient", lambda *a, **k: _Stalling())

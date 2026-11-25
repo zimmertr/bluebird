@@ -1146,7 +1146,9 @@ describe('runClientAnalysis and the cloud column', () => {
       'fetch',
       vi.fn(async (url: string) => {
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        if (isCloudRequest(url)) return fakeResponse({ reason: 'x' }, 500)
+        // A 403 rather than a 5xx, which is asked again through the run's
+        // outage window (record 0345) and would hold this test for 30 s.
+        if (isCloudRequest(url)) return fakeResponse({ reason: 'x' }, 403)
         const host = new URL(url).hostname
         return fakeResponse(
           host === 'api.open-meteo.com'
@@ -1162,9 +1164,9 @@ describe('runClientAnalysis and the cloud column', () => {
       endMs,
       { nowMs: startMs },
     ).catch((e: unknown) => e)
-    // Only the cloud request answers 500 here, so its class and status name it.
+    // Only the cloud request answers 403 here, so its class and status name it.
     expect(err).toBeInstanceOf(OpenMeteoHttpError)
-    expect((err as OpenMeteoHttpError).status).toBe(500)
+    expect((err as OpenMeteoHttpError).status).toBe(403)
   })
 })
 
