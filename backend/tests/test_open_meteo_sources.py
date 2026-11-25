@@ -63,8 +63,8 @@ def test_the_policy_lets_the_page_reach_every_mirror_it_is_told_to_ask():
     connect = next(
         part for part in security_headers.app_csp(origins).split("; ") if part.startswith("connect-src")
     )
-    assert "https://om-a.example.org" in connect.split()
-    assert "https://om-b.example.org" in connect.split()
+    # Whole tokens of the directive, compared as a set, never as substrings.
+    assert set(origins) <= set(connect.split()[1:])
 
 
 def test_without_mirrors_the_policy_is_the_one_every_response_carries():
