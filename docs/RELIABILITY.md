@@ -307,7 +307,7 @@ fill:
   schedule: "17 9 * * *"
 ```
 
-That is one volume created and deleted a day, and a lost or new database is searched from Overpass for a day at most, plus the fill's own 82 minutes to the load. Faster than that needs the check apart from the fill: an init container that asks `osm_state` and exits before the scratch volume is mounted. That is a change to the chart's template, so it is drafted here and not built.
+That is one volume created and deleted a day, and a lost or new database is searched from Overpass for a day at most, plus the fill's own 82 minutes to the load. Faster than that needs the check apart from the fill, since an ephemeral volume is created with its pod whatever the pod's first container decides: a small hourly CronJob with no volume that reads `osm_state` and creates the fill's Job only when the table needs one, which needs a service account allowed to create Jobs. That is a new template in the chart, so it is drafted here and not built.
 
 ### bluebird-helm: Database Backups
 
