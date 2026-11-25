@@ -9,7 +9,7 @@
 # Debian packages osmium-tool and pyosmium, so nothing here is compiled. The
 # base is pinned by digest as well as tag for the reason the app's Dockerfile
 # gives: the tag says which release this is, the digest which build of it.
-FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS runtime
+FROM debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0 AS runtime
 
 LABEL org.opencontainers.image.title="Bluebird Forecast planet fill" \
       org.opencontainers.image.description="Builds Bluebird Forecast's places table from the OpenStreetMap planet file" \
