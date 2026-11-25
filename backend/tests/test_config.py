@@ -24,7 +24,7 @@ def test_config_disabled_by_default(monkeypatch):
     monkeypatch.delenv("SERVICE_WORKER", raising=False)
     monkeypatch.delenv("PREVIEW_PR", raising=False)
     body = client.get("/api/config").json()
-    assert body == {"preview": {"enabled": False, "pr": None, "commit": None}, "service_worker": False}
+    assert body == {"preview": {"enabled": False, "pr": None, "commit": None}, "service_worker": True}
 
 
 def test_config_enabled_surfaces_pr_and_commit(monkeypatch):
@@ -33,7 +33,7 @@ def test_config_enabled_surfaces_pr_and_commit(monkeypatch):
     monkeypatch.setenv("PREVIEW_PR", "42")
     monkeypatch.setenv("PREVIEW_COMMIT", "abc123")
     body = client.get("/api/config").json()
-    assert body == {"preview": {"enabled": True, "pr": "42", "commit": "abc123"}, "service_worker": False}
+    assert body == {"preview": {"enabled": True, "pr": "42", "commit": "abc123"}, "service_worker": True}
 
 
 def test_config_disabled_hides_pr_even_if_set(monkeypatch):
@@ -44,10 +44,13 @@ def test_config_disabled_hides_pr_even_if_set(monkeypatch):
     assert body["preview"]["pr"] is None
 
 
-@pytest.mark.parametrize(("value", "on"), [(None, False), ("0", False), ("1", True), ("on", True)])
-def test_the_service_worker_is_off_unless_the_deployment_turns_it_on(monkeypatch, value, on):
-    # Record 0349: the worker keeps the page in the browser, so it waits on the
-    # privacy page saying so, and the switch is how it is turned off again.
+@pytest.mark.parametrize(
+    ("value", "on"),
+    [(None, True), ("", True), ("1", True), ("0", False), ("false", False), (" Off ", False), ("no", False)],
+)
+def test_the_service_worker_is_on_unless_the_deployment_turns_it_off(monkeypatch, value, on):
+    # Record 0349: the privacy page names the copy the worker keeps, so it ships
+    # on, and the switch is how a bad worker is taken out of every browser.
     if value is None:
         monkeypatch.delenv("SERVICE_WORKER", raising=False)
     else:

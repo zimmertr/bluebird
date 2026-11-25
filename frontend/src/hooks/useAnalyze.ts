@@ -108,6 +108,9 @@ export function useAnalyze(
   // (`fetchAqi`), so the field ranks on air quality with holes in it. Set
   // only by a commit, like the report it describes.
   const [aqiPartial, setAqiPartial] = useState(false)
+  // The committed report's cloud column failed (record 0350): its rows read
+  // N/A there and the list says why. Set only by a commit, like the above.
+  const [cloudFailed, setCloudFailed] = useState(false)
 
   // The paste-time lookup's answer landed on the committed report (#673):
   // rows the pod placed after the run had read what was known.
@@ -146,6 +149,7 @@ export function useAnalyze(
     heldForecastsRef.current = null
     holdFound(null)
     setAqiPartial(false)
+    setCloudFailed(false)
   }
 
   // One explicit fetch per Analyze click: every candidate in the polygon is
@@ -226,7 +230,9 @@ export function useAnalyze(
         report.commit(out.response, out.field, view(), out.pending)
         const aqiFailed = out.held.aqiFailed?.size ?? 0
         setAqiPartial(aqiFailed > 0 && aqiFailed < out.field.length)
-        tracker.finished(out.field.length, aqiFailed > 0 ? 'air_quality' : null)
+        const cloudGap = out.held.cloudFailed === true
+        setCloudFailed(cloudGap)
+        tracker.finished(out.field.length, cloudGap ? 'cloud' : aqiFailed > 0 ? 'air_quality' : null)
         holdFound(null)
         // In the same render as the commit, so the report never shows a
         // frame under the bookkeeping of the one before it, and inside the
@@ -336,6 +342,7 @@ export function useAnalyze(
     // null: drawn as pending rows beside the reader's own.
     pendingField,
     aqiPartial,
+    cloudFailed,
     statusMessage: run.statusMessage,
     progress: run.progress,
     paceRemainingS: run.paceRemainingS,

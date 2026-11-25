@@ -49,7 +49,7 @@ class RunReport(BaseModel):
             "a run whose page closed while it was still going."
         )
     )
-    stage: Literal["discovery", "weather", "air_quality", "snow", "basemap", "other"] | None = Field(
+    stage: Literal["discovery", "weather", "air_quality", "cloud", "snow", "basemap", "other"] | None = Field(
         default=None,
         description="The part that failed or degraded it, when one did.",
     )

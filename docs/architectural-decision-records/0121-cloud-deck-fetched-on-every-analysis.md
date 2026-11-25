@@ -1,6 +1,6 @@
 # 0121. The cloud deck is fetched for every candidate of every analysis
 
-- Status: Accepted. Supersedes 0057.
+- Status: Accepted, amended by [0350](0350-a-failed-cloud-column-reads-n-a.md) (in the browser a cloud failure reads N/A rather than failing the analysis). Supersedes 0057.
 - Date: 2026-10-08
 - Decider: the maintainer, on #683 (2026-10-08: "it should always be fetched. It shouldn't be an exception like this.")
 - Issues and PRs: #683, #117, #483, #670

@@ -180,7 +180,7 @@ export interface HourlySeries {
 
 // POST /api/reports (record 0339): how one run or one map load ended, the
 // only way the pod learns how often an analysis in the browser succeeds.
-export type RunReportStage = 'discovery' | 'weather' | 'air_quality' | 'snow' | 'basemap' | 'other'
+export type RunReportStage = 'discovery' | 'weather' | 'air_quality' | 'cloud' | 'snow' | 'basemap' | 'other'
 export interface RunReport {
   kind: 'analysis' | 'map'
   outcome: 'success' | 'degraded' | 'failed' | 'refused' | 'cancelled' | 'abandoned'

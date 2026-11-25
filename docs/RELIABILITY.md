@@ -46,11 +46,11 @@ The site sees about 50 analyses a month, which is far too few to read a 99.9% fr
 
 ### How I Got These Numbers
 
-A healthy 200-destination run takes 4 to 6 s today (520 weighted calls, eight requests through four open ones, measured batches of 1.5 to 1.8 s), so 8 s leaves room for one fallback and nothing more. The cap's 45 s is what 60 requests take without the free tier's minute-by-minute pacing; on the free tier alone the same run takes 7 to 8 minutes of pacing by design. The ceilings of 30 s and 90 s are there because the complaint is the wait as much as the failure. Today nothing bounds a run's total time except Cancel.
+A healthy 200-destination run takes 4 to 6 s today (520 weighted calls, eight requests through four open ones, measured batches of 1.5 to 1.8 s), so 8 s leaves room for one fallback and nothing more. The cap's 45 s is what 60 requests take without the free tier's minute-by-minute pacing; on the free tier alone the same run takes 7 to 8 minutes of pacing by design. The ceilings of 30 s and 90 s are there because the complaint is the wait as much as the failure. They hold from the day `OPEN_METEO_MIRRORS` names a mirror. Until then, a forecast host that never answers fails a run of up to 200 destinations in about 49 s, the measured worst case with the public hosts alone, and I state that beside the ceiling rather than count it against it (your call, 2026-11-25, when you chose no mirror for now).
 
 ### The Error Budget
 
-A target with no consequence is a wish. So while a 28-day window has spent more than its budget, the next change to ship is a reliability fix, and new features wait. Each budget's burn is an alert (see [Alerting](#alerting)), so nobody has to go looking. Record: [0339](architectural-decision-records/0339-reliability-targets-held-on-synthetic-runs.md)
+A target with no consequence is a wish. An incident that takes down all of Cloudflare is outside the budget, because the page, the tunnel and the edge are all Cloudflare's and nothing here can route around it (your call, 2026-11-25). Otherwise, while a 28-day window has spent more than its budget, the next change to ship is a reliability fix, and new features wait. Each budget's burn is an alert (see [Alerting](#alerting)), so nobody has to go looking. Record: [0339](architectural-decision-records/0339-reliability-targets-held-on-synthetic-runs.md)
 
 <hr>
 
@@ -192,7 +192,7 @@ The browser then holds a **list of sources** and asks them in order, with three 
 
 With one source in the list this is today's app with better retries. A second entry is configuration, not a release.
 
-**Where the mirror lives** is the real decision, and I'd put it outside the house:
+**Where the mirror lives** is the real decision, and I'd put it outside the house. You chose no mirror for now (2026-11-25), so the list holds the public hosts alone until one of these is picked:
 
 | Option | Fails with | What it costs |
 |---|---|---|
@@ -234,7 +234,7 @@ At about two releases a day this is the most frequent risk there is. The canary 
 
 ### Cloudflare
 
-DNS, the registrar, the tunnel and in this plan the page and the places file are all Cloudflare. Its large incidents have lasted from tens of minutes to a few hours, and one of them spends more than a month's 20 minutes. There are two honest answers: **accept it**, and leave Cloudflare-wide incidents out of the budget in writing; or move DNS and the registrar elsewhere with health-checked failover to a second static host and a second origin, for a few dollars a month and a real increase in moving parts. I'd accept it.
+DNS, the registrar, the tunnel and in this plan the page and the places file are all Cloudflare. Its large incidents have lasted from tens of minutes to a few hours, and one of them spends more than a month's 20 minutes. There are two honest answers: **accept it**, and leave Cloudflare-wide incidents out of the budget in writing; or move DNS and the registrar elsewhere with health-checked failover to a second static host and a second origin, for a few dollars a month and a real increase in moving parts. You accepted it on 2026-11-25, so they are outside the budget (record [0339](architectural-decision-records/0339-reliability-targets-held-on-synthetic-runs.md)).
 
 ### Alerting
 
@@ -262,14 +262,14 @@ Ranked by how much failure each removes for the work it takes. The ones in this 
 | 1 | **Report Every Run** (built) - one beacon per run, page load and uncaught error to a new pod route (outcome, duration, the stage and source that failed, destination count, window length, model, cancelled or not; no coordinates), counted in Prometheus | Nothing by itself, but no target can be held or checked without it |
 | 2 | **Weather Sources as a List** (built, record [0345](architectural-decision-records/0345-weather-sources-hedged-under-one-run-window.md)) - published by `/api/capabilities`, with today's Open-Meteo hosts as the only entry until a mirror exists, a hedged request, a circuit breaker per source, and pacing only for sources with a quota | The single source; makes a mirror configuration, not a release |
 | 3 | **Retries That Are Bounded** (built, record 0345) - a 5xx or a dropped connection retried once at once, then failed over; one time budget per run in place of 160 s per batch. Built as one 30 s outage window per run, so with only the public hosts a host that never answers fails the run in about 49 s rather than 160 s; meeting the 30 s ceiling needs the second source | One `502` in 60 batches failing a run; minutes of countdowns |
-| 4 | **Never Hold a Finished Table** (built) - snow depth given 3 s and filled in late, air quality stopped on its first timeout, `/api/capabilities` given 5 s, one retry and a last good copy. Built: the snow depth, the capabilities deadline and retry, and air quality stopping at its first timeout (record 0345). Still to do: the last good copy, which waits on the privacy page saying the browser keeps it | Up to 110 s held after the forecasts land; a session stuck on one model |
+| 4 | **Never Hold a Finished Table** (built) - snow depth given 3 s and filled in late, air quality stopped on its first timeout, `/api/capabilities` given 5 s, one retry and a last good copy. Built: the snow depth, the capabilities deadline and retry, air quality stopping at its first timeout (record 0345), and the last good copy in local storage, which the privacy page now names (record [0342](architectural-decision-records/0342-capabilities-five-seconds-and-one-retry.md)) | Up to 110 s held after the forecasts land; a session stuck on one model |
 | 5 | **The Pacer's Bookkeeping** (built, record [0347](architectural-decision-records/0347-a-run-takes-the-pacer-back-at-the-press.md)) - a cancelled or failed run's bookings released, an analysis booked ahead of the grid and the comparison, rows with no elevation read from the cache. Built: the release, and the grid and the comparison stopping at the press. Not built: the cache for rows with no elevation, which would hold raw columns worth tens of megabytes on a full run | A minute's wait on calls never sent; a grid holding the next run for two minutes |
-| 6 | **The Cloud Column Degrades** - a failed cloud batch reads null, as air quality does | Half the requests that can each fail a run |
+| 6 | **The Cloud Column Degrades** (built in the browser, record [0350](architectural-decision-records/0350-a-failed-cloud-column-reads-n-a.md): the column reads N/A, the messages say `Cloud data unavailable. Try again later.`, and the field is not reused; the pod's routes still fail) - a failed cloud batch reads null, as air quality does | Half the requests that can each fail a run |
 | 7 | **The Database in the Pod** (built, record [0346](architectural-decision-records/0346-the-pod-skips-a-failed-database-and-bounds-every-call.md)) - a database that stops answering is skipped for 30 s, every read has a statement timeout, the connection has a connect timeout and keepalives, every `psycopg.Error` on a read path takes the fallback, and discovery has one deadline of about 20 s | 5 s added to every request while the database is down; a hang on a half-open connection; 222 s worst-case discovery |
 | 8 | **Discovery in the Browser** (built, record [0343](architectural-decision-records/0343-discovery-fifteen-seconds-and-one-retry.md)) - a 22 s deadline (the pod's 20 s and the trip) and one retry in place of 110 s and none, and the pod named rather than OpenStreetMap when the edge answers `502` or `530` | A dead pod read as "OpenStreetMap is not available" |
 | 9 | **The Map Without Its Tile Host** (partly built, record [0348](architectural-decision-records/0348-a-failed-map-style-is-asked-for-again-on-a-timer.md): the timed retry; the bundled style's licence allows it, with notices; it waits on a browser check of swapping styles under the app's own layers) - the style, glyphs and sprites in the app's own assets, a timed retry, the ring tool mounted without the remote style | An OpenFreeMap outage stopping you drawing |
 | 10 | **The Overlays Say When They Fail** (built) - each layer's approved "unavailable" sentence shown in the message list rather than only logged | "No fires" and "the fire feed is down" looking the same |
-| 11 | **The Page Survives the Pod** (built, switched off, record [0349](architectural-decision-records/0349-a-service-worker-keeps-the-page-behind-an-off-switch.md): `SERVICE_WORKER` turns it on once the privacy page names it; the headers for static hosting are the release workflow's) - a service worker with an off switch, and the page's headers ready for static hosting | A returning visitor losing the site with the house |
+| 11 | **The Page Survives the Pod** (built and on, record [0349](architectural-decision-records/0349-a-service-worker-keeps-the-page-behind-an-off-switch.md): the privacy page names the copy it keeps, and `SERVICE_WORKER=false` is the off switch; the headers for static hosting are the release workflow's) - a service worker with an off switch, and the page's headers ready for static hosting | A returning visitor losing the site with the house |
 | 12 | **Proving It** (started: `e2e/providerFailures.spec.ts` covers a forecast `502`, a hung forecast request, a `530` for the pod, and a published mirror both answering, with the public hosts never asked, and refusing, with the run handed to them) - a browser-suite spec per failure above: a host that hangs, refuses or answers nulls, with the run still landing inside its target | Every promise above quietly regressing |
 
 ### In Other Repositories, or Needing Your Call
@@ -282,10 +282,10 @@ Ranked by how much failure each removes for the work it takes. The ones in this 
 | CloudNativePG backups to object storage, and a quarterly restore | bluebird-helm | Cents a month |
 | The fill starting itself on an empty table | bluebird-helm | None |
 | Burn-rate alerts, an outside synthetic run every five minutes, a heartbeat for `Watchdog`, a receiver that reaches a phone | Kubernetes-Manifests, plus an outside probe and heartbeat service | Free tiers exist |
-| A browser check in the release gate, the same after promotion, and an automatic abort | Kubernetes-Manifests; reverses record 0083 | Your call |
+| A browser check in the release gate and the same after promotion, with no automatic abort | Kubernetes-Manifests | None. You kept fix-forward on 2026-11-25, so record 0083 stands |
 | istiod at two replicas, cloudflared spread hard and pinned by digest, an alert on the certificate's age | Kubernetes-Manifests | None |
 | Open-Meteo's paid API behind a Worker, as a third source | A Worker and a key | About $29 a month |
-| Cloudflare-wide incidents left out of the budget, in writing | This page | None |
+| Cloudflare-wide incidents left out of the budget, in writing | This page and record 0339 (done, 2026-11-25) | None |
 
 <hr>
 

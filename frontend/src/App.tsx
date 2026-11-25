@@ -627,6 +627,7 @@ export default function App() {
     limit,
     hourlyCalls: caps.openMeteoHourlyCalls,
     aqiPartial: analysis.aqiPartial,
+    cloudFailed: analysis.cloudFailed,
     glacierRows: glacierRowCount(sortBy, results),
     failureSeq,
     commitReasons,

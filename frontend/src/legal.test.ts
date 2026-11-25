@@ -25,7 +25,7 @@ import { SUPPORT_EMAIL } from './utils/contact'
 import { DATA_SOURCES } from './utils/dataSources'
 import { STORAGE_KEY } from './utils/forecastStore'
 import forecastStore from './utils/forecastStore.ts?raw'
-import { STARRED_LISTS_KEY, THEME_KEY, VIEW_KEY, WELCOME_KEY } from './utils/viewPrefs'
+import { CAPABILITIES_KEY, STARRED_LISTS_KEY, THEME_KEY, VIEW_KEY, WELCOME_KEY } from './utils/viewPrefs'
 import viewPrefs from './utils/viewPrefs.ts?raw'
 import { CHUNK_RELOAD_KEY } from './staleChunk'
 import { WILDFIRE_ROW_LABEL } from './utils/wildfires'
@@ -352,7 +352,7 @@ describe('the privacy copy, held to the code', () => {
   )
 
   it('dates the policy to the change that last corrected it', () => {
-    expect(privacyPage).toMatch(/Last updated 16 November 2026\./)
+    expect(privacyPage).toMatch(/Last updated 25 November 2026\./)
   })
 
   // The page names each key by what it keeps, and says how many there are.
@@ -374,13 +374,14 @@ describe('the privacy copy, held to the code', () => {
       [THEME_KEY]: /whether you chose the light or dark theme/,
       [STARRED_LISTS_KEY]: /which coordinate lists you starred/,
       [VIEW_KEY]: /how you laid out the results and the map: which views are open, which columns show and in what order, how the chart's panels are arranged, whether the forecast player shows, how faded each base map is, and whether the map's legend is folded/,
+      [CAPABILITIES_KEY]: /the last list of forecast models and limits the server sent, so a visit when it cannot be reached still offers them/,
       [STORAGE_KEY]: /Session storage, which ends when you close the tab, keeps the forecasts fetched/,
       [CHUNK_RELOAD_KEY]: /the version of the app that last reloaded itself after an update/,
     }
     expect([...literals].sort()).toEqual(Object.keys(described).sort())
     for (const pattern of Object.values(described)) expect(text).toMatch(pattern)
 
-    const count = ['one', 'two', 'three', 'four', 'five', 'six'].indexOf(
+    const count = ['one', 'two', 'three', 'four', 'five', 'six', 'seven'].indexOf(
       text.match(/Bluebird Forecast saves (\w+) things and sends none of them anywhere/)?.[1] ?? '',
     ) + 1
     expect(count).toBe(literals.size)
@@ -391,10 +392,34 @@ describe('the privacy copy, held to the code', () => {
     expect(viewPrefs).toMatch(/localStorage\.setItem\(WELCOME_KEY/)
     expect(viewPrefs).toMatch(/localStorage\.setItem\(THEME_KEY/)
     expect(viewPrefs).toMatch(/localStorage\.setItem\(STARRED_LISTS_KEY/)
+    expect(viewPrefs).toMatch(/localStorage\.setItem\(CAPABILITIES_KEY/)
     expect(forecastStore).toMatch(/sessionStorage\?\.setItem\(STORAGE_KEY/)
     expect(mainEntry).toMatch(/reloadOnStaleChunk\(\{[\s\S]*?storage: \(\) => window\.sessionStorage/)
     // The page's "last 15 minutes".
     expect(forecastStore).toMatch(/const CACHE_TTL_MS = 15 \* MINUTE_MS/)
+  })
+
+  // Record 0349: the page names the copy the service worker keeps, and the
+  // worker ships on, so the sentence and the switch's default move together.
+  it('names the copy of the page the service worker keeps, which ships on', () => {
+    expect(text).toMatch(/your browser keeps a copy of the page itself, which it replaces on every visit/)
+    expect(mainEntry).toMatch(/applyServiceWorkerSwitch\(/)
+    expect(repoFile('backend/app/routes/config.py')).toMatch(/service_worker=not _falsy\(os\.environ\.get\("SERVICE_WORKER"\)\)/)
+  })
+
+  // The run reports (record 0339) are the one thing the app sends about a run,
+  // and the page promises they carry no location and nobody's identity. The
+  // route's fields are the claim: a new one fails here until it is read.
+  it('says what a run report carries, and the route carries no more', () => {
+    expect(text).toMatch(
+      /the app tells the server how it ended and how long it took, with no location and nothing that identifies you/,
+    )
+    const route = repoFile('backend/app/routes/reports.py')
+    const start = route.indexOf('class RunReport')
+    const model = route.slice(start, route.indexOf('@router', start))
+    const fields = [...model.matchAll(/^ {4}([a-z_]+):/gm)].map((m) => m[1])
+    expect(fields).toEqual(['kind', 'outcome', 'stage', 'source', 'duration_ms', 'destinations', 'model'])
+    expect(route).toMatch(/extra="forbid"|_REQUEST_CONFIG/)
   })
 
   // The browser's own third-party surface is the CSP's list, so the page's

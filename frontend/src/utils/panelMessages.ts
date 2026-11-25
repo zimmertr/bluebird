@@ -43,6 +43,9 @@ const COMMIT_CUE: Record<CommitReason, string> = {
 export const AQI_NOTE_KEY = 'aqi:none'
 // The partial line's (#803, D5), its own condition beside the one above.
 export const AQI_PARTIAL_KEY = 'aqi:partial'
+export const CLOUD_UNAVAILABLE_KEY = 'cloud:unavailable'
+// Approved by the maintainer on PR #1001 (2026-11-25), in the overlays' words.
+export const CLOUD_DATA_UNAVAILABLE = 'Cloud data unavailable. Try again later.'
 
 /**
  * The lines whose arrival opens the list (#834; the maintainer, 2026-10-30):
@@ -57,6 +60,9 @@ export const LIST_OPENING_KEYS: ReadonlySet<string> = new Set([
   'closure:unavailable',
   'map:style',
   'list:failed',
+  // The cloud column of the report on screen (record 0350): the run landed,
+  // so nothing else would say why one column of it reads N/A.
+  CLOUD_UNAVAILABLE_KEY,
   // A map layer that is on and failing (record 0344): no change of the
   // reader's caused it either, and an empty layer looks like a quiet one.
   ...LAYER_FAILURES.map((f) => f.key),
@@ -194,6 +200,8 @@ export interface PanelMessageInputs {
   // The report's air quality failed for some of its field and not all of it
   // (#803, D5): one refused batch nulls every batch after it (`fetchAqi`).
   aqiPartial: boolean
+  /** The report's cloud column failed, so it reads N/A (record 0350). Absent reads as not. */
+  cloudFailed?: boolean
   /** Displayed rows on the snow depth ceiling while snow depth ranks (`glacierRowCount`). Absent reads as none. */
   glacierRows?: number
   wildfireCheckFailed: boolean
@@ -243,6 +251,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   // (#803, D5). The line above already speaks when every displayed row is
   // null, so this one stays quiet then rather than saying it twice.
   const aqiPartialActive = reportSettled && p.aqiPartial && !aqiNoteActive
+  const cloudFailedActive = reportSettled && p.cloudFailed === true
 
   // Everything the Forecast section has to say, said below the button with
   // every other message (#123 review). These used to render inside that section
@@ -441,6 +450,9 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
             severity: 'warn' as const,
           },
         ]
+      : []),
+    ...(cloudFailedActive
+      ? [{ key: CLOUD_UNAVAILABLE_KEY, text: CLOUD_DATA_UNAVAILABLE, severity: 'warn' as const }]
       : []),
     // Keyed on the condition, not the count, so one dismissal holds while the
     // reader changes the ring or the window (#849).

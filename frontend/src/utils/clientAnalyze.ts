@@ -538,6 +538,11 @@ export interface ClientAnalysis {
   // The rows of `universe`, by `geoKey`, whose air quality failed rather than
   // answered: what the next run's `reuse.aqiFailed` should be.
   aqiFailed: Set<string>
+  // The cloud column failed for the rows this run forecast (record 0350):
+  // they commit with no cloud deck, which reads N/A, rather than failing the
+  // run. Those rows are not held for reuse, so the next run asks again.
+  // Absent means it answered.
+  cloudFailed?: boolean
   // The raw columns behind every row whose elevation is unknown as the report
   // commits, by `geoKey` (#673): what the next run's `reuse.columns` should
   // be, and, while `late` is out, which rows are waiting on the lookup.
@@ -725,6 +730,7 @@ export async function runClientAnalysis(
       response: { results: [], total_queried: 0, total_matched: 0 },
       universe: [],
       aqiFailed: new Set(),
+      cloudFailed: false,
       columns: new Map(),
       late: null,
       lateSnow: null,
@@ -860,10 +866,9 @@ export async function runClientAnalysis(
   const onCallerAbort = () => internal.abort()
   if (signal?.aborted) internal.abort()
   signal?.addEventListener('abort', onCallerAbort, { once: true })
-  // A cloud failure aborts the weather fetch through `internal`, which then
-  // rejects with an AbortError. That error must not be what the caller sees,
-  // since an AbortError reads as the reader's own cancel.
-  let cloudFailure: unknown = null
+  // A cloud failure no longer fails the run (record 0350, superseding 0121):
+  // the rows commit with no cloud deck and the report says so.
+  let cloudFailed = false
   // One budget for the whole run (record 0345): the weather, the cloud column
   // and air quality share its outage window and its hedges, so three fetches
   // cannot each wait an outage out in turn.
@@ -952,8 +957,9 @@ export async function runClientAnalysis(
       windowLimits,
       onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'cloud'),
     }).catch((e: unknown) => {
-      if (!isAbort(e)) cloudFailure = e
-      internal.abort()
+      // An abort is the run's own (a cancel, or the weather failing), and the
+      // weather's await below is what reports it.
+      if (!isAbort(e)) cloudFailed = true
       return null
     })
 
@@ -1016,7 +1022,6 @@ export async function runClientAnalysis(
       // Never null on this branch: the new candidates are in `aqiCoords`.
       const aqi = (await aqiPending) ?? { results: [], failed: [] }
       const cloudList = await cloudPending
-      if (cloudFailure !== null) throw cloudFailure
       const aqiList = aqi.results.slice(aqiRetry.length)
       const assembled = assemble(unforecast, wxList, aqiList, cloudList)
       fetched = assembled.results
@@ -1097,13 +1102,14 @@ export async function runClientAnalysis(
       },
       universe: results,
       aqiFailed,
+      cloudFailed,
       columns: pendingColumns,
       late,
       lateSnow,
     }
   } catch (e) {
     internal.abort()
-    throw cloudFailure ?? e
+    throw e
   } finally {
     signal?.removeEventListener('abort', onCallerAbort)
   }

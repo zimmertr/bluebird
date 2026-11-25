@@ -15,7 +15,7 @@ The browser asked `GET /api/capabilities` once per session, with the 110 s `API_
 
 - Each ask gets `CAPABILITIES_DEADLINE_MS`, 5 s, through a `deadlineMs` that `apiFetch` and `apiJson` now take.
 - Any failure but a cancel is asked once more, at once. Two failures settle on the compiled stand-ins as one did before.
-- The last good answer kept in local storage, ahead of the stand-ins, is part of the plan and is not built here: a new key has to be named on the privacy page, whose wording needs the maintainer's approval first.
+- Every answer that carries limits is kept in local storage (`bluebird_forecast_capabilities`, about 10 KB), and when both asks fail the kept copy stands in ahead of the compiled stand-ins, so a visit when the pod cannot be reached still offers the deployment's models and limits. An answer with no limits is not kept, so it cannot replace a good copy. The privacy page names the key, in wording the maintainer approved on 2026-11-25.
 
 ## Evidence
 
@@ -25,3 +25,4 @@ The browser asked `GET /api/capabilities` once per session, with the 110 s `API_
 
 - The longest a shared link can be held by this call is 10 s, down from 110 s.
 - A retry costs one more request to a route the edge caches, only on a failure.
+- A kept copy can be older than the deployment: a model added since is missing until the pod answers again, and a mirror it names that is gone is skipped by the weather fetch's own failover (record 0345).

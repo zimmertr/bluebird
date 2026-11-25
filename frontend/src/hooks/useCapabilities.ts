@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { isAbort } from '../utils/abort'
 import { parseSources, setOpenMeteoSources } from '../utils/openMeteoSources'
 import { apiJson } from '../utils/apiFetch'
+import { readCapabilitiesCopy, writeCapabilitiesCopy } from '../utils/viewPrefs'
 import { AQI_LIMIT_DAYS } from '../utils/calendar/calendar'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
@@ -392,21 +393,29 @@ export function useCapabilities(): LiveCapabilities {
     // Aborted rather than flagged: an unmount should stop the request, not
     // just ignore the answer it is still paying for.
     const controller = new AbortController()
+    // Set together with the limits, in one callback, so no render sees the
+    // flag raised over the fallback values it was meant to wait out. The
+    // weather sources are module state in the fetch, not a capability
+    // anything renders, so they are handed over rather than kept here.
+    const take = (body: { limits?: unknown }) => {
+      if (body.limits) setCaps(parseCapabilities(body))
+      setOpenMeteoSources(parseSources(body))
+      setSettled(true)
+    }
     fetchCapabilities(controller.signal)
       .then((body) => {
-        // Set together with the limits, in one callback, so no render sees the
-        // flag raised over the fallback values it was meant to wait out.
-        if (body?.limits) setCaps(parseCapabilities(body))
-        // The weather sources are module state in the fetch, not a capability
-        // anything renders, so they are handed over rather than kept here.
-        setOpenMeteoSources(parseSources(body))
-        setSettled(true)
+        // Only a body with limits is worth keeping: anything less would put
+        // the stand-ins back on the next visit that cannot reach the server.
+        if (body?.limits) writeCapabilitiesCopy(body)
+        take(body ?? {})
       })
       .catch(() => {
-        // Metadata only: the fallback constants keep everything working, so a
-        // failure is as settled as an answer. An abort is not: it means the
-        // component is gone and nothing is left to tell.
-        if (!controller.signal.aborted) setSettled(true)
+        // An abort means the component is gone and nothing is left to tell.
+        if (controller.signal.aborted) return
+        // Otherwise the last answer this browser kept stands in (record 0342),
+        // and with none the compiled fallbacks keep everything working, so a
+        // failure is as settled as an answer.
+        take(readCapabilitiesCopy() ?? {})
       })
     return () => controller.abort()
   }, [])

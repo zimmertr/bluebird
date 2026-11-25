@@ -29,6 +29,10 @@ export interface HeldForecasts {
   // no lookup has answered yet, so a run that reuses the row can reduce it
   // at the height its own lookup returns (#673). Absent means none.
   columns?: ReadonlyMap<string, HeldColumns>
+  // The cloud column failed for some of these rows (record 0350), so they
+  // hold no cloud deck. Such a field is never reused: the next run asks
+  // again rather than carrying the gap forward. Absent means it answered.
+  cloudFailed?: boolean
 }
 
 /** The window and model a run asks for, after the window is resolved. */
@@ -49,7 +53,7 @@ export function reusableForecasts(
   asked: ForecastQuestion,
   nowMs: number,
 ): HeldForecasts | null {
-  if (held === null) return null
+  if (held === null || held.cloudFailed) return null
   const same = held.startMs === asked.startMs && held.endMs === asked.endMs && held.model === asked.model
   return same && nowMs - held.fetchedAtMs < FORECAST_REUSE_MS ? held : null
 }
@@ -67,6 +71,7 @@ export function holdForecasts(
   nowMs: number,
   aqiFailed: ReadonlySet<string>,
   columns: ReadonlyMap<string, HeldColumns>,
+  cloudFailed = false,
 ): HeldForecasts {
-  return { rows, times, ...asked, fetchedAtMs: reused?.fetchedAtMs ?? nowMs, aqiFailed, columns }
+  return { rows, times, ...asked, fetchedAtMs: reused?.fetchedAtMs ?? nowMs, aqiFailed, columns, cloudFailed }
 }

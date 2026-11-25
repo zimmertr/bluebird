@@ -707,7 +707,7 @@ Hovering a row reveals a × at its end (shown to the keyboard when Tab reaches i
 | Snowfall · Avg/Min/Max (in/hr) | Average, lightest and heaviest single-hour snowfall rate |
 | Snow depth · Min/Max/Avg (in) | Shallowest, deepest and average snow on the ground over the window's days, from the NOHRSC snow analysis. A day after today counts as the newest depth. `≥1,290` marks the source file's own ceiling. `N/A` outside the analysis area |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
-| Cloud deck · Min/Max/Avg (ft) | The lowest height in the air column over the destination where the model's air is close to saturated, in feet above sea level, below the destination as readily as above it. 30,066 when nothing in the column is saturated. Shown only when the report fetched it. Blank over an archive window |
+| Cloud deck · Min/Max/Avg (ft) | The lowest height in the air column over the destination where the model's air is close to saturated, in feet above sea level, below the destination as readily as above it. 30,066 when nothing in the column is saturated. `N/A` over an archive window, and when the cloud forecast could not be fetched, which the messages under Analyze say |
 
 The last two columns are the table's safety flags, **Wildfire (mi)** and
 **Closure**. Both are on by default and can be hidden in the **Columns** picker

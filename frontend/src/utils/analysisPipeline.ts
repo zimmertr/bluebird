@@ -249,7 +249,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   }
   onDiscovered(found)
 
-  const { response, universe, aqiFailed, columns, late, lateSnow } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
+  const { response, universe, aqiFailed, cloudFailed, columns, late, lateSnow } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
     signal,
     resolving,
     // The one clock the window and the reuse check above read, so the
@@ -283,7 +283,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
       truncated: response.truncated || found.truncated,
     },
     field: universe,
-    held: holdForecasts(reuse, universe, response.times ?? [], asked, now(), aqiFailed, columns),
+    held: holdForecasts(reuse, universe, response.times ?? [], asked, now(), aqiFailed, columns, cloudFailed),
     // Only while an answer is still coming: a run that waited for the lookup
     // holds the columns of the rows it could not place for a later run, and
     // those rows have nothing left to wait for.

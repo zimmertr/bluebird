@@ -678,7 +678,7 @@
             "$ref": "#/components/schemas/PreviewConfig"
           },
           "service_worker": {
-            "description": "Whether the web app keeps a service worker that serves the page it last loaded while this deployment cannot be reached. Off unless the deployment turns it on; turning it off removes the worker from each browser on its next load.",
+            "description": "Whether the web app keeps a service worker that serves the page it last loaded while this deployment cannot be reached. On unless the deployment turns it off; turning it off removes the worker from each browser on its next load.",
             "title": "Service Worker",
             "type": "boolean"
           }
@@ -2249,6 +2249,7 @@
                   "discovery",
                   "weather",
                   "air_quality",
+                  "cloud",
                   "snow",
                   "basemap",
                   "other"

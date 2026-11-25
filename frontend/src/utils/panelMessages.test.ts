@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { AQI_NOTE_KEY, AQI_PARTIAL_KEY, LIST_OPENING_KEYS, panelMessages, type PanelMessageInputs } from './panelMessages'
+import {
+  AQI_NOTE_KEY,
+  AQI_PARTIAL_KEY,
+  CLOUD_UNAVAILABLE_KEY,
+  LIST_OPENING_KEYS,
+  panelMessages,
+  type PanelMessageInputs,
+} from './panelMessages'
 import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
@@ -442,6 +449,28 @@ describe('panelMessages', () => {
     // already says so.
     it('stays quiet when the window is wholly past the horizon', () => {
       expect(keys({ ...empty, aqiCoverage: 'none' })).toEqual(['window:aqi-horizon'])
+    })
+  })
+
+  // Record 0350: the cloud column failed and the run landed without it.
+  describe('a cloud column that failed', () => {
+    const failed = { hasReport: true, cloudFailed: true }
+
+    it('warns in the approved sentence, and opens the list', () => {
+      expect(only(failed)).toEqual({
+        key: CLOUD_UNAVAILABLE_KEY,
+        text: 'Cloud data unavailable. Try again later.',
+        severity: 'warn',
+      })
+      expect(LIST_OPENING_KEYS.has(CLOUD_UNAVAILABLE_KEY)).toBe(true)
+    })
+
+    it.each([
+      ['there is no report', { hasReport: false }],
+      ['an analysis runs', { loading: true }],
+      ['the run failed', { error: { message: 'boom' } }],
+    ] as [string, Partial<PanelMessageInputs>][])('stays quiet when %s', (_case, over) => {
+      expect(keys({ ...failed, ...over })).not.toContain(CLOUD_UNAVAILABLE_KEY)
     })
   })
 

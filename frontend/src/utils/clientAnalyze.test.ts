@@ -28,7 +28,6 @@ import {
 import { geoKey } from './points'
 import { snowFilled } from './snowHistory'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
-import { OpenMeteoHttpError } from './openMeteoErrors'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
 import {
   discovered,
@@ -1139,9 +1138,9 @@ describe('runClientAnalysis and the cloud column', () => {
     expect(out.universe.map((r) => r.cloud_deck_avg_ft)).toEqual([3640, 4210, 4495])
   })
 
-  // The cloud failure aborts the weather fetch, and the weather fetch then
-  // rejects with an AbortError, which reads as the reader's own cancel.
-  it('fails with the cloud error rather than the abort it causes', async () => {
+  // Record 0350, superseding 0121: a cloud column that fails leaves the rest
+  // of the table standing, with no cloud deck, rather than failing the run.
+  it('lands the table with no cloud deck when the cloud column fails', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -1157,16 +1156,23 @@ describe('runClientAnalysis and the cloud column', () => {
         )
       }),
     )
-    const err = await runClientAnalysis(
-      { ...REQUEST, sort_by: 'cloud_deck_min_ft' },
+    const out = await runClientAnalysis(
+      { ...REQUEST, sort_by: 'cloud_deck_min_ft', limit: 10 },
       customRows(THREE),
       startMs,
       endMs,
       { nowMs: startMs },
-    ).catch((e: unknown) => e)
-    // Only the cloud request answers 403 here, so its class and status name it.
-    expect(err).toBeInstanceOf(OpenMeteoHttpError)
-    expect((err as OpenMeteoHttpError).status).toBe(403)
+    )
+    expect(out.cloudFailed).toBe(true)
+    expect(out.universe).toHaveLength(THREE.length)
+    expect(out.universe.every((r) => r.cloud_deck_min_ft == null)).toBe(true)
+    expect(out.universe.every((r) => r.precip_total_in != null)).toBe(true)
+  })
+
+  it('reports the cloud column as answered when it answered', async () => {
+    stubWithCloud(THREE_PRECIPS, [90, 60, 80])
+    const out = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, { nowMs: startMs })
+    expect(out.cloudFailed).toBe(false)
   })
 })
 

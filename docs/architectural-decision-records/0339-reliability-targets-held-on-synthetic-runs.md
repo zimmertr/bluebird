@@ -1,8 +1,8 @@
 # 0339. Reliability targets per journey, held on synthetic runs
 
-- Status: Proposed, in the reliability PR; accepted when the maintainer approves the targets and merges it.
+- Status: Approved by the maintainer on 2026-11-25; accepted when the reliability PR merges.
 - Date: 2026-11-25
-- Decider: the maintainer set the bar on 2026-11-25 ("Bluebird has to work as well as google.com does"); the targets themselves are proposed for approval
+- Decider: the maintainer set the bar on 2026-11-25 ("Bluebird has to work as well as google.com does") and approved these targets as written the same day, with the two calls below
 - Issues and PRs: #934, #287
 - Cited in code as: record 0339
 - Guide: [`docs/RELIABILITY.md`](../RELIABILITY.md), Targets
@@ -18,6 +18,8 @@ Nothing defined what "working" meant, so nothing could say whether Bluebird Fore
 - A cancel after the latency target is a failure. A table with an N/A column is a degraded success, tracked as its own share. A refusal for the hour's quota counts. A reader's own dead network does not.
 - The targets are held on synthetic runs, an outside analysis every five minutes against Bluebird Forecast's own weather copy, because 50 real runs a month cannot measure 99.9%. Each real run's report is the diagnostic.
 - A spent budget makes the next change a reliability fix.
+- The 30 s and 90 s ceilings apply from the day `OPEN_METEO_MIRRORS` names a mirror. Until then a forecast host that never answers fails a run of up to 200 destinations in about 49 s, the measured worst case, and that is stated beside the ceiling rather than counted against it (the maintainer, 2026-11-25, choosing no mirror for now).
+- An incident that takes down all of Cloudflare is outside the budget. The page, the tunnel and the edge are all Cloudflare's, so nothing here can route around one (the maintainer, 2026-11-25).
 
 ## Evidence
 

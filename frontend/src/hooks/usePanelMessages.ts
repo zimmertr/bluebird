@@ -78,6 +78,8 @@ export interface PanelMessageState {
   hourlyCalls: number
   /** The report's air quality failed for some of its field and not all of it (`useAnalyze.aqiPartial`). */
   aqiPartial: boolean
+  /** The report's cloud column failed (`useAnalyze.cloudFailed`, record 0350). Absent reads as not. */
+  cloudFailed?: boolean
   /** Displayed rows on the snow depth ceiling while snow depth ranks (`glacierRowCount`, #849). */
   glacierRows?: number
   /** Moves once per run that ends in an error or a refusal (`useAnalysisRun`, #803). */
@@ -305,6 +307,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     hasReport: s.hasReport,
     aqiAllNull: s.aqiAllNull,
     aqiPartial: s.aqiPartial,
+    cloudFailed: s.cloudFailed,
     glacierRows: s.glacierRows,
     wildfireCheckFailed: s.wildfireCheckFailed,
     closureCheckFailed: s.closureCheckFailed,

@@ -757,7 +757,7 @@ export interface components {
             preview: components["schemas"]["PreviewConfig"];
             /**
              * Service Worker
-             * @description Whether the web app keeps a service worker that serves the page it last loaded while this deployment cannot be reached. Off unless the deployment turns it on; turning it off removes the worker from each browser on its next load.
+             * @description Whether the web app keeps a service worker that serves the page it last loaded while this deployment cannot be reached. On unless the deployment turns it off; turning it off removes the worker from each browser on its next load.
              */
             service_worker: boolean;
         };
@@ -1704,7 +1704,7 @@ export interface components {
              * Stage
              * @description The part that failed or degraded it, when one did.
              */
-            stage?: ("discovery" | "weather" | "air_quality" | "snow" | "basemap" | "other") | null;
+            stage?: ("discovery" | "weather" | "air_quality" | "cloud" | "snow" | "basemap" | "other") | null;
         };
         /**
          * SmokeCollection
