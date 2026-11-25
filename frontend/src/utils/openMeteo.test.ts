@@ -1737,6 +1737,34 @@ describe('fetchAqi pacing', () => {
     expect((await pending).results).toHaveLength(100)
   })
 
+  // Record 0347: a booking that slept through its run's cancel never became a
+  // request, so it gives its share back. Fifty places spend 357 at once; a
+  // hundred more are booked to start 60 s and 120 s in, and the run is
+  // cancelled while they sleep. Without the release, the next fifty would
+  // start behind both bookings, 119 s away; with it they wait only for the
+  // first fifty to leave the minute.
+  it('gives back the bookings of a run cancelled while they slept', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const count = new URL(url).searchParams.get('latitude')!.split(',').length
+      return fakeResponse(Array.from({ length: count }, () => ({ hourly: {} })))
+    }))
+    await fetchAqi(FIFTY, LONG.startMs, LONG.endMs, { nowMs: NOW_MS })
+    const controller = new AbortController()
+    const cancelled = fetchAqi(HUNDRED, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, signal: controller.signal })
+    const settled = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.advanceTimersByTimeAsync(1_000)
+    controller.abort()
+    await settled
+
+    const onPace = vi.fn()
+    const later = Array.from({ length: 50 }, (_, i) => ({ latitude: i / 100, longitude: 2 }))
+    const next = fetchAqi(later, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, onPace })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onPace).toHaveBeenCalledExactlyOnceWith(59)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect((await next).results).toHaveLength(50)
+  })
+
   it('prices the hours it asks for, not the window it was handed (#581)', async () => {
     // A 31-day window reaching past the air-quality horizon asks for its first
     // six days only. Priced on those, eleven batches of 50 are 550, which is

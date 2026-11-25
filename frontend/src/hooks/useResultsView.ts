@@ -41,7 +41,7 @@ export interface ResultsViewInputs {
   bannerPx: number
   /** Moves once per committed report. */
   analysisSeq: number
-  /** A run's rows are still arriving (#337). */
+  /** A run is under way, from the press of Analyze to its end (#337, record 0347). */
   arriving: boolean
   /** The displayed ranking. */
   sortBy: TableViewInputs['sortBy']

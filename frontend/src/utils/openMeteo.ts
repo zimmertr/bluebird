@@ -172,11 +172,22 @@ class WeightedBudget {
   ): Promise<void> {
     const { now, start } = this.startFor(weight)
     const heldMs = WINDOW_MS * Math.max(1, weight / this.perMinute)
-    this.booked.push([start, start + heldMs, weight])
+    const booking: [number, number, number] = [start, start + heldMs, weight]
+    this.booked.push(booking)
     const waitMs = start - now
     if (waitMs <= 0) return
     if (waitMs > 3_000) onWait?.(Math.ceil(waitMs / 1000))
-    await abortableSleep(waitMs, signal)
+    try {
+      await abortableSleep(waitMs, signal)
+    } catch (e) {
+      // A booking whose run was cancelled or failed while it slept never
+      // became a request, so it gives its share back: left booked, it held
+      // every later start behind it, and the next Analyze waited up to a
+      // minute on calls that were never spent (record 0347).
+      const at = this.booked.indexOf(booking)
+      if (at >= 0) this.booked.splice(at, 1)
+      throw e
+    }
   }
   /**
    * Book `weight` only if it can start now, for a request that is worth

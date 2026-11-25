@@ -367,7 +367,10 @@ export default function App() {
     forecastModels: caps.forecastModels,
     forecastTimes,
     analysisSeq,
-    arriving,
+    // From the press, not from the first rows (record 0347): the lattice
+    // books on the weather pacer, so one still fetching held the run's first
+    // batches behind it.
+    arriving: arriving || loading,
     windowLimits: caps.windowLimits,
     aqiForecastDays: caps.aqiForecastDays,
   })
@@ -731,7 +734,8 @@ export default function App() {
     playerOn: playerShown,
     safeBottomPx,
     analysisSeq,
-    arriving,
+    // From the press: the comparison stops spending when a run starts (record 0347).
+    arriving: arriving || loading,
     sortBy: view.sortBy,
     sortDesc: view.sortDesc,
     pointSample,

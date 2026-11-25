@@ -143,6 +143,34 @@ describe('useModelCompare', () => {
     expect(calls).toHaveLength(1)
   })
 
+  // Record 0347: the comparison books on the weather pacer, so a batch still
+  // out at the press of Analyze stops, and a run put back asks it again.
+  it('stops what is in the air when a run starts, and asks again when the run is put back', async () => {
+    const { result, rerender } = mount()
+    const first = calls[0]
+    rerender(options({ arriving: true }))
+    expect(first.signal.aborted).toBe(true)
+    expect(calls).toHaveLength(1)
+    // The aborted batch lands as an abort, which holds nothing.
+    await act(async () => first.fail(new DOMException('Aborted', 'AbortError')))
+    expect(result.current.results).toEqual({})
+    rerender(options())
+    expect(calls).toHaveLength(2)
+    const fresh = weatherResult({ precip_total_in: 0.2 })
+    await act(async () => calls[1].answer([fresh]))
+    expect(result.current.results[pairKey('icon_seamless', KEY)]).toEqual(fresh)
+  })
+
+  it('keeps what it holds through a run that is put back, and asks nothing again', async () => {
+    const { result, rerender } = mount()
+    const held = weatherResult({ precip_total_in: 0.3 })
+    await act(async () => calls[0].answer([held]))
+    rerender(options({ arriving: true }))
+    rerender(options())
+    expect(calls).toHaveLength(1)
+    expect(result.current.results[pairKey('icon_seamless', KEY)]).toEqual(held)
+  })
+
   it('aborts what is in the air when the analysis changes or the chart goes away', () => {
     const { rerender, unmount } = mount()
     const first = calls[0]

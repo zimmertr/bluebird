@@ -33,7 +33,7 @@ export interface GridLayerInputs {
   forecastTimes: readonly number[]
   /** Moves once per committed report: a new report is a new lattice. */
   analysisSeq: number
-  /** A run's rows are still arriving, so nothing is fetched until it ends. */
+  /** A run is under way, from the press of Analyze, so nothing is fetched until it ends and a fetch in flight stops (record 0347). */
   arriving: boolean
   windowLimits: WindowLimits
   aqiForecastDays: number

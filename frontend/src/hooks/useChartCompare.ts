@@ -46,7 +46,7 @@ export interface ChartCompareInputs {
   /** The committed report's snapshot: its model and the models it bought. */
   analyzed: AnalyzedView | null
   analysisSeq: number
-  /** A run's rows are still arriving: the comparison buys nothing for them. */
+  /** A run is under way, from the press of Analyze: the comparison buys nothing and stops what is in flight (record 0347). */
   arriving: boolean
   /** The deployment's models (`/api/capabilities`). */
   models: readonly ForecastModelOption[]
