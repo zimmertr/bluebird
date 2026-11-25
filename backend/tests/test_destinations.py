@@ -616,11 +616,15 @@ async def test_a_discovery_past_the_deadline_answers_502_in_time(monkeypatch):
         async def post(self, url, data=None, timeout=None, **_kwargs):
             await stall()
 
-    monkeypatch.setattr(osm_mod.mirrors.httpx, "AsyncClient", lambda *a, **k: _Stalling())
-    monkeypatch.setattr(destinations_mod, "DISCOVERY_DEADLINE_S", 1.5)
-    loop = asyncio.get_running_loop()
-    started = loop.time()
-    resp = await _post(_payload())
+    # The test's own client is built before the swap: `mirrors.httpx` is the
+    # one `httpx` module, so after it every AsyncClient is the stalling one,
+    # this test's way into the app included.
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+        monkeypatch.setattr(osm_mod.mirrors.httpx, "AsyncClient", lambda *a, **k: _Stalling())
+        monkeypatch.setattr(destinations_mod, "DISCOVERY_DEADLINE_S", 1.5)
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        resp = await c.post("/api/destinations", json=_payload())
     assert loop.time() - started < 4
     assert resp.status_code == 502
     assert resp.json()["detail"] == "OpenStreetMap took too long. Try again later."
