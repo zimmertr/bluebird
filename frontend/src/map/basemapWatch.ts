@@ -8,6 +8,10 @@
  * while the failure is open (`overlays/recovery.ts`, the overlays' own rule).
  * `diff: false` because there is no loaded style to diff against; MapLibre
  * builds a fresh one, and the map's first `load` then fires as it would have.
+ * Since record 0348 it is also asked for again on its own, after each of
+ * `STYLE_RETRY_S`, because a style host that failed for a few seconds came
+ * back to a map that stayed blank until the reader's connection dropped and
+ * returned, which on a steady connection is never.
  * The reload carries the credit rewrite every load of the style does
  * (`utils/basemapCredit.ts`), or the recovered map would credit the basemap
  * in the style's own words. When the style arrives the note clears.
@@ -16,6 +20,14 @@ import type * as maplibregl from 'maplibre-gl'
 import { BASEMAP_STYLE_OPTIONS } from '../utils/basemapCredit'
 import { isStyleFailure } from '../utils/basemapFailure'
 import { overlayRecovery } from './overlays/recovery'
+
+/**
+ * The waits before the style is asked for again on its own, the last one
+ * repeating while it keeps failing. They grow so a host coming back is not met
+ * by every open tab at once, and the first is short because a reader is
+ * looking at a blank map.
+ */
+export const STYLE_RETRY_S = [5, 15, 30, 60] as const
 
 export interface BasemapWatch {
   dispose(): void
@@ -54,8 +66,20 @@ export function watchBasemap(
     map.setStyle(deps.style, { diff: false, ...BASEMAP_STYLE_OPTIONS })
   }
   const recovery = overlayRecovery(reload, { online: deps.online })
+  // A timer of its own rather than `overlayRecovery`'s timed mode, which holds
+  // an `online` back until its wait runs out: that wait is a pod's
+  // Retry-After there, and here it is only ours, so a reconnect still asks at
+  // once.
+  let attempt = 0
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const clearTimer = () => {
+    if (timer !== null) clearTimeout(timer)
+    timer = null
+  }
   map.on('style.load', () => {
     styleLoaded = true
+    attempt = 0
+    clearTimer()
     tell(true)
     recovery.succeeded()
     deps.onFailed(false)
@@ -65,6 +89,19 @@ export function watchBasemap(
     tell(false)
     recovery.failed(null)
     deps.onFailed(true)
+    if (timer === null) {
+      const waitS = STYLE_RETRY_S[Math.min(attempt, STYLE_RETRY_S.length - 1)]
+      attempt++
+      timer = setTimeout(() => {
+        timer = null
+        reload()
+      }, waitS * 1000)
+    }
   })
-  return { dispose: () => recovery.stop() }
+  return {
+    dispose: () => {
+      clearTimer()
+      recovery.stop()
+    },
+  }
 }

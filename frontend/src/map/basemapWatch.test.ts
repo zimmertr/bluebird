@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { watchBasemap } from './basemapWatch'
+import { STYLE_RETRY_S, watchBasemap } from './basemapWatch'
 import { creditBasemap } from '../utils/basemapCredit'
 import { stubMap } from '../testSupport/stubMap'
 
@@ -48,6 +48,31 @@ describe('watchBasemap', () => {
     stub.fire('style.load')
     stub.fire('error', undefined, {})
     expect(onFailed).not.toHaveBeenCalledWith(true)
+  })
+
+  // Record 0348: on a steady connection no `online` ever comes, so a style
+  // that failed for a few seconds left the map blank for good.
+  it('asks for a failed style again on its own, waiting longer each time, until it loads', async () => {
+    vi.useFakeTimers()
+    try {
+      const { stub, reloads } = setup()
+      const asks = () => reloads().filter((c) => c[1] === STYLE).length
+      stub.fire('error', undefined, { error: new Error('Failed to fetch') })
+      await vi.advanceTimersByTimeAsync(STYLE_RETRY_S[0] * 1000 - 1)
+      expect(asks()).toBe(0)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(asks()).toBe(1)
+      stub.fire('error', undefined, { error: new Error('Failed to fetch') })
+      await vi.advanceTimersByTimeAsync(STYLE_RETRY_S[1] * 1000 - 1)
+      expect(asks()).toBe(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(asks()).toBe(2)
+      stub.fire('style.load')
+      await vi.advanceTimersByTimeAsync(STYLE_RETRY_S[STYLE_RETRY_S.length - 1] * 1000 * 2)
+      expect(asks()).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('asks nothing more once the map is gone', async () => {
