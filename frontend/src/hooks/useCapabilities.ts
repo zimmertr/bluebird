@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { parseSources, setOpenMeteoSources } from '../utils/openMeteoSources'
 import { apiJson } from '../utils/apiFetch'
 import { AQI_LIMIT_DAYS } from '../utils/calendar/calendar'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
@@ -369,6 +370,9 @@ export function useCapabilities(): LiveCapabilities {
         // Set together with the limits, in one callback, so no render sees the
         // flag raised over the fallback values it was meant to wait out.
         if (body?.limits) setCaps(parseCapabilities(body))
+        // The weather sources are module state in the fetch, not a capability
+        // anything renders, so they are handed over rather than kept here.
+        setOpenMeteoSources(parseSources(body))
         setSettled(true)
       })
       .catch(() => {

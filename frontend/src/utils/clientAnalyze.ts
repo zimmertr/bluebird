@@ -46,6 +46,7 @@ import {
   terrainFallbackFor,
 } from './openMeteo'
 import type { CloudSeries, HourlyPayload } from './openMeteoAggregate'
+import { RunBudget } from './openMeteoSources'
 import { nullsLast } from './sortResults'
 import { isAbort } from './abort'
 
@@ -834,6 +835,10 @@ export async function runClientAnalysis(
   // rejects with an AbortError. That error must not be what the caller sees,
   // since an AbortError reads as the reader's own cancel.
   let cloudFailure: unknown = null
+  // One budget for the whole run (record 0345): the weather, the cloud column
+  // and air quality share its outage window and its hedges, so three fetches
+  // cannot each wait an outage out in turn.
+  const run = new RunBudget()
 
   try {
     // The weather goes out first, so its batches take the forecast host's
@@ -851,6 +856,7 @@ export async function runClientAnalysis(
       const partialsWanted = onPartial != null && rankFamily !== 'aqi' && rankFamily !== 'cloud_deck'
       wxPending = fetchWeather(coords, startMs, endMs, {
         signal: internal.signal,
+        run,
         onPace,
         onPartial: partialsWanted
           ? (partial, settled) => {
@@ -906,6 +912,7 @@ export async function runClientAnalysis(
     const cloudLabel = () => cloudTailMessage(cloudCount.processed, cloudCount.total, noun)
     const cloudPending: Promise<CloudResult[] | null> = fetchCloud(coords, startMs, endMs, {
       signal: internal.signal,
+      run,
       onPace,
       onProgress: (processed, total) => {
         Object.assign(cloudCount, { processed, total })
@@ -950,6 +957,7 @@ export async function runClientAnalysis(
       aqiCoords.length > 0
         ? fetchAqi(aqiCoords, startMs, endMs, {
             signal: internal.signal,
+            run,
             // The same countdown the weather hands over. Air quality is awaited
             // before the ranking assembles, so its pacer's sleep is the analysis's
             // sleep and must read as scheduled, not hung (analyzeOverlay.ts).

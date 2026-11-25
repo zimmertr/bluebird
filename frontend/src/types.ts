@@ -191,6 +191,17 @@ export interface RunReport {
   model: string | null
 }
 
+// GET /api/capabilities `open_meteo_sources` (record 0345): one place the
+// browser can ask for forecasts. A null URL is an endpoint this source does
+// not answer; `paced` says whether the free tier's quota applies to it.
+export interface OpenMeteoSource {
+  name: 'open-meteo' | 'mirror'
+  forecast_url: string | null
+  archive_url: string | null
+  air_quality_url: string | null
+  paced: boolean
+}
+
 // POST /api/snow-depth (#849): a window's snow depth at a list of points.
 export interface SnowDepthRequest {
   points: { latitude: number; longitude: number }[]

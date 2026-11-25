@@ -52,13 +52,24 @@ import { isAbort } from './abort'
 import type { PaceReason } from './pacing'
 import { utcDayKey } from './calendar/calendarDates'
 import { retryAfterSeconds } from './apiFetch'
+import { clamp } from './numbers'
+import {
+  OUTAGE_WAITS_S,
+  RunBudget,
+  chainFor,
+  hedgeDelayMs,
+  recordFailure,
+  recordLatency,
+  recordSuccess,
+  resetSourceState,
+  type Endpoint,
+  type Leg,
+} from './openMeteoSources'
 
-export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
-// Where a window older than the forecast endpoint's retention goes (#123).
-// `windowSource` in forecastWindow.ts is the one thing that decides which of the
-// two a window belongs to, mirrored with the backend.
-export const ARCHIVE_URL = 'https://archive-api.open-meteo.com/v1/archive'
-export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality'
+// The hosts themselves, and the order they are asked in, are
+// `openMeteoSources.ts`'s (record 0345); re-exported for the tests that name a
+// host.
+export { AIR_QUALITY_URL, ARCHIVE_URL, FORECAST_URL } from './openMeteoSources'
 
 // Same batching the backend uses: 50 locations per request, at most 4
 // requests in flight. One browser analyzing is exactly as polite to
@@ -79,12 +90,14 @@ const FALLBACK_AQI_FORECAST_DAYS = 5
 
 // How long one request may take before it is abandoned. Measured 2026-09-30
 // from a home network, a 50-location forecast batch answered in 1.5 to 1.8 s
-// typically, with cold outliers of 7.7 s and 19 s in six tries (#545). 20 s
-// keeps every measured success and still ends a hang, which would otherwise
-// hold the analysis until the reader pressed Cancel. The pacer's sleep and the
-// wait for a host slot are not inside it, because the clock starts when the
-// request does.
-export const REQUEST_DEADLINE_MS = 20_000
+// typically, with cold outliers of 7.7 s and 19 s in six tries (#545). It was
+// 20 s, to keep the 19 s success; since record 0345 a request still out after
+// `hedgeDelayMs` (5 s before any is measured) has a second copy on the wire,
+// which answers a cold outlier in about a typical batch's time, so 12 s keeps
+// every measured success with room to spare and ends a hang eight seconds
+// sooner. The pacer's sleep and the wait for a host slot are not inside it,
+// because the clock starts when the request does.
+export const REQUEST_DEADLINE_MS = 12_000
 
 // ── Weighted-call pacing ───────────────────────────────────────────────────
 
@@ -165,6 +178,18 @@ class WeightedBudget {
     if (waitMs > 3_000) onWait?.(Math.ceil(waitMs / 1000))
     await abortableSleep(waitMs, signal)
   }
+  /**
+   * Book `weight` only if it can start now, for a request that is worth
+   * sending only at once: a hedge (record 0345). Under a deficit the second
+   * copy is skipped rather than queued, because the visitor's quota is the
+   * scarce thing and the first copy is still on the wire.
+   */
+  tryAcquire(weight: number): boolean {
+    const { now, start } = this.startFor(weight)
+    if (start > now) return false
+    this.booked.push([start, start + WINDOW_MS * Math.max(1, weight / this.perMinute), weight])
+    return true
+  }
 }
 
 // Module-level: the budget is the visitor's wall-clock quota, so it must
@@ -226,6 +251,18 @@ class HostSlots {
       }
     })
   }
+  /**
+   * Take the fifth request Open-Meteo admits, which the pool otherwise leaves
+   * free, when it is free now (record 0345). Only a hedge takes it: a second
+   * copy that queued behind the four it is meant to outrun would be no help.
+   * A waiter can inherit it through `release`, which still holds the host at
+   * the five it admits.
+   */
+  takeSpare(): boolean {
+    if (this.open > this.size) return false
+    this.open++
+    return true
+  }
   release(): void {
     // A waiter takes the slot over rather than the count dropping, so a
     // request that has not queued cannot slip in ahead of one that has.
@@ -256,6 +293,7 @@ export function resetOpenMeteoState(): void {
   weatherBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
   aqiBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
   hostSlots = new Map()
+  resetSourceState()
 }
 
 /** One leg of a fetch: which endpoint answers, and the hours it answers for. */
@@ -513,14 +551,23 @@ async function getJson(
   url: string,
   params: Record<string, string>,
   signal: AbortSignal | undefined,
+  { deadlineMs = REQUEST_DEADLINE_MS, onWire }: WireOptions = {},
 ): Promise<unknown> {
   try {
-    return await getJsonOnce(url, params, signal)
+    return await getJsonOnce(url, params, signal, { deadlineMs, onWire })
   } catch (e) {
     if (!(e instanceof OpenMeteoRateLimited) || e.scope !== 'concurrency') throw e
     await abortableSleep(e.retryAfterS * 1000, signal)
-    return await getJsonOnce(url, params, signal)
+    return await getJsonOnce(url, params, signal, { deadlineMs, onWire })
   }
+}
+
+interface WireOptions {
+  deadlineMs?: number
+  // Told when the request takes its host slot and goes on the wire, which is
+  // where the hedge's clock and the latency sample start: time spent queued
+  // for a slot says nothing about how fast the host answers.
+  onWire?: () => void
 }
 
 // One HTTP attempt, holding a slot of its host's pool from just before `fetch`
@@ -529,12 +576,14 @@ async function getJsonOnce(
   url: string,
   params: Record<string, string>,
   signal: AbortSignal | undefined,
+  { deadlineMs = REQUEST_DEADLINE_MS, onWire }: WireOptions = {},
 ): Promise<unknown> {
   const slots = slotsFor(url)
   // A cancel while queued rejects with an AbortError and takes no slot.
   await slots.acquire(signal)
   try {
-    return await requestJson(url, params, signal)
+    onWire?.()
+    return await requestJson(url, params, signal, deadlineMs)
   } finally {
     slots.release()
   }
@@ -544,6 +593,7 @@ async function requestJson(
   url: string,
   params: Record<string, string>,
   signal: AbortSignal | undefined,
+  deadlineMs: number = REQUEST_DEADLINE_MS,
 ): Promise<unknown> {
   const qs = new URLSearchParams(params).toString()
   // The deadline is a signal of its own so the catch below can tell it from
@@ -553,7 +603,7 @@ async function requestJson(
   // tested because it is younger than the rest of what the app runs on (Safari
   // 17.4), and a browser without it keeps the caller's signal alone, which is
   // exactly how every request behaved before the deadline existed.
-  const deadline = AbortSignal.timeout(REQUEST_DEADLINE_MS)
+  const deadline = AbortSignal.timeout(deadlineMs)
   const combined = !signal
     ? deadline
     : typeof AbortSignal.any === 'function'
@@ -565,7 +615,7 @@ async function requestJson(
   // - fetch rejecting with a TypeError = network/DNS/CORS = unreachable from
   //   THIS browser, which is the one cause the reader can act on.
   // - the deadline firing = reachable but silent = OpenMeteoTimeout, which
-  //   `getJsonWithResume` retries once (#545).
+  //   `askSources` asks again (#545, record 0345).
   // - HTTP 429 = reachable, quota spent = OpenMeteoRateLimited, whose scope
   //   decides whether waiting can help.
   // - any other HTTP status = reachable, failed = OpenMeteoHttpError.
@@ -592,9 +642,11 @@ async function requestJson(
     if (e instanceof OpenMeteoModelCoverage) throw e
     if (e instanceof OpenMeteoUnreachable) throw e
     if (deadline.aborted && !signal?.aborted) throw new OpenMeteoTimeout(TIMEOUT_MESSAGE)
-    throw new OpenMeteoUnreachable('Cannot reach Open-Meteo. Try again later.')
+    throw new OpenMeteoUnreachable(UNREACHABLE_MESSAGE)
   }
 }
+
+const UNREACHABLE_MESSAGE = 'Cannot reach Open-Meteo. Try again later.'
 
 function coordParams(chunk: readonly Coordinate[]): Record<string, string> {
   return {
@@ -672,6 +724,51 @@ export interface FetchWeatherOptions {
    * reduce again (0101).
    */
   onColumn?: (index: number, column: HourlyPayload) => void
+  /**
+   * The run this fetch belongs to, whose outage window and hedges it spends
+   * (record 0345). An analysis hands the same one to its weather, cloud and
+   * air-quality fetches; omitted, the fetch is a run of its own.
+   */
+  run?: RunBudget
+}
+
+// ── Asking the sources (record 0345) ───────────────────────────────────────
+
+/** Everything one request needs to be asked of every source that can answer it. */
+interface Ask {
+  endpoint: Endpoint
+  params: Record<string, string>
+  signal: AbortSignal | undefined
+  // The pacer a paced source books on, and what this request costs there.
+  budget: WeightedBudget
+  weight: number
+  // How many places the request carries, which scales the hedge's delay.
+  locations: number
+  run: RunBudget
+  onPace?: (seconds: number, reason?: PaceReason) => void
+  // Air quality: each source is asked once, with no second copy and no
+  // outage window, because the column is best-effort and the ranked table
+  // waits for it.
+  bestEffort?: boolean
+}
+
+// A failure the same host a moment later, or another source now, might
+// answer: the request hung, found no host, or met a 5xx. A refusal for quota
+// is not one of these, because waiting a few seconds cannot refill a quota.
+function isOutage(e: unknown): boolean {
+  return (
+    e instanceof OpenMeteoTimeout ||
+    e instanceof OpenMeteoUnreachable ||
+    (e instanceof OpenMeteoHttpError && e.status >= 500)
+  )
+}
+
+// A failure the NEXT source might answer: an outage, or a quota refusal, since
+// a mirror has none and the public hosts count each visitor's apart. A cancel,
+// a regional model with no coverage here, an unreadable body and any other 4xx
+// are not: every source would say the same, so asking another only spends.
+function failsOver(e: unknown): boolean {
+  return isOutage(e) || e instanceof OpenMeteoRateLimited
 }
 
 // The longest a minutely 429 is waited out before the one resume, the pod's
@@ -679,80 +776,197 @@ export interface FetchWeatherOptions {
 // so no longer wait can help it, whatever Retry-After says.
 const RESUME_MAX_WAIT_S = 60
 
-// getJson plus one automatic resume for a minutely 429: that quota refills
-// within the minute, so a single narrated wait usually completes the batch
-// instead of failing the analysis. Hourly/daily limits rethrow immediately —
-// no wait we are willing to impose can help those. The resume pays its weight
-// again through `spend` before it asks (#581), as the pod's does: the provider
-// bills the repeated request like any other, and a pacer that never heard of it
-// would book the rest of the minute as if it had not happened.
-//
-// A batch that outlives its deadline, or finds no host at all, is asked once
-// more at once (#545): the measured outliers were cold batches, which a second
-// ask may find warm. If that fails the same way, the host is stuck, and the
-// batch is asked again after each of `OUTAGE_WAITS_S`, narrated as an outage,
-// before the analysis fails (#849, TJ 2026-11-13): on 2026-11-13 the forecast
-// host hung for over a minute while the archive and air-quality hosts
-// answered, and every analysis failed though a minute's patience would have
-// finished it. No second charge: a request that hung was never answered, and
-// the pacer already charged this batch.
-//
-// A concurrency refusal is asked again inside `getJson`, so the minutely
-// resume above stays the only one that pays again, and a second concurrency
-// refusal passes through here to fail the batch.
-async function getJsonWithResume(
-  url: string,
-  params: Record<string, string>,
-  signal: AbortSignal | undefined,
-  spend: () => Promise<void>,
-  onPace?: (seconds: number, reason?: PaceReason) => void,
-): Promise<unknown> {
+// The shortest deadline an ask inside the outage window gets, so the last one
+// before the window closes is still long enough for a typical batch.
+const OUTAGE_ASK_FLOOR_MS = 5_000
+
+/**
+ * One request, asked of the sources until one answers.
+ *
+ * Each source that can answer the endpoint is asked in `chainFor`'s order,
+ * paying the pacer first when it is paced. A request still out after
+ * `hedgeDelayMs` gets a second copy, to the next source or to the same host
+ * when it is the only one (`hedged`). An outage is asked of the same source
+ * once more at once unless a second copy already was (#545: the measured
+ * outliers were cold batches, which a second ask may find warm), and then
+ * the next source is asked. When every source has failed the same way, the
+ * run's one outage window is spent asking again (`outlast`), and only then
+ * does the request fail.
+ */
+async function askSources(ask: Ask): Promise<unknown> {
+  const chain = chainFor(ask.endpoint)
+  if (chain.length === 0) throw new OpenMeteoUnreachable(UNREACHABLE_MESSAGE)
+  let last: unknown = null
+  for (let i = 0; i < chain.length; i++) {
+    const final = i === chain.length - 1
+    try {
+      return await askLeg(chain[i], final ? chain[i] : chain[i + 1], final, ask)
+    } catch (e) {
+      if (isAbort(e) || !failsOver(e)) throw e
+      last = e
+    }
+  }
+  if (ask.bestEffort || !isOutage(last)) throw last
+  return await outlast(ask, last)
+}
+
+async function askLeg(leg: Leg, alt: Leg, final: boolean, ask: Ask): Promise<unknown> {
+  if (leg.source.paced) await ask.budget.acquire(ask.weight, ask.signal, ask.onPace)
+  const sent = { hedge: false }
   try {
-    return await getJson(url, params, signal)
+    return await hedged(leg, alt, ask, sent)
   } catch (e) {
-    if (isOutage(e)) return await outlastOutage(url, params, signal, onPace)
-    if (!(e instanceof OpenMeteoRateLimited) || e.scope !== 'minutely') throw e
-    const waitS = Math.min(e.retryAfterS, RESUME_MAX_WAIT_S)
-    onPace?.(waitS, 'quota')
-    await abortableSleep(waitS * 1000, signal)
-    await spend()
-    return await getJson(url, params, signal)
+    if (isAbort(e) || ask.bestEffort) throw e
+    // No second charge: a request that hung or failed was not answered, and
+    // the pacer already charged this batch.
+    if (isOutage(e) && !sent.hedge) return await hedged(leg, alt, ask, sent)
+    // A minutely 429 from the last source left is waited out once, because
+    // that quota refills within the minute. It pays its weight again before it
+    // asks (#581), as the pod's does: the provider bills the repeated request
+    // like any other. With a source still to ask, that source is asked now
+    // instead, which is what a mirror is for.
+    if (final && e instanceof OpenMeteoRateLimited && e.scope === 'minutely') {
+      const waitS = Math.min(e.retryAfterS, RESUME_MAX_WAIT_S)
+      ask.onPace?.(waitS, 'quota')
+      await abortableSleep(waitS * 1000, ask.signal)
+      if (leg.source.paced) await ask.budget.acquire(ask.weight, ask.signal, ask.onPace)
+      return await attempt(leg, ask, ask.signal)
+    }
+    throw e
   }
 }
 
 /**
- * The waits between asks once a stuck host has failed twice: about a minute
- * in all (TJ, 2026-11-13), growing so a host coming back is not met by every
- * batch at once.
+ * One ask of `leg`, with a second copy to `alt` if the first is still out
+ * after the host's hedge delay, and the first answer wins: the other is
+ * aborted. The copy goes only when the run has a hedge left, `alt`'s host has
+ * its spare slot free and a paced `alt` can book its weight at once, so a
+ * hedge never queues and never spends quota the pacer would have made it
+ * wait for. The ask fails only when every copy sent has failed; a first copy
+ * that fails before the hedge is due fails it at once, because a fast failure
+ * is the retry's to handle, not the hedge's.
  */
-export const OUTAGE_WAITS_S = [10, 20, 30] as const
-
-function isOutage(e: unknown): boolean {
-  return e instanceof OpenMeteoTimeout || e instanceof OpenMeteoUnreachable
+function hedged(leg: Leg, alt: Leg, ask: Ask, sent: { hedge: boolean }): Promise<unknown> {
+  if (ask.bestEffort) return attempt(leg, ask, ask.signal)
+  const outer = ask.signal
+  if (outer?.aborted) return Promise.reject(abortError())
+  return new Promise((resolve, reject) => {
+    const copies: AbortController[] = [new AbortController()]
+    let out = 1
+    let done = false
+    let firstError: unknown = null
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const finish = (settle: () => void) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      outer?.removeEventListener('abort', onAbort)
+      for (const c of copies) c.abort()
+      settle()
+    }
+    function onAbort() {
+      finish(() => reject(abortError()))
+    }
+    outer?.addEventListener('abort', onAbort, { once: true })
+    const lose = (e: unknown) => {
+      if (done) return
+      if (firstError === null) firstError = e
+      out--
+      if (out === 0) finish(() => reject(firstError))
+    }
+    const win = (v: unknown) => finish(() => resolve(v))
+    const startHedge = () => {
+      if (done || !ask.run.hasHedge()) return
+      const slots = slotsFor(alt.url)
+      if (alt.source.paced && !ask.budget.tryAcquire(ask.weight)) return
+      if (!slots.takeSpare()) return
+      ask.run.takeHedge()
+      sent.hedge = true
+      const copy = new AbortController()
+      copies.push(copy)
+      out++
+      attempt(alt, ask, copy.signal, { spare: true }).then(win, lose)
+    }
+    attempt(leg, ask, copies[0].signal, {
+      // The clock starts when the first copy reaches the wire; a concurrency
+      // retry inside `getJson` reaches it again, and must not start a second.
+      onWire: () => {
+        if (timer === undefined) timer = setTimeout(startHedge, hedgeDelayMs(leg.url, ask.locations))
+      },
+    }).then(win, (e) => {
+      if (sent.hedge) lose(e)
+      else finish(() => reject(e))
+    })
+  })
 }
 
-async function outlastOutage(
-  url: string,
-  params: Record<string, string>,
+function abortError(): DOMException {
+  return new DOMException('Aborted', 'AbortError')
+}
+
+/**
+ * One HTTP ask of one leg, counted by its host's breaker and timed for its
+ * hedge. A `spare` ask already holds its host's spare slot (`hedged` took it
+ * so it could decide at once), so it goes straight to the wire and releases
+ * the slot when it ends.
+ */
+async function attempt(
+  leg: Leg,
+  ask: Ask,
   signal: AbortSignal | undefined,
-  onPace?: (seconds: number, reason?: PaceReason) => void,
+  { deadlineMs = REQUEST_DEADLINE_MS, spare = false, onWire }: WireOptions & { spare?: boolean } = {},
 ): Promise<unknown> {
+  let started = performance.now()
+  const wired = () => {
+    started = performance.now()
+    onWire?.()
+  }
   try {
-    return await getJson(url, params, signal)
-  } catch (e) {
-    if (!isOutage(e)) throw e
-    let last = e
-    for (const waitS of OUTAGE_WAITS_S) {
-      onPace?.(waitS, 'outage')
-      await abortableSleep(waitS * 1000, signal)
+    let data: unknown
+    if (spare) {
       try {
-        return await getJson(url, params, signal)
-      } catch (again) {
-        if (!isOutage(again)) throw again
-        last = again
+        data = await requestJson(leg.url, ask.params, signal, deadlineMs)
+      } finally {
+        slotsFor(leg.url).release()
       }
+    } else {
+      data = await getJson(leg.url, ask.params, signal, { deadlineMs, onWire: wired })
     }
-    throw last
+    recordSuccess(leg.url)
+    recordLatency(leg.url, performance.now() - started, ask.locations)
+    return data
+  } catch (e) {
+    if (!isAbort(e) && failsOver(e)) recordFailure(leg.url)
+    throw e
+  }
+}
+
+/**
+ * The run's outage window, spent asking again once every source has failed
+ * (record 0345, superseding 0296's minute per batch). The waits are
+ * `OUTAGE_WAITS_S`, narrated through `onPace` as an outage so the countdown
+ * names no quota, and each ask goes to the next source in turn, healthiest
+ * first, with a deadline no longer than the window has left. The window is
+ * the run's, not the batch's: once it has closed, a run that meets another
+ * outage fails at once rather than waiting again.
+ */
+async function outlast(ask: Ask, first: unknown): Promise<unknown> {
+  let last = first
+  for (let round = 0; ; round++) {
+    const leftMs = ask.run.outageLeftMs()
+    if (leftMs <= 0) throw last
+    const waitS = Math.min(OUTAGE_WAITS_S[Math.min(round, OUTAGE_WAITS_S.length - 1)], Math.ceil(leftMs / 1000))
+    ask.onPace?.(waitS, 'outage')
+    await abortableSleep(waitS * 1000, ask.signal)
+    const chain = chainFor(ask.endpoint)
+    const leg = chain[round % chain.length]
+    const deadlineMs = clamp(ask.run.outageLeftMs(), OUTAGE_ASK_FLOOR_MS, REQUEST_DEADLINE_MS)
+    try {
+      return await attempt(leg, ask, ask.signal, { deadlineMs })
+    } catch (e) {
+      if (isAbort(e) || !isOutage(e)) throw e
+      last = e
+    }
   }
 }
 
@@ -842,6 +1056,7 @@ export async function fetchWeather(
     windowLimits = FALLBACK_WINDOW_LIMITS,
     terrainElevation = false,
     onColumn,
+    run = new RunBudget(),
   }: FetchWeatherOptions,
 ): Promise<WeatherResult[]> {
   if (destinations.length === 0) return []
@@ -898,19 +1113,13 @@ export async function fetchWeather(
       // where `models=` is built: a request naming more than one model returns
       // a series per model and costs that multiple.
       //
-      // One acquire per SPAN, each priced on its own hours: two requests are two
-      // answers, so a spanning window spends twice, and pricing it on the whole
-      // window would bill the archive half's months for the forecast half too.
-      const spend = () =>
-        weatherBudget.acquire(
-          callWeight(chunk.length, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1),
-          signal,
-          onPace,
-        )
-      await spend()
-      const data = await getJsonWithResume(
-        span.archive ? ARCHIVE_URL : FORECAST_URL,
-        {
+      // One booking per SPAN, each priced on its own hours: two requests are
+      // two answers, so a spanning window spends twice, and pricing it on the
+      // whole window would bill the archive half's months for the forecast
+      // half too. `askSources` books it on each paced source it asks.
+      const data = await askSources({
+        endpoint: span.archive ? 'archive' : 'forecast',
+        params: {
           ...coordParams(chunk),
           // The model is named on the forecast endpoint and NEVER on the archive.
           // The archive's default is a reanalysis — one dataset at every location,
@@ -931,9 +1140,12 @@ export async function fetchWeather(
           timezone: 'UTC',
         },
         signal,
-        spend,
+        budget: weatherBudget,
+        weight: callWeight(chunk.length, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1),
+        locations: chunk.length,
+        run,
         onPace,
-      )
+      })
       const items = asItems(data)
       if (items.length !== chunk.length) {
         // The counts go to the console because they are the only instrument
@@ -979,7 +1191,7 @@ export async function fetchWeather(
 
 export type FetchCloudOptions = Pick<
   FetchWeatherOptions,
-  'signal' | 'onPace' | 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation' | 'onColumn' | 'onProgress'
+  'signal' | 'onPace' | 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation' | 'onColumn' | 'onProgress' | 'run'
 >
 
 // The cloud column (#117, #670): the weather fetch's twin over the same endpoints,
@@ -1003,6 +1215,7 @@ export async function fetchCloud(
     terrainElevation = false,
     onColumn,
     onProgress,
+    run = new RunBudget(),
   }: FetchCloudOptions,
 ): Promise<CloudResult[]> {
   if (destinations.length === 0) return []
@@ -1042,16 +1255,9 @@ export async function fetchCloud(
       // 2026-10-21, record 0203) and this is the weather host. Read off the
       // list, for the reason the weather fetch reads its own count off
       // `HOURLY_VARIABLES`.
-      const spend = () =>
-        weatherBudget.acquire(
-          callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),
-          signal,
-          onPace,
-        )
-      await spend()
-      const data = await getJsonWithResume(
-        span.archive ? ARCHIVE_URL : FORECAST_URL,
-        {
+      const data = await askSources({
+        endpoint: span.archive ? 'archive' : 'forecast',
+        params: {
           ...coordParams(chunk),
           ...(span.archive ? {} : { models: model }),
           hourly: CLOUD_VARIABLES.join(','),
@@ -1062,9 +1268,12 @@ export async function fetchCloud(
           timezone: 'UTC',
         },
         signal,
-        spend,
+        budget: weatherBudget,
+        weight: callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),
+        locations: chunk.length,
+        run,
         onPace,
-      )
+      })
       const items = asItems(data)
       if (items.length !== chunk.length) throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
       perSpan.push(items)
@@ -1100,6 +1309,10 @@ export interface FetchAqiOptions {
   // How far ahead air quality reaches, from /api/capabilities. Omitted means
   // the compiled fallback, which is the pre-fetch state (#393).
   aqiForecastDays?: number
+  // The run whose budget this fetch shares (record 0345). Air quality spends
+  // none of it, asking each source once, and takes it only so every fetch of
+  // an analysis is handed the same thing.
+  run?: RunBudget
 }
 
 /**
@@ -1144,7 +1357,7 @@ export interface AqiFetch {
 // Port of air_quality.fetch_aqi_batch: best-effort by design. Any failure —
 // network, HTTP, a miscounted response — degrades to nulls and never throws
 // (an AbortError still propagates so cancel works). The nulls a failure left
-// are flagged in `failed`, because a null alone cannot say which kind it is. The first rate limit
+// are flagged in `failed`, because a null alone cannot say which kind it is. The first rate limit or timeout
 // short-circuits every remaining batch: once the AQI quota is spent, more
 // requests only burn budget to learn the same thing (the incident's zombie
 // AQI batches drained the next minute's budget exactly that way). AQI never
@@ -1159,6 +1372,7 @@ export async function fetchAqi(
     onPace,
     nowMs = Date.now(),
     aqiForecastDays = FALLBACK_AQI_FORECAST_DAYS,
+    run = new RunBudget(),
   }: FetchAqiOptions = {},
 ): Promise<AqiFetch> {
   if (destinations.length === 0) return { results: [], failed: [] }
@@ -1180,18 +1394,18 @@ export async function fetchAqi(
   const misses = missIdx.map((i) => destinations[i])
   if (misses.length === 0) return { results, failed }
 
-  let rateLimited = false
+  // Set by the first rate limit or timeout, after which no batch is asked.
+  let stopped = false
   const chunks = chunked(misses, BATCH_SIZE)
   const tasks = chunks.map((chunk) => async (): Promise<{
     rows: AqiResult[]
     cacheable: boolean
   }> => {
-    if (rateLimited) return { rows: chunk.map(() => null), cacheable: false }
+    if (stopped) return { rows: chunk.map(() => null), cacheable: false }
     try {
-      await aqiBudget.acquire(callWeight(chunk.length, startMs, reqEndMs, 1), signal, onPace)
-      const data = await getJson(
-        AIR_QUALITY_URL,
-        {
+      const data = await askSources({
+        endpoint: 'air_quality',
+        params: {
           ...coordParams(chunk),
           hourly: 'us_aqi',
           timeformat: 'unixtime',
@@ -1200,7 +1414,13 @@ export async function fetchAqi(
           timezone: 'UTC',
         },
         signal,
-      )
+        budget: aqiBudget,
+        weight: callWeight(chunk.length, startMs, reqEndMs, 1),
+        locations: chunk.length,
+        run,
+        onPace,
+        bestEffort: true,
+      })
       const items = asItems(data)
       if (items.length !== chunk.length) {
         return { rows: chunk.map(() => null), cacheable: false }
@@ -1215,7 +1435,11 @@ export async function fetchAqi(
       }
     } catch (e) {
       if (isAbort(e)) throw e
-      if (e instanceof OpenMeteoRateLimited) rateLimited = true
+      // A timeout stops the column too (record 0345): every source has just
+      // taken the whole deadline over this batch, so the next batches would
+      // most likely each hold the finished table as long again for a column
+      // the ranking can do without.
+      if (e instanceof OpenMeteoRateLimited || e instanceof OpenMeteoTimeout) stopped = true
       return { rows: chunk.map(() => null), cacheable: false }
     }
   })

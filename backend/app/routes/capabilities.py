@@ -21,6 +21,8 @@ from app.models import (
     PAST_LIMIT_SLACK_DAYS,
     SortBy,
 )
+from app.open_meteo_sources import SOURCES as OPEN_METEO_SOURCES
+from app.open_meteo_sources import OpenMeteoSource
 from app.routes.analyze import API_KEY_HEADER
 from app.services import places
 from app.services.air_quality import MAX_FORECAST_DAYS as AQI_FORECAST_DAYS
@@ -447,6 +449,15 @@ class CapabilitiesResponse(BaseModel):
             "discovery will most likely answer rather than a promise."
         )
     )
+    open_meteo_sources: list[OpenMeteoSource] = Field(
+        description=(
+            "Where a client asks for forecasts, in the order to ask them: this "
+            "deployment's own copies of Open-Meteo first, when it runs any, and "
+            "Open-Meteo's public hosts last, which are always listed. A client "
+            "moves to the next source that answers the same endpoint when one "
+            "fails, times out or refuses for quota."
+        )
+    )
     limits: Limits
     coverage: Coverage
     data_sources: list[DataSource]
@@ -515,6 +526,9 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
         # Overpass call (#803). It answers False on every way the database can
         # be missing, never an error.
         discovery_source="places" if await places.is_filled() else "overpass",
+        # Read once at import from OPEN_METEO_MIRRORS, the same list the
+        # page's connect-src was built from, so nothing published is blocked.
+        open_meteo_sources=list(OPEN_METEO_SOURCES),
         limits=Limits(
             max_polygon_area_km2=MAX_POLYGON_AREA_KM2,
             max_destinations=MAX_ANALYZE_PEAKS,

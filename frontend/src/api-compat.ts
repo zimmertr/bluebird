@@ -35,6 +35,7 @@ import type {
   HourlySeries,
   RefusalFields,
   RunReport,
+  OpenMeteoSource,
   SnowDepthRequest,
   SnowDepthResponse,
   SortBy,
@@ -265,6 +266,14 @@ export type CapabilitiesCarryDiscoverySource = Assert<
   Equal<Schema['CapabilitiesResponse']['discovery_source'], DiscoverySource>
 >
 
+// The weather sources (record 0345). `parseSources` keeps a published entry
+// only when it has this shape, so a renamed URL member would quietly leave the
+// browser on the public hosts alone.
+export type OpenMeteoSourceIsParsed = Assert<Equal<Wire<OpenMeteoSource>, Wire<Schema['OpenMeteoSource']>>>
+export type CapabilitiesCarrySources = Assert<
+  Extends<Schema['CapabilitiesResponse'], { open_meteo_sources: Schema['OpenMeteoSource'][] }>
+>
+
 export type ParsedModelFieldsAreRead = Assert<
   Extends<
     Schema['ForecastModelInfo'],
@@ -374,6 +383,7 @@ type Mirrored =
   | 'HourlySeries'
   | 'LandmarkCollection'
   | 'Limits'
+  | 'OpenMeteoSource'
   | 'PreviewConfig'
   | 'RunReport'
   | 'SnowDay'

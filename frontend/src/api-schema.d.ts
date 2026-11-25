@@ -701,6 +701,11 @@ export interface components {
             forecast_models: components["schemas"]["ForecastModelInfo"][];
             limits: components["schemas"]["Limits"];
             /**
+             * Open Meteo Sources
+             * @description Where a client asks for forecasts, in the order to ask them: this deployment's own copies of Open-Meteo first, when it runs any, and Open-Meteo's public hosts last, which are always listed. A client moves to the next source that answers the same endpoint when one fails, times out or refuses for quota.
+             */
+            open_meteo_sources: components["schemas"]["OpenMeteoSource"][];
+            /**
              * Sort Keys
              * @description Accepted values for `sort_by`, usable with `sort_desc`.
              */
@@ -1493,6 +1498,38 @@ export interface components {
             past_data_days: number;
             /** @description Per-client request pacing. Unlike the bounds above, exceeding these is not a request error: the same request succeeds once `Retry-After` has elapsed. */
             rate: components["schemas"]["RateLimits"];
+        };
+        /**
+         * OpenMeteoSource
+         * @description One place the browser can ask for forecasts.
+         */
+        OpenMeteoSource: {
+            /**
+             * Air Quality Url
+             * @description Where this source answers US AQI, or null when it answers none.
+             */
+            air_quality_url: string | null;
+            /**
+             * Archive Url
+             * @description Where this source answers windows older than the forecast endpoint holds, or null.
+             */
+            archive_url: string | null;
+            /**
+             * Forecast Url
+             * @description Where this source answers forecast windows, or null when it answers none.
+             */
+            forecast_url: string | null;
+            /**
+             * Name
+             * @description `open-meteo` for Open-Meteo's own public hosts, `mirror` for a copy this deployment runs. The name a run report gives the source that failed it.
+             * @enum {string}
+             */
+            name: "open-meteo" | "mirror";
+            /**
+             * Paced
+             * @description Whether a client must pace its requests to this source under Open-Meteo's free-tier weighted-call quota, which counts per client address.
+             */
+            paced: boolean;
         };
         /**
          * PreviewConfig
