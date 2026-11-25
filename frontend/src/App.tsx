@@ -670,6 +670,7 @@ export default function App() {
     forecastModels: caps.forecastModels,
     polygonAreaKm2: searchArea.areaKm2,
     maxAreaKm2: caps.maxPolygonAreaKm2,
+    viewIsArea: searchArea.source === 'view',
     drawPointCount: searchArea.pointCount,
     drawing,
     destinationTypes,

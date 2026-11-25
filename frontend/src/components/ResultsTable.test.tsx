@@ -484,6 +484,18 @@ describe('compact', () => {
     expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(0)
   })
 
+  // A keyboard reaches the disclosure by Tab and opens it with Enter, so the
+  // opened row's facts need no pointer (TJ, 2026-11-25).
+  it('opens a compact row from the keyboard', async () => {
+    const scored = ROWS.map((r) => ({ ...r, score: 80, score_hours: [80], score_lit: [true], score_best: [0, 1] as [number, number] }))
+    const { user } = render(<ResultsTable {...props({ results: scored, columns: compactColumns('temp_avg_f', true), compact: true })} />)
+    const toggle = screen.getByRole('button', { name: `Details for ${scored[0].name}` })
+    for (let i = 0; i < 60 && document.activeElement !== toggle; i++) await user.tab()
+    expect(document.activeElement).toBe(toggle)
+    await user.keyboard('{Enter}')
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(1)
+  })
+
   // The full table opens the popup instead, so it carries no disclosure.
   it('draws no disclosure in the full table', () => {
     render(<ResultsTable {...props()} />)

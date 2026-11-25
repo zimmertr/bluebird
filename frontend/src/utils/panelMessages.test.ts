@@ -193,6 +193,7 @@ describe('panelMessages', () => {
   describe('the Analyze blockers', () => {
     const BLOCKERS: [AnalyzeBlocker, Partial<PanelMessageInputs>, string, string][] = [
       ['area', {}, 'error', `The polygon is too large. The maximum supported size is ${(100_000).toLocaleString()} km².`],
+      ['area', { viewIsArea: true }, 'error', 'Zoom in to forecast here.'],
       ['window', {}, 'error', 'Adjust the forecast window to continue.'],
       ['dates', {}, 'error', 'Select at least one date to analyze.'],
       ['destinations', {}, 'error', 'Provide at least one destination to analyze.'],

@@ -350,3 +350,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0335](0335-cloud-top-on-the-hourly-series.md) | The hourly series carries the top of the deck's layer, from the same walk | 2026-11-17 | Proposed; amends 0113 | Root: The Python and TypeScript mirrors; `DATA.md`: Cloud top; `API.md`: Cloud deck |
 | [0336](0336-a-finger-drags-across-the-strip.md) | A finger drags across the strip's days | 2026-11-21 | Proposed; amends 0311 and 0329 | `components/` guide: `DayStrip.tsx`; `USAGE.md` |
 | [0337](0337-a-phone-draws-the-cloud-sea.md) | A phone draws the cloud sea, and a sheet the tour holds opens at half the screen | 2026-11-21 | Proposed; supersedes 0310 in part | `components/` guide: `BottomSheet.tsx`, `LayersPopover.tsx`; `USAGE.md`; `STYLES.md` |
+| [0338](0338-the-review-answers-of-2026-11-25.md) | The maintainer's review answers of 2026-11-25 | 2026-11-25 | Proposed; amends 0309 | `utils/` guide: `panelMessages.ts`; `USAGE.md` |

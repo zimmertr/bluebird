@@ -1,6 +1,6 @@
 # 0309. The map's view is the search area, and a sentence bar holds what a Forecast spends
 
-- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves its strings and merges it. Would supersede the docked desk panel of 0202 and the panel half of 0028.
+- Status: Proposed, in the from-scratch UI PR; accepted when the maintainer approves its strings and merges it. Would supersede the docked desk panel of 0202 and the panel half of 0028. Amended by [0338](0338-the-review-answers-of-2026-11-25.md) (the area line over a view).
 - Date: 2026-11-18
 - Decider: the maintainer, 2026-11-17 ("build it in a pr", from the prototype)
 - Issues and PRs: #825

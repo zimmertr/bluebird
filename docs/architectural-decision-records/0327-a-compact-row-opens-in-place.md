@@ -21,5 +21,5 @@ The prototype's tenth idea is the summit against the cloud: a press on a row ope
 
 ## Consequences
 
-- The row opens by pointer only. A keyboard reaches the place through the name's button, which flies the map, and the opened row's facts are not yet reachable without a pointer.
+- A keyboard opens the row through its `Details for {name}` button at the row's right end, which takes focus by Tab and opens with Enter or Space ([0332](0332-the-review-answers-of-2026-11-21.md)). The name's button still flies the map.
 - The new words are in the PR's strings table for approval.
