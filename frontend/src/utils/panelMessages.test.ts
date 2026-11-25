@@ -367,8 +367,10 @@ describe('panelMessages', () => {
   // #834: the lines whose arrival opens the list are the two checks and the
   // basemap, by the keys this module gives them, and nothing else.
   describe('the lines that open the list', () => {
-    it('are the keys the check, basemap, preset list and layer failures carry', () => {
+    it('are the keys the check, basemap, preset list, cloud column and layer failures carry', () => {
       const failing = keys({
+        hasReport: true,
+        cloudFailed: true,
         wildfireCheckFailed: true,
         closureCheckFailed: true,
         basemapFailed: true,

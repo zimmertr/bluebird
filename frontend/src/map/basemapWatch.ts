@@ -12,11 +12,17 @@
  * `STYLE_RETRY_S`, because a style host that failed for a few seconds came
  * back to a map that stayed blank until the reader's connection dropped and
  * returned, which on a steady connection is never.
+ * Past `FALLBACK_AFTER_RETRIES` failed retries the map stops asking and takes
+ * the fallback style for the rest of the visit, so `load` fires and the ring
+ * tool mounts; the failure stays reported, because a reload is what brings
+ * Liberty back. It is not swapped back in live, because that would replace
+ * the style under every layer the app has added since.
  * The reload carries the credit rewrite every load of the style does
  * (`utils/basemapCredit.ts`), or the recovered map would credit the basemap
  * in the style's own words. When the style arrives the note clears.
  */
 import type * as maplibregl from 'maplibre-gl'
+import type { StyleSpecification } from 'maplibre-gl'
 import { BASEMAP_STYLE_OPTIONS } from '../utils/basemapCredit'
 import { isStyleFailure } from '../utils/basemapFailure'
 import { overlayRecovery } from './overlays/recovery'
@@ -29,6 +35,13 @@ import { overlayRecovery } from './overlays/recovery'
  */
 export const STYLE_RETRY_S = [5, 15, 30, 60] as const
 
+/**
+ * How many timed retries fail before the fallback style mounts: the first two,
+ * so a reader waits about 20 s, not the minutes the later waits add up to,
+ * before they can draw.
+ */
+export const FALLBACK_AFTER_RETRIES = 2
+
 export interface BasemapWatch {
   dispose(): void
 }
@@ -37,6 +50,8 @@ export function watchBasemap(
   map: maplibregl.Map,
   deps: {
     style: string
+    /** The style taken for the rest of the visit once the retries run out. */
+    fallback: StyleSpecification
     /** Whether the style is failing now; called with false once it loads. */
     onFailed: (failed: boolean) => void
     /** Where the browser's `online` is heard; the window when absent. */
@@ -49,6 +64,7 @@ export function watchBasemap(
   },
 ): BasemapWatch {
   let styleLoaded = false
+  let fellBack = false
   let told = false
   const tell = (ok: boolean) => {
     if (told) return
@@ -78,6 +94,8 @@ export function watchBasemap(
   }
   map.on('style.load', () => {
     styleLoaded = true
+    // The fallback loading is not Liberty arriving: the failure stands.
+    if (fellBack) return
     attempt = 0
     clearTimer()
     tell(true)
@@ -85,10 +103,18 @@ export function watchBasemap(
     deps.onFailed(false)
   })
   map.on('error', (event) => {
-    if (!isStyleFailure(event as { sourceId?: unknown }, styleLoaded)) return
+    if (fellBack || !isStyleFailure(event as { sourceId?: unknown }, styleLoaded)) return
     tell(false)
-    recovery.failed(null)
     deps.onFailed(true)
+    if (attempt >= FALLBACK_AFTER_RETRIES) {
+      fellBack = true
+      clearTimer()
+      recovery.stop()
+      map.setStyle(null)
+      map.setStyle(deps.fallback, { diff: false })
+      return
+    }
+    recovery.failed(null)
     if (timer === null) {
       const waitS = STYLE_RETRY_S[Math.min(attempt, STYLE_RETRY_S.length - 1)]
       attempt++

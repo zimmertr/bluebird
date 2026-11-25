@@ -762,6 +762,7 @@ describe('runClientAnalysis', () => {
       late: null,
       lateSnow: null,
       aqiFailed: new Set(),
+      cloudFailed: false,
     })
   })
 

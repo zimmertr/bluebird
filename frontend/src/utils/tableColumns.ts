@@ -29,7 +29,7 @@ import { grouped } from './numbers'
  * typecheck rather than print a missing value as 0.
  *
  * `csvNull` is that empty cell's text, and it is empty for every column but
- * the freezing level's three. A blank is how a spreadsheet spells "no value",
+ * the freezing level's, snow depth's and the cloud deck's (record 0350). A blank is how a spreadsheet spells "no value",
  * which is the truth for a number the forecast simply lacks; a freezing level
  * is missing because the MODEL carries no such variable, which is a different
  * statement and the one the screen already makes with its mark.
@@ -298,9 +298,9 @@ export const COLUMNS: ColDef[] = [
   // The cloud deck (#117, #670) is feet above sea level and grouped like the
   // elevation it is read against; Windy's nearest layer is its cloud base,
   // `cbase`.
-  { key: 'cloud_deck_min_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.minimum), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
-  { key: 'cloud_deck_max_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.maximum), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
-  { key: 'cloud_deck_avg_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.average), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
+  { key: 'cloud_deck_min_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.minimum), format: cloudDeckCell, csv: cloudDeckCsv, csvNull: UNAVAILABLE, windyLayer: 'cbase' },
+  { key: 'cloud_deck_max_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.maximum), format: cloudDeckCell, csv: cloudDeckCsv, csvNull: UNAVAILABLE, windyLayer: 'cbase' },
+  { key: 'cloud_deck_avg_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.average), format: cloudDeckCell, csv: cloudDeckCsv, csvNull: UNAVAILABLE, windyLayer: 'cbase' },
   // The freezing level is feet above sea level, formatted like the elevation
   // column, because the reading IS the comparison between the two. Null is the
   // five-model case (#295) and both surfaces draw it as N/A — the table with

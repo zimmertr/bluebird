@@ -25,7 +25,7 @@ import type { PendingDestination } from '../utils/customList'
 import { ringPolygon, ringToPts } from '../utils/drawGeometry'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 import { createMapController, type MapInputs } from '../map/controller'
-import { STYLE } from '../map/basemap'
+import { FALLBACK_STYLE, STYLE } from '../map/basemap'
 import { addAttribution, addControls, placeControl, type CornerSlots, type MapControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
@@ -722,6 +722,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // waits through before they can draw (record 0339).
       const basemap = watchBasemap(map, {
         style: STYLE,
+        fallback: FALLBACK_STYLE,
         onFailed: onBasemapFailed,
         onFirstOutcome: (ok) => reportMapLoad(ok, performance.now()),
       })

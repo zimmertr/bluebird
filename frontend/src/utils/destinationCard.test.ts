@@ -508,11 +508,12 @@ describe('a ranked card: links out', () => {
   it('opens every link in a new tab, with no window handle back', () => {
     const html = rankedHtml({ ...linked, sections: [FIRE] })
     const anchors = html.match(/<a /g) ?? []
-    // Twenty-three metric values, the fire section's glyph, the title's
-    // link-out glyph and the coordinates.
-    expect(anchors.length).toBe(26)
-    expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(26)
-    expect(html.match(/target="_blank"/g)?.length).toBe(26)
+    // Twenty metric values, the fire section's glyph, the title's link-out
+    // glyph and the coordinates. The fixture's cloud deck is null, which
+    // reads N/A and links nowhere (record 0350).
+    expect(anchors.length).toBe(23)
+    expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(23)
+    expect(html.match(/target="_blank"/g)?.length).toBe(23)
   })
 })
 
