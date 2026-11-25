@@ -100,10 +100,14 @@ describe('COLUMNS', () => {
   // for every metric but two: a freezing level is absent because the model
   // carries no such variable, and a snow depth because the destination is
   // outside the snow grid, and the file is read detached from the app that
-  // could say so. So the six declare the mark the screen uses and nothing
-  // else does.
+  // could say so. A cloud deck joined them in record 0350, when its column
+  // failed and the run landed without it. So the nine declare the mark the
+  // screen uses and nothing else does.
   it('declares a file mark for exactly the columns that can be unavailable', () => {
     expect(COLUMNS.filter((c) => c.csvNull).map((c) => c.key)).toEqual([
+      'cloud_deck_min_ft',
+      'cloud_deck_max_ft',
+      'cloud_deck_avg_ft',
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',

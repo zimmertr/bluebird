@@ -184,8 +184,9 @@ describe('values a spreadsheet can compute over', () => {
     )
     const marked = WINDOW_COLUMNS.filter((c) => c.csvNull)
 
-    expect(marked).toHaveLength(6)
-    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(6)
+    // The freezing level, snow depth and the cloud deck, three each (record 0350).
+    expect(marked).toHaveLength(9)
+    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(9)
   })
 
   // A row whose numbers ARE there writes numbers, so the mark above can only
