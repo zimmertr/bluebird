@@ -132,19 +132,21 @@ Over 30 days the snapshot refreshes failed 63 times for NIFC, 21 for SNODAS, 21 
 
 I sent a small sample of requests to each provider from a container at home, the same requests the app makes, a few at a time and two seconds apart. A sample this small says how a provider behaves at that hour, not how often it fails, so the rounds repeat through the night and the table keeps every round.
 
-| Provider | Round at 01:30 on 2026-11-25 | Round at 02:21 | Round at 03:58 |
-|---|---|---|---|
-| Open-Meteo forecast, archive, air quality | 16 of 16 answered; 0.07 s, 0.73 s and 0.69 s at the median | **The forecast host 0 of 4**: every request failed its TLS handshake after 22 to 24 s, while the archive and air-quality hosts answered 4 of 4 in 0.7 s | 8 of 8; the forecast host back at 0.07 s |
-| OpenFreeMap style and tiles | 12 of 12; 0.08 s | 12 of 12 | 12 of 12 |
-| Mapterhorn, USGS, EOX tiles | 16 of 16; EOX the slowest at 0.73 s | 16 of 16 | 16 of 16 |
-| IEM radar, NOAA snow, NOAA smoke | 10 of 10 | 10 of 10 | 10 of 10 |
-| The two ArcGIS hosts (NIFC, Forest Service) | 6 of 6; 1.1 s and 4.2 s | 6 of 6 | 6 of 6; one answer took 7.7 s |
-| Overpass, both mirrors | 2 of 6; `overpass-api.de` timed out at 30 s and answered `502`, `maps.mail.ru` answered `504` twice | 3 of 6; `overpass-api.de` answered `502` and timed out twice, `maps.mail.ru` answered all three in 23 s | 1 of 6; `overpass-api.de` answered `502` three times, `maps.mail.ru` `504` twice and one answer in 19 s |
-| bluebirdforecast.com, the page and `/api/capabilities` | 12 of 12; 0.14 s and 0.12 s | 12 of 12 | 12 of 12 |
+| Provider | Round at 01:30 on 2026-11-25 | Round at 02:21 | Round at 03:58 | Round at 05:32 |
+|---|---|---|---|---|
+| Open-Meteo forecast, archive, air quality | 16 of 16 answered; 0.07 s, 0.73 s and 0.69 s at the median | **The forecast host 0 of 4**: every request failed its TLS handshake after 22 to 24 s, while the archive and air-quality hosts answered 4 of 4 in 0.7 s | 8 of 8; the forecast host back at 0.07 s | **The forecast host 2 of 4**: two handshakes failed after 22.6 s and two answered in 0.07 s, while the other two hosts answered 4 of 4 |
+| OpenFreeMap style and tiles | 12 of 12; 0.08 s | 12 of 12 | 12 of 12 | 12 of 12 |
+| Mapterhorn, USGS, EOX tiles | 16 of 16; EOX the slowest at 0.73 s | 16 of 16 | 16 of 16 | 16 of 16 |
+| IEM radar, NOAA snow, NOAA smoke | 10 of 10 | 10 of 10 | 10 of 10 | 10 of 10 |
+| The two ArcGIS hosts (NIFC, Forest Service) | 6 of 6; 1.1 s and 4.2 s | 6 of 6 | 6 of 6; one answer took 7.7 s | 6 of 6 |
+| Overpass, both mirrors | 2 of 6; `overpass-api.de` timed out at 30 s and answered `502`, `maps.mail.ru` answered `504` twice | 3 of 6; `overpass-api.de` answered `502` and timed out twice, `maps.mail.ru` answered all three in 23 s | 1 of 6; `overpass-api.de` answered `502` three times, `maps.mail.ru` `504` twice and one answer in 19 s | 3 of 6; `overpass-api.de` timed out twice and answered `502`, `maps.mail.ru` answered all three in 13 to 23 s |
+| bluebirdforecast.com, the page and `/api/capabilities` | 12 of 12; 0.14 s and 0.12 s | 12 of 12 | 12 of 12 | 12 of 12 |
 
 The 02:21 round caught the failure #934 describes, live: the forecast host alone stopped answering, and its two sister hosts on the same service answered at once. Whether the fault was Open-Meteo's or on the path from this house to it, a reader there would have seen every analysis fail. One host answering every forecast is the single point this plan's weather sources exist to remove.
 
-Overpass is the other pattern. Across three rounds its two mirrors answered 6 of 18 requests between them, and at 01:30 and 03:58 both were failing in the same minute. Racing them (record 0346) shortens a search when one answers and saves nothing when neither does. That is why the places table, and not Overpass, is the search a run depends on, and why the plan publishes that table outside the house too.
+The 05:32 round caught it again, and in the shape the hedge was built for: half the requests hung for 22.6 s and failed, and the other half answered in 0.07 s. Before this PR, such a request held its batch for the full 20 s deadline before anything was asked again. Now a request still unanswered after about 5 s gets a second copy, and at that hour the second copy would have answered at once half the time.
+
+Overpass is the other pattern. Across four rounds its two mirrors answered 9 of 24 requests between them, and at 01:30 and 03:58 both were failing in the same minute. Racing them (record 0346) shortens a search when one answers and saves nothing when neither does. That is why the places table, and not Overpass, is the search a run depends on, and why the plan publishes that table outside the house too.
 
 ### Nobody Is Told
 
