@@ -83,7 +83,7 @@ async def _resolve_custom(custom_destinations) -> list[dict]:
 
 
 async def _resolve_custom_reporting(
-    custom_destinations, *, lookup: bool = True
+    custom_destinations, *, lookup: bool = True, deadline: float | None = None
 ) -> tuple[list[dict], bool]:
     """`_resolve_custom`, and whether the elevation lookup finished (#673).
 
@@ -98,11 +98,13 @@ async def _resolve_custom_reporting(
     server is not asked at all: the rows come back as sent, and the flag is
     true only when none of them needed a lookup, which is the same statement
     the flag makes when every row was looked up.
+
+    ``deadline`` ends the lookup early, as `osm.enrich_custom_reporting` says.
     """
     rows = _distinct_by_coord(_custom_dicts(custom_destinations))
     if not lookup:
         return rows, all(r.get("elevation_ft") is not None for r in rows)
-    return await osm.enrich_custom_reporting(rows)
+    return await osm.enrich_custom_reporting(rows, deadline=deadline)
 
 
 def _distinct_by_coord(rows: list[dict]) -> list[dict]:
@@ -210,6 +212,7 @@ async def discover(
     *,
     include_unnamed_peaks: bool = False,
     on_status: osm.StatusCallback | None = None,
+    deadline: float | None = None,
 ) -> list[dict]:
     """Discovery, with the one mapping from its failures to API errors.
 
@@ -217,6 +220,10 @@ async def discover(
     not: a deployment with no database, one whose first fill has not finished,
     or a database that dropped mid-search. The table cannot fail the request,
     so the ladder below is Overpass's.
+
+    ``deadline``, on the loop's clock, is when the caller stops waiting. The
+    table's read is bounded on its own (`db.CALL_DEADLINE_S`), and Overpass
+    gets what is left of it, its mirrors raced rather than asked in turn.
 
     Four causes, four answers, and the sentence an unrecognized failure gives a
     caller is as much the contract as the code beside it. Every route that
@@ -239,6 +246,7 @@ async def discover(
             destination_types,
             on_status,
             include_unnamed_peaks=include_unnamed_peaks,
+            deadline=deadline,
         )
     except NotImplementedError as e:
         raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation) from e

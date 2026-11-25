@@ -43,6 +43,13 @@ export const THEME_KEY = 'bluebird_forecast_theme'
  */
 export const STARRED_LISTS_KEY = 'bluebird_forecast_starred_lists'
 
+/**
+ * The deployment's capabilities as they were last answered (record 0342):
+ * not a habit of the reader's at all, but kept beside them because this module
+ * is the one that owns local storage.
+ */
+export const CAPABILITIES_KEY = 'bluebird_forecast_capabilities'
+
 /** The two themes the app paints in (#706). */
 export type Theme = 'dark' | 'light'
 
@@ -324,5 +331,29 @@ export function writeStarredLists(ids: readonly string[]): void {
     else localStorage.removeItem(STARRED_LISTS_KEY)
   } catch {
     // A storage that refuses keeps the stars for this visit only.
+  }
+}
+
+/**
+ * The last `/api/capabilities` body this browser was sent (record 0342), kept
+ * so a visit when the server cannot be reached still offers the deployment's
+ * forecast models and limits rather than the compiled stand-ins. Null when
+ * none was kept, when the storage refuses, or when the key holds no object.
+ */
+export function readCapabilitiesCopy(): object | null {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(CAPABILITIES_KEY) ?? 'null')
+    return stored !== null && typeof stored === 'object' && !Array.isArray(stored) ? stored : null
+  } catch {
+    return null
+  }
+}
+
+/** Keep the body the server just sent, replacing the last one. */
+export function writeCapabilitiesCopy(body: object): void {
+  try {
+    localStorage.setItem(CAPABILITIES_KEY, JSON.stringify(body))
+  } catch {
+    // A storage that refuses only costs the next unreachable visit its models.
   }
 }

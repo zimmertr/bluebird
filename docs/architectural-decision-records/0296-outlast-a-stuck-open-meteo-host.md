@@ -1,6 +1,6 @@
 # 0296. A stuck Open-Meteo host is waited out for about a minute before an analysis fails
 
-- Status: Accepted. Amends the one retry #545 gave a timed-out batch
+- Status: Superseded by [0345](0345-weather-sources-hedged-under-one-run-window.md) (proposed, 2026-11-25). Amended the one retry #545 gave a timed-out batch
 - Date: 2026-11-13
 - Decider: the maintainer (TJ), on PR #921, 2026-11-13
 - Issues and PRs: #849, #921, #545

@@ -205,7 +205,9 @@ async def apply(changes: Changes, sequence: int) -> None:
     new table in meanwhile (and wrote its own sequence) makes this roll back
     rather than mark a day applied to a table it never touched.
     """
-    async with db.connection() as conn, conn.transaction():
+    # Unbounded: a day file can touch tens of thousands of places, under the
+    # refresh's deadline.
+    async with db.connection(unbounded=True) as conn, conn.transaction():
         await conn.execute(
             "CREATE TEMP TABLE touched (osm_type text NOT NULL, osm_id bigint NOT NULL)"
             " ON COMMIT DROP"
@@ -391,7 +393,7 @@ async def place_pending() -> int:
     if not waiting:
         return 0
     rows = await place_shapes(waiting)
-    async with db.connection() as conn, conn.transaction():
+    async with db.connection(unbounded=True) as conn, conn.transaction():
         cur = conn.cursor()
         await cur.executemany(
             "DELETE FROM places WHERE osm_type = %s AND osm_id = %s",

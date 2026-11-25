@@ -272,6 +272,7 @@ meant to prevent.
 | `GET /api/closures` | Forest Service closure orders in a bounding box: closed areas in Regions 3, 4 and 6, or closed trails, roads and sites in Region 6 (Oregon and Washington). |
 | `GET /api/landmarks` | Named trailheads and crags in a bounding box, from the deployment's own copy of OpenStreetMap. |
 | `POST /api/snow-depth` | Snow depth over a window at a list of coordinates, from the deployment's own year of NOHRSC analyses. |
+| `POST /api/reports` | How one analysis or one map load ended in the browser, counted for the reliability targets. Internal to the web app. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 

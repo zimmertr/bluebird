@@ -69,16 +69,21 @@ export default function PrivacyPage() {
             to everyone; each count is deleted within an hour of your last request.
           </li>
           <li>
-            <span className={PROSE.strong}>On your device</span>, Bluebird Forecast saves six
+            <span className={PROSE.strong}>On your device</span>, Bluebird Forecast saves seven
             things and sends none of them anywhere. Your browser's local storage keeps whether you
             dismissed the welcome dialog, whether you chose the light or dark theme, which
             coordinate lists you starred, and how you laid out the results and the map: which views are open, which
             columns show and in what order, how the chart's panels are arranged, whether the
             forecast player shows, how faded each base map is, and whether the map's legend is
-            folded.
+            folded, and the last list of forecast models and limits the server sent, so a visit
+            when it cannot be reached still offers them.
             Session storage, which ends when you close the
             tab, keeps the forecasts fetched in the last 15 minutes so a reload does not fetch them
-            again, and the version of the app that last reloaded itself after an update.
+            again, and the version of the app that last reloaded itself after an update. So that
+            the app still opens when the server cannot be reached, your browser keeps a copy of the
+            page itself, which it replaces on every visit. When an analysis or the map finishes
+            loading, the app tells the server how it ended and how long it took, with no location
+            and nothing that identifies you.
           </li>
           <li>
             <span className={PROSE.strong}>Cloudflare</span> carries every request between your
@@ -114,7 +119,7 @@ export default function PrivacyPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>Last updated 16 November 2026.</p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 25 November 2026.</p>
     </PageShell>
   )
 }

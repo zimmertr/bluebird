@@ -150,6 +150,29 @@ describe('mountWildfires', () => {
     expect(fetchWildfires).toHaveBeenCalledTimes(2)
   })
 
+  // Record 0344: the layer's failure is told, and cleared when a fetch lands
+  // or the layer goes off.
+  it('says it is failing while on and failing, and stops when a fetch lands or it is switched off', async () => {
+    fetchWildfires.mockReset().mockRejectedValueOnce(new Error('Wildfire data unavailable. Try again later.')).mockResolvedValue(FIRES)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const stub = stubMap({ canvasWidth: 1000, zoom: 8 })
+    const onFailing = vi.fn()
+    const fires = mountWildfires(stub.map, { popups: mountTestPopups(stub).popups, online: null, onFailing })
+    fires.update({ show: true })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onFailing.mock.calls).toEqual([[true]])
+    stub.fire('moveend')
+    await vi.advanceTimersByTimeAsync(FIRE_REFETCH_DEBOUNCE_MS)
+    expect(onFailing.mock.calls).toEqual([[true], [false]])
+
+    fetchWildfires.mockRejectedValueOnce(new Error('Wildfire data unavailable. Try again later.'))
+    stub.fire('moveend')
+    await vi.advanceTimersByTimeAsync(FIRE_REFETCH_DEBOUNCE_MS)
+    expect(onFailing).toHaveBeenLastCalledWith(true)
+    fires.update({ show: false })
+    expect(onFailing).toHaveBeenLastCalledWith(false)
+  })
+
   it('stops listening and empties the layer when switched off', () => {
     const { stub, fires } = setup()
     fires.update({ show: true })

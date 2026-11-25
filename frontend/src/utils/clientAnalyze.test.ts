@@ -3,6 +3,7 @@ import { AnalyzeRequest, DestinationResult, DiscoveredDestination, GeoPolygon } 
 import {
   AnalysisRefusalError,
   MAX_ANALYZE_DESTINATIONS,
+  SNOW_DEPTH_WAIT_MS,
   alignAqi,
   alignCloud,
   analysisNoun,
@@ -25,8 +26,8 @@ import {
   withWeather,
 } from './clientAnalyze'
 import { geoKey } from './points'
+import { snowFilled } from './snowHistory'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
-import { OpenMeteoHttpError } from './openMeteoErrors'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
 import {
   discovered,
@@ -759,7 +760,9 @@ describe('runClientAnalysis', () => {
       universe: [],
       columns: new Map(),
       late: null,
+      lateSnow: null,
       aqiFailed: new Set(),
+      cloudFailed: false,
     })
   })
 
@@ -1136,14 +1139,16 @@ describe('runClientAnalysis and the cloud column', () => {
     expect(out.universe.map((r) => r.cloud_deck_avg_ft)).toEqual([3640, 4210, 4495])
   })
 
-  // The cloud failure aborts the weather fetch, and the weather fetch then
-  // rejects with an AbortError, which reads as the reader's own cancel.
-  it('fails with the cloud error rather than the abort it causes', async () => {
+  // Record 0350, superseding 0121: a cloud column that fails leaves the rest
+  // of the table standing, with no cloud deck, rather than failing the run.
+  it('lands the table with no cloud deck when the cloud column fails', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        if (isCloudRequest(url)) return fakeResponse({ reason: 'x' }, 500)
+        // A 403 rather than a 5xx, which is asked again through the run's
+        // outage window (record 0345) and would hold this test for 30 s.
+        if (isCloudRequest(url)) return fakeResponse({ reason: 'x' }, 403)
         const host = new URL(url).hostname
         return fakeResponse(
           host === 'api.open-meteo.com'
@@ -1152,16 +1157,23 @@ describe('runClientAnalysis and the cloud column', () => {
         )
       }),
     )
-    const err = await runClientAnalysis(
-      { ...REQUEST, sort_by: 'cloud_deck_min_ft' },
+    const out = await runClientAnalysis(
+      { ...REQUEST, sort_by: 'cloud_deck_min_ft', limit: 10 },
       customRows(THREE),
       startMs,
       endMs,
       { nowMs: startMs },
-    ).catch((e: unknown) => e)
-    // Only the cloud request answers 500 here, so its class and status name it.
-    expect(err).toBeInstanceOf(OpenMeteoHttpError)
-    expect((err as OpenMeteoHttpError).status).toBe(500)
+    )
+    expect(out.cloudFailed).toBe(true)
+    expect(out.universe).toHaveLength(THREE.length)
+    expect(out.universe.every((r) => r.cloud_deck_min_ft == null)).toBe(true)
+    expect(out.universe.every((r) => r.precip_total_in != null)).toBe(true)
+  })
+
+  it('reports the cloud column as answered when it answered', async () => {
+    stubWithCloud(THREE_PRECIPS, [90, 60, 80])
+    const out = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, { nowMs: startMs })
+    expect(out.cloudFailed).toBe(false)
   })
 })
 
@@ -1536,6 +1548,8 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
     )
     const first = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs })
     expect(snowCalls).toHaveLength(1)
+    // In time, so nothing is handed on.
+    expect(first.lateSnow).toBeNull()
     const byName = new Map(first.universe.map((r) => [r.name, r]))
     expect(SENT.map((d) => byName.get(d.name)!.snow_depth_max_in)).toEqual([20, 40, 60])
     expect(byName.get(SENT[0].name)!.series!.snow_depth_in!.every((v) => v === 10)).toBe(true)
@@ -1546,6 +1560,56 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
     })
     expect(snowCalls).toHaveLength(1)
     expect(again.universe.map((r) => r.snow_depth_max_in).sort()).toEqual([20, 40, 60])
+  })
+
+  // Record 0341: a pod that hangs on the snow depth no longer holds a
+  // finished table. The report commits reading N/A, and the answer comes on
+  // `lateSnow`.
+  it('commits without a snow depth that has not answered, and hands it on when it does', async () => {
+    stubWindy(THREE_PRECIPS)
+    const omFetch = vi.mocked(fetch).getMockImplementation()!
+    let answer!: (res: Response) => void
+    const snowAnswer = new Promise<Response>((r) => {
+      answer = r
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => (url === '/api/snow-depth' ? snowAnswer : omFetch(url, init))),
+    )
+    const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, snowWaitMs: 0 })
+    expect(out.universe.map((r) => r.snow_depth_max_in)).toEqual([null, null, null])
+    expect(out.lateSnow).not.toBeNull()
+    answer(
+      fakeResponse({
+        snow_analysis_date: '2026-07-21',
+        points: SENT.map((_, i) => ({ avg_in: 1, min_in: 1, max_in: 10 * (i + 1), days: [] })),
+      }),
+    )
+    const late = await out.lateSnow!
+    const filled = new Map(snowFilled(out.universe, late).map((r) => [r.name, r.snow_depth_max_in]))
+    expect(SENT.map((d) => filled.get(d.name))).toEqual([10, 20, 30])
+  })
+
+  it('hands on no depth when the late snow depth request fails', async () => {
+    stubWindy(THREE_PRECIPS)
+    const omFetch = vi.mocked(fetch).getMockImplementation()!
+    let answer!: (res: Response) => void
+    const snowAnswer = new Promise<Response>((r) => {
+      answer = r
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => (url === '/api/snow-depth' ? snowAnswer : omFetch(url, init))),
+    )
+    const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, snowWaitMs: 0 })
+    answer(fakeResponse({}, 503))
+    const late = await out.lateSnow!
+    expect(late.depths).toBeNull()
+    expect(snowFilled(out.universe, late)).toEqual([])
+  })
+
+  it('waits three seconds for the snow depth, and no longer', () => {
+    expect(SNOW_DEPTH_WAIT_MS).toBe(3_000)
   })
 
   it('refuses an over-cap list without waiting for the lookup', async () => {

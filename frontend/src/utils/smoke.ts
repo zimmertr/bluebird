@@ -138,6 +138,13 @@ export interface SmokeProps {
 }
 
 /**
+ * What a failed fetch of this layer says: thrown to the layer, and shown in
+ * the Analyze button's messages while the layer is on and failing (record
+ * 0344, `utils/layerFailures.ts`).
+ */
+export const SMOKE_DATA_UNAVAILABLE = 'Smoke data unavailable. Try again later.'
+
+/**
  * Fetch the current smoke analysis.
  *
  * No bounding box: the whole country is under half a megabyte on a busy day, so
@@ -153,7 +160,7 @@ export async function fetchSmoke(signal: AbortSignal): Promise<FeatureCollection
   const res = await apiFetch(SMOKE_URL, { signal })
   const data = await overlayFeatures<FeatureCollection>(
     res,
-    'Smoke data unavailable. Try again later.',
+    SMOKE_DATA_UNAVAILABLE,
     'Smoke data could not be read.',
   )
   // The response also carries `fetched_at` and `analysis_date`. Neither is

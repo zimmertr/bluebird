@@ -69,18 +69,26 @@ export function landmarkQueryUrl(bbox: BBox): string {
 }
 
 /**
+ * What a failed fetch of this layer says: thrown to the layer, and shown in
+ * the Analyze button's messages while the layer is on and failing (record
+ * 0344, `utils/layerFailures.ts`).
+ */
+export const LANDMARKS_UNAVAILABLE = 'Map destinations unavailable. Try again later.'
+
+/**
  * Fetch the markers inside `bbox`, on `fetchWildfires`'s contract: `signal`
  * drops a stale request when the reader pans again, and a 429 (this client
  * over its address limit) or a 503 (a deployment with no database, or one
  * whose first fill has not finished) is marked `rateLimited` with the pod's
  * `Retry-After`, because in both cases the next thing to do is wait. The
- * message reaches the console alone: the markers are scenery, and a map
- * without them still works.
+ * failure is logged, and the layer's failing reaches the Analyze button's
+ * messages where the deployment's places table answers (record 0344): a map
+ * without the markers still works, but should not look as if it had none.
  */
 export async function fetchLandmarks(bbox: BBox, signal: AbortSignal): Promise<LandmarkResponse> {
   const res = await apiFetch(landmarkQueryUrl(bbox), { signal })
   if (!res.ok) {
-    const err = new Error('Map destinations unavailable. Try again later.') as Error & {
+    const err = new Error(LANDMARKS_UNAVAILABLE) as Error & {
       rateLimited?: boolean
       retryAfterS?: number | null
     }

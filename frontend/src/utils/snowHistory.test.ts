@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchSnowDepth, withSnowDepth } from './snowHistory'
+import { fetchSnowDepth, snowFilled, withSnowDepth, withSnowOf } from './snowHistory'
 import { geoKey } from './points'
 import { fakeResponse, resultRow, series } from '../testSupport/fixtures'
 import type { SnowDepthAtPoint } from '../types'
@@ -98,5 +98,41 @@ describe('withSnowDepth', () => {
 
   it('leaves a row with no series without one', () => {
     expect(withSnowDepth(resultRow({ series: null }), at(), times).series).toBeNull()
+  })
+})
+
+// Record 0341: the answer that came after the report committed.
+describe('snowFilled', () => {
+  const times = [Date.UTC(2026, 10, 10, 6)]
+  const here = resultRow({ latitude: 46.85, longitude: -121.76, series: series() })
+  const there = resultRow({ latitude: 48.77, longitude: -121.81, series: series() })
+
+  it('fills the rows it has a depth for and no others', () => {
+    const filled = snowFilled([here, there], { depths: new Map([[geoKey(46.85, -121.76), at()]]), times })
+    expect(filled).toHaveLength(1)
+    expect(filled[0].snow_depth_max_in).toBe(30)
+    expect(filled[0].series!.snow_depth_in).toEqual([10])
+  })
+
+  it('fills nothing when the request failed', () => {
+    expect(snowFilled([here, there], { depths: null, times })).toEqual([])
+  })
+})
+
+describe('withSnowOf', () => {
+  const times = [Date.UTC(2026, 10, 10, 6)]
+
+  it('carries a landed depth onto a row rebuilt without it', () => {
+    const landed = withSnowDepth(resultRow({ series: series() }), at(), times)
+    const rebuilt = resultRow({ series: series(), elevation_ft: 6000 })
+    const row = withSnowOf(rebuilt, landed)
+    expect(row.elevation_ft).toBe(6000)
+    expect(row.snow_depth_max_in).toBe(30)
+    expect(row.series!.snow_depth_in).toEqual([10])
+  })
+
+  it('hands back the same row when the depth already agrees', () => {
+    const row = resultRow({ series: series() })
+    expect(withSnowOf(row, resultRow({ series: row.series }))).toBe(row)
   })
 })

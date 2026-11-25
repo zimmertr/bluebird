@@ -45,6 +45,13 @@ export interface OverlayRecoveryOptions {
   /** Where `online` is heard. The window in a browser; none under node. */
   online?: EventTarget | null
   now?: () => number
+  /**
+   * Told when the layer starts failing and when it stops: a fetch landing,
+   * or the layer switched off. Each change once, so a pan that fails again
+   * says nothing new. It is how a layer's failure reaches the Analyze
+   * button's messages (record 0344).
+   */
+  onFailing?: (failing: boolean) => void
 }
 
 function windowTarget(): EventTarget | null {
@@ -53,7 +60,7 @@ function windowTarget(): EventTarget | null {
 
 export function overlayRecovery(
   retry: () => void,
-  { timed = false, online = windowTarget(), now = Date.now }: OverlayRecoveryOptions = {},
+  { timed = false, online = windowTarget(), now = Date.now, onFailing }: OverlayRecoveryOptions = {},
 ): OverlayRecovery {
   let failing = false
   // The earliest instant the pod said a new attempt could help.
@@ -73,6 +80,11 @@ export function overlayRecovery(
       retry()
     }, delayMs)
   }
+  function setFailing(next: boolean) {
+    if (failing === next) return
+    failing = next
+    onFailing?.(next)
+  }
   function onOnline() {
     if (failing) arm(Math.max(0, notBefore - now()))
   }
@@ -85,18 +97,18 @@ export function overlayRecovery(
 
   return {
     failed(retryAfterS) {
-      failing = true
+      setFailing(true)
       notBefore = now() + (retryAfterS ?? 0) * 1000
       listen(true)
       if (timed && retryAfterS !== null) arm(retryAfterS * 1000)
     },
     succeeded() {
-      failing = false
+      setFailing(false)
       clearTimer()
       listen(false)
     },
     stop() {
-      failing = false
+      setFailing(false)
       clearTimer()
       listen(false)
     },

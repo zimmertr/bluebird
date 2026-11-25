@@ -308,7 +308,7 @@ async def test_a_database_that_cannot_answer_sends_the_pod_to_the_upstream(datab
     await _publish(_fire("Shared Fire"))
 
     @asynccontextmanager
-    async def down():
+    async def down(**_kwargs):
         raise db.DatabaseUnavailable("connection refused")
         yield
 

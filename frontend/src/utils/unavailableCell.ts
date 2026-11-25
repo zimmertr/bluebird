@@ -7,7 +7,9 @@
 // SNODAS grid, or because the pod holds no grid yet (#449, #849). Neither is a
 // gap in a series, so neither draws the dash a missing hour gets: a dash says
 // "nothing there", and here there IS something to say, which is that the
-// number was never available to begin with.
+// number was never available to begin with. The cloud deck joined them in
+// record 0350: its column failing no longer fails the run, and the cells it
+// leaves empty say so the same way.
 //
 // One spelling, because three surfaces draw it — the table, the marker popup
 // and the downloaded file — and a file read in a spreadsheet has nothing beside
@@ -29,6 +31,9 @@ import { FAMILY_KEYS } from '../metrics'
 const UNAVAILABLE_KEYS: ReadonlySet<string> = new Set<string>([
   ...FAMILY_KEYS.freeze,
   ...FAMILY_KEYS.snow_depth,
+  // A cloud column that failed to arrive (record 0350). A dry column reads
+  // the ceiling rather than null, so a null deck is never the weather's.
+  ...FAMILY_KEYS.cloud_deck,
 ])
 
 export function isUnavailableKey(key: string): boolean {

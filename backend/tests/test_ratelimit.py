@@ -530,6 +530,7 @@ def test_capabilities_publishes_live_limiter_values(monkeypatch):
     monkeypatch.setattr(ratelimit.client, "LANDMARKS_LIMITER", ratelimit.RateLimiter(90, 30))
     monkeypatch.setattr(ratelimit.client, "SNOW_DEPTH_LIMITER", ratelimit.RateLimiter(30, 10))
     monkeypatch.setattr(ratelimit.client, "FIRE_ACTIVITY_LIMITER", ratelimit.RateLimiter(90, 30))
+    monkeypatch.setattr(ratelimit.client, "REPORTS_LIMITER", ratelimit.RateLimiter(30, 10))
     rate = client.get("/api/capabilities").json()["limits"]["rate"]
     assert rate == {
         "analyze_per_minute": 12,
@@ -550,6 +551,8 @@ def test_capabilities_publishes_live_limiter_values(monkeypatch):
         "snow_depth_burst": 10,
         "fire_activity_per_minute": 90,
         "fire_activity_burst": 30,
+        "reports_per_minute": 30,
+        "reports_burst": 10,
     }
 
 

@@ -3,6 +3,7 @@ import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
 import { BASEMAP_FAILED_NOTE } from './basemapFailure'
 import { PRESET_LIST_FAILED_NOTE } from './presetLists'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
+import { type FailingLayer, LAYER_FAILURES } from './layerFailures'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
 import { BLOCKER_SEVERITY, blockerKey, listPhrase, noticeKey, type FooterMessage } from './notices'
@@ -42,6 +43,9 @@ const COMMIT_CUE: Record<CommitReason, string> = {
 export const AQI_NOTE_KEY = 'aqi:none'
 // The partial line's (#803, D5), its own condition beside the one above.
 export const AQI_PARTIAL_KEY = 'aqi:partial'
+export const CLOUD_UNAVAILABLE_KEY = 'cloud:unavailable'
+// Approved by the maintainer on PR #1001 (2026-11-25), in the overlays' words.
+export const CLOUD_DATA_UNAVAILABLE = 'Cloud data unavailable. Try again later.'
 
 /**
  * The lines whose arrival opens the list (#834; the maintainer, 2026-10-30):
@@ -56,6 +60,12 @@ export const LIST_OPENING_KEYS: ReadonlySet<string> = new Set([
   'closure:unavailable',
   'map:style',
   'list:failed',
+  // The cloud column of the report on screen (record 0350): the run landed,
+  // so nothing else would say why one column of it reads N/A.
+  CLOUD_UNAVAILABLE_KEY,
+  // A map layer that is on and failing (record 0344): no change of the
+  // reader's caused it either, and an empty layer looks like a quiet one.
+  ...LAYER_FAILURES.map((f) => f.key),
 ])
 
 // One sentence for the AQI warning over a report and for the blocker that
@@ -190,12 +200,16 @@ export interface PanelMessageInputs {
   // The report's air quality failed for some of its field and not all of it
   // (#803, D5): one refused batch nulls every batch after it (`fetchAqi`).
   aqiPartial: boolean
+  /** The report's cloud column failed, so it reads N/A (record 0350). Absent reads as not. */
+  cloudFailed?: boolean
   /** Displayed rows on the snow depth ceiling while snow depth ranks (`glacierRowCount`). Absent reads as none. */
   glacierRows?: number
   wildfireCheckFailed: boolean
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
+  /** The pod's map layers that are on and failing (record 0344). Absent reads as none. */
+  failingLayers?: ReadonlySet<FailingLayer>
   /** The preset list last picked beside List search did not arrive (#838). */
   presetListFailed: boolean
   /** The pasted list is too long for a link to carry (`customCsvTooLong`, #864). Absent reads as not. */
@@ -237,6 +251,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   // (#803, D5). The line above already speaks when every displayed row is
   // null, so this one stays quiet then rather than saying it twice.
   const aqiPartialActive = reportSettled && p.aqiPartial && !aqiNoteActive
+  const cloudFailedActive = reportSettled && p.cloudFailed === true
 
   // Everything the Forecast section has to say, said below the button with
   // every other message (#123 review). These used to render inside that section
@@ -402,6 +417,14 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     ...(p.basemapFailed
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
       : []),
+    // Each pod layer that is on and failing (record 0344), in the sentence
+    // its fetch throws, so an empty layer no longer reads as a quiet one.
+    // A warning: the layer is missing, and nothing else is wrong.
+    ...LAYER_FAILURES.filter((f) => f.layers.some((layer) => p.failingLayers?.has(layer))).map((f) => ({
+      key: f.key,
+      text: f.text,
+      severity: 'warn' as const,
+    })),
     // A list picked beside List search that did not arrive (#838; record
     // 0263): the reader asked for rows and the box stayed as it was, so the
     // line opens the list the way the map's does. Gone when the next pick
@@ -427,6 +450,9 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
             severity: 'warn' as const,
           },
         ]
+      : []),
+    ...(cloudFailedActive
+      ? [{ key: CLOUD_UNAVAILABLE_KEY, text: CLOUD_DATA_UNAVAILABLE, severity: 'warn' as const }]
       : []),
     // Keyed on the condition, not the count, so one dismissal holds while the
     // reader changes the ring or the window (#849).

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isAbort } from '../utils/abort'
+import { parseSources, setOpenMeteoSources } from '../utils/openMeteoSources'
 import { apiJson } from '../utils/apiFetch'
+import { readCapabilitiesCopy, writeCapabilitiesCopy } from '../utils/viewPrefs'
 import { AQI_LIMIT_DAYS } from '../utils/calendar/calendar'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
@@ -356,6 +359,32 @@ export interface LiveCapabilities extends Capabilities {
   settled: boolean
 }
 
+/**
+ * How long one ask for `/api/capabilities` may take before it is given up
+ * (record 0342). The pod answers it from memory and Cloudflare in front of it
+ * holds a copy for a minute, so a healthy answer takes milliseconds; anything
+ * near five seconds is a pod or a tunnel that is not answering. A shared link
+ * that runs on open waits for the answer or the failure, so this, twice with
+ * the one retry, is the longest such a link can be held.
+ */
+export const CAPABILITIES_DEADLINE_MS = 5_000
+
+/**
+ * The capabilities body, asked for at most twice. A second ask on any failure
+ * but a cancel, at once: a dropped connection or a pod restarting under a
+ * rollout is the failure worth one more try, and anything longer would hold a
+ * shared link longer still.
+ */
+export async function fetchCapabilities(signal: AbortSignal): Promise<{ limits?: unknown }> {
+  const ask = () => apiJson<{ limits?: unknown }>('/api/capabilities', { signal }, CAPABILITIES_DEADLINE_MS)
+  try {
+    return await ask()
+  } catch (e) {
+    if (signal.aborted || isAbort(e)) throw e
+    return ask()
+  }
+}
+
 export function useCapabilities(): LiveCapabilities {
   const [caps, setCaps] = useState<Capabilities>(FALLBACK)
   const [settled, setSettled] = useState(false)
@@ -364,18 +393,29 @@ export function useCapabilities(): LiveCapabilities {
     // Aborted rather than flagged: an unmount should stop the request, not
     // just ignore the answer it is still paying for.
     const controller = new AbortController()
-    apiJson<{ limits?: unknown }>('/api/capabilities', { signal: controller.signal })
+    // Set together with the limits, in one callback, so no render sees the
+    // flag raised over the fallback values it was meant to wait out. The
+    // weather sources are module state in the fetch, not a capability
+    // anything renders, so they are handed over rather than kept here.
+    const take = (body: { limits?: unknown }) => {
+      if (body.limits) setCaps(parseCapabilities(body))
+      setOpenMeteoSources(parseSources(body))
+      setSettled(true)
+    }
+    fetchCapabilities(controller.signal)
       .then((body) => {
-        // Set together with the limits, in one callback, so no render sees the
-        // flag raised over the fallback values it was meant to wait out.
-        if (body?.limits) setCaps(parseCapabilities(body))
-        setSettled(true)
+        // Only a body with limits is worth keeping: anything less would put
+        // the stand-ins back on the next visit that cannot reach the server.
+        if (body?.limits) writeCapabilitiesCopy(body)
+        take(body ?? {})
       })
       .catch(() => {
-        // Metadata only: the fallback constants keep everything working, so a
-        // failure is as settled as an answer. An abort is not: it means the
-        // component is gone and nothing is left to tell.
-        if (!controller.signal.aborted) setSettled(true)
+        // An abort means the component is gone and nothing is left to tell.
+        if (controller.signal.aborted) return
+        // Otherwise the last answer this browser kept stands in (record 0342),
+        // and with none the compiled fallbacks keep everything working, so a
+        // failure is as settled as an answer.
+        take(readCapabilitiesCopy() ?? {})
       })
     return () => controller.abort()
   }, [])

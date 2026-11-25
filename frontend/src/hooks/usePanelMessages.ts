@@ -31,6 +31,7 @@ import type { CommitReason } from '../utils/present'
 import type { Constraints } from '../utils/constraints'
 import type { UnansweredMetrics } from '../utils/metricReach'
 import type { LatLon } from '../utils/model/modelDomain'
+import type { FailingLayer } from '../utils/layerFailures'
 import { type LinkDrop, classifyAqiCoverage } from '../utils/urlState'
 
 /**
@@ -77,6 +78,8 @@ export interface PanelMessageState {
   hourlyCalls: number
   /** The report's air quality failed for some of its field and not all of it (`useAnalyze.aqiPartial`). */
   aqiPartial: boolean
+  /** The report's cloud column failed (`useAnalyze.cloudFailed`, record 0350). Absent reads as not. */
+  cloudFailed?: boolean
   /** Displayed rows on the snow depth ceiling while snow depth ranks (`glacierRowCount`, #849). */
   glacierRows?: number
   /** Moves once per run that ends in an error or a refusal (`useAnalysisRun`, #803). */
@@ -92,6 +95,8 @@ export interface PanelMessageState {
   closureCheckFailed: boolean
   /** The basemap style is failing to load (#580). */
   basemapFailed: boolean
+  /** The pod's map layers that are on and failing (`utils/layerFailures.ts`, record 0344). */
+  failingLayers: ReadonlySet<FailingLayer>
   /** The preset list last picked beside List search did not arrive (#838). */
   presetListFailed: boolean
   /** The pasted list is too long for a link to carry (#864). */
@@ -302,10 +307,12 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     hasReport: s.hasReport,
     aqiAllNull: s.aqiAllNull,
     aqiPartial: s.aqiPartial,
+    cloudFailed: s.cloudFailed,
     glacierRows: s.glacierRows,
     wildfireCheckFailed: s.wildfireCheckFailed,
     closureCheckFailed: s.closureCheckFailed,
     basemapFailed: s.basemapFailed,
+    failingLayers: s.failingLayers,
     presetListFailed: s.presetListFailed,
     listTooLong: s.listTooLong,
     linkLost: s.linkLost,

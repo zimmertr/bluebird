@@ -26,3 +26,33 @@ test('a failed basemap style says so, and loads on reconnect', async ({ page }) 
   await drawRing(page)
   await expect(page.getByRole('button', { name: 'Edit polygon' })).toBeVisible()
 })
+
+// Record 0348: a style host that stays down no longer leaves the map with no
+// ring tool. Past its timed retries the map takes a fallback for the visit, so
+// the draw handlers mount, and the note stays, because a reload is what brings
+// the basemap back.
+test('a basemap style that stays down still lets you draw a ring', async ({ page }) => {
+  let asked = 0
+  await page.route('https://tiles.openfreemap.org/styles/**', (route) => {
+    asked += 1
+    return route.fulfill({ status: 503, body: '' })
+  })
+  await page.goto('/')
+  const note = message(page, 'The map could not load. Try again later.')
+  await expect(note).toHaveCount(1)
+  // The two retries' waits, 5 s and 15 s (STYLE_RETRY_S), run on the page's
+  // clock a second at a time, so each timer is set by its refusal before the
+  // time it waits for passes.
+  await expect
+    .poll(
+      async () => {
+        await page.clock.runFor(1_000)
+        return asked
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(3)
+  await drawRing(page)
+  await expect(page.getByRole('button', { name: 'Edit polygon' })).toBeVisible()
+  await expect(note).toHaveCount(1)
+})

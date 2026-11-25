@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ARCHIVE_URL,
   FORECAST_URL,
-  OUTAGE_WAITS_S,
   REQUEST_DEADLINE_MS,
   callWeight,
   fetchAqi,
@@ -34,6 +33,7 @@ import {
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 import { DAY_MS, archiveBoundaryMs, windowSource } from './forecastWindow'
+import { HEDGE_DEFAULT_MS, OUTAGE_WAITS_S, RunBudget, setOpenMeteoSources } from './openMeteoSources'
 import type { HourlyPayload } from './openMeteoAggregate'
 import { cloudAnswer, fakeResponse, WEATHER_UNITS } from '../testSupport/fixtures'
 // `?raw` gives a file's text without executing it, the drift-guard idiom
@@ -658,24 +658,51 @@ describe('fetchWeather', () => {
     }
   })
 
-  it('classifies other HTTP statuses as an upstream error, not unreachable', async () => {
-    // The server talks to the same upstream, so a 5xx must surface honestly
-    // instead of triggering a doomed fallback.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => fakeResponse({}, 500)),
-    )
+  it('classifies other HTTP statuses as an upstream error, not unreachable, and asks no more', async () => {
+    // A 4xx says the request itself is wrong, which no other source or later
+    // ask would answer differently.
+    const fetchSpy = vi.fn(async () => fakeResponse({}, 403))
+    vi.stubGlobal('fetch', fetchSpy)
     await expect(
       fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
     ).rejects.toBeInstanceOf(OpenMeteoHttpError)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks a 5xx again at once, then through the outage window, before it fails (record 0345)', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi.fn(async () => fakeResponse({}, 502))
+      vi.stubGlobal('fetch', fetchSpy)
+      const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+      const failed = expect(pending).rejects.toBeInstanceOf(OpenMeteoHttpError)
+      await vi.advanceTimersByTimeAsync(OUTAGE_WAITS_S.reduce((a, b) => a + b, 0) * 1000)
+      await failed
+      expect(fetchSpy).toHaveBeenCalledTimes(2 + OUTAGE_WAITS_S.length)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('finishes a batch whose 502 the very next ask answers, with no wait', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(fakeResponse({}, 502))
+      .mockResolvedValueOnce(fakeResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const onPace = vi.fn()
+    const out = await fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { ...OPTS, onPace })
+    expect(out[0]?.precip_total_in).toBe(0.3)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(onPace).not.toHaveBeenCalled()
   })
 
   it('wraps network-level rejections too — the corporate-proxy case', async () => {
     // fetch rejects with a TypeError when the request never completes
     // (offline, DNS, blocked CORS). That must read as "unreachable", not
     // crash through as an unclassified error.
-    // It is asked again through the outage waits first (#849), so the clock
-    // is faked to run them out.
+    // It is asked again through the run's outage window first (record 0345),
+    // so the clock is faked to run it out.
     vi.useFakeTimers()
     try {
       const fetchSpy = vi.fn(async () => {
@@ -1511,13 +1538,24 @@ describe('the per-request deadline', () => {
     vi.useRealTimers()
   })
 
+  // A run with its hedges spent, so a test can watch the deadline and the
+  // retries alone.
+  function noHedges(): RunBudget {
+    const run = new RunBudget()
+    while (run.hasHedge()) run.takeHedge()
+    return run
+  }
+
   it('gives every request the deadline, and asks a timed-out batch once more', async () => {
     const fetchSpy = vi
       .fn()
       .mockImplementationOnce(hang)
       .mockResolvedValueOnce(fakeResponse(hourlyPayload()))
     vi.stubGlobal('fetch', fetchSpy)
-    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      run: noHedges(),
+    })
 
     await vi.advanceTimersByTimeAsync(REQUEST_DEADLINE_MS - 1)
     expect(fetchSpy).toHaveBeenCalledTimes(1)
@@ -1529,10 +1567,51 @@ describe('the per-request deadline', () => {
     expect(out[0]?.precip_total_in).toBe(0.3)
   })
 
-  // A stuck host (#849): after the second timeout the batch waits out each of
-  // OUTAGE_WAITS_S, saying so as an outage, and fails with the timeout
-  // sentence only when the last ask hangs too.
-  it('outlasts a stuck host through the outage waits, then fails with the timeout sentence', async () => {
+  // The cold outliers #545 measured (7.7 s and 19 s) are what the second copy
+  // is for: it goes once the first has been out for the hedge delay, and the
+  // first answer wins, the other copy aborted.
+  it('sends a second copy of a request still out after the hedge delay, and takes the first answer', async () => {
+    const signals: AbortSignal[] = []
+    const fetchSpy = vi
+      .fn()
+      .mockImplementationOnce((url: string, init?: RequestInit) => {
+        signals.push(init!.signal!)
+        return hang(url, init)
+      })
+      .mockResolvedValueOnce(fakeResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+
+    await vi.advanceTimersByTimeAsync(HEDGE_DEFAULT_MS - 1)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    const out = await pending
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(out[0]?.precip_total_in).toBe(0.3)
+    // The copy that lost is stopped rather than left holding a host slot.
+    expect(signals[0].aborted).toBe(true)
+  })
+
+  it('sends no more second copies than the run allows', async () => {
+    const fetchSpy = vi.fn(hang)
+    vi.stubGlobal('fetch', fetchSpy)
+    const run = noHedges()
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { ...OPTS, run })
+    const failed = expect(pending).rejects.toBeInstanceOf(OpenMeteoTimeout)
+    await vi.advanceTimersByTimeAsync(HEDGE_DEFAULT_MS)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(120_000)
+    await failed
+  })
+
+  // A stuck host (#849): the first copy and its hedge both time out, then the
+  // run's outage window is spent asking again, said as an outage, and the
+  // batch fails with the timeout sentence when the window closes. On the fake
+  // clock: the first copy at 0 and its hedge at 5 s both time out by 17 s,
+  // which opens the window; it waits 5 s and asks with the full deadline (to
+  // 34 s), then waits 10 s and asks with the floor of 5 s, since 3 s are left
+  // (to 49 s), and the window has closed.
+  it('outlasts a stuck host through the run\'s outage window, then fails with the timeout sentence', async () => {
     const fetchSpy = vi.fn(hang)
     vi.stubGlobal('fetch', fetchSpy)
     const onPace = vi.fn()
@@ -1543,12 +1622,16 @@ describe('the per-request deadline', () => {
     // Attached before the clock moves, so the rejection is never unhandled.
     const failed = expect(pending).rejects.toBeInstanceOf(OpenMeteoTimeout)
 
-    const waitsMs = OUTAGE_WAITS_S.reduce((a, b) => a + b, 0) * 1000
-    await vi.advanceTimersByTimeAsync((2 + OUTAGE_WAITS_S.length) * REQUEST_DEADLINE_MS + waitsMs)
+    await vi.advanceTimersByTimeAsync(48_999)
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
+    await vi.advanceTimersByTimeAsync(1)
     await failed
     await expect(pending).rejects.toThrow(TIMEOUT_MESSAGE)
-    expect(fetchSpy).toHaveBeenCalledTimes(2 + OUTAGE_WAITS_S.length)
-    expect(onPace.mock.calls).toEqual(OUTAGE_WAITS_S.map((s) => [s, 'outage']))
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
+    expect(onPace.mock.calls).toEqual([
+      [OUTAGE_WAITS_S[0], 'outage'],
+      [OUTAGE_WAITS_S[1], 'outage'],
+    ])
   })
 
   it('finishes the batch when the host answers after an outage wait', async () => {
@@ -1564,13 +1647,30 @@ describe('the per-request deadline', () => {
       onPace,
     })
 
-    await vi.advanceTimersByTimeAsync(2 * REQUEST_DEADLINE_MS)
+    // The first copy and its hedge time out at 12 s and 17 s.
+    await vi.advanceTimersByTimeAsync(HEDGE_DEFAULT_MS + REQUEST_DEADLINE_MS)
     expect(onPace).toHaveBeenCalledWith(OUTAGE_WAITS_S[0], 'outage')
     expect(fetchSpy).toHaveBeenCalledTimes(2)
     await vi.advanceTimersByTimeAsync(OUTAGE_WAITS_S[0] * 1000)
     const out = await pending
     expect(fetchSpy).toHaveBeenCalledTimes(3)
     expect(out[0]?.precip_total_in).toBe(0.3)
+  })
+
+  // One window for the whole run, not one per batch (record 0345): a fetch
+  // handed a run whose window has already closed fails at its first outage.
+  it('does not open a second outage window for a run that has spent one', async () => {
+    const fetchSpy = vi.fn(async () => fakeResponse({}, 503))
+    vi.stubGlobal('fetch', fetchSpy)
+    const run = new RunBudget()
+    run.outageLeftMs()
+    await vi.advanceTimersByTimeAsync(OUTAGE_WAITS_S.reduce((a, b) => a + b, 0) * 1000)
+    const onPace = vi.fn()
+    await expect(
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, { ...OPTS, run, onPace }),
+    ).rejects.toBeInstanceOf(OpenMeteoHttpError)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(onPace).not.toHaveBeenCalled()
   })
 
   it('lets the reader\'s cancel through as a cancel, and does not retry it', async () => {
@@ -1635,6 +1735,34 @@ describe('fetchAqi pacing', () => {
     expect(onPace).toHaveBeenCalledExactlyOnceWith(60)
     await vi.advanceTimersByTimeAsync(60_000)
     expect((await pending).results).toHaveLength(100)
+  })
+
+  // Record 0347: a booking that slept through its run's cancel never became a
+  // request, so it gives its share back. Fifty places spend 357 at once; a
+  // hundred more are booked to start 60 s and 120 s in, and the run is
+  // cancelled while they sleep. Without the release, the next fifty would
+  // start behind both bookings, 119 s away; with it they wait only for the
+  // first fifty to leave the minute.
+  it('gives back the bookings of a run cancelled while they slept', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const count = new URL(url).searchParams.get('latitude')!.split(',').length
+      return fakeResponse(Array.from({ length: count }, () => ({ hourly: {} })))
+    }))
+    await fetchAqi(FIFTY, LONG.startMs, LONG.endMs, { nowMs: NOW_MS })
+    const controller = new AbortController()
+    const cancelled = fetchAqi(HUNDRED, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, signal: controller.signal })
+    const settled = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.advanceTimersByTimeAsync(1_000)
+    controller.abort()
+    await settled
+
+    const onPace = vi.fn()
+    const later = Array.from({ length: 50 }, (_, i) => ({ latitude: i / 100, longitude: 2 }))
+    const next = fetchAqi(later, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, onPace })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onPace).toHaveBeenCalledExactlyOnceWith(59)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect((await next).results).toHaveLength(50)
   })
 
   it('prices the hours it asks for, not the window it was handed (#581)', async () => {
@@ -2053,5 +2181,158 @@ describe('one pool of open requests per host (#783)', () => {
     await runUntil(wire, () => settled && fresh)
     await holding
     await after
+  })
+})
+
+// ── Weather sources as a list (record 0345) ────────────────────────────────
+
+describe('weather sources', () => {
+  // A deployment's own Open-Meteo, as `open_meteo_sources.py` publishes one:
+  // forecast and air quality, no archive, no pacing.
+  const MIRROR = {
+    name: 'mirror' as const,
+    forecast_url: 'https://om.example.org/v1/forecast',
+    archive_url: null,
+    air_quality_url: 'https://om.example.org/v1/air-quality',
+    paced: false,
+  }
+  const PUBLIC = {
+    name: 'open-meteo' as const,
+    forecast_url: FORECAST_URL,
+    archive_url: ARCHIVE_URL,
+    air_quality_url: 'https://air-quality-api.open-meteo.com/v1/air-quality',
+    paced: true,
+  }
+  const ONE = [{ latitude: 0, longitude: 0 }]
+  const hostOf = (call: unknown[]) => new URL(call[0] as string).host
+  let timeoutSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    // The same stand-in the deadline tests use, for the same reason.
+    timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(new DOMException('signal timed out', 'TimeoutError')), ms)
+      return controller.signal
+    })
+    resetOpenMeteoState()
+    setOpenMeteoSources([MIRROR, PUBLIC])
+  })
+
+  afterEach(() => {
+    timeoutSpy.mockRestore()
+    vi.useRealTimers()
+  })
+
+  it('asks the first source, and no other when it answers', async () => {
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const out = await fetchWeather(ONE, WINDOW.startMs, WINDOW.endMs, OPTS)
+    expect(out[0]?.precip_total_in).toBe(0.3)
+    expect(fetchSpy.mock.calls.map(hostOf)).toEqual(['om.example.org'])
+  })
+
+  it('moves to the next source when one fails twice, with no wait', async () => {
+    const fetchSpy = vi.fn(async (url: string) =>
+      url.startsWith(MIRROR.forecast_url) ? fakeResponse({}, 502) : fakeResponse(hourlyPayload()),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+    const onPace = vi.fn()
+    const out = await fetchWeather(ONE, WINDOW.startMs, WINDOW.endMs, { ...OPTS, onPace })
+    expect(out[0]?.precip_total_in).toBe(0.3)
+    expect(fetchSpy.mock.calls.map(hostOf)).toEqual(['om.example.org', 'om.example.org', 'api.open-meteo.com'])
+    expect(onPace).not.toHaveBeenCalled()
+  })
+
+  it('sends the second copy of a slow request to the next source', async () => {
+    const fetchSpy = vi.fn((url: string, init?: RequestInit) =>
+      url.startsWith(MIRROR.forecast_url) ? hang(url, init) : Promise.resolve(fakeResponse(hourlyPayload())),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+    const pending = fetchWeather(ONE, WINDOW.startMs, WINDOW.endMs, OPTS)
+    await vi.advanceTimersByTimeAsync(HEDGE_DEFAULT_MS)
+    const out = await pending
+    expect(out[0]?.precip_total_in).toBe(0.3)
+    expect(fetchSpy.mock.calls.map(hostOf)).toEqual(['om.example.org', 'api.open-meteo.com'])
+  })
+
+  it('moves past a quota refusal to a source that has quota', async () => {
+    setOpenMeteoSources([PUBLIC, MIRROR])
+    const fetchSpy = vi.fn(async (url: string) =>
+      url.startsWith(FORECAST_URL)
+        ? fakeResponse({ error: true, reason: 'Hourly API request limit exceeded.' }, 429)
+        : fakeResponse(hourlyPayload()),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+    const out = await fetchWeather(ONE, WINDOW.startMs, WINDOW.endMs, OPTS)
+    expect(out[0]?.precip_total_in).toBe(0.3)
+    expect(fetchSpy.mock.calls.map(hostOf)).toEqual(['api.open-meteo.com', 'om.example.org'])
+  })
+
+  it('asks a past window of the archive host, which no mirror answers', async () => {
+    const old = { startMs: NOW_MS - 100 * DAY_MS, endMs: NOW_MS - 99 * DAY_MS }
+    expect(windowSource(old.startMs, old.endMs, NOW_MS)).toBe('archive')
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(ONE, old.startMs, old.endMs, OPTS)
+    expect(fetchSpy.mock.calls.map(hostOf)).toEqual(['archive-api.open-meteo.com'])
+  })
+
+  it('does not pace a source with no quota', async () => {
+    // Eight batches of 50 over sixteen days are 731 weighted calls, past the
+    // 550 a minute the public hosts are paced to.
+    const LONG = { startMs: NOW_MS, endMs: NOW_MS + 15 * DAY_MS }
+    const many = Array.from({ length: 400 }, (_, i) => ({ latitude: i / 1000, longitude: 0 }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        return fakeResponse(Array.from({ length: count }, hourlyPayload))
+      }),
+    )
+    const onPace = vi.fn()
+    const pending = fetchWeather(many, LONG.startMs, LONG.endMs, { ...OPTS, onPace })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await pending).toHaveLength(400)
+    expect(onPace).not.toHaveBeenCalled()
+  })
+
+  it('asks a host that just failed twice last, until it answers again', async () => {
+    const mirrorUp = false
+    const fetchSpy = vi.fn(async (url: string) => {
+      if (url.startsWith(MIRROR.forecast_url) && !mirrorUp) throw new TypeError('Failed to fetch')
+      return fakeResponse(hourlyPayload())
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(ONE, WINDOW.startMs, WINDOW.endMs, OPTS)
+    fetchSpy.mockClear()
+    // A second place, so the cache does not answer it.
+    await fetchWeather([{ latitude: 1, longitude: 1 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+    expect(fetchSpy.mock.calls.map(hostOf)).toEqual(['api.open-meteo.com'])
+  })
+
+  it('asks air quality of the next source too, once each', async () => {
+    const fetchSpy = vi.fn(async (url: string) =>
+      url.startsWith(MIRROR.air_quality_url) ? fakeResponse({}, 503) : fakeResponse({ hourly: {} }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+    const { failed } = await fetchAqi(ONE, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
+    expect(failed).toEqual([false])
+    expect(fetchSpy.mock.calls.map(hostOf)).toEqual(['om.example.org', 'air-quality-api.open-meteo.com'])
+  })
+
+  it('stops asking air quality after its first timeout, so the table is held once', async () => {
+    setOpenMeteoSources([PUBLIC])
+    // Five batches: four go out at once, and the fifth would have waited for
+    // a slot behind them for another deadline.
+    const many = Array.from({ length: 250 }, (_, i) => ({ latitude: i / 1000, longitude: 2 }))
+    const fetchSpy = vi.fn(hang)
+    vi.stubGlobal('fetch', fetchSpy)
+    const pending = fetchAqi(many, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
+    await vi.advanceTimersByTimeAsync(REQUEST_DEADLINE_MS)
+    const { results, failed } = await pending
+    expect(results.every((r) => r === null)).toBe(true)
+    expect(failed.every(Boolean)).toBe(true)
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
   })
 })

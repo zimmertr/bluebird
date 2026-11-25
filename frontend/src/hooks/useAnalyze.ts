@@ -8,6 +8,7 @@ import { analyzedView, type RecordedFacts } from '../utils/analysisSnapshot'
 import { type Discovered, runAnalysisPipeline } from '../utils/analysisPipeline'
 import { placeRows } from '../utils/clientAnalyze'
 import { answered } from '../utils/elevationLookup'
+import { snowFilled, withSnowOf } from '../utils/snowHistory'
 import type { AnalyzedView } from './analyzeTypes'
 import type { HeldForecasts } from '../utils/forecastReuse'
 import { AQI_LIMIT_DAYS, SelectionKind } from '../utils/calendar/calendar'
@@ -15,6 +16,7 @@ import { discoveryKeys } from '../utils/present'
 import { fieldKey } from '../utils/destinationCount'
 import type { ForecastModelOption } from './useCapabilities'
 import { useAnalysisRun } from './useAnalysisRun'
+import { trackRun } from '../utils/runReport'
 import { useAnalysisReport } from './useAnalysisReport'
 import type { AnalyzeOptions } from './analyzeTypes'
 
@@ -106,6 +108,9 @@ export function useAnalyze(
   // (`fetchAqi`), so the field ranks on air quality with holes in it. Set
   // only by a commit, like the report it describes.
   const [aqiPartial, setAqiPartial] = useState(false)
+  // The committed report's cloud column failed (record 0350): its rows read
+  // N/A there and the list says why. Set only by a commit, like the above.
+  const [cloudFailed, setCloudFailed] = useState(false)
 
   // The paste-time lookup's answer landed on the committed report (#673):
   // rows the pod placed after the run had read what was known.
@@ -144,6 +149,7 @@ export function useAnalyze(
     heldForecastsRef.current = null
     holdFound(null)
     setAqiPartial(false)
+    setCloudFailed(false)
   }
 
   // One explicit fetch per Analyze click: every candidate in the polygon is
@@ -186,6 +192,8 @@ export function useAnalyze(
     // its elevation lookup runs beside them (#643). Either gives way to the
     // counted retrieval label once the field is announced.
     const seed = request.polygon ? SEARCHING_MESSAGE : RETRIEVING_MESSAGE
+    // One report of how this run ends, for the reliability targets (record 0339).
+    const tracker = trackRun({ model: request.forecast_model, discovers: Boolean(request.polygon) })
     // No server fallback (#240). An OpenMeteoUnreachable used to reroute the
     // whole analysis through POST /api/analyze/stream on the pod's shared
     // quota: a public quota-amplification surface no ordinary visitor ever
@@ -206,6 +214,7 @@ export function useAnalyze(
           hourlyCalls,
           compareModels,
           onDiscovered: (field) => {
+            tracker.discovered(field.candidates.length)
             run.announce(field.candidates.length)
             report.publishCandidates(field.candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))
             // A run with no polygon has no field to hold: its rows are the
@@ -221,6 +230,9 @@ export function useAnalyze(
         report.commit(out.response, out.field, view(), out.pending)
         const aqiFailed = out.held.aqiFailed?.size ?? 0
         setAqiPartial(aqiFailed > 0 && aqiFailed < out.field.length)
+        const cloudGap = out.held.cloudFailed === true
+        setCloudFailed(cloudGap)
+        tracker.finished(out.field.length, cloudGap ? 'cloud' : aqiFailed > 0 ? 'air_quality' : null)
         holdFound(null)
         // In the same render as the commit, so the report never shows a
         // frame under the bookkeeping of the one before it, and inside the
@@ -241,10 +253,17 @@ export function useAnalyze(
         out.late?.then(
           (patch) => {
             if (runSeqRef.current !== runSeq) return
-            report.patch(patch.rows, view())
             const held = heldForecastsRef.current
+            // The patch was built from the rows as they committed, so a snow
+            // depth that landed since rides over onto it (record 0341).
+            const now = new Map((held?.rows ?? []).map((r) => [geoKey(r.latitude, r.longitude), r]))
+            const rows = patch.rows.map((r) => {
+              const current = now.get(geoKey(r.latitude, r.longitude))
+              return current ? withSnowOf(r, current) : r
+            })
+            report.patch(rows, view())
             if (held) {
-              const swap = new Map(patch.rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+              const swap = new Map(rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
               heldForecastsRef.current = {
                 ...held,
                 rows: held.rows.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r),
@@ -256,9 +275,29 @@ export function useAnalyze(
             if (runSeqRef.current === runSeq) report.settleHeights()
           },
         )
+        // The snow depth came too late for the commit (record 0341): it
+        // fills the committed rows, and the held field a later run reuses,
+        // unless another run or a reset has replaced both. A failure leaves
+        // the columns N/A.
+        out.lateSnow?.then(
+          (snow) => {
+            const held = heldForecastsRef.current
+            if (runSeqRef.current !== runSeq || !held) return
+            const rows = snowFilled(held.rows, snow)
+            if (!rows.length) return
+            report.fill(rows, view())
+            const swap = new Map(rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+            heldForecastsRef.current = {
+              ...held,
+              rows: held.rows.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r),
+            }
+          },
+          () => {},
+        )
       },
       {
-        onFailure: (kind) => {
+        onFailure: (kind, error) => {
+          tracker.failed(error)
           report.discard()
           setFailedView(view())
           // A cancel changes nothing, so the field goes with the run (#560).
@@ -303,6 +342,7 @@ export function useAnalyze(
     // null: drawn as pending rows beside the reader's own.
     pendingField,
     aqiPartial,
+    cloudFailed,
     statusMessage: run.statusMessage,
     progress: run.progress,
     paceRemainingS: run.paceRemainingS,

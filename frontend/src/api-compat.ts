@@ -34,6 +34,8 @@ import type {
   FireDetectionProps,
   HourlySeries,
   RefusalFields,
+  RunReport,
+  OpenMeteoSource,
   SnowDepthRequest,
   SnowDepthResponse,
   SortBy,
@@ -264,6 +266,14 @@ export type CapabilitiesCarryDiscoverySource = Assert<
   Equal<Schema['CapabilitiesResponse']['discovery_source'], DiscoverySource>
 >
 
+// The weather sources (record 0345). `parseSources` keeps a published entry
+// only when it has this shape, so a renamed URL member would quietly leave the
+// browser on the public hosts alone.
+export type OpenMeteoSourceIsParsed = Assert<Equal<Wire<OpenMeteoSource>, Wire<Schema['OpenMeteoSource']>>>
+export type CapabilitiesCarrySources = Assert<
+  Extends<Schema['CapabilitiesResponse'], { open_meteo_sources: Schema['OpenMeteoSource'][] }>
+>
+
 export type ParsedModelFieldsAreRead = Assert<
   Extends<
     Schema['ForecastModelInfo'],
@@ -331,6 +341,13 @@ export type SnowDepthResponseIsReadable = Assert<
   Extends<Wire<Schema['SnowDepthResponse']>, Wire<SnowDepthResponse>>
 >
 
+// The run report (record 0339): the body the browser sends. Its `model` is
+// the request's own `forecast_model`, typed as wide for the same reason.
+export type RunReportIsAccepted = Assert<
+  Extends<Wire<Omit<RunReport, 'model'>>, Wire<Omit<Schema['RunReport'], 'model'>>>
+>
+export type RunReportModelsAreSent = Assert<Extends<Schema['ForecastModel'], NonNullable<RunReport['model']>>>
+
 // ---------------------------------------------------------------------------
 // Every schema is accounted for. A model added to the backend fails this until
 // it is either asserted above or listed as unmirrored with a reason, which is
@@ -366,7 +383,9 @@ type Mirrored =
   | 'HourlySeries'
   | 'LandmarkCollection'
   | 'Limits'
+  | 'OpenMeteoSource'
   | 'PreviewConfig'
+  | 'RunReport'
   | 'SnowDay'
   | 'SnowDepthAtPoint'
   | 'SnowDepthRequest'

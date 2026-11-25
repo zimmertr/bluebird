@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  CAPABILITIES_DEADLINE_MS,
   FALLBACK_FORECAST_MODEL,
+  fetchCapabilities,
   gridLabel,
   modelForecastHours,
   parseCapabilities,
@@ -20,6 +22,7 @@ import {
   PAST_DATA_DAYS,
   PAST_LIMIT_SLACK_DAYS,
 } from '../utils/forecastWindow'
+import { ApiUnreachable } from '../utils/apiFetch'
 
 describe('parseCapabilities', () => {
   // A square, not HRRR's outline: the parser keeps what it is sent, and the
@@ -370,5 +373,58 @@ describe('the two figures the picker prints beside a model', () => {
 
   it('prints nothing for a reach it was not told', () => {
     expect(reachLabel(0)).toBe('')
+  })
+})
+
+// Record 0342: a pod that never answers holds a shared link for two short
+// asks rather than one long one.
+describe('fetchCapabilities', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+  // A turn of the real event loop, so every promise the timers set moving
+  // has run. The real timer, held before any test fakes it.
+  const realTimeout = globalThis.setTimeout
+  const flush = () => new Promise((resolve) => realTimeout(resolve, 0))
+
+  // Hangs until its signal aborts, then rejects with the reason, as fetch does.
+  function stubHang() {
+    const asks: AbortSignal[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_path: string, init: RequestInit) => {
+        asks.push(init.signal!)
+        return new Promise((_, reject) => init.signal!.addEventListener('abort', () => reject(init.signal!.reason)))
+      }),
+    )
+    return asks
+  }
+
+  it('gives each ask five seconds, and asks once more', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const asks = stubHang()
+    const out = fetchCapabilities(new AbortController().signal)
+    const failed = expect(out).rejects.toBeInstanceOf(ApiUnreachable)
+    await vi.advanceTimersByTimeAsync(CAPABILITIES_DEADLINE_MS - 1)
+    await flush()
+    expect(asks).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await flush()
+    expect(asks).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(CAPABILITIES_DEADLINE_MS)
+    await flush()
+    await failed
+    expect(asks).toHaveLength(2)
+    expect(CAPABILITIES_DEADLINE_MS).toBe(5_000)
+  })
+
+  it('asks nothing more after a cancel', async () => {
+    const asks = stubHang()
+    const controller = new AbortController()
+    const out = fetchCapabilities(controller.signal)
+    controller.abort()
+    await expect(out).rejects.toMatchObject({ name: 'AbortError' })
+    expect(asks).toHaveLength(1)
   })
 })

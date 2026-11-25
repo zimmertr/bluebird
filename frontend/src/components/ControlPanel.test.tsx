@@ -5,6 +5,7 @@ import ControlPanel from './ControlPanel'
 import { type PanelMessageState, usePanelMessages } from '../hooks/usePanelMessages'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from '../utils/clientAnalyze'
+import { NO_FAILING_LAYERS } from '../utils/layerFailures'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { forecastModel, refusalPanel } from '../testSupport/fixtures'
@@ -66,6 +67,7 @@ function state(over: Partial<State> = {}): State {
     wildfireCheckFailed: false,
     closureCheckFailed: false,
     basemapFailed: false,
+    failingLayers: NO_FAILING_LAYERS,
     presetListFailed: false,
     listTooLong: false,
     archiveDays: 365,

@@ -26,6 +26,8 @@ from html.parser import HTMLParser
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.open_meteo_sources import mirror_origins
+
 # ── The browser's third-party surface ─────────────────────────────────────────
 
 # Origins the SPA fetches directly, and therefore the whole of connect-src
@@ -117,30 +119,41 @@ _APP_STYLE_CSP: tuple[tuple[str, str], ...] = (
 )
 
 
-APP_CSP = _directives(
-    (
-        *_SHARED_CSP,
-        *_APP_STYLE_CSP,
-        # data: covers the CSS icon sprites (inline SVG) and the 1x1 PNG the
-        # forecast grid's image source is declared with; blob: covers
-        # MapLibre's Image-element fallback for a decoded tile.
+def app_csp(weather_mirrors: Iterable[str] = ()) -> str:
+    """The app's policy, with this deployment's weather mirrors in connect-src.
+
+    The mirrors are the one entry not read from the frontend's source, because
+    a deployment names them in ``OPEN_METEO_MIRRORS`` (``open_meteo_sources.py``)
+    and ``/api/capabilities`` tells the browser to ask them first: a mirror the
+    policy left out would be published and then refused by the page itself.
+    """
+    return _directives(
         (
-            "img-src",
-            " ".join(("'self'", "data:", "blob:", *BROWSER_IMAGE_ORIGINS)),
-        ),
-        # data: is not decoration here: MapLibre loads an image source by
-        # fetching its url, and the forecast grid's raster is a canvas
-        # data: URL, so a strict connect-src blanks that overlay.
-        (
-            "connect-src",
-            " ".join(("'self'", "data:", *BROWSER_FETCH_ORIGINS)),
-        ),
-        # MapLibre builds its worker from a Blob URL. child-src repeats it for
-        # engines that predate worker-src.
-        ("worker-src", "'self' blob:"),
-        ("child-src", "'self' blob:"),
+            *_SHARED_CSP,
+            *_APP_STYLE_CSP,
+            # data: covers the CSS icon sprites (inline SVG) and the 1x1 PNG the
+            # forecast grid's image source is declared with; blob: covers
+            # MapLibre's Image-element fallback for a decoded tile.
+            (
+                "img-src",
+                " ".join(("'self'", "data:", "blob:", *BROWSER_IMAGE_ORIGINS)),
+            ),
+            # data: is not decoration here: MapLibre loads an image source by
+            # fetching its url, and the forecast grid's raster is a canvas
+            # data: URL, so a strict connect-src blanks that overlay.
+            (
+                "connect-src",
+                " ".join(("'self'", "data:", *BROWSER_FETCH_ORIGINS, *weather_mirrors)),
+            ),
+            # MapLibre builds its worker from a Blob URL. child-src repeats it for
+            # engines that predate worker-src.
+            ("worker-src", "'self' blob:"),
+            ("child-src", "'self' blob:"),
+        )
     )
-)
+
+
+APP_CSP = app_csp(mirror_origins())
 
 
 def docs_csp(html: str, asset_origins: Iterable[str] = ()) -> str:

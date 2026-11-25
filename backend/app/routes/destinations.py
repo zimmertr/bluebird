@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -31,6 +32,18 @@ from app.services.ranking import _noun, _truncate_top_elevation
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+# Everything the discovery slot covers, from the moment this request holds it:
+# the ring's discovery and the list's elevation lookup together. Cloudflare
+# cuts a request at 100 s and the browser at 110 s, and a second discovery
+# from the same address queues behind this one for up to the slot's 30 s, so
+# both answer well inside the edge's limit. Overpass is the only part that
+# comes near it, and on 2026-09-30 overpass-api.de answered 93% of its
+# successes inside 15 s (`osm/mirrors.py`), so 20 s keeps those and stops
+# waiting on the rest. The table answers a ring in milliseconds. The
+# browser's `DISCOVERY_DEADLINE_MS` is this plus two seconds for the trip, so
+# it never gives up on a search this deadline still allows (record 0346).
+DISCOVERY_DEADLINE_S = 20.0
 
 
 @asynccontextmanager
@@ -161,12 +174,17 @@ async def destinations(
         d.elevation_ft is None for d in request.custom_destinations or []
     )
     async with _overpass_slot(http_request, bool(request.destination_types) or needs_lookup):
+        # A discovery that runs out of it answers the same 502 an Overpass
+        # that took too long does; a lookup it cuts sends the rows as they
+        # came, with `elevation_lookup_complete` false so the browser asks again.
+        deadline = asyncio.get_running_loop().time() + DISCOVERY_DEADLINE_S
         found: list[dict] = []
         if request.destination_types and request.polygon is not None:
             found = await discover(
                 request.polygon,
                 request.destination_types,
                 include_unnamed_peaks=request.include_unnamed_peaks,
+                deadline=deadline,
             )
 
         # Resolved before the band filter, so an elevation the caller never
@@ -174,7 +192,7 @@ async def destinations(
         lookup_complete = True
         if request.custom_destinations:
             custom, lookup_complete = await _resolve_custom_reporting(
-                request.custom_destinations, lookup=request.elevation_lookup
+                request.custom_destinations, lookup=request.elevation_lookup, deadline=deadline
             )
             found = _merge_custom(found, custom)
 

@@ -35,10 +35,22 @@ class ConfigResponse(BaseModel):
     """
 
     preview: PreviewConfig
+    service_worker: bool = Field(
+        description=(
+            "Whether the web app keeps a service worker that serves the page it "
+            "last loaded while this deployment cannot be reached. On unless the "
+            "deployment turns it off; turning it off removes the worker from each "
+            "browser on its next load."
+        )
+    )
 
 
 def _truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _falsy(value: str | None) -> bool:
+    return (value or "").strip().lower() in {"0", "false", "no", "off"}
 
 
 @router.get(
@@ -54,5 +66,8 @@ async def config() -> ConfigResponse:
             enabled=enabled,
             pr=os.environ.get("PREVIEW_PR") if enabled else None,
             commit=os.environ.get("PREVIEW_COMMIT") if enabled else None,
-        )
+        ),
+        # On unless switched off (record 0349): the privacy page names the copy
+        # the worker keeps, and the switch is how a bad worker is removed.
+        service_worker=not _falsy(os.environ.get("SERVICE_WORKER")),
     )

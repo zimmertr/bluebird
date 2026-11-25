@@ -119,10 +119,10 @@ export interface ModelCompareOptions {
   /** Bumped per committed analysis; a new one drops the forecasts in hand. */
   analysisSeq: number
   /**
-   * A run's rows are still arriving (#337). Nothing is bought for them: a
-   * commit drops whatever this hook holds anyway, and a run that does not
-   * commit puts back a report whose held pairs must all answer its own window
-   * and model (#560).
+   * A run is under way, from the press of Analyze (#337, record 0347).
+   * Nothing is bought for it and what is in flight stops: a commit drops
+   * whatever this hook holds anyway, and a run that does not commit puts back
+   * a report whose held pairs must all answer its own window and model (#560).
    */
   arriving?: boolean
   models: readonly ForecastModelOption[]
@@ -205,6 +205,24 @@ export function useModelCompare({
     clearPace()
     setFetched(NOTHING_FETCHED)
   }, [analysisSeq, clearPace])
+
+  // A press of Analyze stops what is in the air (record 0347): the comparison
+  // books on the weather pacer and takes the forecast host's slots, so a batch
+  // still out held the new run's first batches behind it. What it had not
+  // answered is forgotten as asked-for, so a run that is put back asks it
+  // again, and the counts in flight are zeroed because an aborted batch never
+  // reaches the line that counts it down.
+  useEffect(() => {
+    if (!arriving) return
+    if (inFlightRef.current.size === 0) return
+    for (const controller of inFlightRef.current.values()) controller.abort()
+    inFlightRef.current.clear()
+    clearPace()
+    setFetched((prev) => {
+      requestedRef.current = new Set(Object.keys(prev.results))
+      return { ...prev, inFlight: {} }
+    })
+  }, [arriving, clearPace])
 
   // Abort whatever is still in the air when the chart goes away, so a comparison
   // nobody is waiting for stops spending.

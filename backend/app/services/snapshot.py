@@ -409,7 +409,8 @@ class SnapshotCache[T]:
         back on `clock`, which `_servable` then measures as it always has.
         """
         known = self._row_stamp if self._snapshot is not None else None
-        async with db.connection() as conn:
+        # Unbounded: the row is megabytes, and `SHARED_READ_DEADLINE_S` bounds the read.
+        async with db.connection(unbounded=True) as conn:
             row = await (
                 await conn.execute(
                     "SELECT fetched_at, extract(epoch FROM now() - fetched_at)::float8,"
@@ -518,7 +519,7 @@ class SnapshotCache[T]:
             async with asyncio.timeout(SHARED_REFRESH_DEADLINE_S):
                 snapshot = await self._fetch()
                 body = await asyncio.to_thread(shared.pack, snapshot)
-                async with db.connection() as conn:
+                async with db.connection(unbounded=True) as conn:
                     await conn.execute(
                         "INSERT INTO snapshots (source, fetched_at, body) VALUES (%s, now(), %s)"
                         " ON CONFLICT (source) DO UPDATE"

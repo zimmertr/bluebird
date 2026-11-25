@@ -6,6 +6,7 @@ import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { analyzedSnapshot, forecastModel, refusalPanel } from '../testSupport/fixtures'
 import { discoveryKeys } from '../utils/present'
 import { NO_CONSTRAINTS } from '../utils/constraints'
+import { NO_FAILING_LAYERS } from '../utils/layerFailures'
 
 // The panel's messages and the Analyze gate from one set of inputs (record
 // 0208): what the badge counts, which severity colours it, and how a
@@ -53,6 +54,7 @@ function state(over: Partial<PanelMessageState> = {}): PanelMessageState {
     wildfireCheckFailed: false,
     closureCheckFailed: false,
     basemapFailed: false,
+    failingLayers: NO_FAILING_LAYERS,
     presetListFailed: false,
     listTooLong: false,
     archiveDays: 365,

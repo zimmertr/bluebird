@@ -27,7 +27,7 @@ import {
 import { familyOf } from '../metrics'
 import { AQI_TAIL_MESSAGE, CLOUD_TAIL_MESSAGE, ELEVATION_MESSAGE, cloudTailMessage, tailMessage } from './analyzeOverlay'
 import { postDestinations } from './apiFetch'
-import { fetchSnowDepth, withSnowDepth } from './snowHistory'
+import { fetchSnowDepth, type LateSnow, withSnowDepth } from './snowHistory'
 import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
@@ -46,6 +46,7 @@ import {
   terrainFallbackFor,
 } from './openMeteo'
 import type { CloudSeries, HourlyPayload } from './openMeteoAggregate'
+import { RunBudget } from './openMeteoSources'
 import { nullsLast } from './sortResults'
 import { isAbort } from './abort'
 
@@ -493,6 +494,9 @@ export interface ClientAnalysisCallbacks {
    * the one sent. Must settle when `signal` aborts.
    */
   resolving?: Promise<readonly DiscoveredDestination[]>
+  // How long the report waits for the snow depth once the forecasts are in,
+  // `SNOW_DEPTH_WAIT_MS` unless a test says otherwise.
+  snowWaitMs?: number
 }
 
 /**
@@ -534,6 +538,11 @@ export interface ClientAnalysis {
   // The rows of `universe`, by `geoKey`, whose air quality failed rather than
   // answered: what the next run's `reuse.aqiFailed` should be.
   aqiFailed: Set<string>
+  // The cloud column failed for the rows this run forecast (record 0350):
+  // they commit with no cloud deck, which reads N/A, rather than failing the
+  // run. Those rows are not held for reuse, so the next run asks again.
+  // Absent means it answered.
+  cloudFailed?: boolean
   // The raw columns behind every row whose elevation is unknown as the report
   // commits, by `geoKey` (#673): what the next run's `reuse.columns` should
   // be, and, while `late` is out, which rows are waiting on the lookup.
@@ -542,6 +551,30 @@ export interface ClientAnalysis {
   // report committed; null when nothing was out. Rejects only when the lookup
   // does, which is on abort.
   late: Promise<LatePatch> | null
+  // The snow depth answer, when it had not come within `SNOW_DEPTH_WAIT_MS`
+  // of the forecasts and the report committed without it (record 0341); null
+  // when it was in time or nothing was asked. Rejects only on abort.
+  lateSnow: Promise<LateSnow> | null
+}
+
+/**
+ * How long a finished report waits for the snow depth once the forecasts are
+ * in (record 0341). The pod answers it from its own database in well under a
+ * second, and it starts beside the weather, so in practice it has landed long
+ * before; this bounds only a pod that hangs, which used to hold a finished
+ * table for the whole 110 s `API_DEADLINE_MS`. Three seconds is the longest a
+ * finished table should wait on one column nobody ranks by default.
+ */
+export const SNOW_DEPTH_WAIT_MS = 3_000
+
+// `pending`'s value if it settles within `ms`, or null once `ms` has passed.
+// A rejection passes through, so an abort still ends the run.
+function settledWithin<T>(pending: Promise<T>, ms: number): Promise<{ value: T } | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const expiry = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms)
+  })
+  return Promise.race([pending.then((value) => ({ value })), expiry]).finally(() => clearTimeout(timer))
 }
 
 /**
@@ -686,6 +719,7 @@ export async function runClientAnalysis(
     comparedModels = 0,
     reuse,
     resolving,
+    snowWaitMs = SNOW_DEPTH_WAIT_MS,
   }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
   // Marked handled up front: the two early exits below never read it, and an
@@ -696,8 +730,10 @@ export async function runClientAnalysis(
       response: { results: [], total_queried: 0, total_matched: 0 },
       universe: [],
       aqiFailed: new Set(),
+      cloudFailed: false,
       columns: new Map(),
       late: null,
+      lateSnow: null,
     }
   }
   const cap = maxDestinations ?? MAX_ANALYZE_DESTINATIONS
@@ -830,10 +866,13 @@ export async function runClientAnalysis(
   const onCallerAbort = () => internal.abort()
   if (signal?.aborted) internal.abort()
   signal?.addEventListener('abort', onCallerAbort, { once: true })
-  // A cloud failure aborts the weather fetch through `internal`, which then
-  // rejects with an AbortError. That error must not be what the caller sees,
-  // since an AbortError reads as the reader's own cancel.
-  let cloudFailure: unknown = null
+  // A cloud failure no longer fails the run (record 0350, superseding 0121):
+  // the rows commit with no cloud deck and the report says so.
+  let cloudFailed = false
+  // One budget for the whole run (record 0345): the weather, the cloud column
+  // and air quality share its outage window and its hedges, so three fetches
+  // cannot each wait an outage out in turn.
+  const run = new RunBudget()
 
   try {
     // The weather goes out first, so its batches take the forecast host's
@@ -851,6 +890,7 @@ export async function runClientAnalysis(
       const partialsWanted = onPartial != null && rankFamily !== 'aqi' && rankFamily !== 'cloud_deck'
       wxPending = fetchWeather(coords, startMs, endMs, {
         signal: internal.signal,
+        run,
         onPace,
         onPartial: partialsWanted
           ? (partial, settled) => {
@@ -906,6 +946,7 @@ export async function runClientAnalysis(
     const cloudLabel = () => cloudTailMessage(cloudCount.processed, cloudCount.total, noun)
     const cloudPending: Promise<CloudResult[] | null> = fetchCloud(coords, startMs, endMs, {
       signal: internal.signal,
+      run,
       onPace,
       onProgress: (processed, total) => {
         Object.assign(cloudCount, { processed, total })
@@ -916,8 +957,9 @@ export async function runClientAnalysis(
       windowLimits,
       onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'cloud'),
     }).catch((e: unknown) => {
-      if (!isAbort(e)) cloudFailure = e
-      internal.abort()
+      // An abort is the run's own (a cancel, or the weather failing), and the
+      // weather's await below is what reports it.
+      if (!isAbort(e)) cloudFailed = true
       return null
     })
 
@@ -950,6 +992,7 @@ export async function runClientAnalysis(
       aqiCoords.length > 0
         ? fetchAqi(aqiCoords, startMs, endMs, {
             signal: internal.signal,
+            run,
             // The same countdown the weather hands over. Air quality is awaited
             // before the ranking assembles, so its pacer's sleep is the analysis's
             // sleep and must read as scheduled, not hung (analyzeOverlay.ts).
@@ -979,7 +1022,6 @@ export async function runClientAnalysis(
       // Never null on this branch: the new candidates are in `aqiCoords`.
       const aqi = (await aqiPending) ?? { results: [], failed: [] }
       const cloudList = await cloudPending
-      if (cloudFailure !== null) throw cloudFailure
       const aqiList = aqi.results.slice(aqiRetry.length)
       const assembled = assemble(unforecast, wxList, aqiList, cloudList)
       fetched = assembled.results
@@ -1011,11 +1053,18 @@ export async function runClientAnalysis(
     fetched.forEach((r, i) => {
       if (fetchedAqiFailed[i]) aqiFailed.add(geoKey(r.latitude, r.longitude))
     })
-    const snow = await snowPending
-    const results = [
-      ...held,
-      ...fetched.map((r) => withSnowDepth(r, snow?.get(geoKey(r.latitude, r.longitude)), times)),
-    ]
+    // The report waits a moment for the snow depth and no longer (record
+    // 0341): past it, the rows commit reading N/A and the answer fills them in
+    // on `lateSnow` when it comes, or leaves them N/A when it fails.
+    const snow = await settledWithin(snowPending, snowWaitMs)
+    const depthOf = (r: DestinationResult) => snow?.value?.get(geoKey(r.latitude, r.longitude))
+    const results = [...held, ...fetched.map((r) => withSnowDepth(r, depthOf(r), times))]
+    let lateSnow: Promise<LateSnow> | null = null
+    if (snow === null) {
+      lateSnow = snowPending.then((depths) => ({ depths, times }))
+      // Awaited by the caller, which may have stopped listening.
+      lateSnow.catch(() => {})
+    }
 
     // What the lookup's answer changes about the report (#673): the rows it
     // placed, reduced again from their kept columns at the height it returned.
@@ -1053,12 +1102,14 @@ export async function runClientAnalysis(
       },
       universe: results,
       aqiFailed,
+      cloudFailed,
       columns: pendingColumns,
       late,
+      lateSnow,
     }
   } catch (e) {
     internal.abort()
-    throw cloudFailure ?? e
+    throw e
   } finally {
     signal?.removeEventListener('abort', onCallerAbort)
   }

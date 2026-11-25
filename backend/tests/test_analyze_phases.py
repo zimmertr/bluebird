@@ -110,7 +110,7 @@ async def test_find_candidates_refuses_a_request_that_names_nothing():
 
 
 async def test_find_candidates_relays_a_failover_then_hands_back_the_band(monkeypatch):
-    async def query_osm(polygon, destination_types, on_status=None, include_unnamed_peaks=False):
+    async def query_osm(polygon, destination_types, on_status=None, include_unnamed_peaks=False, **_kwargs):
         await on_status("Trying backup map server 2 of 3…")
         return [dest(1.0, 2.0, name="low", elevation_ft=3000.0), dest(1.1, 2.1, name="high", elevation_ft=9000.0)]
 
@@ -499,7 +499,7 @@ async def test_closing_the_analysis_cancels_the_phase_tasks_before_it_returns(
         tasks.append(asyncio.current_task())
         await asyncio.Event().wait()
 
-    async def hang_discovery(polygon, destination_types, on_status=None, include_unnamed_peaks=False):
+    async def hang_discovery(polygon, destination_types, on_status=None, include_unnamed_peaks=False, **_kwargs):
         await on_status("Trying backup map server 2 of 3…")
         await hang()
 

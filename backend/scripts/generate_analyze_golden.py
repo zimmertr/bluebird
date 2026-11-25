@@ -311,7 +311,7 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: d
     the next, and a stub that ignores an argument cannot notice it was dropped.
     """
 
-    async def query_osm(polygon, destination_types, on_status=None, include_unnamed_peaks=False):
+    async def query_osm(polygon, destination_types, on_status=None, include_unnamed_peaks=False, **_kwargs):
         calls["discovery"].append({
             "types": [t.value for t in destination_types],
             "ring": polygon.coordinates[0],

@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -82,6 +83,7 @@ import { usePanelMessages } from './hooks/usePanelMessages'
 import { glacierRowCount } from './utils/snowCeiling'
 import { useDemoMessages } from './tour/demoMessages'
 import { checkNoticeDue } from './utils/fireProximity'
+import { type FailingLayer, NO_FAILING_LAYERS, withLayerFailure } from './utils/layerFailures'
 import {
   panelCommitCues,
   reportView,
@@ -192,6 +194,13 @@ export default function App() {
   // The basemap style is failing to load: the map reports it and the panel's
   // messages say so (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
+  // The pod's map layers that are on and failing, which the panel's messages
+  // name (record 0344). Stable, because the layers are mounted once.
+  const [failingLayers, setFailingLayers] = useState<ReadonlySet<FailingLayer>>(NO_FAILING_LAYERS)
+  const onLayerFailing = useCallback(
+    (layer: FailingLayer, failing: boolean) => setFailingLayers((prev) => withLayerFailure(prev, layer, failing)),
+    [],
+  )
   // The preset list last picked beside List search did not arrive (#838).
   const [presetListFailed, setPresetListFailed] = useState(false)
   // A ready-made list the link named (`list=`, #864), fetched now and put in
@@ -358,7 +367,10 @@ export default function App() {
     forecastModels: caps.forecastModels,
     forecastTimes,
     analysisSeq,
-    arriving,
+    // From the press, not from the first rows (record 0347): the lattice
+    // books on the weather pacer, so one still fetching held the run's first
+    // batches behind it.
+    arriving: arriving || loading,
     windowLimits: caps.windowLimits,
     aqiForecastDays: caps.aqiForecastDays,
   })
@@ -615,6 +627,7 @@ export default function App() {
     limit,
     hourlyCalls: caps.openMeteoHourlyCalls,
     aqiPartial: analysis.aqiPartial,
+    cloudFailed: analysis.cloudFailed,
     glacierRows: glacierRowCount(sortBy, results),
     failureSeq,
     commitReasons,
@@ -623,6 +636,11 @@ export default function App() {
     wildfireCheckFailed: checkNoticeDue(fire.status, showWildfires, results.length),
     closureCheckFailed: checkNoticeDue(closure.status, showAreaClosures, results.length),
     basemapFailed,
+    // A deployment whose places table cannot answer (`discovery_source`
+    // reads overpass) refuses the trailhead and crag markers by design, so
+    // their refusal there is how it works rather than a failure to report.
+    failingLayers:
+      caps.discoverySource === 'places' ? failingLayers : withLayerFailure(failingLayers, 'landmarks', false),
     presetListFailed,
     listTooLong,
     archiveDays: caps.archiveDays,
@@ -717,7 +735,8 @@ export default function App() {
     playerOn: playerShown,
     safeBottomPx,
     analysisSeq,
-    arriving,
+    // From the press: the comparison stops spending when a run starts (record 0347).
+    arriving: arriving || loading,
     sortBy: view.sortBy,
     sortDesc: view.sortDesc,
     pointSample,
@@ -859,6 +878,7 @@ export default function App() {
           urlSync={urlSync}
           restoredView={restoredView}
           onBasemapFailed={setBasemapFailed}
+          onLayerFailing={onLayerFailing}
           maxPolygonPoints={caps.maxPolygonPoints}
           lowerSheetFirst={resultsView.lowerSheetFirst}
         />

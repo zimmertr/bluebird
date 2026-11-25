@@ -24,6 +24,14 @@ describe('reusableForecasts', () => {
     expect(reusableForecasts(HELD, { ...ASKED, model: 'icon_seamless' }, T0)).toBeNull()
   })
 
+  // Record 0350: rows that hold no cloud deck because the column failed are
+  // asked again rather than carrying the gap into the next report.
+  it('refuses a field whose cloud column failed', () => {
+    expect(reusableForecasts({ ...HELD, cloudFailed: true }, ASKED, T0)).toBeNull()
+    const held = holdForecasts(null, HELD.rows, HELD.times, ASKED, T0, new Set(), new Map(), true)
+    expect(reusableForecasts(held, ASKED, T0 + MIN)).toBeNull()
+  })
+
   it('has nothing to reuse before the first analysis', () => {
     expect(reusableForecasts(null, ASKED, T0)).toBeNull()
   })
@@ -32,7 +40,7 @@ describe('reusableForecasts', () => {
 describe('holdForecasts', () => {
   it('starts the clock at this fetch when nothing was reused', () => {
     const held = holdForecasts(null, HELD.rows, HELD.times, ASKED, T0 + 5 * MIN, new Set(), new Map())
-    expect(held).toEqual({ ...HELD, fetchedAtMs: T0 + 5 * MIN, aqiFailed: new Set(), columns: new Map() })
+    expect(held).toEqual({ ...HELD, fetchedAtMs: T0 + 5 * MIN, aqiFailed: new Set(), columns: new Map(), cloudFailed: false })
   })
 
   // #580: the next run asks these rows for air quality again.

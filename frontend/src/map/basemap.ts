@@ -12,7 +12,12 @@
  * the style's own. `basemap.test.ts` pins that order.
  */
 import type * as maplibregl from 'maplibre-gl'
-import type { ExpressionSpecification, FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
+import type {
+  ExpressionSpecification,
+  FilterSpecification,
+  StyleSpecification,
+  SymbolLayerSpecification,
+} from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection } from 'geojson'
@@ -24,6 +29,23 @@ import { addLayerAt } from './layerOrder'
 // OpenFreeMap's Liberty style. `coldLoad.test.ts` reads this line to check the
 // entry document warms the same host.
 export const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
+
+/**
+ * The style the map takes for the rest of a visit once Liberty's has failed
+ * past its retries (record 0348): Liberty's ground and nothing on it, so `load`
+ * fires and the ring tool, the markers and the base maps from other hosts
+ * still mount. The glyphs stay OpenFreeMap's, so the labels draw whenever only
+ * the style is down. Not a copy of Liberty: OpenFreeMap points its tiles at a
+ * backup planet through that style (`backup_planet`, 2026-11-25), and a copy
+ * would freeze the switch.
+ */
+export const FALLBACK_STYLE: StyleSpecification = {
+  version: 8,
+  name: 'Bluebird Forecast fallback',
+  glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+  sources: {},
+  layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#f8f4f0' } }],
+}
 
 /**
  * The zoom the clickable basemap destinations start at.
