@@ -62,15 +62,15 @@ An analysis has three stages, and each leans on different things. So I list them
 
 | Dependency | What you see when it fails | Rides it out today |
 |---|---|---|
-| The pod, through Cloudflare and the tunnel, serving the page and its assets | Cloudflare's own error page. The app never starts | Not at all. The page is sent `no-cache`, so Cloudflare keeps no copy to serve |
-| `GET /api/capabilities` | Nothing said. The model picker falls back to GFS alone and the ring count turns off, for the rest of the session | Silently, with worse limits. It is asked once and never again |
-| The OpenFreeMap style, tiles, glyphs and sprites | `The map could not load. Try again later.` and a blank map. You cannot draw a ring, and no marker draws | Not at all. A failed style is asked again only when the browser comes back online, so a tab left open across the outage stays blank until a reload |
+| The pod, through Cloudflare and the tunnel, serving the page and its assets | Cloudflare's own error page. The app never starts | Not at all. The page is sent `no-cache`, so Cloudflare keeps no copy to serve. Since mitigation 11 a service worker can serve a returning visitor the last page, once it is switched on |
+| `GET /api/capabilities` | Nothing said. The model picker falls back to GFS alone and the ring count turns off, for the rest of the session | Silently, with worse limits. It is asked once and never again. Since mitigation 4 it is given 5 s and asked once more |
+| The OpenFreeMap style, tiles, glyphs and sprites | `The map could not load. Try again later.` and a blank map. You cannot draw a ring, and no marker draws | Not at all. A failed style is asked again only when the browser comes back online, so a tab left open across the outage stays blank until a reload. Since mitigation 9 it is also asked again after 5, 15 and 30 s, then every minute |
 
 ### Finding Destinations
 
 | Dependency | What you see when it fails | Rides it out today |
 |---|---|---|
-| `POST /api/destinations`, answered from the places table | `OpenStreetMap is not available. Try again later.` | The table itself needs no third party, so as long as the pod and the database are up |
+| `POST /api/destinations`, answered from the places table | `OpenStreetMap is not available. Try again later.`, and since mitigation 8 `Bluebird Forecast is offline. Try again later.` when the edge answers for a pod it cannot reach | The table itself needs no third party, so as long as the pod and the database are up |
 | PostgreSQL behind it | The first discovery waits up to 5 s for a connection, then falls to Overpass | As long as Overpass answers. Since mitigation 7 the pod notices: it skips the database for 30 s after a failure, then one request tries it again |
 | Overpass, the fallback (two donated mirrors) | The same message, after at most 20 s, since mitigation 7 asks both mirrors at once inside one deadline | Barely. The two mirrors fail together, and they answer about one request in seven (see the evidence) |
 | A pasted list's elevation lookup | Rows keep no elevation and are read at the ground's height | Always. It is best effort |
@@ -79,17 +79,17 @@ An analysis has three stages, and each leans on different things. So I list them
 
 | Dependency | What you see when it fails | Rides it out today |
 |---|---|---|
-| Open-Meteo's forecast host, weather and cloud | A countdown, `Open-Meteo is unavailable · retrying in 20s`, then `Open-Meteo took too long. Try again later.` | Not at all. It is the only weather source, a hung host fails the run after about 160 s, a refusing one after about 60 s, and a 5xx fails it at once with no retry |
-| Open-Meteo's archive host, for past windows | The same sentences | Not at all. A window that spans the archive boundary needs both hosts |
-| Open-Meteo's air-quality host | The AQI column reads N/A | Always, but a hung host still adds 20 s to every round of four batches |
+| Open-Meteo's forecast host, weather and cloud | A countdown, `Open-Meteo is unavailable · retrying in 20s`, then `Open-Meteo took too long. Try again later.` | Not at all. It is the only weather source, a hung host fails the run after about 160 s, a refusing one after about 60 s, and a 5xx fails it at once with no retry. Since mitigations 2 and 3 a 5xx is asked again at once, a slow request gets a second copy after about 5 s, and a configured mirror is asked first; with the public host alone, one that never answers fails the run in about 49 s |
+| Open-Meteo's archive host, for past windows | The same sentences | Not at all. A window that spans the archive boundary needs both hosts. Since mitigation 3 it gets the same retry and second copy, but no mirror serves the archive |
+| Open-Meteo's air-quality host | The AQI column reads N/A | Always, but a hung host still adds 20 s to every round of four batches. Since mitigation 4 it stops at its first timeout |
 | Open-Meteo's quota, per visitor's address | `Open-Meteo quota · resuming in 45s`, then `Open-Meteo quota reached. Try again later.` | A minute's limit is waited out. An hour's or a day's fails the run, and everyone behind one address shares it |
-| `POST /api/snow-depth` | The snow depth column reads N/A | Always, but the report waits for it, so a pod that hangs holds a finished analysis for up to 110 s |
+| `POST /api/snow-depth` | The snow depth column reads N/A | Always, but the report waits for it, so a pod that hangs holds a finished analysis for up to 110 s. Since mitigation 4 the table lands after 3 s and the column fills in late |
 
 One more thing makes forecasting fragile: **one failed batch fails the whole analysis.** A 1,500-destination run is 60 forecast requests, and any one of them failing throws away the other 59 (a retry within 15 minutes reuses the ones that landed).
 
 ### The Overlays
 
-The wildfire, closure, smoke and fire-activity layers, and the wildfire and closure columns, come from snapshots the pod keeps in the database. So each one rides out its provider for 24 hours, then answers `503` everywhere. Radar, snow depth, relief and imagery come straight from their providers. None of these can fail an analysis, but when one fails the layer just draws nothing, so you cannot tell "no fires" from "the fire feed is down".
+The wildfire, closure, smoke and fire-activity layers, and the wildfire and closure columns, come from snapshots the pod keeps in the database. So each one rides out its provider for 24 hours, then answers `503` everywhere. Radar, snow depth, relief and imagery come straight from their providers. None of these can fail an analysis, but when one fails the layer just draws nothing, so you cannot tell "no fires" from "the fire feed is down". Since mitigation 10 each layer that fails says so in the message list.
 
 ### The Platform
 
