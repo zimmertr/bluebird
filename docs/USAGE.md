@@ -197,6 +197,9 @@ there now. Its dropdown picks the average, the shallowest day or the deepest,
 and opens on the deepest. On the chart its line stops at today. On a glaciated
 summit the number is years of old snow, not this winter's, though it keeps its
 place in the ranking. [DATA.md](DATA.md#the-snow-depth-on-a-row) has the rest.
+However, the table never waits long for it. If the snow depth hasn't come back
+a few seconds after the forecasts have, the table shows up with it reading
+`N/A`, and the numbers fill in when they arrive.
 
 **The cloud deck is in every analysis**, like every other metric, so you can
 rank by it or bound it at any time without analyzing again. The deck is the height where cloud forms

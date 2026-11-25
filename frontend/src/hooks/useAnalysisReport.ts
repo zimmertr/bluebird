@@ -138,8 +138,27 @@ export function useAnalysisReport() {
   // a time (the pod's lookup, then its one retry), so only the rows placed
   // stop waiting.
   function patch(rows: readonly DestinationResult[], view: AnalyzedView) {
+    if (!swapRows(rows, view)) return
+    setPendingHeights((pending) => {
+      if (!pending.size) return pending
+      const next = new Set(pending)
+      rows.forEach((r) => next.delete(geoKey(r.latitude, r.longitude)))
+      return next.size ? next : NO_PENDING
+    })
+  }
+
+  // A late snow depth answer, landed on the committed report (record 0341):
+  // the same swap as `patch`, but the rows it fills were never waiting on
+  // their elevation, so the heights still pending stay pending.
+  function fill(rows: readonly DestinationResult[], view: AnalyzedView) {
+    swapRows(rows, view)
+  }
+
+  // Each row in `rows` replaces the committed row at its coordinate, in the
+  // universe and in the response's rows alike. False with no report to land on.
+  function swapRows(rows: readonly DestinationResult[], view: AnalyzedView): boolean {
     const was = committedRef.current
-    if (!was.response || !was.universe) return
+    if (!was.response || !was.universe) return false
     const swap = new Map(rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
     const replaced = (list: DestinationResult[]) => list.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r)
     const universe = replaced(was.universe)
@@ -148,12 +167,7 @@ export function useAnalysisReport() {
     setResponse(response)
     setUniverse(universe)
     setAnalyzed(view)
-    setPendingHeights((pending) => {
-      if (!pending.size) return pending
-      const next = new Set(pending)
-      rows.forEach((r) => next.delete(geoKey(r.latitude, r.longitude)))
-      return next.size ? next : NO_PENDING
-    })
+    return true
   }
 
   // The run's own call never answered (an abort, or a reset): nothing is
@@ -208,6 +222,7 @@ export function useAnalysisReport() {
     settle,
     publishCandidates,
     patch,
+    fill,
     settleHeights,
     discard,
     clear,

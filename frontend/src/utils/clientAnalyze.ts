@@ -27,7 +27,7 @@ import {
 import { familyOf } from '../metrics'
 import { AQI_TAIL_MESSAGE, CLOUD_TAIL_MESSAGE, ELEVATION_MESSAGE, cloudTailMessage, tailMessage } from './analyzeOverlay'
 import { postDestinations } from './apiFetch'
-import { fetchSnowDepth, withSnowDepth } from './snowHistory'
+import { fetchSnowDepth, type LateSnow, withSnowDepth } from './snowHistory'
 import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
@@ -493,6 +493,9 @@ export interface ClientAnalysisCallbacks {
    * the one sent. Must settle when `signal` aborts.
    */
   resolving?: Promise<readonly DiscoveredDestination[]>
+  // How long the report waits for the snow depth once the forecasts are in,
+  // `SNOW_DEPTH_WAIT_MS` unless a test says otherwise.
+  snowWaitMs?: number
 }
 
 /**
@@ -542,6 +545,30 @@ export interface ClientAnalysis {
   // report committed; null when nothing was out. Rejects only when the lookup
   // does, which is on abort.
   late: Promise<LatePatch> | null
+  // The snow depth answer, when it had not come within `SNOW_DEPTH_WAIT_MS`
+  // of the forecasts and the report committed without it (record 0341); null
+  // when it was in time or nothing was asked. Rejects only on abort.
+  lateSnow: Promise<LateSnow> | null
+}
+
+/**
+ * How long a finished report waits for the snow depth once the forecasts are
+ * in (record 0341). The pod answers it from its own database in well under a
+ * second, and it starts beside the weather, so in practice it has landed long
+ * before; this bounds only a pod that hangs, which used to hold a finished
+ * table for the whole 110 s `API_DEADLINE_MS`. Three seconds is the longest a
+ * finished table should wait on one column nobody ranks by default.
+ */
+export const SNOW_DEPTH_WAIT_MS = 3_000
+
+// `pending`'s value if it settles within `ms`, or null once `ms` has passed.
+// A rejection passes through, so an abort still ends the run.
+function settledWithin<T>(pending: Promise<T>, ms: number): Promise<{ value: T } | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const expiry = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms)
+  })
+  return Promise.race([pending.then((value) => ({ value })), expiry]).finally(() => clearTimeout(timer))
 }
 
 /**
@@ -686,6 +713,7 @@ export async function runClientAnalysis(
     comparedModels = 0,
     reuse,
     resolving,
+    snowWaitMs = SNOW_DEPTH_WAIT_MS,
   }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
   // Marked handled up front: the two early exits below never read it, and an
@@ -698,6 +726,7 @@ export async function runClientAnalysis(
       aqiFailed: new Set(),
       columns: new Map(),
       late: null,
+      lateSnow: null,
     }
   }
   const cap = maxDestinations ?? MAX_ANALYZE_DESTINATIONS
@@ -1011,11 +1040,18 @@ export async function runClientAnalysis(
     fetched.forEach((r, i) => {
       if (fetchedAqiFailed[i]) aqiFailed.add(geoKey(r.latitude, r.longitude))
     })
-    const snow = await snowPending
-    const results = [
-      ...held,
-      ...fetched.map((r) => withSnowDepth(r, snow?.get(geoKey(r.latitude, r.longitude)), times)),
-    ]
+    // The report waits a moment for the snow depth and no longer (record
+    // 0341): past it, the rows commit reading N/A and the answer fills them in
+    // on `lateSnow` when it comes, or leaves them N/A when it fails.
+    const snow = await settledWithin(snowPending, snowWaitMs)
+    const depthOf = (r: DestinationResult) => snow?.value?.get(geoKey(r.latitude, r.longitude))
+    const results = [...held, ...fetched.map((r) => withSnowDepth(r, depthOf(r), times))]
+    let lateSnow: Promise<LateSnow> | null = null
+    if (snow === null) {
+      lateSnow = snowPending.then((depths) => ({ depths, times }))
+      // Awaited by the caller, which may have stopped listening.
+      lateSnow.catch(() => {})
+    }
 
     // What the lookup's answer changes about the report (#673): the rows it
     // placed, reduced again from their kept columns at the height it returned.
@@ -1055,6 +1091,7 @@ export async function runClientAnalysis(
       aqiFailed,
       columns: pendingColumns,
       late,
+      lateSnow,
     }
   } catch (e) {
     internal.abort()

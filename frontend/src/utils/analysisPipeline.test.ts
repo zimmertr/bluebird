@@ -81,6 +81,7 @@ function rankedResult(over: Partial<RankedResult> = {}): RankedResult {
     aqiFailed: new Set<string>(),
     columns: new Map(),
     late: null,
+    lateSnow: null,
     ...over,
   }
 }

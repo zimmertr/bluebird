@@ -10,6 +10,7 @@ import type {
 } from '../types'
 import { AnalysisRefusalError, customRows, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
 import type { LatePatch } from './clientAnalyze'
+import type { LateSnow } from './snowHistory'
 import { type IdentityMap, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
 import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
@@ -193,6 +194,9 @@ export interface PipelineResult {
   // the rows it changed (each reduced again at its height) and the columns
   // still worth holding. Rejects only on abort.
   late: Promise<LatePatch> | null
+  // The snow depth answer, when it had not come in time for the report
+  // (record 0341). Rejects only on abort.
+  lateSnow: Promise<LateSnow> | null
 }
 
 export async function runAnalysisPipeline(request: AnalyzeRequest, options: PipelineOptions): Promise<PipelineResult> {
@@ -239,7 +243,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   }
   onDiscovered(found)
 
-  const { response, universe, aqiFailed, columns, late } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
+  const { response, universe, aqiFailed, columns, late, lateSnow } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
     signal,
     resolving,
     // The one clock the window and the reuse check above read, so the
@@ -279,5 +283,6 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     // those rows have nothing left to wait for.
     pending: late ? new Set(columns.keys()) : new Set(),
     late,
+    lateSnow,
   }
 }

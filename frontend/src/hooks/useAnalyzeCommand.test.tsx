@@ -275,7 +275,7 @@ describe('a run that does not commit changes nothing', () => {
   function rankAll() {
     ranked.mockImplementation(async (_req, candidates) => {
       const field = rows(candidates)
-      return { response: { results: field, total_queried: field.length, total_matched: field.length, times: [1] }, universe: field, aqiFailed: new Set<string>(), columns: new Map(), late: null }
+      return { response: { results: field, total_queried: field.length, total_matched: field.length, times: [1] }, universe: field, aqiFailed: new Set<string>(), columns: new Map(), late: null, lateSnow: null }
     })
   }
   // The next ranking shows its first row if asked, then stops: on the

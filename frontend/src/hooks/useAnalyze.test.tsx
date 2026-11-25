@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { AnalyzeRequest, DestinationResult, GeoPolygon } from '../types'
 import { useAnalyze } from './useAnalyze'
-import { runClientAnalysis, type HeldColumns } from '../utils/clientAnalyze'
+import { runClientAnalysis, type HeldColumns, type LatePatch } from '../utils/clientAnalyze'
+import type { LateSnow } from '../utils/snowHistory'
 import { discoveryKeys } from '../utils/present'
 import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
@@ -55,7 +56,7 @@ beforeEach(() => {
   // answered (#643).
   ranked.mockImplementation(async (_request, _candidates, _startMs, _endMs, callbacks) => {
     await callbacks?.resolving
-    return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null }
+    return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null, lateSnow: null }
   })
   stubResolve()
 })
@@ -200,7 +201,7 @@ describe('one analysis', () => {
     let release!: () => void
     ranked.mockImplementationOnce(async () => {
       await new Promise<void>((r) => (release = r))
-      return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null }
+      return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null, lateSnow: null }
     })
     let run!: Promise<boolean>
     act(() => {
@@ -252,6 +253,7 @@ describe('a lookup that answers after the report', () => {
       aqiFailed: new Set<string>(),
       columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]),
       late,
+      lateSnow: null,
     }))
   }
 
@@ -367,6 +369,94 @@ describe('a lookup that answers after the report', () => {
   })
 })
 
+// Record 0341: a snow depth that had not answered when the report committed
+// fills the committed rows when it does, and nothing else about the report.
+describe('a snow depth that answers after the report', () => {
+  const KEY = geoKey(PROBE.latitude, PROBE.longitude)
+  const DEPTH = { avg_in: 20, min_in: 10, max_in: 30, days: [] }
+  function deferredSnow() {
+    let resolve!: (s: LateSnow) => void
+    const promise = new Promise<LateSnow>((res) => {
+      resolve = res
+    })
+    return { promise, resolve }
+  }
+  function rankSnowLate(lateSnow: Promise<LateSnow>, late: Promise<LatePatch> | null = null) {
+    ranked.mockImplementationOnce(async () => ({
+      response: DATA,
+      universe: ROWS,
+      aqiFailed: new Set<string>(),
+      columns: late ? new Map([[KEY, { weather: { hourly: { time: [] } } }]]) : new Map(),
+      late,
+      lateSnow,
+    }))
+  }
+
+  it('fills the committed report and the held field, and leaves the heights waiting', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const snow = deferredSnow()
+    rankSnowLate(snow.promise, new Promise(() => {}))
+    await analyzeAt(result, T0)
+    expect(result.current.universe?.[0].snow_depth_max_in).toBeNull()
+    await act(async () => {
+      snow.resolve({ depths: new Map([[KEY, DEPTH]]), times: [1] })
+      await snow.promise
+    })
+    expect(result.current.universe?.[0].snow_depth_max_in).toBe(30)
+    expect(result.current.response?.results[0].snow_depth_max_in).toBe(30)
+    expect([...result.current.pendingHeights]).toEqual([KEY])
+    // The same report, filled in, rather than another one.
+    expect(result.current.analysisSeq).toBe(1)
+    await analyzeAt(result, T0 + MIN)
+    expect(reuses()[1]?.rows[0].snow_depth_max_in).toBe(30)
+  })
+
+  it('keeps a landed depth on a row the elevation lookup places afterwards', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const snow = deferredSnow()
+    let place!: (p: LatePatch) => void
+    const late = new Promise<LatePatch>((res) => {
+      place = res
+    })
+    rankSnowLate(snow.promise, late)
+    await analyzeAt(result, T0)
+    await act(async () => {
+      snow.resolve({ depths: new Map([[KEY, DEPTH]]), times: [1] })
+      await snow.promise
+    })
+    // Built from the row as it committed, before the depth landed.
+    const placed = resultRow({ ...PROBE, elevation_ft: 6000 })
+    await act(async () => {
+      place({ rows: [placed], columns: new Map() })
+      await late
+    })
+    expect(result.current.universe?.[0].elevation_ft).toBe(6000)
+    expect(result.current.universe?.[0].snow_depth_max_in).toBe(30)
+  })
+
+  it('leaves the columns N/A when it failed, and drops an answer after the next run', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const failed = deferredSnow()
+    rankSnowLate(failed.promise)
+    await analyzeAt(result, T0)
+    await act(async () => {
+      failed.resolve({ depths: null, times: [1] })
+      await failed.promise
+    })
+    expect(result.current.universe?.[0]).toBe(ROWS[0])
+
+    const stale = deferredSnow()
+    rankSnowLate(stale.promise)
+    await analyzeAt(result, T0 + MIN)
+    await analyzeAt(result, T0 + 2 * MIN)
+    await act(async () => {
+      stale.resolve({ depths: new Map([[KEY, DEPTH]]), times: [1] })
+      await stale.promise
+    })
+    expect(result.current.universe?.[0].snow_depth_max_in).toBeNull()
+  })
+})
+
 describe('what the reader sees', () => {
   // A run with no polygon asks for its forecasts at once, beside the pod's
   // elevation lookup (#643), so that is what it opens on.
@@ -459,7 +549,7 @@ describe('a ring\'s found field', () => {
     let release!: () => void
     ranked.mockImplementationOnce(async () => {
       await new Promise<void>((r) => (release = r))
-      return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null }
+      return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null, lateSnow: null }
     })
     const { result } = renderHook(() => useAnalyze())
     let run!: Promise<boolean>
@@ -636,7 +726,7 @@ describe('the spend and the air quality (#803)', () => {
     const failedOne = new Set([geoKey(47.3, -121.4)])
     const failedBoth = new Set([geoKey(47.3, -121.4), geoKey(PROBE.latitude, PROBE.longitude)])
     const answer = (aqiFailed: Set<string>) =>
-      ranked.mockResolvedValueOnce({ response: { ...DATA, results: two }, universe: two, aqiFailed, columns: new Map(), late: null })
+      ranked.mockResolvedValueOnce({ response: { ...DATA, results: two }, universe: two, aqiFailed, columns: new Map(), late: null, lateSnow: null })
     const { result } = renderHook(() => useAnalyze())
     expect(result.current.aqiPartial).toBe(false)
     answer(failedOne)
