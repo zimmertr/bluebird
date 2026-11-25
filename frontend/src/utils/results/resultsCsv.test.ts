@@ -177,7 +177,16 @@ describe('values a spreadsheet can compute over', () => {
   // say which, so it carries the mark the screen shows.
   it('writes the screen mark for a value that was never available', () => {
     const csv = buildResultsCsv(
-      [row({ freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null })],
+      [
+        row({
+          freeze_min_ft: null,
+          freeze_max_ft: null,
+          freeze_avg_ft: null,
+          cloud_deck_min_ft: null,
+          cloud_deck_max_ft: null,
+          cloud_deck_avg_ft: null,
+        }),
+      ],
       WINDOW_COLUMNS,
       NO_FIRES,
       { closureWarnings: new Map() },
