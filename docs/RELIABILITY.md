@@ -264,7 +264,7 @@ Ranked by how much failure each removes for the work it takes. The ones in this 
 | 9 | **The Map Without Its Tile Host** (partly built, record [0348](architectural-decision-records/0348-a-failed-map-style-is-asked-for-again-on-a-timer.md): the timed retry; the bundled style waits on its licence and a browser check) - the style, glyphs and sprites in the app's own assets, a timed retry, the ring tool mounted without the remote style | An OpenFreeMap outage stopping you drawing |
 | 10 | **The Overlays Say When They Fail** (built) - each layer's approved "unavailable" sentence shown in the message list rather than only logged | "No fires" and "the fire feed is down" looking the same |
 | 11 | **The Page Survives the Pod** - a service worker with an off switch, and the page's headers ready for static hosting | A returning visitor losing the site with the house |
-| 12 | **Proving It** - a browser-suite spec per failure above: a host that hangs, refuses or answers nulls, with the run still landing inside its target | Every promise above quietly regressing |
+| 12 | **Proving It** (started: `e2e/providerFailures.spec.ts` covers a forecast `502`, a hung forecast request and a `530` for the pod) - a browser-suite spec per failure above: a host that hangs, refuses or answers nulls, with the run still landing inside its target | Every promise above quietly regressing |
 
 ### In Other Repositories, or Needing Your Call
 
