@@ -99,6 +99,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
             "snow_depth_burst": ratelimit.client.SNOW_DEPTH_LIMITER.burst,
             "fire_activity_per_minute": ratelimit.client.FIRE_ACTIVITY_LIMITER.per_minute,
             "fire_activity_burst": ratelimit.client.FIRE_ACTIVITY_LIMITER.burst,
+            "reports_per_minute": ratelimit.client.REPORTS_LIMITER.per_minute,
+            "reports_burst": ratelimit.client.REPORTS_LIMITER.burst,
         },
     }
 

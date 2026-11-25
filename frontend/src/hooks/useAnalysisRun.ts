@@ -15,7 +15,8 @@ export interface RunHooks {
   // A run that did not finish, cancelled or failed. It must change nothing,
   // so this is where the report it began over is put back. Told which, since
   // a failed polygon run keeps the field it found and a cancel does not (#782).
-  onFailure: (kind: AnalysisFailure['kind']) => void
+  // The error comes too, for the run's report of what failed it (record 0339).
+  onFailure: (kind: AnalysisFailure['kind'], error: unknown) => void
   // Any run ending, whatever the outcome.
   onSettled: () => void
 }
@@ -95,7 +96,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
       finished = true
     } catch (e) {
       const failure = analysisFailure(e, models)
-      hooks.onFailure(failure.kind)
+      hooks.onFailure(failure.kind, e)
       if (failure.kind === 'cancel') setStatusMessage(null)
       else {
         if (failure.kind === 'refusal') setRefusal({ message: failure.message })

@@ -58,4 +58,14 @@ describe('watchBasemap', () => {
     await new Promise((r) => setTimeout(r, 0))
     expect(reloads()).toEqual([])
   })
+
+  it('tells its first outcome once, a load or a failure, whichever comes first', () => {
+    const stub = stubMap()
+    const onFirstOutcome = vi.fn()
+    watchBasemap(stub.map, { style: STYLE, onFailed: vi.fn(), online: new EventTarget(), onFirstOutcome })
+    stub.fire('error', undefined, { error: new Error('Failed to fetch') })
+    stub.fire('style.load')
+    stub.fire('error', undefined, { error: new Error('Failed to fetch') })
+    expect(onFirstOutcome.mock.calls).toEqual([[false]])
+  })
 })

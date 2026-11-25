@@ -177,6 +177,19 @@ class RateLimits(BaseModel):
             "pan, which refetches on a 400 ms debounce."
         )
     )
+    reports_per_minute: int = Field(
+        description=(
+            "Sustained `POST /api/reports` requests per client address per "
+            "minute. The app sends one per run and one per map load, and a "
+            "report reaches nothing but a counter. 0 means the limit is disabled."
+        )
+    )
+    reports_burst: int = Field(
+        description=(
+            "How many reports an idle client can send back-to-back before the "
+            "per-minute pace applies."
+        )
+    )
 
 
 class ForecastModelInfo(BaseModel):
@@ -537,6 +550,8 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 snow_depth_burst=ratelimit.client.SNOW_DEPTH_LIMITER.burst,
                 fire_activity_per_minute=ratelimit.client.FIRE_ACTIVITY_LIMITER.per_minute,
                 fire_activity_burst=ratelimit.client.FIRE_ACTIVITY_LIMITER.burst,
+                reports_per_minute=ratelimit.client.REPORTS_LIMITER.per_minute,
+                reports_burst=ratelimit.client.REPORTS_LIMITER.burst,
             ),
         ),
         # The same static geometries the overlay routes ride, read from the

@@ -30,6 +30,7 @@ import { addAttribution, addControls, placeControl, type CornerSlots, type MapCo
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
 import { watchBasemap } from '../map/basemapWatch'
+import { reportMapLoad } from '../utils/runReport'
 import { BASEMAP_STYLE_OPTIONS } from '../utils/basemapCredit'
 import { createPopupBoard } from '../map/popups'
 import { createCentring } from '../map/centring'
@@ -717,7 +718,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // pressed, as every handler made once does.
       controlsRef.current = addControls(map, { onTerrainChange: (on) => controller.inputs.onTerrainChange(on) })
       // Before `load`: a style that fails never gets there.
-      const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
+      // The first load is timed from the page's start, which is what a reader
+      // waits through before they can draw (record 0339).
+      const basemap = watchBasemap(map, {
+        style: STYLE,
+        onFailed: onBasemapFailed,
+        onFirstOutcome: (ok) => reportMapLoad(ok, performance.now()),
+      })
       // The style is asked for here and not by the constructor, because the
       // rewrite of the basemap's credit (`utils/basemapCredit.ts`) is an
       // option `setStyle` takes and the constructor does not; the watch above

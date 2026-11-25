@@ -94,6 +94,12 @@ RATE_LIMIT_LANDMARKS_BURST = env_int("RATE_LIMIT_LANDMARKS_BURST", 30)
 # (#849). Its own bucket so a map pan never spends it.
 RATE_LIMIT_SNOW_DEPTH_PER_MINUTE = env_int("RATE_LIMIT_SNOW_DEPTH_PER_MINUTE", 30)
 RATE_LIMIT_SNOW_DEPTH_BURST = env_int("RATE_LIMIT_SNOW_DEPTH_BURST", 10)
+# The browser reports each run and each map load once (record 0339), so a
+# reader sends a handful a minute at most. Its own bucket so a script posting
+# reports cannot spend anyone's discovery or overlay budget, and tight because
+# a report reaches nothing but a counter.
+RATE_LIMIT_REPORTS_PER_MINUTE = env_int("RATE_LIMIT_REPORTS_PER_MINUTE", 30)
+RATE_LIMIT_REPORTS_BURST = env_int("RATE_LIMIT_REPORTS_BURST", 10)
 
 # Discoveries one client key may have in flight at once. A bucket bounds how
 # often an address starts a discovery, not how many it holds open, and one
@@ -429,6 +435,7 @@ LANDMARKS_LIMITER = RateLimiter(
 SNOW_DEPTH_LIMITER = RateLimiter(
     RATE_LIMIT_SNOW_DEPTH_PER_MINUTE, RATE_LIMIT_SNOW_DEPTH_BURST, name="snow_depth"
 )
+REPORTS_LIMITER = RateLimiter(RATE_LIMIT_REPORTS_PER_MINUTE, RATE_LIMIT_REPORTS_BURST, name="reports")
 FIRE_ACTIVITY_LIMITER = RateLimiter(
     RATE_LIMIT_FIRE_ACTIVITY_PER_MINUTE, RATE_LIMIT_FIRE_ACTIVITY_BURST, name="fire_activity"
 )
@@ -537,6 +544,11 @@ async def landmarks_rate_limit(request: Request) -> None:
 async def snow_depth_rate_limit(request: Request) -> None:
     """Route dependency: the snow depth history's bucket."""
     await _throttle(SNOW_DEPTH_LIMITER, request)
+
+
+async def reports_rate_limit(request: Request) -> None:
+    """Route dependency: the browser's run reports' bucket."""
+    await _throttle(REPORTS_LIMITER, request)
 
 
 async def fire_activity_rate_limit(request: Request) -> None:

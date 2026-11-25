@@ -123,6 +123,7 @@ buckets are also published to clients by `GET /api/capabilities`, under
 | closures | `GET /api/closures` |
 | landmarks | `GET /api/landmarks` |
 | snow depth | `POST /api/snow-depth` |
+| reports | `POST /api/reports` |
 
 Each bucket's rate and burst are published under `limits.rate`; the three
 overlay buckets and the landmarks bucket are the loosest, because a pan costs

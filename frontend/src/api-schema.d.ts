@@ -219,6 +219,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report how a run or a map load ended
+         * @description The web app sends one report per analysis and one per map load, so this instance can count how often each succeeds and how long it takes, which it cannot see itself because the analysis runs in the browser. A report carries no coordinates and nothing that identifies the reader. Nothing is stored but counters.
+         */
+        post: operations["report_api_reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/smoke": {
         parameters: {
             query?: never;
@@ -1567,6 +1587,16 @@ export interface components {
              */
             landmarks_per_minute: number;
             /**
+             * Reports Burst
+             * @description How many reports an idle client can send back-to-back before the per-minute pace applies.
+             */
+            reports_burst: number;
+            /**
+             * Reports Per Minute
+             * @description Sustained `POST /api/reports` requests per client address per minute. The app sends one per run and one per map load, and a report reaches nothing but a counter. 0 means the limit is disabled.
+             */
+            reports_per_minute: number;
+            /**
              * Smoke Burst
              * @description How many smoke requests an idle client can send back-to-back before the per-minute pace applies.
              */
@@ -1596,6 +1626,43 @@ export interface components {
              * @description Sustained `GET /api/wildfires` requests per client address per minute. Among the loosest buckets, because it answers from a snapshot this instance already holds and reaches no upstream. 0 means the limit is disabled.
              */
             wildfires_per_minute: number;
+        };
+        /** RunReport */
+        RunReport: {
+            /**
+             * Destinations
+             * @description How many destinations the analysis forecast. Counted only as typical (up to 200) or large.
+             */
+            destinations?: number | null;
+            /**
+             * Duration Ms
+             * @description Milliseconds from the press, or the page's start, to the end.
+             */
+            duration_ms: number;
+            /**
+             * Kind
+             * @description What is reported: one analysis, from the press to a table or a failure, or one load of the map.
+             * @enum {string}
+             */
+            kind: "analysis" | "map";
+            /** @description The forecast model the analysis asked for. */
+            model?: components["schemas"]["ForecastModel"] | null;
+            /**
+             * Outcome
+             * @description How it ended. `degraded` is a table with a column the run could not fill; `refused` a run stopped before it spent anything; `abandoned` a run whose page closed while it was still going.
+             * @enum {string}
+             */
+            outcome: "success" | "degraded" | "failed" | "refused" | "cancelled" | "abandoned";
+            /**
+             * Source
+             * @description Who answered the failing request, when one did.
+             */
+            source?: ("pod" | "open-meteo" | "mirror" | "basemap" | "other") | null;
+            /**
+             * Stage
+             * @description The part that failed or degraded it, when one did.
+             */
+            stage?: ("discovery" | "weather" | "air_quality" | "snow" | "basemap" | "other") | null;
         };
         /**
          * SmokeCollection
@@ -2260,6 +2327,46 @@ export interface operations {
             };
             /** @description This instance holds no copy of OpenStreetMap to answer from: it runs without the database, or its first fill has not finished. `Retry-After` says when to ask again. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    report_api_reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunReport"];
+            };
+        };
+        responses: {
+            /** @description Counted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A field was missing, unknown or out of range. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description This client is reporting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
