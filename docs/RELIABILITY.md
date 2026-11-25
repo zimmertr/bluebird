@@ -15,6 +15,30 @@ I want Bluebird Forecast to work on every analysis, every time, without minutes 
 
 ## Targets
 
+The bar is that Bluebird Forecast works the way a search engine does: you press the button, you get the answer, and you never think about whether it will work. So each target names something you do, the share of attempts that must succeed, and how long success may take, over a rolling 28 days. A run that succeeds after a minute of countdowns counts as a failure, because that is not what you asked for.
+
+| What you do | Succeeds | Within | Measured by |
+|---|---|---|---|
+| **Open the Site** - the map is up and you can draw | 99.95% of loads (about 20 minutes a month) | 3 s at the 95th percentile | An outside probe of the page, and the browser's own report of the map loading |
+| **Run an Analysis** - press Forecast and get a ranked table | 99.9% of runs that pass the button's checks (one in a thousand) | 8 s at the 95th percentile and 20 s at the 99th for up to 200 destinations over 3 days; 45 s at the 95th percentile at the cap (1,500 destinations, 16 days) | The browser's report of each run's outcome and duration |
+| **Open a Shared Link** - the link's analysis runs on open | The same as running an analysis | The same | The same report |
+| **Read the Overlays** - wildfires, closures, smoke, radar, snow | Not counted against the budget | Each layer says when it is unavailable or older than a day, rather than drawing nothing | The browser's report of each layer's failures |
+
+Two more targets are not percentages, because no amount of retrying meets them:
+
+- **No Outage of One Provider Stops an Analysis** - however long it lasts. Every dependency on the path from opening the site to a ranked table has a second source that does not fail with the first, so a provider that is down for a week costs you nothing but a slower fallback.
+- **Nothing Is Lost for Good** - the database can be put back from a backup within an hour, and nothing about the site needs one machine or one house to keep running.
+
+### How I Got These Numbers
+
+The pod already answers well inside them: no 5xx in 30 days and discovery at 0.41 s at the 99th percentile. A healthy 200-destination run takes 4 to 6 s (520 weighted calls, eight requests through four open requests, measured batches of 1.5 to 1.8 s). So the latency targets leave room for one fallback per run and nothing more. The cap's 45 s is what 60 requests take without the free tier's minute-by-minute pacing, which is what owning the weather service removes; on the free tier alone the same run takes 7 to 8 minutes of pacing by design.
+
+The 99.9% is one failed run in a thousand. Today one weather provider sits alone on that path, and in the 30 days before 2026-11-25 it was out for minutes at a time at least once, so the target cannot be met by retrying it harder. It can be met by having two.
+
+### The Error Budget
+
+A target with no consequence is a wish. So while a 28-day window has spent more than its budget, the next change to ship is a reliability fix, and new features wait. Each target's burn is an alert (see [Alerting](#alerting)), so nobody has to go looking.
+
 <hr>
 
 ## What Can Fail
@@ -124,6 +148,52 @@ Between 2026-09-25 and 2026-11-25 the release pipeline also failed 5 times in 13
 <hr>
 
 ## The Architecture
+
+The rule is short: **nothing on the path from opening the site to a ranked table depends on one thing.** Every dependency is either owned (it runs on our machines or its data is copied into our database) or paired with a second source that fails for different reasons. Bluebird Forecast already did this twice. The places table replaced Overpass for discovery (#760), and the snapshots in the database let the overlays ride out their providers for a day (record 0182). So this plan does the same for everything that is left.
+
+### Weather: Our Own Open-Meteo, Then Theirs
+
+Open-Meteo's server is open source, and every model it serves is published to a public bucket on AWS that anyone can read without an account. So we can run the same server, with the same model data, and it gives the same numbers. That answers the reason #934 gave for refusing a second provider: a different provider's numbers would disagree with the ones the table ranks on, but our copy of Open-Meteo's numbers cannot.
+
+The browser then asks two places for every batch:
+
+1. **Our mirror first**, published through the tunnel on its own hostname. It has no quota, so a large run is no longer paced for minutes.
+2. **Open-Meteo's public hosts** when the mirror does not answer quickly, fails, or is unreachable. If the first answer has not arrived within about 3 s (a healthy 50-location batch takes 1.5 to 1.8 s), the browser sends the same batch to the second source and takes whichever answers first. So a slow or dead source costs a few seconds, not a countdown.
+
+The two fail for different reasons. Our mirror fails when the house does, and Open-Meteo's hosts fail when theirs do, so both being down at once is rare. When the house is down the page still loads from Cloudflare's copy (below), and the browser goes straight to Open-Meteo.
+
+What it costs, measured on 2026-11-25 from the public bucket. The files a mirror must hold to serve the app's window (about 58 days back plus each model's reach ahead) come to roughly 350 GB for all eight models in the picker, plus about 2.5 GB for air quality and about 15 GB a year for the archive's surface fields. The three models most runs use (GFS with HRRR, ECMWF and ICON) are about 140 GB of that. These figures come from sizing four variables per model and scaling to the 25 the app asks for, so they could be off by half either way. The mirror syncs each model as it updates, every one to six hours, and Open-Meteo's server is AGPL, so the deployment links to its source.
+
+A third source is possible: Open-Meteo's paid API. A key cannot sit in the browser, but a small Cloudflare Worker could hold it and pass requests through, which keeps it off the house's connection too. It costs about $29 a month for a million calls. I'd hold it in reserve rather than build it, since the mirror and the public hosts already fail separately.
+
+### The Page: Served From Cloudflare's Copy
+
+Today Cloudflare keeps no copy of the page, so the house going offline shows its error page, even though the analysis itself runs in your browser. Two changes fix that:
+
+- **The page is cached at the edge** and served stale while the house is unreachable. The hashed assets already are. The page itself needs a cache rule in the Cloudflare zone and `stale-while-revalidate` on the page, so a visitor during an outage gets yesterday's copy, which is as good as today's. Cloudflare documents serving a cached copy when the origin answers 5xx or cannot be reached; that has to be tested before anyone relies on it.
+- **A service worker keeps the page for returning visitors**, with the last published limits and model list. So someone who has used the site once can open it with the house unplugged.
+
+### Finding Destinations Without the House
+
+The places table lives in the house. So while the house is down, a ring finds nothing even with the page and the weather working. There are two ways out, and they cost very differently:
+
+- **A Copy at the Edge** - publish the places table every week as a read-only file in Cloudflare R2 (1.24 million places at the 2026-10-20 fill; its size as a file is not measured yet), and let the browser read the part under a ring when the pod does not answer. Nothing new to run, and inside R2's free tier.
+- **A Second Site** - run the app and a standby copy of the database on a small rented server, with a second cloudflared on the same tunnel, so Cloudflare sends traffic there when the house is down. Full parity, at about $10 to $20 a month, and one more machine to look after.
+
+I'd start with the copy at the edge. It covers the house going away completely, and it needs nothing running.
+
+### The Database: Backups, and a Fill That Starts Itself
+
+There is no backup today. CloudNativePG can stream its write-ahead log and take a nightly base backup to object storage (R2 again), so a lost pool comes back in minutes rather than a planet rebuild. And when the planet fill finds the places table empty, it should start without waiting for Sunday.
+
+### Alerting
+
+Nothing tells anyone when Bluebird Forecast breaks, so every outage so far was found by someone using it. The targets above become alerts on how fast each budget burns, and one probe from outside the house checks the page and a real analysis every minute. Both go to a phone. This lives in the deployment, not in this repository, so it is listed under [What Waits on Other Repositories](#what-waits-on-other-repositories).
+
+### What Stays Out of This Plan
+
+- **A third weather source with different numbers.** #934 refused NWS, MET Norway and Pirate Weather for good reasons, and the mirror makes them unnecessary.
+- **Making the overlays critical.** They stay best effort. They just have to say when they are down.
 
 <hr>
 
