@@ -290,3 +290,89 @@ Ranked by how much failure each removes for the work it takes. The ones in this 
 ## What Waits on Other Repositories
 
 Each item in the second table above is drafted here and nowhere else, so nothing changes outside this repository until you have read it. When one is picked up, it moves to its own PR in its own repository and this list links to it.
+
+### bluebird-helm: What This PR Needs to Reach Production
+
+This PR adds a route and three environment variables, and the chart has to know about each one:
+
+- **The Report Route** - `ingress.publicApiPrefixes` gains `/api/reports`. Without it the gateway answers the browser's run reports with its own `404`, so the counters stay empty and nothing else breaks.
+- **The New Variables** - `extraEnv` declares `RATE_LIMIT_REPORTS_PER_MINUTE`, `RATE_LIMIT_REPORTS_BURST`, `OPEN_METEO_MIRRORS` and `SERVICE_WORKER`, each empty by default, so the app's own defaults hold until a value is set. `docs/CONFIGURATION.md` says what each one does.
+
+### bluebird-helm: A Fill That Starts Itself
+
+The planet fill already checks before it works: it exits within seconds when the table was filled under this release's rules, and fills only when the table is empty or the rules changed. The schedule is the only thing that makes an empty table wait for Sunday. The chart runs it weekly on purpose, because every run creates and deletes its scratch volume, so a check every hour would churn a volume every hour. Daily is the compromise I'd pick:
+
+```yaml
+fill:
+  schedule: "17 9 * * *"
+```
+
+That is one volume created and deleted a day, and a lost or new database is searched from Overpass for a day at most, plus the fill's own 82 minutes to the load. Faster than that needs the check apart from the fill: an init container that asks `osm_state` and exits before the scratch volume is mounted. That is a change to the chart's template, so it is drafted here and not built.
+
+### bluebird-helm: Database Backups
+
+CloudNativePG streams its write-ahead log and takes base backups to any S3-compatible bucket, and Cloudflare R2's free tier covers a database of this size. The shape, for the `database` subchart:
+
+```yaml
+database:
+  backups:
+    enabled: true
+    provider: s3
+    endpointURL: https://<account>.r2.cloudflarestorage.com
+    destinationPath: s3://bluebird-forecast-db/
+    s3:
+      accessKey: <from a Secret>
+      secretKey: <from a Secret>
+    scheduledBackups:
+      - name: nightly
+        schedule: "0 0 11 * * *"
+    retentionPolicy: "14d"
+```
+
+I am not certain of the exact keys: the `cluster` chart has moved between its built-in object store and the Barman Cloud plugin across releases, so check them against the chart version the subchart pins. Whichever it is, the restore is rehearsed once when it is set up and then every quarter, into a scratch cluster, and the time it took is written here.
+
+### Alerting: Burn-Rate Rules
+
+The browser's run reports (`bluebird_forecast_run_reports_total` and `bluebird_forecast_run_duration_seconds`, from this PR) are what the analysis target reads. Until the synthetic runs exist they are also the only signal, and at about 50 real runs a month they page on a handful of failures, so start these as tickets rather than pages. A failed or abandoned run counts against the budget, and a refused one counts as no run at all:
+
+```yaml
+groups:
+  - name: bluebird-forecast-slo
+    rules:
+      - record: bluebird_forecast:run_errors:ratio_rate1h
+        expr: |
+          sum(rate(bluebird_forecast_run_reports_total{kind="analysis",outcome=~"failed|abandoned"}[1h]))
+          /
+          sum(rate(bluebird_forecast_run_reports_total{kind="analysis",outcome!="refused"}[1h]))
+      - record: bluebird_forecast:run_errors:ratio_rate3d
+        expr: |
+          sum(rate(bluebird_forecast_run_reports_total{kind="analysis",outcome=~"failed|abandoned"}[3d]))
+          /
+          sum(rate(bluebird_forecast_run_reports_total{kind="analysis",outcome!="refused"}[3d]))
+      - alert: BluebirdForecastAnalysesFailingFast
+        # An hour at this rate spends the 28-day budget of 0.1% in two days.
+        expr: bluebird_forecast:run_errors:ratio_rate1h > (14 * 0.001)
+        for: 5m
+        labels: { severity: page }
+      - alert: BluebirdForecastAnalysesFailingSlowly
+        # Three days at this rate spend the budget within the 28 days.
+        expr: bluebird_forecast:run_errors:ratio_rate3d > 0.001
+        for: 1h
+        labels: { severity: ticket }
+      - alert: BluebirdForecastAnalysesSlow
+        # More than one typical run in twenty slower than 8 s, over a day.
+        expr: |
+          1 - (
+            sum(rate(bluebird_forecast_run_duration_seconds_bucket{kind="analysis",outcome="success",size="typical",le="8.0"}[1d]))
+            /
+            sum(rate(bluebird_forecast_run_duration_seconds_count{kind="analysis",outcome="success",size="typical"}[1d]))
+          ) > 0.05
+        for: 1h
+        labels: { severity: ticket }
+```
+
+These page only if the receiver reaches a phone, which today it does not, and Prometheus pages nobody when the house itself is down. That is the outside heartbeat's job: `Watchdog` pings a free heartbeat service every few minutes, and the service pages when the pings stop.
+
+### The Page on Static Hosting
+
+The release workflow already builds the page and its hashed assets inside the image. The change is a step after the scan that uploads the same `static/` directory to Cloudflare Pages, keeping the last few builds' `assets/` so a page loaded before a release still finds its files, with the `Content-Security-Policy` and the other headers `security_headers.py` builds written into a `_headers` file at build time, so the two hosts can never send different policies. The zone then sends every path but `/api/*` to Pages and `/api/*` through the tunnel. It needs a Pages project and an API token as a repository secret, which is why it is not in this PR. Until then, the service worker (record 0349) covers a returning visitor.
