@@ -112,7 +112,7 @@ describe('reportMapLoad', () => {
 })
 
 describe('sendReport', () => {
-  it('beacons the report, and falls back to a keepalive fetch where there is no beacon', () => {
+  it('beacons the report, and sends nothing where there is no beacon', () => {
     const report: RunReport = {
       kind: 'map',
       outcome: 'success',
@@ -128,7 +128,7 @@ describe('sendReport', () => {
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }))
     sendReport(report, {} as Navigator)
-    expect(fetchSpy).toHaveBeenCalledWith('/api/reports', expect.objectContaining({ method: 'POST', keepalive: true }))
+    expect(fetchSpy).not.toHaveBeenCalled()
     fetchSpy.mockRestore()
   })
 

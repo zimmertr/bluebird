@@ -114,7 +114,7 @@ describe('useAnalysisRun', () => {
     })
     expect(seen?.aborted).toBe(true)
     expect(result.current).toMatchObject({ error: null, refusal: null, statusMessage: null, loading: false })
-    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('cancel')
+    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('cancel', expect.anything())
   })
 
   // #560: the caller keeps its own bookkeeping off a run that changed nothing,

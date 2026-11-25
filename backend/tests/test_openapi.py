@@ -187,6 +187,7 @@ def test_every_request_body_refuses_fields_it_does_not_declare(schema):
         "CustomDestination",
         "DestinationsRequest",
         "GeoPolygon",
+        "RunReport",
         "SnowDepthRequest",
         "SnowPoint",
     ]

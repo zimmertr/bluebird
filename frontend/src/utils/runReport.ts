@@ -1,7 +1,7 @@
 import type { RunReport, RunReportStage } from '../types'
 import { isAbort } from './abort'
 import { AnalysisRefusalError } from './clientAnalyze'
-import { ApiUnreachable, apiFetch } from './apiFetch'
+import { ApiUnreachable } from './apiFetch'
 import {
   OpenMeteoBadBody,
   OpenMeteoHttpError,
@@ -20,20 +20,16 @@ export const REPORTS_URL = '/api/reports'
 
 /**
  * Send one report and forget it. `sendBeacon` is what survives a closing tab,
- * which is exactly when an abandoned run has to be counted; `fetch` with
- * `keepalive` covers a browser without it. Nothing a report does may reach the
- * reader, so every failure is swallowed.
+ * which is exactly when an abandoned run has to be counted, and every browser
+ * the app supports has it; one without it sends nothing rather than a `fetch`
+ * that a page's own requests (and a test's stubbed `fetch`) would count beside
+ * the work it reports on. Nothing a report does may reach the reader, so every
+ * failure is swallowed.
  */
 export function sendReport(report: RunReport, nav: Navigator | undefined = globalThis.navigator): void {
   try {
     const body = JSON.stringify(report)
-    if (nav?.sendBeacon?.(REPORTS_URL, new Blob([body], { type: 'application/json' }))) return
-    void apiFetch(REPORTS_URL, {
-      method: 'POST',
-      body,
-      headers: { 'Content-Type': 'application/json' },
-      keepalive: true,
-    }).catch(() => undefined)
+    nav?.sendBeacon?.(REPORTS_URL, new Blob([body], { type: 'application/json' }))
   } catch {
     // A report is never worth an error the reader sees.
   }
