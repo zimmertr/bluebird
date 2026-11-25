@@ -29,9 +29,20 @@ export function watchBasemap(
     onFailed: (failed: boolean) => void
     /** Where the browser's `online` is heard; the window when absent. */
     online?: EventTarget | null
+    /**
+     * The first load or the first failure, whichever comes first, told once:
+     * the map loading is one of the reliability targets (record 0339).
+     */
+    onFirstOutcome?: (ok: boolean) => void
   },
 ): BasemapWatch {
   let styleLoaded = false
+  let told = false
+  const tell = (ok: boolean) => {
+    if (told) return
+    told = true
+    deps.onFirstOutcome?.(ok)
+  }
   const reload = () => {
     // The failed style is dropped before the reload is asked for, because
     // MapLibre holds a `transformStyle` reload until the style it replaces
@@ -45,11 +56,13 @@ export function watchBasemap(
   const recovery = overlayRecovery(reload, { online: deps.online })
   map.on('style.load', () => {
     styleLoaded = true
+    tell(true)
     recovery.succeeded()
     deps.onFailed(false)
   })
   map.on('error', (event) => {
     if (!isStyleFailure(event as { sourceId?: unknown }, styleLoaded)) return
+    tell(false)
     recovery.failed(null)
     deps.onFailed(true)
   })

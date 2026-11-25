@@ -642,6 +642,7 @@ ALLOWED_LABEL_NAMES = {
     "mirror", "service", "outcome", "scope", "quota", "path",  # suppliers
     "reason", "bucket", "provider", "mechanism",  # degradation and pacing
     "cache",                               # caches
+    "kind", "stage", "source", "size", "model",  # the browser's run reports
     "version", "commit",                   # build info
     "le",                                  # histogram bucket bound
 }

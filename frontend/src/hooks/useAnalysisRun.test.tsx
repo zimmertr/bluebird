@@ -49,7 +49,7 @@ describe('useAnalysisRun', () => {
     const h = hooks()
     await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), h))
     expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
-    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('error')
+    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('error', expect.any(Error))
     expect(h.onSettled).toHaveBeenCalledOnce()
   })
 
@@ -72,7 +72,7 @@ describe('useAnalysisRun', () => {
     await act(() => result.current.run('s', async () => Promise.reject(new AnalysisRefusalError('Too many.')), h))
     expect(result.current.refusal).toEqual({ message: 'Too many.' })
     expect(result.current.error).toBeNull()
-    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('refusal')
+    expect(h.onFailure).toHaveBeenCalledExactlyOnceWith('refusal', expect.any(Error))
   })
 
   // #803: the message list opens on a failure, keyed on this count. Each

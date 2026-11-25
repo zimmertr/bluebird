@@ -77,6 +77,27 @@ HTTP_DURATION = Histogram(
     buckets=_HTTP_BUCKETS,
 )
 
+# ── What the browser reports ─────────────────────────────────────────────────
+
+# An analysis runs in the reader's browser, against Open-Meteo, so the pod
+# never sees it fail: these count what the browser says happened to each run
+# and each map load (record 0339). Every label is a closed set the route
+# validates, so a report can widen no series. `size` buckets the destination
+# count at the targets' own edges (200 is the typical-run target, 1,500 the
+# cap), and the buckets reach 300 s because the slow tail is the point.
+RUN_REPORTS = Counter(
+    "bluebird_forecast_run_reports_total",
+    "Runs and map loads the browser reported, by kind, outcome, failing stage and source, size, and model.",
+    ["kind", "outcome", "stage", "source", "size", "model"],
+)
+RUN_DURATION = Histogram(
+    "bluebird_forecast_run_duration_seconds",
+    "How long a reported run or map load took in the browser, by kind, outcome and size.",
+    ["kind", "outcome", "size"],
+    buckets=(1.0, 2.0, 4.0, 8.0, 15.0, 20.0, 30.0, 45.0, 60.0, 90.0, 120.0, 300.0),
+)
+
+
 # The requests a canary serves while the error-rate gate watches it
 # (Kubernetes-Manifests `public/bluebird/resources/analysisTemplate-*.yml`
 # and the chart's probes): the kubelet's `/healthz`, the version check, and

@@ -283,6 +283,7 @@ def _rate_limiting_off(monkeypatch):
     monkeypatch.setattr(ratelimit.client, "CLOSURES_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit.client, "LANDMARKS_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit.client, "FIRE_ACTIVITY_LIMITER", ratelimit.RateLimiter(0, 1))
+    monkeypatch.setattr(ratelimit.client, "REPORTS_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(
         ratelimit,
         "NOMINATIM_GATE",

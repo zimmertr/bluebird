@@ -15,6 +15,7 @@ import { discoveryKeys } from '../utils/present'
 import { fieldKey } from '../utils/destinationCount'
 import type { ForecastModelOption } from './useCapabilities'
 import { useAnalysisRun } from './useAnalysisRun'
+import { trackRun } from '../utils/runReport'
 import { useAnalysisReport } from './useAnalysisReport'
 import type { AnalyzeOptions } from './analyzeTypes'
 
@@ -186,6 +187,8 @@ export function useAnalyze(
     // its elevation lookup runs beside them (#643). Either gives way to the
     // counted retrieval label once the field is announced.
     const seed = request.polygon ? SEARCHING_MESSAGE : RETRIEVING_MESSAGE
+    // One report of how this run ends, for the reliability targets (record 0339).
+    const tracker = trackRun({ model: request.forecast_model, discovers: Boolean(request.polygon) })
     // No server fallback (#240). An OpenMeteoUnreachable used to reroute the
     // whole analysis through POST /api/analyze/stream on the pod's shared
     // quota: a public quota-amplification surface no ordinary visitor ever
@@ -206,6 +209,7 @@ export function useAnalyze(
           hourlyCalls,
           compareModels,
           onDiscovered: (field) => {
+            tracker.discovered(field.candidates.length)
             run.announce(field.candidates.length)
             report.publishCandidates(field.candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))
             // A run with no polygon has no field to hold: its rows are the
@@ -221,6 +225,7 @@ export function useAnalyze(
         report.commit(out.response, out.field, view(), out.pending)
         const aqiFailed = out.held.aqiFailed?.size ?? 0
         setAqiPartial(aqiFailed > 0 && aqiFailed < out.field.length)
+        tracker.finished(out.field.length, aqiFailed > 0 ? 'air_quality' : null)
         holdFound(null)
         // In the same render as the commit, so the report never shows a
         // frame under the bookkeeping of the one before it, and inside the
@@ -258,7 +263,8 @@ export function useAnalyze(
         )
       },
       {
-        onFailure: (kind) => {
+        onFailure: (kind, error) => {
+          tracker.failed(error)
           report.discard()
           setFailedView(view())
           // A cancel changes nothing, so the field goes with the run (#560).

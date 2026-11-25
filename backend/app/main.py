@@ -45,6 +45,7 @@ from app.routes.geocode import router as geocode_router
 from app.routes.landmarks import router as landmarks_router
 from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
 from app.routes.notfound import router as notfound_router
+from app.routes.reports import router as reports_router
 from app.routes.smoke import router as smoke_router
 from app.routes.snow_depth import router as snow_depth_router
 from app.routes.version import router as version_router
@@ -481,6 +482,7 @@ app.include_router(closures_router, prefix="/api")
 app.include_router(landmarks_router, prefix="/api")
 app.include_router(snow_depth_router, prefix="/api")
 app.include_router(fire_activity_router, prefix="/api")
+app.include_router(reports_router, prefix="/api")
 # Must stay last of the /api routers: it matches every path under the prefix, so
 # anything registered after it would be unreachable.
 app.include_router(notfound_router, prefix="/api")

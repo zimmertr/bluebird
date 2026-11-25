@@ -2021,6 +2021,16 @@
             "title": "Landmarks Per Minute",
             "type": "integer"
           },
+          "reports_burst": {
+            "description": "How many reports an idle client can send back-to-back before the per-minute pace applies.",
+            "title": "Reports Burst",
+            "type": "integer"
+          },
+          "reports_per_minute": {
+            "description": "Sustained `POST /api/reports` requests per client address per minute. The app sends one per run and one per map load, and a report reaches nothing but a counter. 0 means the limit is disabled.",
+            "title": "Reports Per Minute",
+            "type": "integer"
+          },
           "smoke_burst": {
             "description": "How many smoke requests an idle client can send back-to-back before the per-minute pace applies.",
             "title": "Smoke Burst",
@@ -2070,9 +2080,116 @@
           "snow_depth_per_minute",
           "snow_depth_burst",
           "fire_activity_per_minute",
-          "fire_activity_burst"
+          "fire_activity_burst",
+          "reports_per_minute",
+          "reports_burst"
         ],
         "title": "RateLimits",
+        "type": "object"
+      },
+      "RunReport": {
+        "additionalProperties": false,
+        "properties": {
+          "destinations": {
+            "anyOf": [
+              {
+                "maximum": 1500.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many destinations the analysis forecast. Counted only as typical (up to 200) or large.",
+            "title": "Destinations"
+          },
+          "duration_ms": {
+            "description": "Milliseconds from the press, or the page's start, to the end.",
+            "maximum": 3600000.0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "kind": {
+            "description": "What is reported: one analysis, from the press to a table or a failure, or one load of the map.",
+            "enum": [
+              "analysis",
+              "map"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The forecast model the analysis asked for."
+          },
+          "outcome": {
+            "description": "How it ended. `degraded` is a table with a column the run could not fill; `refused` a run stopped before it spent anything; `abandoned` a run whose page closed while it was still going.",
+            "enum": [
+              "success",
+              "degraded",
+              "failed",
+              "refused",
+              "cancelled",
+              "abandoned"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pod",
+                  "open-meteo",
+                  "mirror",
+                  "basemap",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who answered the failing request, when one did.",
+            "title": "Source"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "enum": [
+                  "discovery",
+                  "weather",
+                  "air_quality",
+                  "snow",
+                  "basemap",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The part that failed or degraded it, when one did.",
+            "title": "Stage"
+          }
+        },
+        "required": [
+          "kind",
+          "outcome",
+          "duration_ms"
+        ],
+        "title": "RunReport",
         "type": "object"
       },
       "SmokeCollection": {
@@ -3090,6 +3207,51 @@
         "summary": "Named trailheads and crags in a bounding box",
         "tags": [
           "landmarks"
+        ]
+      }
+    },
+    "/api/reports": {
+      "post": {
+        "description": "The web app sends one report per analysis and one per map load, so this instance can count how often each succeeds and how long it takes, which it cannot see itself because the analysis runs in the browser. A report carries no coordinates and nothing that identifies the reader. Nothing is stored but counters.",
+        "operationId": "report_api_reports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Counted."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A field was missing, unknown or out of range."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is reporting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          }
+        },
+        "summary": "Report how a run or a map load ended",
+        "tags": [
+          "metadata"
         ]
       }
     },

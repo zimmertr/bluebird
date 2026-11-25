@@ -253,7 +253,7 @@ Ranked by how much failure each removes for the work it takes. The ones in this 
 
 | # | Mitigation | What it removes |
 |---|---|---|
-| 1 | **Report Every Run** - one beacon per run, page load and uncaught error to a new pod route (outcome, duration, the stage and source that failed, destination count, window length, model, cancelled or not; no coordinates), counted in Prometheus | Nothing by itself, but no target can be held or checked without it |
+| 1 | **Report Every Run** (built) - one beacon per run, page load and uncaught error to a new pod route (outcome, duration, the stage and source that failed, destination count, window length, model, cancelled or not; no coordinates), counted in Prometheus | Nothing by itself, but no target can be held or checked without it |
 | 2 | **Weather Sources as a List** - published by `/api/capabilities`, with today's Open-Meteo hosts as the only entry until a mirror exists, a hedged request, a circuit breaker per source, and pacing only for sources with a quota | The single source; makes a mirror configuration, not a release |
 | 3 | **Retries That Are Bounded** - a 5xx or a dropped connection retried once at once, then failed over; one time budget per run in place of 160 s per batch | One `502` in 60 batches failing a run; minutes of countdowns |
 | 4 | **Never Hold a Finished Table** - snow depth given 3 s and filled in late, air quality stopped on its first timeout, `/api/capabilities` given 5 s, one retry and a last good copy | Up to 110 s held after the forecasts land; a session stuck on one model |

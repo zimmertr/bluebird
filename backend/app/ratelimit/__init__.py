@@ -75,6 +75,7 @@ from app.ratelimit.client import (
     fire_activity_rate_limit,
     geocode_rate_limit,
     landmarks_rate_limit,
+    reports_rate_limit,
     smoke_rate_limit,
     snow_depth_rate_limit,
     wildfires_rate_limit,
@@ -155,5 +156,6 @@ __all__ = [
     "closures_rate_limit",
     "landmarks_rate_limit",
     "snow_depth_rate_limit",
+    "reports_rate_limit",
     "fire_activity_rate_limit",
 ]
