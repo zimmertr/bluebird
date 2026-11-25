@@ -9,6 +9,7 @@ import {
   type PipelineOptions,
 } from './analysisPipeline'
 import { AnalysisRefusalError, runClientAnalysis } from './clientAnalyze'
+import { API_UNREACHABLE_MESSAGE } from './apiFetch'
 import { FALLBACK_WINDOW_LIMITS, HOUR_MS } from './forecastWindow'
 import { FORECAST_REUSE_MS, type HeldForecasts } from './forecastReuse'
 import { geoKey } from './points'
@@ -106,12 +107,27 @@ describe('readErrorBody', () => {
   })
 
   // A body the pod did not write says nothing; the reader still gets one of
-  // the pod's own sentences rather than "HTTP 502" (#579).
-  it('says the map service is unavailable for a 502 or 504 with nothing in it', async () => {
-    expect((await readErrorBody(fakeResponse({ raw: 'not json' }, 502))).message).toBe(
+  // the pod's own sentences rather than "HTTP 504" (#579).
+  it('says the map service is unavailable for a 504 with nothing in it', async () => {
+    expect((await readErrorBody(fakeResponse({ raw: '<html>' }, 504))).message).toBe(
       'OpenStreetMap is not available. Try again later.',
     )
-    expect((await readErrorBody(fakeResponse({ raw: '<html>' }, 504))).message).toBe(DISCOVERY_UNAVAILABLE_MESSAGE)
+  })
+
+  // Record 0343: a 502 or a 530 the edge wrote is the pod not answering,
+  // which is not OpenStreetMap's doing.
+  it('says Bluebird Forecast is offline for a 502 or 530 the pod did not write', async () => {
+    expect((await readErrorBody(fakeResponse({ raw: 'not json' }, 502))).message).toBe(
+      'Bluebird Forecast is offline. Try again later.',
+    )
+    expect((await readErrorBody(fakeResponse({ raw: '<html>error code: 1033</html>' }, 530))).message).toBe(
+      API_UNREACHABLE_MESSAGE,
+    )
+  })
+
+  it('keeps the pod\'s own sentence on a 502 it wrote', async () => {
+    const own = { detail: DISCOVERY_UNAVAILABLE_MESSAGE, error: { code: 'upstream_unavailable', retryable: true } }
+    expect((await readErrorBody(fakeResponse(own, 502))).message).toBe(DISCOVERY_UNAVAILABLE_MESSAGE)
   })
 
   it('says something went wrong for any other status with nothing in it', async () => {
@@ -221,11 +237,20 @@ describe('a polygon run', () => {
   // A ring the pod could not answer has no field to rank, so the run fails
   // whole, the reader's own list with it.
   it('fails when the pod cannot discover', async () => {
-    stubDestinations({ detail: DISCOVERY_UNAVAILABLE_MESSAGE }, 502)
+    stubDestinations({ detail: DISCOVERY_UNAVAILABLE_MESSAGE, error: { code: 'upstream_unavailable', retryable: true } }, 502)
     await expect(
       runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'], custom_destinations: [MINE] }, options()),
     ).rejects.toThrow(DISCOVERY_UNAVAILABLE_MESSAGE)
     expect(ranked).not.toHaveBeenCalled()
+    // The pod wrote it, so it is not asked again.
+    expect(posted).toHaveLength(1)
+  })
+
+  // Record 0343: Cloudflare answering for a pod that is down.
+  it('says Bluebird Forecast is offline when the edge answers for the pod, after asking twice', async () => {
+    stubDestinations({ raw: '<html>error code: 1033</html>' }, 530)
+    await expect(runAnalysisPipeline(REQUEST, options())).rejects.toThrow(API_UNREACHABLE_MESSAGE)
+    expect(posted).toHaveLength(2)
   })
 })
 

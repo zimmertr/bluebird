@@ -4,8 +4,11 @@ import {
   API_DEADLINE_MS,
   API_UNREACHABLE_MESSAGE,
   ApiUnreachable,
+  DISCOVERY_DEADLINE_MS,
   apiFetch,
   apiJson,
+  discoverDestinations,
+  isOwnError,
   overlayFeatures,
   postDestinations,
   type OverlayFailure,
@@ -202,5 +205,85 @@ describe('postDestinations', () => {
     const signal = (spy.mock.calls[0][1] as RequestInit).signal as AbortSignal
     controller.abort()
     expect(signal.aborted).toBe(true)
+  })
+})
+
+// Record 0343: a ring's discovery gives up at fifteen seconds rather than 110,
+// and asks once more when the pod never answered.
+describe('discoverDestinations', () => {
+  const body: DestinationsRequest = { destination_types: ['peak'] }
+  // The pod's own failure, as `error_codes.py` writes every one.
+  const own = { detail: 'OpenStreetMap is not available. Try again later.', error: { code: 'upstream_unavailable', retryable: true } }
+  // A turn of the real event loop, held before any test fakes the timers.
+  const realTimeout = globalThis.setTimeout
+  const flush = () => new Promise((resolve) => realTimeout(resolve, 0))
+
+  it('gives each ask fifteen seconds, and asks once more', async () => {
+    vi.useFakeTimers()
+    const spy = hangingFetch()
+    const pending = discoverDestinations(body).catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(DISCOVERY_DEADLINE_MS - 1)
+    await flush()
+    expect(spy).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await flush()
+    expect(spy).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(DISCOVERY_DEADLINE_MS)
+    expect(await pending).toBeInstanceOf(ApiUnreachable)
+    expect(spy).toHaveBeenCalledTimes(2)
+    expect(DISCOVERY_DEADLINE_MS).toBe(15_000)
+  })
+
+  it('asks once more after a dropped connection, and takes the second answer', async () => {
+    let asked = 0
+    const spy = stubFetch(() =>
+      ++asked === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(fakeResponse({ destinations: [] })),
+    )
+    const res = await discoverDestinations(body)
+    expect(res.ok).toBe(true)
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([502, 503, 504, 530])('asks once more after the edge answers %i for the pod', async (status) => {
+    let asked = 0
+    const spy = stubFetch(() =>
+      Promise.resolve(++asked === 1 ? fakeResponse({ raw: '<html>error code: 1033</html>' }, status) : fakeResponse({ destinations: [] })),
+    )
+    const res = await discoverDestinations(body)
+    expect(res.ok).toBe(true)
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps an answer the pod wrote itself, whatever its status', async () => {
+    const spy = stubFetch(() => Promise.resolve(fakeResponse(own, 502)))
+    const res = await discoverDestinations(body)
+    expect(res.status).toBe(502)
+    expect((await res.json()).detail).toBe(own.detail)
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks no more than twice', async () => {
+    const spy = stubFetch(() => Promise.resolve(fakeResponse({ raw: '<html>' }, 530)))
+    expect((await discoverDestinations(body)).status).toBe(530)
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks nothing more after a cancel', async () => {
+    const spy = hangingFetch()
+    const controller = new AbortController()
+    const pending = discoverDestinations(body, controller.signal).catch((e: unknown) => e)
+    controller.abort()
+    expect((await pending as Error).name).toBe('AbortError')
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('isOwnError', () => {
+  it('knows the pod\'s error object from anything else', () => {
+    expect(isOwnError({ detail: 'x', error: { code: 'busy', retryable: true } })).toBe(true)
+    expect(isOwnError({ detail: 'x' })).toBe(false)
+    expect(isOwnError({ error: 'bad gateway' })).toBe(false)
+    expect(isOwnError({ error: { code: 1033 } })).toBe(false)
+    expect(isOwnError(null)).toBe(false)
   })
 })

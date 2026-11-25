@@ -48,6 +48,15 @@ flowchart LR
   (autoscaled between 3 and 10 replicas; the canary adds one pod through its
   analysis steps and a full set at promotion).
 
+When the pod or the tunnel is down, Cloudflare answers for it, with a `502`
+or a `530` and a page of its own rather than the app's JSON `error` object. So
+the browser reads a `502` or `530` without that object as Bluebird Forecast
+being offline, and asks a ring's `POST /api/destinations` once more after it,
+or after 15 seconds with no answer at all, before it gives up. However, a
+`502` the pod wrote itself keeps its own sentence and is not asked again,
+because the pod has already tried both of its sources behind it. Record:
+[0343](architectural-decision-records/0343-discovery-fifteen-seconds-and-one-retry.md)
+
 There is deliberately **no Envoy/Istio rate limiting layer**. Istio still has
 no first-class rate-limit API; the mechanism is a raw `EnvoyFilter` wrapping
 `envoy.filters.http.local_ratelimit`, which is per-pod (same imprecision as

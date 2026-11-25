@@ -13,7 +13,7 @@ import type { LatePatch } from './clientAnalyze'
 import type { LateSnow } from './snowHistory'
 import { type IdentityMap, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
 import type { ElevationLookup } from '../hooks/useElevationLookup'
-import { postDestinations } from './apiFetch'
+import { API_UNREACHABLE_MESSAGE, discoverDestinations, isOwnError } from './apiFetch'
 import { resolveWindow, windowSource, type WindowLimits } from './forecastWindow'
 import { comparedInPlay } from './model/modelSelection'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
@@ -40,10 +40,10 @@ import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecast
 /**
  * What a discovery failure with no readable body says (#579, approved by the
  * maintainer 2026-10-01). The pod always answers with a `detail`, so a reply
- * without one was replaced on its way here: an edge proxy swaps the pod's
- * discovery 502 for a page of its own, and a 504 is a proxy's by definition
- * (docs/API.md). Both are the map service not answering, so they say so in
- * the pod's own sentence for it. Anything else is a failure nobody described,
+ * without one was replaced on its way here. A 504 is a proxy's by definition
+ * (docs/API.md), so it says the map service is not answering in the pod's own
+ * sentence for it; a 502 or a 530 the pod did not write reads as the pod
+ * itself being unreachable (`readErrorBody`, record 0343). Anything else is a failure nobody described,
  * in the pod's sentence for that. A bare "HTTP 502" was the reader's only
  * account before, against the copy rules in docs/STYLES.md.
  */
@@ -67,6 +67,12 @@ export async function readErrorBody(res: Response): Promise<{ message: string; r
             .join('; ')
         : ''
   const refusal = body.found != null ? body : null
+  // A 502 or a 530 the pod did not write is the edge saying the pod itself is
+  // not answering (record 0343), which is Bluebird Forecast being offline and
+  // not OpenStreetMap. The pod's own 502 says what it says.
+  if ((res.status === 502 || res.status === 530) && !isOwnError(body)) {
+    return { message: API_UNREACHABLE_MESSAGE, refusal: null }
+  }
   const fallback =
     res.status === 502 || res.status === 504 ? DISCOVERY_UNAVAILABLE_MESSAGE : UNDESCRIBED_FAILURE_MESSAGE
   return { message: message || fallback, refusal }
@@ -115,7 +121,7 @@ export async function discoverCandidates(
       ? { custom_destinations: withLearnedElevation(customList, known), elevation_lookup: false }
       : {}),
   }
-  const discovered = await discoveryAnswer(await postDestinations(discoveryRequest, signal))
+  const discovered = await discoveryAnswer(await discoverDestinations(discoveryRequest, signal))
   return {
     candidates: withIdentity(discovered.destinations, known),
     totalFound: discovered.total_found ?? null,
