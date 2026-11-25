@@ -51,10 +51,22 @@ describe('useCapabilities', () => {
   it.each([
     ['a rejected fetch', () => Promise.reject(new TypeError('Failed to fetch'))],
     ['a 500', () => Promise.resolve(fakeResponse({ detail: 'boom' }, 500))],
-  ])('settles on the fallback after %s', async (_name, answer) => {
-    const { result } = setup(answer)
+  ])('settles on the fallback after %s, asked twice', async (_name, answer) => {
+    const { result, signals } = setup(answer)
     await waitFor(() => expect(result.current.settled).toBe(true))
     expect(result.current).toEqual({ ...FALLBACK, settled: true })
+    expect(signals).toHaveLength(2)
+  })
+
+  // Record 0342: one failure no longer strands the session on the stand-ins.
+  it('asks once more after a failure, and takes the second answer', async () => {
+    let asked = 0
+    const { result, signals } = setup(() =>
+      ++asked === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(fakeResponse({ limits: { max_limit: 800 } })),
+    )
+    await waitFor(() => expect(result.current.settled).toBe(true))
+    expect(result.current.maxLimit).toBe(800)
+    expect(signals).toHaveLength(2)
   })
 
   // The stub rejects on its signal the way fetch does, so the hook's catch

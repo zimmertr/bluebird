@@ -68,8 +68,16 @@ export const API_DEADLINE_MS = 110_000
  * a controller of its own rather than `AbortSignal.timeout` composed with the
  * caller's signal, because that composition cannot be undone once the
  * response has started.
+ *
+ * `deadlineMs` is `API_DEADLINE_MS` unless the caller has a shorter promise
+ * to keep: a call the page waits on before it can do anything (capabilities)
+ * gives up sooner and asks once more (record 0342).
  */
-export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+export async function apiFetch(
+  path: string,
+  init?: RequestInit,
+  deadlineMs: number = API_DEADLINE_MS,
+): Promise<Response> {
   const controller = new AbortController()
   const caller = init?.signal ?? null
   const forward = () => controller.abort(caller?.reason)
@@ -77,7 +85,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   else caller?.addEventListener('abort', forward, { once: true })
   const deadline = setTimeout(
     () => controller.abort(new DOMException('No answer from the API.', 'TimeoutError')),
-    API_DEADLINE_MS,
+    deadlineMs,
   )
   try {
     return await fetch(path, { ...init, signal: controller.signal })
@@ -145,8 +153,8 @@ export type OverlayFailure = Error & { rateLimited?: boolean; retryAfterS?: numb
  * caller of this shows it: both swallow their failure and fall back. A caller
  * that has to *read* a status uses `apiFetch` and keeps its own handling.
  */
-export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await apiFetch(path, init)
+export async function apiJson<T>(path: string, init?: RequestInit, deadlineMs?: number): Promise<T> {
+  const res = await apiFetch(path, init, deadlineMs)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return (await res.json()) as T
 }
