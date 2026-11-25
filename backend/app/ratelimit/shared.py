@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from collections.abc import Awaitable, Callable
 
 import psycopg
@@ -36,13 +35,12 @@ log = logging.getLogger("bluebird_forecast.ratelimit")
 # is what a slow database can add to a request, and a check measured at around
 # a millisecond has no business near it.
 TIMEOUT_S = 0.5
-# How long the guards leave the database alone after a call it could not
-# answer. Without it, an outage would add the pool's wait to every request
-# while the database restarts, where with it one request in this window pays
-# and the rest count per pod straight away.
-PAUSE_S = 30.0
 
-_paused_until = 0.0
+# The guards' own pause, on the mechanism every reader's pause uses
+# (`db.BREAKER`), tripped by any failure of a guard's call. Apart from that
+# one because a database too slow for this bound still answers a search in
+# time, and a guard's half second must not send discovery to Overpass.
+_PAUSE = db.Breaker(db.PAUSE_S)
 
 
 def usable() -> bool:
@@ -52,13 +50,12 @@ def usable() -> bool:
     counts to itself: its login cannot write them, and a preview's traffic is
     not production's to spend.
     """
-    return db.writable() and time.monotonic() >= _paused_until
+    return db.writable() and not _PAUSE.skipping()
 
 
 def reset() -> None:
     """Forget a pause (tests)."""
-    global _paused_until
-    _paused_until = 0.0
+    _PAUSE.reset()
 
 
 async def run[T](what: str, op: Callable[[AsyncConnection], Awaitable[T]]) -> T:
@@ -67,21 +64,22 @@ async def run[T](what: str, op: Callable[[AsyncConnection], Awaitable[T]]) -> T:
     Every way the database can fail a guard, including a statement error and
     the time bound above, comes out as the one exception the caller falls back
     on, so a guard can never turn a database problem into a 500. The first
-    failure pauses the shared path for every guard on this pod.
+    failure pauses the shared path for every guard on this pod, and once the
+    pause has passed one guard's call tries the database again.
     """
-    global _paused_until
-    try:
-        async with asyncio.timeout(TIMEOUT_S), db.connection() as conn:
-            return await op(conn)
-    except (db.DatabaseUnavailable, psycopg.Error, TimeoutError) as exc:
-        _paused_until = time.monotonic() + PAUSE_S
-        log.warning(
-            "event=shared_cache_fallback what=%s error=%s pause_s=%.0f",
-            what,
-            log_reason(exc, deadline_s=TIMEOUT_S),
-            PAUSE_S,
-        )
-        raise db.DatabaseUnavailable(str(exc)) from exc
+    async with _PAUSE.call():
+        try:
+            async with asyncio.timeout(TIMEOUT_S), db.connection() as conn:
+                return await op(conn)
+        except (db.DatabaseUnavailable, psycopg.Error, TimeoutError) as exc:
+            _PAUSE.trip()
+            log.warning(
+                "event=shared_cache_fallback what=%s error=%s pause_s=%.0f",
+                what,
+                log_reason(exc, deadline_s=TIMEOUT_S),
+                _PAUSE.pause_s,
+            )
+            raise db.DatabaseUnavailable(str(exc)) from exc
 
 
 # ── Housekeeping ──────────────────────────────────────────────────────────────

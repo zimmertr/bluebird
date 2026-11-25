@@ -310,7 +310,7 @@ def _no_live_enrichment(monkeypatch):
     async def passthrough(destinations):
         return [dict(d) for d in destinations]
 
-    async def passthrough_reporting(destinations):
+    async def passthrough_reporting(destinations, **_kwargs):
         return [dict(d) for d in destinations], True
 
     monkeypatch.setattr(osm, "enrich_custom", passthrough)
@@ -410,6 +410,15 @@ def _mirror_health_clear():
     osm.mirrors.reset_mirror_health()
     yield
     osm.mirrors.reset_mirror_health()
+
+
+@pytest.fixture(autouse=True)
+def _database_pause_clear():
+    # The shared cache's pause outlives a call, so one test's failed call
+    # would otherwise skip the database for the next test.
+    db.BREAKER.reset()
+    yield
+    db.BREAKER.reset()
 
 
 # ── The shared cache (#760) ─────────────────────────────────────────────────

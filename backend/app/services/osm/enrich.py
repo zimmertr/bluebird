@@ -73,7 +73,7 @@ CUSTOM_ENRICH_CHUNK = 500
 ENRICH_DEADLINE_S = 24.0
 
 
-def _attempt_timeout_s() -> float:
+def _attempt_timeout_s(budget_s: float | None = None) -> float:
     """Each mirror's slice of the lookup's deadline: equal shares, one per mirror.
 
     The deadline is shorter than one mirror's own 25 s timeout, so without a
@@ -91,8 +91,12 @@ def _attempt_timeout_s() -> float:
     the ceiling around the whole chain: a wait for a mirror's slot is outside
     any slice, and the last attempt usually ends on the ceiling rather than on
     its own slice.
+
+    ``budget_s`` stands in for the deadline when the caller has less time
+    than it left (the destinations route's one deadline), so the backup is
+    still asked inside what is left.
     """
-    return ENRICH_DEADLINE_S / len(mirrors.OVERPASS_MIRRORS)
+    return (ENRICH_DEADLINE_S if budget_s is None else budget_s) / len(mirrors.OVERPASS_MIRRORS)
 
 _EARTH_RADIUS_M = 6_371_000.0
 
@@ -165,12 +169,24 @@ def _matches(
     return matches
 
 
-async def _lookup_peaks(points: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+async def _lookup_peaks(
+    points: list[dict[str, Any]], *, deadline: float | None = None
+) -> dict[str, dict[str, Any]]:
     """Each point's summit, asked of Overpass.
 
     Keyed by the point's own coordinate key, so a caller looks its answer up
-    by where it asked rather than by position in a list.
+    by where it asked rather than by position in a list. ``deadline``, on the
+    loop's clock, ends the whole lookup with TimeoutError, every chunk
+    included.
     """
+    async with asyncio.timeout_at(deadline):
+        return await _lookup_chunks(points, deadline)
+
+
+async def _lookup_chunks(
+    points: list[dict[str, Any]], deadline: float | None
+) -> dict[str, dict[str, Any]]:
+    loop = asyncio.get_running_loop()
     matches: dict[str, dict[str, Any]] = {}
     for start in range(0, len(points), CUSTOM_ENRICH_CHUNK):
         chunk = points[start : start + CUSTOM_ENRICH_CHUNK]
@@ -187,9 +203,10 @@ async def _lookup_peaks(points: list[dict[str, Any]]) -> dict[str, dict[str, Any
         log.trace("Overpass enrichment query:\n%s", query)  # type: ignore[attr-defined]
         # Per request rather than per list: the measurement behind the deadline
         # is how long one query takes, and a list long enough to split is rare.
+        budget = None if deadline is None else min(ENRICH_DEADLINE_S, deadline - loop.time())
         async with asyncio.timeout(ENRICH_DEADLINE_S):
             data = await mirrors._post_with_fallback(
-                query, path="enrichment", attempt_timeout_s=_attempt_timeout_s()
+                query, path="enrichment", attempt_timeout_s=_attempt_timeout_s(budget)
             )
 
         # Overpass returns the union of every around clause, deduplicated, so
@@ -230,6 +247,8 @@ async def enrich_custom(destinations: list[dict[str, Any]]) -> list[dict[str, An
 
 async def enrich_custom_reporting(
     destinations: list[dict[str, Any]],
+    *,
+    deadline: float | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     """`enrich_custom`, and whether the lookup finished.
 
@@ -239,10 +258,19 @@ async def enrich_custom_reporting(
     True when every row sent without an elevation was looked up, matched or
     not, and False when the lookup gave up or failed and those rows came back
     as sent.
+
+    ``deadline``, on the loop's clock, is when the caller stops waiting, as
+    well as `ENRICH_DEADLINE_S`: a lookup with no time left is not started,
+    and one the deadline cuts gives up the same quiet way.
     """
     pending = [d for d in destinations if d.get("elevation_ft") is None]
     if not pending:
         return [dict(d) for d in destinations], True
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    if deadline is not None and started >= deadline:
+        log.warning("Custom destination elevation lookup skipped: discovery used the deadline")
+        return [dict(d) for d in destinations], False
 
     cache_key = cache.custom_enrich_key(
         [(d["latitude"], d["longitude"], _normal_name(d.get("name"))) for d in pending]
@@ -260,7 +288,7 @@ async def enrich_custom_reporting(
     if matches is None:
         log.info("Resolving elevation for %d custom destination(s) via OSM", len(pending))
         try:
-            matches = await _lookup_peaks(pending)
+            matches = await _lookup_peaks(pending, deadline=deadline)
         except (UpstreamError, ratelimit.BudgetExhausted) as exc:
             # Ordinary weather for a donated upstream. Degrade quietly: the
             # rows come back exactly as sent, which is what they looked like
@@ -268,12 +296,12 @@ async def enrich_custom_reporting(
             log.warning("Custom destination elevation lookup unavailable: %s", log_reason(exc))
             return [dict(d) for d in destinations], False
         except TimeoutError:
-            # Only the deadline raises this here (httpx's own timeouts are a
+            # Only a deadline raises this here (httpx's own timeouts are a
             # different class and end in UpstreamError above), and a busy
             # donated server is not a bug, so it degrades the same quiet way.
             log.warning(
-                "Custom destination elevation lookup gave up after %.0fs",
-                ENRICH_DEADLINE_S,
+                "Custom destination elevation lookup gave up after %.1fs",
+                loop.time() - started,
             )
             return [dict(d) for d in destinations], False
         except Exception:

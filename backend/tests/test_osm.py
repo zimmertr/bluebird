@@ -626,6 +626,175 @@ async def test_a_budget_shed_does_not_cool_the_mirror(monkeypatch):
     assert [m.url for m in osm._attempt_order()] == [PRIMARY, SECONDARY]
 
 
+# ── The race inside one deadline (docs/RELIABILITY.md, mitigation 7) ─────
+# With one deadline shorter than two attempts in turn, both mirrors are asked
+# at once and the first good answer wins.
+
+
+class _ByMirror:
+    """An httpx stand-in that answers each mirror by its URL, whatever the order
+    the attempts start in. A behavior is as `_FakeClient`'s; every call is
+    recorded, with the body's first line."""
+
+    def __init__(self, behaviors: dict[str, object]):
+        self._behaviors = behaviors
+        self.urls: list[str] = []
+        self.firsts: dict[str, str] = {}
+        self.timeouts: dict[str, float | None] = {}
+        self.cancelled: list[str] = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, url, data=None, timeout=None):
+        self.urls.append(url)
+        self.firsts[url] = data["data"].splitlines()[0]
+        self.timeouts[url] = timeout
+        behavior = self._behaviors[url]
+        if isinstance(behavior, Exception):
+            raise behavior
+        if callable(behavior):
+            try:
+                return await behavior()
+            except asyncio.CancelledError:
+                self.cancelled.append(url)
+                raise
+        return behavior
+
+
+def _race_with(monkeypatch, behaviors) -> _ByMirror:
+    fake = _ByMirror(behaviors)
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
+    return fake
+
+
+def _in(seconds: float) -> float:
+    return asyncio.get_running_loop().time() + seconds
+
+
+async def _late():
+    await asyncio.sleep(0.05)
+    return fake_response({"elements": [{"late": True}]})
+
+
+async def test_the_race_asks_both_mirrors_at_once_and_takes_the_first_answer(monkeypatch):
+    fake = _race_with(monkeypatch, {PRIMARY: _stall, SECONDARY: fake_response({"elements": []})})
+    started = time.perf_counter()
+    assert await osm.mirrors._race("q", path="discovery", deadline=_in(20)) == {"elements": []}
+    # The stalled primary did not hold the answer up, and it was cancelled
+    # rather than left running.
+    assert time.perf_counter() - started < 5
+    assert sorted(fake.urls) == sorted([PRIMARY, SECONDARY])
+    assert fake.cancelled == [PRIMARY]
+    # Losing a race is no failure, so neither mirror cools.
+    assert [m.url for m in osm._attempt_order()] == [PRIMARY, SECONDARY]
+
+
+async def test_a_mirror_that_fails_leaves_the_race_to_the_other(monkeypatch):
+    _race_with(monkeypatch, {PRIMARY: httpx.ConnectError("down"), SECONDARY: _late})
+    assert await osm.mirrors._race("q", path="discovery", deadline=_in(20)) == {
+        "elements": [{"late": True}]
+    }
+    assert [m.url for m in osm._attempt_order()] == [SECONDARY, PRIMARY]
+
+
+async def test_a_cooling_mirror_waits_until_the_others_have_failed(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(osm.mirrors, "_clock", clock)
+    osm.mirrors._last_failure[PRIMARY] = clock.now - 10
+
+    first = _race_with(monkeypatch, {PRIMARY: fake_response({"elements": []}), SECONDARY: _late})
+    await osm.mirrors._race("q", path="discovery", deadline=_in(20))
+    # The secondary answered, so the cooling primary was never asked.
+    assert first.urls == [SECONDARY]
+
+    second = _race_with(
+        monkeypatch, {PRIMARY: fake_response({"elements": []}), SECONDARY: httpx.ConnectError("down")}
+    )
+    assert await osm.mirrors._race("q", path="discovery", deadline=_in(20)) == {"elements": []}
+    assert second.urls == [SECONDARY, PRIMARY]
+
+
+async def test_when_every_mirror_is_cooling_they_race_as_one(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(osm.mirrors, "_clock", clock)
+    for url in (PRIMARY, SECONDARY):
+        osm.mirrors._last_failure[url] = clock.now - 10
+    fake = _race_with(monkeypatch, {PRIMARY: _stall, SECONDARY: fake_response({"elements": []})})
+    await osm.mirrors._race("q", path="discovery", deadline=_in(20))
+    assert sorted(fake.urls) == sorted([PRIMARY, SECONDARY])
+
+
+async def test_a_race_every_mirror_loses_says_why(monkeypatch):
+    _race_with(monkeypatch, {PRIMARY: httpx.ConnectError("a"), SECONDARY: httpx.ConnectError("b")})
+    with pytest.raises(UpstreamError) as excinfo:
+        await osm.mirrors._race("q", path="discovery", deadline=_in(20))
+    assert excinfo.value.message == "Cannot reach OpenStreetMap. Try again later."
+
+
+async def test_a_race_that_runs_out_of_time_took_too_long(monkeypatch):
+    fake = _race_with(monkeypatch, {PRIMARY: _stall, SECONDARY: _stall})
+    started = time.perf_counter()
+    with pytest.raises(UpstreamError) as excinfo:
+        await osm.mirrors._race(osm._build_query([DestinationType.peak], "1 2 3 4"),
+                                path="discovery", deadline=_in(1.2))
+    assert time.perf_counter() - started < 3
+    assert excinfo.value.message == "OpenStreetMap took too long. Try again later."
+    # Each server is asked to stop when the pod does: no longer than the time left.
+    assert set(fake.firsts.values()) == {"[out:json][timeout:1];"}
+    assert all(t is not None and t <= 1.2 for t in fake.timeouts.values())
+
+
+async def test_a_race_with_no_time_left_asks_nobody(monkeypatch):
+    fake = _race_with(monkeypatch, {PRIMARY: _stall, SECONDARY: _stall})
+    with pytest.raises(UpstreamError) as excinfo:
+        await osm.mirrors._race("q", path="discovery", deadline=_in(0.5))
+    assert fake.urls == []
+    assert excinfo.value.message == "OpenStreetMap took too long. Try again later."
+
+
+async def test_a_race_where_every_slot_is_taken_is_busy(monkeypatch):
+    # Saturation keeps its type, so the routes' 503 + Retry-After still apply.
+    mirrors = []
+    for m in osm.OVERPASS_MIRRORS:
+        budget = ratelimit.UpstreamBudget("test (saturated)", 1, wait_s=0.01)
+        await budget._sem.acquire()
+        mirrors.append(dataclasses.replace(m, budget=budget))
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
+    fake = _race_with(monkeypatch, {})
+    with pytest.raises(ratelimit.BudgetExhausted):
+        await osm.mirrors._race("q", path="discovery", deadline=_in(20))
+    assert fake.urls == []
+
+
+async def test_a_race_waits_for_a_slot_no_longer_than_its_deadline(monkeypatch):
+    held = ratelimit.UpstreamBudget("test (held)", 1, wait_s=30)
+    await held._sem.acquire()
+    mirrors = [dataclasses.replace(m, budget=held) for m in osm.OVERPASS_MIRRORS]
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
+    _race_with(monkeypatch, {})
+    started = time.perf_counter()
+    with pytest.raises(ratelimit.BudgetExhausted):
+        await osm.mirrors._race("q", path="discovery", deadline=_in(1.5))
+    assert time.perf_counter() - started < 3
+    held._sem.release()
+
+
+async def test_discovery_with_a_deadline_races_and_without_one_fails_over(monkeypatch):
+    raced = _race_with(monkeypatch, {PRIMARY: _stall, SECONDARY: fake_response({"elements": []})})
+    await osm.query_osm(POLY, [DestinationType.peak], deadline=_in(20))
+    assert sorted(raced.urls) == sorted([PRIMARY, SECONDARY])
+
+    cache.DISCOVERY_CACHE.clear()
+    osm.reset_mirror_health()
+    chained = _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
+    await osm.query_osm(POLY, [DestinationType.peak])
+    assert chained.urls == [PRIMARY, SECONDARY]
+
+
 # ── Custom-destination enrichment (issue #207) ────────────────────────────────
 
 # conftest neutralizes osm.enrich_custom for every test so no route test makes
@@ -763,7 +932,7 @@ async def test_enrich_custom_degrades_and_logs_a_traceback_on_a_bug_in_the_looku
     # Not an upstream problem, so it is a bug here: still not fatal to the
     # analysis around it, but logged with the traceback the quiet paths leave
     # out.
-    async def broken(pending):
+    async def broken(pending, **_kwargs):
         raise RuntimeError("a parser bug nobody planned for")
 
     monkeypatch.setattr(osm.enrich, "_lookup_peaks", broken)
@@ -1022,6 +1191,25 @@ async def test_a_cut_while_queued_for_a_slot_does_not_cool_the_mirror(monkeypatc
     held._sem.release()
     assert fake.calls == 0
     assert [m.url for m in osm._attempt_order()] == [PRIMARY, SECONDARY]
+
+
+async def test_a_callers_shorter_deadline_shares_what_is_left_between_the_mirrors(monkeypatch):
+    # The destinations route's one deadline can leave the lookup less than
+    # its own 24 s; the backup is still asked inside what is left.
+    nodes = [_node(1, 47.0 + _NEAR_DEG, -121.0)]
+    fake = _script(monkeypatch, [_stall, fake_response({"elements": nodes})])
+    [row], complete = await _enrich_custom_reporting([_row(47.0, -121.0)], deadline=_in(0.4))
+    assert fake.urls == [PRIMARY, SECONDARY]
+    assert all(t is not None and 0.1 < t <= 0.2 for t in fake.timeouts)
+    assert row["elevation_ft"] == 3281.0 and complete
+
+
+async def test_a_lookup_with_no_time_left_is_not_started(monkeypatch):
+    fake = _script(monkeypatch, [])
+    sent = [_row(47.0, -121.0)]
+    rows, complete = await _enrich_custom_reporting(sent, deadline=_in(-1))
+    assert rows == sent and complete is False
+    assert fake.calls == 0
 
 
 async def test_the_enrichment_query_asks_each_server_for_its_slice(monkeypatch):

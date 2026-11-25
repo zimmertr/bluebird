@@ -215,7 +215,8 @@ async def run(now: datetime | None = None) -> None:
     """
     today = (now or datetime.now(UTC)).date()
     first = today - timedelta(days=KEEP_DAYS - 1)
-    async with db.connection() as conn:
+    # Unbounded: a month's grid is written in one go, under the refresh's deadline.
+    async with db.connection(unbounded=True) as conn:
         rows = await (
             await conn.execute("SELECT day FROM snow_depth_filled WHERE day >= %s", (first,))
         ).fetchall()

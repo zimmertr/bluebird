@@ -208,7 +208,16 @@ between bytes, so a mirror that trickles its answer is given up on at the same
 time as one that sends nothing. A mirror that has just failed, or that was
 still working when the elevation lookup ran out of time, is asked last for the next two minutes and
 leads again after its first success, so a busy spell costs one slow attempt
-rather than one per analysis, and no mirror is ever skipped outright. Discovery
+rather than one per analysis, and no mirror is ever skipped outright.
+`POST /api/destinations` is the exception to the order: its whole discovery
+has one 20 s deadline, shorter than two attempts in turn, so it asks both
+mirrors at once and stops waiting on the slower one when the first answers.
+That breaks the rule above for the loser: the pod has stopped waiting, but the
+server keeps the query, and one of the operator's slots, until its own
+timeout, which is never longer than the time the deadline had left. A mirror
+that has just failed is still held back until the other one has failed too.
+The cost is accepted because Overpass only answers a ring the places table
+could not. Discovery
 results are cached for several minutes, and a resolved coordinate set is cached
 the same way. Each server pod holds its own cache, so redrawing the same polygon
 or re-analyzing a pasted list at window after window asks Overpass at most once

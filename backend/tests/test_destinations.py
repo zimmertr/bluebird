@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app import ratelimit
 from app.main import app
 from app.models import MAX_ANALYZE_PEAKS
+from app.routes import destinations as destinations_mod
 from app.services import osm as osm_mod
 
 client = TestClient(app)
@@ -251,7 +252,7 @@ def _stub_enrich(monkeypatch, elevations: dict[str, float | None], complete: boo
             rows.append(row)
         return rows
 
-    async def fake_reporting(destinations):
+    async def fake_reporting(destinations, **_kwargs):
         return await fake(destinations), complete
 
     monkeypatch.setattr(osm_mod, "enrich_custom", fake)
@@ -431,7 +432,7 @@ async def test_a_lookup_request_waits_for_the_address_s_discovery(monkeypatch):
 def test_a_repeated_custom_row_is_looked_up_once(monkeypatch):
     asked: list[list[str]] = []
 
-    async def fake(destinations):
+    async def fake(destinations, **_kwargs):
         asked.append([d["name"] for d in destinations])
         return [dict(d) for d in destinations], True
 
@@ -568,3 +569,80 @@ def test_carries_no_snow_depth(monkeypatch):
     body = client.post("/api/destinations", json=_payload()).json()
     assert "snow_analysis_date" not in body
     assert "snow_depth_in" not in body["destinations"][0]
+
+
+# ── One deadline for discovery (docs/RELIABILITY.md, mitigation 7) ─────────
+
+
+async def _post(payload: dict) -> httpx.Response:
+    # On the test's own loop, so the deadline a stub sees is on the clock it reads.
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+        return await c.post("/api/destinations", json=payload)
+
+
+async def test_discovery_and_the_lookup_share_one_deadline(monkeypatch):
+    seen: dict[str, float] = {}
+
+    async def discover(polygon, destination_types, on_status=None, **kwargs):
+        seen["discovery"] = kwargs["deadline"] - asyncio.get_running_loop().time()
+        return [_peak("Alpha", 5000.0)]
+
+    async def lookup(destinations, **kwargs):
+        seen["lookup"] = kwargs["deadline"] - asyncio.get_running_loop().time()
+        return [dict(d) for d in destinations], True
+
+    monkeypatch.setattr(osm_mod, "query_osm", discover)
+    monkeypatch.setattr(osm_mod, "enrich_custom_reporting", lookup)
+    resp = await _post(_payload(custom_destinations=[_custom("Mine", 47.0, -121.0)]))
+    assert resp.status_code == 200
+    assert destinations_mod.DISCOVERY_DEADLINE_S == 20.0
+    assert 19.0 < seen["discovery"] <= 20.0
+    assert seen["lookup"] <= seen["discovery"]
+
+
+async def test_a_discovery_past_the_deadline_answers_502_in_time(monkeypatch):
+    # The worst case was 222.5 s on 2026-11-25: the two mirrors in turn, a
+    # pool wait each side and three lookups in series. Both mirrors stall here.
+    async def stall():
+        await asyncio.sleep(30)
+
+    class _Stalling:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, url, data=None, timeout=None):
+            await stall()
+
+    monkeypatch.setattr(osm_mod.mirrors.httpx, "AsyncClient", lambda *a, **k: _Stalling())
+    monkeypatch.setattr(destinations_mod, "DISCOVERY_DEADLINE_S", 1.5)
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    resp = await _post(_payload())
+    assert loop.time() - started < 4
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "OpenStreetMap took too long. Try again later."
+    assert resp.json()["error"] == {"code": "upstream_unavailable", "retryable": True}
+
+
+async def test_a_lookup_the_deadline_cuts_sends_the_rows_as_they_came(monkeypatch):
+    async def slow_discovery(polygon, destination_types, on_status=None, **kwargs):
+        # A little past it: the loop may wake a timer a tick early.
+        await asyncio.sleep(kwargs["deadline"] - asyncio.get_running_loop().time() + 0.05)
+        return [_peak("Alpha", 5000.0)]
+
+    def unreachable(*args, **kwargs):
+        raise AssertionError("a lookup with no time left must not ask the map server")
+
+    monkeypatch.setattr(osm_mod, "query_osm", slow_discovery)
+    monkeypatch.setattr(osm_mod.mirrors, "_post_with_fallback", unreachable)
+    monkeypatch.setattr(osm_mod, "enrich_custom_reporting", osm_mod.enrich.enrich_custom_reporting)
+    monkeypatch.setattr(destinations_mod, "DISCOVERY_DEADLINE_S", 0.2)
+    resp = await _post(_payload(custom_destinations=[_custom("Mine", 47.0, -121.0)]))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [d["name"] for d in body["destinations"]] == ["Alpha", "Mine"]
+    assert body["destinations"][1]["elevation_ft"] is None
+    assert body["elevation_lookup_complete"] is False

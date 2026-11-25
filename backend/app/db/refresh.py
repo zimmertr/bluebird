@@ -85,7 +85,9 @@ def backoff_s(
 async def run_if_due(source: Source) -> bool:
     """Refresh `source` if it is due and no other pod holds it. True if it ran."""
     key = db.lock_key(f"refresh:{source.name}")
-    async with db.connection() as conn:
+    # Unbounded because the lock's connection is held for the whole run,
+    # which `source.deadline_s` bounds.
+    async with db.connection(unbounded=True) as conn:
         row = await (await conn.execute("SELECT pg_try_advisory_lock(%s)", (key,))).fetchone()
         if not row or not row[0]:
             return False
