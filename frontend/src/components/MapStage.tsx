@@ -1,10 +1,20 @@
-import { useCallback, useId, useRef, useState, type ComponentProps, type RefObject } from 'react'
+import { useCallback, useId, useMemo, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
+import { useHoverLink } from '../hooks/useHoverLink'
+import type { Theme } from '../utils/viewPrefs'
 import MapView, { type MapViewHandle } from './MapView'
-import type { SearchBoxHandle } from './SearchBox'
+import SearchBox, { type SearchBoxHandle } from './SearchBox'
+import { useSlashToSearch } from '../hooks/useSlashToSearch'
 import TimelineTransport from './TimelineTransport'
+import type { DeckPoint } from '../utils/cloudSea'
+import type { BandLimits, ForecastSelection } from '../utils/calendar/calendar'
+import DayStrip, { type StripZoom } from './DayStrip'
+import { daySky } from '../utils/score/daySky'
+import type { TimelineAxis } from '../utils/timeline'
+import type { ScoreColouring } from '../utils/resultFeatures'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
-import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
+import MapLegend, { LegendSections, legendSections, type LegendInputs } from './MapLegend'
 import MapDrawBar from './MapDrawBar'
 import MapRows from './MapRows'
 import MapCorner from './MapCorner'
@@ -20,10 +30,11 @@ import type { ResultsLayout } from '../hooks/useResultsLayout'
 import type { TableView } from '../hooks/useTableView'
 import type { Timeline } from '../hooks/useTimeline'
 import type { SortBy } from '../types'
-import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
+import { LAYOUT_HOLD, MAP_EDGE, MAP_TOOL } from '../styles'
+import { IconLoop } from './icons'
 import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { NOUN, familyOf } from '../metrics'
-import { hourlyScale, rankedScale } from '../utils/colors'
+import { hourlyScale, rankedScale, scoreScale } from '../utils/colors'
 import {
   TRANSPORT_GAP_PX,
   fabBottomPx,
@@ -41,6 +52,8 @@ import type { CornerSlots } from '../map/controls'
 import type { ActionWord } from '../utils/analyzeGate'
 
 export interface MapStageProps {
+  /** The theme the app paints in, which the map's ground follows (record 0317). */
+  theme: Theme
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
   mapRef: RefObject<MapViewHandle | null>
   /**
@@ -49,9 +62,9 @@ export interface MapStageProps {
    */
   drawMode: Pick<
     DrawMode,
-    'drawing' | 'handleDrawUpdate' | 'drawPointCount' | 'finishDrawing' | 'handleCancelDrawing'
+    'drawing' | 'handleDrawUpdate' | 'drawPointCount' | 'finishDrawing' | 'handleCancelDrawing' | 'startDrawing'
   >
-  /** A desk keeps Done and Cancel in the docked panel; a phone gets them on the map. */
+  /** A desk hangs Done and Cancel under the sentence bar (`App`); a phone gets them on the map. */
   isDesktop: boolean
   /** The ring, the link's restored points and the searched places, with the setters the map calls. */
   destinationInputs: Pick<DestinationInputs, 'polygon' | 'setPolygon' | 'restoredPoints' | 'places' | 'removePlace'>
@@ -107,20 +120,16 @@ export interface MapStageProps {
   showResults: boolean
   /** Whether the controls panel is open. */
   sidebarOpen: boolean
-  /** Which edge of a desk's layout is moving, which the map's box holds still for (record 0202). */
+  /** Whether a desk's results panes are moving, which the map's box holds still for (record 0202). */
   layoutMotion?: LayoutMotion
   /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
   legendInitiallyOpen: boolean
-  /** Reopens the controls panel. */
-  onOpenControls: () => void
-  /** Lowers a phone's Controls sheet from the chip that raised it. */
-  onCloseControls: () => void
-  /** The summary chip's words: the When arm and the model (`controlsSummary`). */
-  controlsSummary: string
   /** The panel's messages and Analyze gate (`usePanelMessages`), which the phone's Analyze button and its badge read (record 0208). */
   messages: PanelMessages
   /** What the panel's Analyze reads (#736, `actionWord`), which the phone's button reads too. */
   actionWord: ActionWord
+  /** What the Forecast button says while it reads Analyze (`forecastLabel`), on a phone's button as on the bar's. */
+  actionLabel?: string
   /** The panel's Analyze command, which the phone's Analyze button calls. */
   onAnalyze: () => void
   /** The tutorial holds the Layers menu open for its step (#536). */
@@ -142,6 +151,42 @@ export interface MapStageProps {
    * how a tap on the map that opens a card gives it room, as a row's press does.
    */
   lowerSheetFirst: (then: () => void) => void
+  /** At a desk, the sentence bar and the card one of its chips opened (record 0309). */
+  bar?: ReactNode
+  /**
+   * The card, handed the place search the map owns, which a desk's Where
+   * card carries at its head (record 0313).
+   */
+  barCard?: (search: ReactNode) => ReactNode
+  /** Opens a desk's Where card, for `/` (`useSlashToSearch`). */
+  onOpenWhere?: () => void
+  /**
+   * Every settled move of the camera: the link's, and the search area's
+   * view (`useSearchArea`). The link's alone where none is given.
+   */
+  onCameraMove?: (view: CameraView, readerMove: boolean) => void
+  /** At a desk with the bar, the document links the corner's credit line carries (`DocLinks`). */
+  cornerLinks?: ReactNode
+  /**
+   * The desk column's foot, where the legend stands while the column does
+   * (record 0322), or null while there is no column, when the Legend chip
+   * keeps it on the map.
+   */
+  legendHost?: HTMLElement | null
+  /** The cloud deck at the hour drawn (record 0310), built in `App.tsx`. */
+  cloudDeck?: readonly DeckPoint[] | null
+  /** The markers' score colouring while a lens ranks the field (record 0307), memoized in `App.tsx`. */
+  scoreColouring?: ScoreColouring | null
+  /** At a desk, the window the day strip picks and the band it is drawn over (record 0311). */
+  dayStrip?: {
+    selection: ForecastSelection
+    onSelection: (s: ForecastSelection) => void
+    band: BandLimits
+    /** The strip shows the window the report was fetched for (record 0323). */
+    fresh?: boolean
+    /** Opens the When card from the strip's model button. */
+    onModel?: () => void
+  } | null
 }
 
 /**
@@ -152,6 +197,7 @@ export interface MapStageProps {
  */
 export default function MapStage({
   mapRef,
+  theme,
   drawMode,
   isDesktop,
   destinationInputs,
@@ -171,11 +217,9 @@ export default function MapStage({
   sidebarOpen,
   layoutMotion = null,
   legendInitiallyOpen,
-  onOpenControls,
-  onCloseControls,
-  controlsSummary,
   messages,
   actionWord,
+  actionLabel,
   onAnalyze,
   layersForcedOpen,
   searchPointed,
@@ -185,7 +229,18 @@ export default function MapStage({
   onBasemapFailed,
   maxPolygonPoints,
   lowerSheetFirst,
+  bar,
+  barCard,
+  onOpenWhere,
+  onCameraMove = urlSync.reportView,
+  cornerLinks,
+  legendHost = null,
+  cloudDeck = null,
+  scoreColouring = null,
+  dayStrip = null,
 }: MapStageProps) {
+  // The map and the table point at one place under the pointer (record 0318).
+  const onMarkerHover = useHoverLink(mapRef)
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
   // stands its own locate button in (#696). State rather than a ref, so the
@@ -198,10 +253,6 @@ export default function MapStage({
   // A desk's corner (`MapCorner`, record 0174), which stands the compass, the
   // locate button, the zoom pair, the credit line and the scale.
   const [cornerSlots, setCornerSlots] = useState<CornerSlots | null>(null)
-  // The Analyze button's width, which a phone's opened credit line stops
-  // short of (`--map-fab-w`, read by map.css); `PhoneFoot` measures it,
-  // since it is the wider word's in whatever face the phone draws.
-  const [fabPx, setFabPx] = useState(0)
   const smokeId = useId()
   const { registerPlace, removeResult } = removals
   const { removePlace } = destinationInputs
@@ -216,6 +267,22 @@ export default function MapStage({
     mapRef.current?.flyToPlace(place, layout.sheetPadBottomPx)
     registerPlace(place)
   }
+
+  // A desk's search, at the head of the Where card (record 0313), and `/`,
+  // which opens the card with the keyboard in it.
+  const deskSearch = isDesktop && bar !== undefined && bar !== null
+  useSlashToSearch(
+    deskSearch && onOpenWhere !== undefined,
+    () => onOpenWhere?.(),
+    () => {
+      if (!searchBoxRef.current) return false
+      searchBoxRef.current.focus()
+      return true
+    },
+  )
+  const cardSearch = deskSearch ? (
+    <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
+  ) : null
 
   // A clicked basemap feature registers without a camera move: you are already
   // looking straight at it, and flying to it would answer a question nobody
@@ -240,7 +307,10 @@ export default function MapStage({
   // arrives without a scale. The key below has its own reason to stay away
   // (`fieldHasValue`): a box of bands over a field of N/A explains
   // nothing.
-  const markerScale = playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
+  // Under a lens the markers wear the score's ramp, hour or window alike.
+  const scored = scoreColouring !== null
+  const metricScale = playbackIndex !== null ? hourlyScale(sortBy) : rankedScale(sortBy)
+  const markerScale = scoreColouring !== null ? scoreScale(scoreColouring.range) : metricScale
 
   const hasColoredMarkers = showResults && results.length > 0
   // Whether the ranked metric has anything to colour AT ALL on the rows shown.
@@ -248,9 +318,21 @@ export default function MapStage({
   // publish no freezing level: every marker is then the neutral no-value fill,
   // every cell reads N/A, and a key of six height bands beside them would be
   // the only thing on screen claiming the field was measured.
-  const rankedFieldHasValue = fieldHasValue(results, sortBy)
+  const rankedFieldHasValue = scored ? results.some((r) => r.score != null) : fieldHasValue(results, sortBy)
   // What the legend keys: a desk's card on the map, a phone's Legend sheet.
-  const legendInputs: LegendInputs = { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }
+  // The grid paints the metric whatever ranks (#246), so under a lens it keeps
+  // a key of its own beside the score's.
+  const legendInputs: LegendInputs = {
+    sortBy,
+    markerScale,
+    hasColoredMarkers,
+    rankedFieldHasValue,
+    overlays,
+    grid,
+    scored,
+    scoreRange: scoreColouring?.range ?? null,
+    gridScale: scored ? metricScale : null,
+  }
   const legend = legendSections(legendInputs, smokeId)
 
   // The phone's draw bar stands under the chip row while a ring is drawn
@@ -266,21 +348,43 @@ export default function MapStage({
   const fabBottom = fabBottomPx(footLift, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
-  // Legend and Layers are chips in the row under the search pill at both
-  // widths, each with its menu a card joined to the chip at a desk (#714) and
-  // a bottom sheet on a phone (#696).
+  // Layers is a round tool at both widths (records 0315 and 0331), its menu a
+  // card beside the button at a desk and a bottom sheet on a phone (#696).
   const layers = (
     <LayersPopover
       overlays={overlays}
       grid={grid}
       playerOffered={timeline.playerOffered}
+      cloudOffered={analysis.analyzedAtMs !== null}
       mapRef={mapRef}
       coverage={coverage}
       forcedOpen={layersForcedOpen}
       sheet={!isDesktop}
+      tool
     />
   )
-  const legendChip = (
+  // The tool column, a desk's in its corner (record 0315) and a phone's under
+  // the sentence bar (record 0331): Layers, and drawing a ring, whose button
+  // reads pressed while one is drawn and a second press lets it go.
+  const tools = (
+    <>
+      {layers}
+      <button
+        type="button"
+        aria-label="Draw a loop"
+        aria-pressed={drawMode.drawing}
+        onClick={drawMode.drawing ? drawMode.handleCancelDrawing : drawMode.startDrawing}
+        className={MAP_TOOL.draw}
+      >
+        <IconLoop />
+      </button>
+    </>
+  )
+  // The key stands at the results' foot while they do, as the prototype
+  // keeps its scale (record 0322), at a desk and on a phone (record 0333);
+  // the Legend chip keys the map before a report.
+  const legendInColumn = legendHost !== null
+  const legendChip = legendInColumn ? null : (
     <MapLegend
       sections={legend}
       sheet={!isDesktop}
@@ -290,15 +394,59 @@ export default function MapStage({
     />
   )
 
-  // While the panel moves the box is the window's width, and while a pane
-  // moves the window's height, centred on the column either way, so the map
-  // is resized where the move starts or ends rather than in every frame.
-  const mapBox =
-    layoutMotion === 'opening' || layoutMotion === 'closing'
-      ? LAYOUT_HOLD.mapPush
-      : layoutMotion === 'panes'
-        ? LAYOUT_HOLD.mapPanes
-        : LAYOUT_HOLD.rest
+  // While a pane moves the box is the window's height, centred on the
+  // column, so the map is resized where the move starts or ends rather than
+  // in every frame.
+  const mapBox = layoutMotion === 'panes' ? LAYOUT_HOLD.mapPanes : LAYOUT_HOLD.rest
+
+  // The forecast player, alone over the map or hosted by the day strip.
+  const transport = (axis: TimelineAxis, embedded: boolean) => (
+    <TimelineTransport
+      axis={axis}
+      axes={timeline.timelineAxes}
+      onAxisChange={timeline.setChosenAxis}
+      index={timeline.frameIndex}
+      frameCount={timeline.frameCount}
+      onIndexChange={timeline.setFrameIndex}
+      playing={timeline.playing}
+      onPlayingChange={timeline.setPlaying}
+      readout={timeline.timelineReadout}
+      scale={timeline.timelineScale}
+      forecastLabel={scored ? 'Score' : NOUN[familyOf(sortBy)]}
+      liftPx={isDesktop ? layout.sheetLiftPx : transportStandPx(fabBottom)}
+      embedded={embedded}
+    />
+  )
+
+  // After a forecast the strip draws each day's sky and hosts the hours
+  // itself (record 0323), while a lens ranks the field and the strip still
+  // shows the window the report was fetched for. A phone's strip draws the
+  // sky whether or not the player is on, and scrubs only while it is
+  // (record 0333).
+  const scrubbing = timelineShown && timelineAxis === 'forecast'
+  const skyShown =
+    scored && dayStrip?.fresh === true && (isDesktop ? scrubbing : timeline.forecastTimes.length > 0)
+  const sky = useMemo(
+    () => (skyShown ? daySky(report.results, timeline.forecastTimes) : null),
+    [skyShown, report.results, timeline.forecastTimes],
+  )
+  const stripZoom: StripZoom | null =
+    sky !== null && scoreColouring !== null && dayStrip?.onModel
+      ? {
+          sky,
+          range: scoreColouring.range,
+          times: timeline.forecastTimes,
+          index: timeline.frameIndex,
+          onIndex: timeline.setFrameIndex,
+          playing: timeline.playing,
+          onPlaying: timeline.setPlaying,
+          readout: timeline.timelineReadout,
+          label: 'Score time',
+          model: tableView.analysisModelLabel ?? '',
+          onModel: dayStrip.onModel,
+          scrub: scrubbing,
+        }
+      : null
 
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
@@ -318,14 +466,13 @@ export default function MapStage({
       // the app's two rows, and under the draw bar while a ring is drawn.
       className={`flex-1 relative ${MAP_EDGE.publish} ${
         isDesktop ? '' : drawBarShown ? MAP_EDGE.belowDrawBar : MAP_EDGE.belowRows
-      } ${layoutMotion ? LAYOUT_HOLD.clip : ''} ${layoutMotion === 'opening' || layoutMotion === 'closing' ? LAYOUT_HOLD.layer : ''}`}
+      } ${layoutMotion ? LAYOUT_HOLD.clip : ''}`}
       style={
         {
-          // A phone's scale and (i) stand on the Analyze button's row
-          // (record 0140), a desk's on the results' edge.
+          // A phone's scale and (i) stand in the band over its foot
+          // (record 0329), a desk's on the results' edge.
           '--map-corner-lift': `${isDesktop ? layout.mapCornerLift : phoneCornerLiftPx(fabBottom)}px`,
           '--map-corner-band': `${TRANSPORT_GAP_PX}px`,
-          ...(isDesktop ? {} : { '--map-fab-w': `${fabPx}px` }),
         } as React.CSSProperties
       }
     >
@@ -348,6 +495,7 @@ export default function MapStage({
           restoredPoints={destinationInputs.restoredPoints}
           onPolygonChange={destinationInputs.setPolygon}
           onDrawUpdate={drawMode.handleDrawUpdate}
+          onLoopDrawn={drawMode.finishDrawing}
           results={results}
           sortBy={sortBy}
           modelId={modelId}
@@ -365,9 +513,12 @@ export default function MapStage({
           showContours={overlays.showContours}
           showRelief={overlays.showRelief}
           showSlope={overlays.showSlope}
+          cloudDeck={cloudDeck}
+          scoreColouring={scoreColouring}
           showSatellite={overlays.showSatellite}
           baseOpacity={overlays.baseOpacity}
           showTerrain={overlays.showTerrain}
+          theme={theme}
           onTerrainChange={overlays.setShowTerrain}
           showFireActivity={overlays.showFireActivity}
           radarIndex={timeline.radarIndex}
@@ -383,7 +534,8 @@ export default function MapStage({
           onMoveAggregate={tableView.handleAggregateMove}
           cameraPadBottomPx={layout.cameraPadBottomPx}
           restoredView={restoredView}
-          onCameraMove={urlSync.reportView}
+          onCameraMove={onCameraMove}
+          onMarkerHover={onMarkerHover}
           onBasemapFailed={onBasemapFailed}
           maxPolygonPoints={maxPolygonPoints}
           lowerSheetFirst={lowerSheetFirst}
@@ -402,24 +554,37 @@ export default function MapStage({
         onTerrainSlot={setTerrainSlot}
         desk={isDesktop}
         sidebarOpen={sidebarOpen}
-        onOpenControls={onOpenControls}
-        onCloseControls={onCloseControls}
-        controlsSummary={controlsSummary}
-        layers={layers}
+        tools={isDesktop ? null : tools}
         legend={legendChip}
         covered={layout.overMapRows}
+        bar={bar ?? null}
+        barCard={barCard?.(cardSearch)}
       />
       {/* A desk's map buttons, credit line and scale, in the map's
           bottom-right corner (record 0174). */}
-      {isDesktop && <MapCorner onSlots={setCornerSlots} />}
+      {legendInColumn && legend.length > 0 && createPortal(<LegendSections sections={legend} />, legendHost)}
+      {isDesktop && <MapCorner onSlots={setCornerSlots} links={cornerLinks} tools={tools} />}
       {/* The foot of a phone's map: the Analyze button (record 0135) with
           the message badge at its corner (record 0208). */}
       {!isDesktop && (
         <PhoneFoot
           fabBottomPx={fabBottom}
-          onFabPx={setFabPx}
+          strip={
+            dayStrip ? (
+              <DayStrip
+                bare
+                selection={dayStrip.selection}
+                onSelection={dayStrip.onSelection}
+                band={dayStrip.band}
+                liftPx={0}
+                transport={null}
+                zoom={stripZoom}
+              />
+            ) : null
+          }
           analyzeEnabled={messages.analyzeEnabled}
           word={actionWord}
+          label={actionLabel}
           onAnalyze={onAnalyze}
           messages={messages}
           covered={layout.overMapRows}
@@ -436,21 +601,19 @@ export default function MapStage({
           onCancel={drawMode.handleCancelDrawing}
         />
       )}
-      {timelineShown && timelineAxis !== null && (
-        <TimelineTransport
-          axis={timelineAxis}
-          axes={timeline.timelineAxes}
-          onAxisChange={timeline.setChosenAxis}
-          index={timeline.frameIndex}
-          frameCount={timeline.frameCount}
-          onIndexChange={timeline.setFrameIndex}
-          playing={timeline.playing}
-          onPlayingChange={timeline.setPlaying}
-          readout={timeline.timelineReadout}
-          scale={timeline.timelineScale}
-          forecastLabel={NOUN[familyOf(sortBy)]}
-          liftPx={isDesktop ? layout.sheetLiftPx : transportStandPx(fabBottom)}
+      {/* At a desk the day strip stands at the map's foot and hosts the
+          player under its days (record 0311); a phone keeps the player alone. */}
+      {isDesktop && dayStrip ? (
+        <DayStrip
+          selection={dayStrip.selection}
+          onSelection={dayStrip.onSelection}
+          band={dayStrip.band}
+          liftPx={layout.sheetLiftPx}
+          transport={timelineShown && timelineAxis !== null ? transport(timelineAxis, true) : null}
+          zoom={stripZoom}
         />
+      ) : (
+        timelineShown && timelineAxis !== null && transport(timelineAxis, false)
       )}
     </div>
   )

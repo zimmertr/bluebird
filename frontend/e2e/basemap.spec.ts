@@ -1,5 +1,5 @@
 import type { Route } from '@playwright/test'
-import { test, expect, drawRing, message } from './fixtures'
+import { test, expect, drawRing, message, openCard } from './fixtures'
 
 // #580: a basemap style that fails to load used to leave a blank map with
 // nothing saying so. The panel now says it in the Analyze button's messages, and the style is
@@ -24,5 +24,6 @@ test('a failed basemap style says so, and loads on reconnect', async ({ page }) 
   await page.evaluate(() => window.dispatchEvent(new Event('online')))
   await expect(note).toHaveCount(0)
   await drawRing(page)
-  await expect(page.getByRole('button', { name: 'Edit polygon' })).toBeVisible()
+  await openCard(page, 'Where')
+  await expect(page.getByRole('button', { name: 'Edit loop' })).toBeVisible()
 })

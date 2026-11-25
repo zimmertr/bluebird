@@ -545,6 +545,7 @@ export function mapInputs(over: Partial<MapInputs> = {}): MapInputs {
     onMoveAggregate: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
+    onMarkerHover: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,
     onTerrainChange: () => {},
     lowerSheetFirst: (then) => then(),

@@ -17,16 +17,15 @@ import {
   FOCUS_RING,
   CHART_LEGEND,
   ICON_ACTION,
-  LAYOUT_HOLD,
   MOTION,
   MUTED,
   RADIUS,
+  RESULTS_COLUMN,
   RESULTS_PANE,
   SCROLL_BARS,
   SCROLL_SHADOW,
   TEXT,
 } from '../styles'
-import type { LayoutMotion } from '../hooks/useLayoutMotion'
 import { usePaneMotion } from '../hooks/usePaneMotion'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 
@@ -99,6 +98,8 @@ export interface ResultsPanelsProps {
     TableView,
     | 'tableRows'
     | 'tableColumns'
+    | 'compactTableColumns'
+    | 'phoneTableColumns'
     | 'tableColWidths'
     | 'setTableColWidths'
     | 'analysisModelLabel'
@@ -107,7 +108,7 @@ export interface ResultsPanelsProps {
     | 'handleColumnMove'
   >
   /** The header sort and the table's empty reason (`usePresentedReport`). */
-  report: Pick<PresentedReport, 'detailSort' | 'sortDetail' | 'emptyReason'>
+  report: Pick<PresentedReport, 'detailSort' | 'sortDetail' | 'emptyReason' | 'scoreRange'>
   /** Named destinations no analysis has covered, drawn above the ranked rows. */
   pending: PendingDestination[]
   /** Removes a row, from the table or from a chart chip (`useRemovals`). */
@@ -125,15 +126,24 @@ export interface ResultsPanelsProps {
    */
   panesMove?: boolean
   /**
+   * Which panes this element draws. A phone draws them all in its sheet; a
+   * desk splits them, the chart under the map (`chart`) and the table, or a
+   * lone chart's series chips, in the column down its right edge (`column`),
+   * where the table fills the column rather than taking a height of its own.
+   * Since record 0321 a desk's column draws `column` compact and `wide`
+   * widened over the map: every pane, the table filling what the chart leaves.
+   */
+  part?: 'all' | 'chart' | 'column' | 'wide'
+  /**
+   * A phone's sheet before Every column widens it (record 0330): the compact
+   * rows with the phone's own columns, the sheet laid out as Table.
+   */
+  compactPhone?: boolean
+  /**
    * Whether the results are collapsed to their bar, which shuts both panes.
    * A phone does not render the panels at all while collapsed.
    */
   collapsed?: boolean
-  /**
-   * Which edge of a desk's layout is moving (`useLayoutMotion`): while the
-   * panel moves, the chart and the table hold a width (`LAYOUT_HOLD`).
-   */
-  layoutMotion?: LayoutMotion
   /** Whether the report is one hour, which relabels the metric columns. */
   pointSample: boolean
   /** The report's hourly grid, and the playhead on it. */
@@ -178,8 +188,9 @@ export default function ResultsPanels({
   sortDesc,
   chartPhone,
   panesMove = false,
+  part = 'all',
+  compactPhone = false,
   collapsed = false,
-  layoutMotion = null,
   pointSample,
   forecastTimes,
   playbackIndex,
@@ -199,24 +210,12 @@ export default function ResultsPanels({
   // the press at the height the mode pressed gives it, and at a desk kept
   // while its frame closes, at the height it had (record 0202).
   const chartShown = !collapsed && resultsMode !== 'table'
-  const tableShown = !collapsed && resultsMode !== 'chart'
+  // A desk's compact column is the table whatever the mode, which shapes
+  // the widened column's panes (record 0321).
+  const tableShown = !collapsed && (part === 'column' || resultsMode !== 'chart')
   const chartPane = usePaneMotion(chartShown, chartPanelPx, panesMove)
   const tablePane = usePaneMotion(tableShown, tablePanelPx, panesMove)
   const paneMotion = panesMove ? MOTION.pane : ''
-  // While the panel moves the chart keeps the width it had and the table's
-  // box takes the window's, so neither is drawn again in every frame.
-  const chartWidth =
-    layoutMotion === 'closing' ? LAYOUT_HOLD.chartClosing : layoutMotion === 'opening' ? LAYOUT_HOLD.chartOpening : ''
-  const chartHold = chartWidth
-  const pushing = layoutMotion === 'closing' || layoutMotion === 'opening'
-  const tableHold = pushing ? LAYOUT_HOLD.table : ''
-  // Each body on a layer of its own while the panel moves (record 0216): the
-  // box of a fixed height inside the frame, which moves whole. Not while the
-  // panes move, where the table stands still on the screen and the chart is
-  // cheap to paint where it now stands, and lifting both onto layers at the
-  // press painted them whole: Both to Table started 237 ms after the press
-  // rather than 131 at a quarter of the CPU (2026-10-22).
-  const layer = pushing ? LAYOUT_HOLD.layer : ''
   useScrollShadows(tableScrollRef, tablePane.mounted)
   const { chart, chartMetrics, compare, rowChartColor, shared } = charts
   // Over the tutorial's demonstration the chart draws the tour's own panels
@@ -226,6 +225,8 @@ export default function ResultsPanels({
   const {
     tableRows,
     tableColumns,
+    compactTableColumns,
+    phoneTableColumns,
     tableColWidths,
     setTableColWidths,
     analysisModelLabel,
@@ -233,7 +234,7 @@ export default function ResultsPanels({
     legend,
     handleColumnMove,
   } = tableView
-  const { detailSort, sortDetail, emptyReason } = report
+  const { detailSort, sortDetail, emptyReason, scoreRange } = report
   // The chart-only legend. In Both mode the table's checkbox column is the
   // series picker and this would be a second copy of it, so it exists exactly
   // where that column does not, and lists the rows that column would. Each
@@ -251,13 +252,7 @@ export default function ResultsPanels({
   // (#850). In the chart's box it would take its height from the plot, and
   // every press that brought it or took it away would redraw the chart once
   // the move had ended.
-  const legendStrip =
-    legend.length > 0 ? (
-      // Measured at a desk (`legendRef`), whose Chart takes it out of the
-      // room a press hands the chart (#850).
-      <div ref={legendRef} className={CHART_LEGEND.strip}>
-        <div className={CHART_LEGEND.chips}>
-          {legend.map(({ key, row, suffix }) => {
+  const legendChips = legend.map(({ key, row, suffix }) => {
             const plotted = chart.isSelected(row)
             return (
               <span
@@ -292,11 +287,29 @@ export default function ResultsPanels({
                 </button>
               </span>
             )
-          })}
-        </div>
+          })
+  const legendStrip =
+    legend.length > 0 ? (
+      // Measured at a desk (`legendRef`), whose Chart takes it out of the
+      // room a press hands the chart (#850).
+      <div ref={legendRef} className={CHART_LEGEND.strip}>
+        <div className={CHART_LEGEND.chips}>{legendChips}</div>
       </div>
     ) : null
-  const legendShown = !collapsed && resultsMode === 'chart' && legendStrip !== null
+  const legendShown = !collapsed && part !== 'column' && resultsMode === 'chart' && legendStrip !== null
+  const column = part === 'column'
+  // The desk's widened column (record 0321): every pane, as a phone's sheet
+  // draws them, with the table filling what the chart leaves, as the compact
+  // column's does, since a desk's layout gives the table no height of its own.
+  const fills = column || part === 'wide'
+  // In the column a lone chart's chips take the table's room, so they fill
+  // the column's height rather than scrolling in their two rows.
+  const columnChips =
+    column && legend.length > 0 ? (
+      <div ref={legendRef} className={RESULTS_COLUMN.chips}>
+        {legendChips}
+      </div>
+    ) : null
   const legendPane = usePaneMotion(legendShown, 0, panesMove)
   // The comparison's controls, which the chart draws under its plot. An
   // element is a prop like any other, and one built in the render would be a
@@ -311,8 +324,14 @@ export default function ResultsPanels({
   )
   return (
     <>
-      <div className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
-        <div inert={!chartShown} className={`${RESULTS_PANE.top} ${chartHold}`}>
+      {!column && (
+      <div
+        // The chart's pane in a desk's widened column, which the browser
+        // suite finds by name.
+        data-chart-pane={part === 'wide' ? '' : undefined}
+        className={`${RESULTS_PANE.frame} ${chartPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}
+      >
+        <div inert={!chartShown} className={RESULTS_PANE.top}>
           {chartPane.mounted && (
             <>
               <ResizeGrip
@@ -325,7 +344,7 @@ export default function ResultsPanels({
                 // A phone's drag on the grip above sizes this box per move,
                 // straight on the element (#837), and the chart follows it.
                 ref={chartPaneRef}
-                className={`flex min-h-0 flex-shrink-0 flex-col ${layer}`}
+                className="flex min-h-0 flex-shrink-0 flex-col"
                 style={{ height: `${chartPane.px}px` }}
               >
                 <Held holding={!chartShown}>
@@ -377,30 +396,38 @@ export default function ResultsPanels({
           )}
         </div>
       </div>
-      {panesMove && (
+      )}
+      {panesMove && (part === 'all' || part === 'wide') && (
         <div className={`${RESULTS_PANE.frame} ${legendPane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion}`}>
-          <div inert={!legendShown} className={`${RESULTS_PANE.foot} ${chartHold}`}>
+          <div inert={!legendShown} className={RESULTS_PANE.foot}>
             {legendPane.mounted && <Held holding={!legendShown}>{legendStrip}</Held>}
           </div>
         </div>
       )}
+      {/* The column's body in a lone chart: its series chips, in the
+          table's place. */}
+      {column && legendShown && columnChips}
       {/* At a desk the table's frame stands at the results' foot, so while a
           press holds their height and the chart's pane opens over it, the
           room between them closes from above (#850). */}
+      {part !== 'chart' && (
       <div
         className={`${RESULTS_PANE.frame} ${tablePane.open ? RESULTS_PANE.open : RESULTS_PANE.shut} ${paneMotion} ${
-          panesMove ? 'mt-auto' : ''
+          fills ? (tableShown ? 'min-h-0 flex-1' : '') : panesMove ? 'mt-auto' : ''
         }`}
       >
-        <div inert={!tableShown} className={`${RESULTS_PANE.foot} ${tableHold}`}>
+        <div inert={!tableShown} className={RESULTS_PANE.foot}>
           {tablePane.mounted && (
             <>
-              <ResizeGrip
-                onReset={tableGrip.onReset}
-                onDragStart={tableGrip.onDragStart}
-                onDrag={tableGrip.onDrag}
-                onDragEnd={tableGrip.onDragEnd}
-              />
+              {/* The column's table takes the column's height: nothing to drag. */}
+              {!fills && (
+                <ResizeGrip
+                  onReset={tableGrip.onReset}
+                  onDragStart={tableGrip.onDragStart}
+                  onDrag={tableGrip.onDrag}
+                  onDragEnd={tableGrip.onDragEnd}
+                />
+              )}
               {/* `relative` so this box is the containing block of the rows'
                   screen-reader notes: `SR_ONLY` positions them absolutely, and
                   with no positioned ancestor nearer than the app's root they
@@ -411,8 +438,11 @@ export default function ResultsPanels({
                   2026-10-06). */}
               <div
                 ref={tableScrollRef}
-                className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} flex-shrink-0 ${layer}`}
-                style={{ height: `${tablePane.px}px` }}
+                className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} ${
+                  fills ? 'flex-1' : 'flex-shrink-0'
+                }`}
+                // The column's table fills it; elsewhere a table takes its pane's height.
+                style={fills ? undefined : { height: `${tablePane.px}px` }}
               >
                 <Held holding={!tableShown}>
                   <ResultsTable
@@ -423,7 +453,9 @@ export default function ResultsPanels({
                     detailSortDir={detailSort.dir}
                     onDetailSort={sortDetail}
                     pointSample={pointSample}
-                    columns={tableColumns}
+                    scoreRange={scoreRange}
+                    columns={column ? compactTableColumns : compactPhone ? phoneTableColumns : tableColumns}
+                    compact={column || compactPhone}
                     columnWidths={tableColWidths}
                     onColumnWidthsChange={setTableColWidths}
                     modelFallbackLabel={analysisModelLabel}
@@ -454,6 +486,7 @@ export default function ResultsPanels({
           )}
         </div>
       </div>
+      )}
     </>
   )
 }

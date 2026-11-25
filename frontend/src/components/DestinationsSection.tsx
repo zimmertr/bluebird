@@ -64,7 +64,7 @@ const LIST_IDS: readonly string[] = PRESET_LISTS.map((list) => list.id)
 const unreadTail = (lines: number) => (lines === 0 ? '' : `, ${lines} line${lines === 1 ? '' : 's'} not read`)
 
 // The Polygon row's first button, by what pressing it would do.
-const MODE_LABEL = { draw: 'Draw polygon', edit: 'Edit polygon', done: 'Done' } as const
+const MODE_LABEL = { draw: 'Draw a loop', edit: 'Edit loop', done: 'Done' } as const
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
@@ -87,6 +87,8 @@ interface Props {
   // Empties the ring and leaves the mode as it is.
   onClearDrawing: () => void
   drawPointCount: number
+  /** The map's view is the search area while no ring is drawn (record 0309), so the kinds are live without one. */
+  viewIsArea?: boolean
   // The two readings the Analyze gate also takes, handed down rather than
   // derived again here so the counter and the gate cannot disagree.
   pointsNeeded: number
@@ -134,6 +136,7 @@ export default function DestinationsSection({
   onCancelDrawing,
   onClearDrawing,
   drawPointCount,
+  viewIsArea = false,
   pointsNeeded,
   areaTooLarge,
   polygonAreaKm2,
@@ -227,7 +230,7 @@ export default function DestinationsSection({
     boxWasShownRef.current = boxShown
   }, [boxShown])
   // The row's three buttons never unmount; a press that greys the one it
-  // landed on (Draw polygon turning into a Done that waits for three points,
+  // landed on (Draw a loop turning into a Done that waits for three points,
   // Cancel leaving the mode, Clear emptying the ring) would park the keyboard
   // on the body, so the first button in the row that can still act takes it:
   // Cancel while drawing under three points, the mode button otherwise. A
@@ -249,7 +252,11 @@ export default function DestinationsSection({
   // tick with no ring was never sent anyway (`planAnalysis` sends no types
   // without one). Greyed rather than hidden, as the draw row's buttons are
   // (#687), so a ring arriving does not move the panel under the reader.
-  const typesLive = ringUsable(drawPointCount, areaTooLarge)
+  // While the view is the area (record 0309) there is always a ring, and the
+  // types stay live however far out the map is: a view past the cap is the
+  // Forecast button's blocker, and the reader picks what to find before
+  // zooming in to it.
+  const typesLive = (viewIsArea && drawPointCount === 0) || ringUsable(drawPointCount, areaTooLarge)
 
   return (
     <section data-tour="destinations">
@@ -375,7 +382,7 @@ export default function DestinationsSection({
       </div>
 
       {/* Polygon search: drawing a ring searches the area inside it for
-          destinations, which a Draw polygon button alone does not say, so
+          destinations, which a Draw a loop button alone does not say, so
           the subheading does (#710). Last since #687, so the two full-width
           inputs above it stand together. */}
       <div>
@@ -425,7 +432,7 @@ export default function DestinationsSection({
             button that does nothing yet is greyed rather than missing: one
             that popped in on the first click would move the row under the
             reader's eye (#687). Which is live, and what the first one says,
-            is `drawControls`. On a phone Draw polygon closes the drawer, and
+            is `drawControls`. On a phone Draw a loop closes the drawer, and
             the map's Controls button takes the keyboard. */}
         <div ref={drawRowRef} className={DRAW_ROW.row}>
           <button

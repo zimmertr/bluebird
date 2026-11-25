@@ -25,6 +25,23 @@ function sheet(onClose = vi.fn()) {
   return onClose
 }
 const grip = () => screen.getByRole('dialog').firstElementChild as HTMLElement
+
+// A sheet the tutorial holds for a step opens at half the screen at most, so
+// the tour's card has room between the control it lights and the sheet's top
+// whatever rows the sheet holds (record 0337); any other opens to its rows.
+it('opens a toured sheet at half the screen and any other to its rows', () => {
+  const { rerender } = render(<BottomSheet heading="Layers" onClose={() => {}}>rows</BottomSheet>)
+  const card = () => screen.getByRole('dialog', { hidden: true })
+  expect(card().className.split(' ')).toContain(BOTTOM_SHEET.opening)
+  rerender(
+    <BottomSheet heading="Layers" onClose={() => {}} tourAnchor="layers-menu">
+      rows
+    </BottomSheet>,
+  )
+  expect(card().className.split(' ')).toContain(BOTTOM_SHEET.toured)
+  expect(card().className.split(' ')).not.toContain(BOTTOM_SHEET.opening)
+  expect(BOTTOM_SHEET.toured).toBe('max-h-[50dvh]')
+})
 // The px a held sheet's share of the ceiling stands at, which its CSS works
 // out on a real screen: the screen jsdom reports, as there is no status bar
 // band. Null for its own height.

@@ -90,7 +90,7 @@ const LIST_TOO_LONG_NOTE = 'This list is too long to share in a link.'
 // it; what they are missing is a destination, not a menu.
 type BlockerFacts = Pick<
   PanelMessageInputs,
-  'maxAreaKm2' | 'pointsNeeded' | 'freezeGaps' | 'refusal' | 'overCap' | 'spend' | 'modelDomain'
+  'maxAreaKm2' | 'pointsNeeded' | 'freezeGaps' | 'refusal' | 'overCap' | 'spend' | 'modelDomain' | 'viewIsArea'
 >
 
 function blockerText(blocker: AnalyzeBlocker, facts: BlockerFacts): string {
@@ -119,7 +119,11 @@ function blockerText(blocker: AnalyzeBlocker, facts: BlockerFacts): string {
       return `${facts.modelDomain ?? ''} ${COVERAGE_PHRASE}`
     case 'bound-order':
       return 'A filter minimum is above its maximum.'
+    // The map's view is the search area until a loop is drawn (record 0309),
+    // and a view has no edge to drag, so its line says the one thing that
+    // shrinks it (TJ, 2026-11-25).
     case 'area':
+      if (facts.viewIsArea) return 'Zoom in to forecast here.'
       return `The polygon is too large. The maximum supported size is ${grouped(maxAreaKm2)} km².`
     case 'window':
       return 'Adjust the forecast window to continue.'
@@ -181,6 +185,8 @@ export interface PanelMessageInputs {
   // The compared models with no freezing level, by name.
   freezeGaps: readonly string[]
   maxAreaKm2: number
+  /** The map's view is the search area, no loop being drawn (`searchArea`'s `view` source). Absent reads as a drawn ring. */
+  viewIsArea?: boolean
   archiveDays: number
   aqiForecastDays: number
   windowLimits: WindowLimits

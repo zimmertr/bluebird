@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, expectRanked, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, resultRows, forecastButton, everyColumn } from './fixtures'
 
 // Where the keyboard goes in a real browser (#575, #576). The unit suites hold
 // each rule in jsdom, which implements neither `inert` nor a hidden element's
@@ -19,7 +19,7 @@ async function tabUntil(page: Page, name: string) {
 async function analyzeFromTheKeyboard(page: Page) {
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const analyze = page.getByRole('button', { name: 'Analyze' })
+  const analyze = forecastButton(page)
   await analyze.focus()
   await page.keyboard.press('Enter')
   // The tests read a row's links and Tab through its controls, so not
@@ -56,19 +56,20 @@ test("Tab reaches a row's remove and shows it", async ({ page }) => {
   expect(await button.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
 })
 
-test('the drawer leaves the Tab order when it closes, and each way through hands the keyboard on', async ({ page }) => {
+test('a sentence-bar chip opens its card from the keyboard, and its close shuts it', async ({ page }) => {
+  // A desk has no docked panel since the sentence bar (record 0309): each
+  // chip opens its section as a card under the bar.
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const close = page.getByRole('button', { name: 'Close controls' })
-  await close.focus()
+  const when = page.getByRole('group', { name: 'Forecast', exact: true }).locator('[data-card="forecast"]')
+  await when.focus()
   await page.keyboard.press('Enter')
-  await expect(page.locator('aside')).toHaveAttribute('inert', '')
-  const open = page.getByRole('button', { name: 'Open controls' })
-  await expect(open).toBeFocused()
+  const card = page.getByRole('region', { name: 'When' })
+  await expect(card).toBeVisible()
+  await card.getByRole('button', { name: 'Close' }).focus()
   await page.keyboard.press('Enter')
-  await expect(page.locator('aside')).not.toHaveAttribute('inert')
-  await expect(close).toBeFocused()
+  await expect(card).toHaveCount(0)
 })
 
 test('the first Tab offers the skip link, which shows and lands on the main landmark', async ({ page }) => {
@@ -89,6 +90,7 @@ test('the first Tab offers the skip link, which shows and lands on the main land
 test('a results bar popover takes the keyboard in and gives it back', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
   await analyzeFromTheKeyboard(page)
+  await everyColumn(page)
   const columns = page.getByRole('button', { name: 'Choose which columns to display' })
   await columns.focus()
   await page.keyboard.press('Enter')

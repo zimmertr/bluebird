@@ -35,6 +35,9 @@ const COLOR_OWNERS = [
   // The relief's shadow and light and the contours' ink, matched to the
   // basemap's ground the way basemap.ts's colours are (#799).
   'src/map/terrain.ts',
+  // The ground's tint, shade and Liberty's faint look in each theme (record
+  // 0317), the prototype's palette spelled for MapLibre.
+  'src/map/ground.ts',
   'src/utils/wildfires.ts',
   'src/utils/smoke.ts',
   'src/utils/closures.ts',
@@ -183,8 +186,9 @@ const METRIC_BOX_USE = ':matches(TemplateLiteral, JSXExpressionContainer) > Iden
 // `<span className={`${ROLE} truncate`}>{windowTitle}</span>`: the role last in
 // a class list that is the tag's last attribute, and the title its first child.
 const titleCaption = (ref) =>
-  'JSXElement:matches([children.0.expression.name="windowTitle"], ' +
-  '[children.0.type="JSXText"][children.0.value=/^\\s*$/][children.1.expression.name="windowTitle"]) > ' +
+  // The window title, or the subtitle it leads (record 0319).
+  'JSXElement:matches([children.0.expression.name=/^(windowTitle|subtitle)$/], ' +
+  '[children.0.type="JSXText"][children.0.value=/^\\s*$/][children.1.expression.name=/^(windowTitle|subtitle)$/]) > ' +
   `JSXOpeningElement:matches(${upTo(0, 6)
     .map((i) => `[attributes.${i}.name.name="className"]:not([attributes.${i + 1}])`)
     .join(', ')}) > ` +
@@ -387,10 +391,11 @@ export const STYLES = [
     // button's corner, which the maintainer chose over a trigger shape,
     // opening the one list, and which keeps its severity colour while the
     // list is out because the colour is its message (the maintainer,
-    // 2026-10-30).
+    // 2026-10-30). The other is a compact row's disclosure, which opens
+    // content in place rather than a menu (TJ, 2026-11-21).
     name: 'style-menu-trigger',
     files: SOURCES,
-    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge],
+    ignores: [...TESTS, 'src/components/Menu.tsx', MESSAGES.badge, 'src/components/DisclosureButton.tsx'],
     probe: 'src/components/ResultsBar.tsx',
     ban: [
       {
@@ -533,16 +538,18 @@ export const STYLES = [
     ],
   },
   {
-    // The two rows: the pill and the locate button, then the chips and the
-    // compass. A stacking context orders only its own children, so the layer
-    // is useless unless the stack itself wears it.
+    // The rows, and a phone's tool column under them (record 0331), whose
+    // 3D and locate slots are its round buttons and whose compass slot ends
+    // it. A stacking context orders only its own children, so the layer is
+    // useless unless the stack itself wears it.
     name: 'style-map-rows',
     files: ['src/components/MapRows.tsx'],
     require: [
       { selector: role('MAP_ROWS') + '[property.name="stack"]', message: 'The rows stand in MAP_ROWS.stack.' },
       { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The rows wear LAYER.mapControls.' },
-      { selector: role('MAP_SLOT') + '[property.name="locate"]', message: 'The pill row ends in MAP_SLOT.locate.' },
-      { selector: role('MAP_SLOT') + '[property.name="compass"]', message: 'The chip row ends in MAP_SLOT.compass.' },
+      { selector: role('MAP_ROWS') + '[property.name="phoneTools"]', count: 1, message: 'A phone\'s tools stand in MAP_ROWS.phoneTools.' },
+      { selector: role('MAP_SLOT') + '[property.name="tool"]', count: 2, message: 'The 3D and locate slots are MAP_SLOT.tool.' },
+      { selector: role('MAP_SLOT') + '[property.name="compass"]', count: 1, message: 'The tool column ends in MAP_SLOT.compass.' },
     ],
   },
   {
@@ -649,8 +656,10 @@ export const STYLES = [
     ],
   },
   {
-    // Every layer row is in the list every time, so switching one layer never
-    // moves the rows under it. A row out of play greys and says nothing else.
+    // Every layer row is in the list every time, at a desk and on a phone, so
+    // switching one layer never moves the rows under it. A row out of play
+    // greys and says nothing else. The one spread the cloud deck's row once
+    // had, on `sheet`, went when a phone drew the cloud sea (record 0337).
     name: 'style-layer-rows',
     files: ['src/components/LayersPopover.tsx'],
     ban: [
@@ -1104,7 +1113,7 @@ export const STYLES = [
     // #799), match OpenFreeMap rather than the app.
     name: 'map-paint-named',
     files: ['src/map/*.ts'],
-    ignores: [...TESTS, 'src/map/mapStyles.ts', 'src/map/basemap.ts', 'src/map/terrain.ts'],
+    ignores: [...TESTS, 'src/map/mapStyles.ts', 'src/map/basemap.ts', 'src/map/terrain.ts', 'src/map/ground.ts'],
     probe: 'src/map/resultsLayer.ts',
     ban: [
       {

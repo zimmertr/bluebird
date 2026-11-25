@@ -1,4 +1,4 @@
-import { test, expect, discoveryFromPlaces, expectRanked, isoDay, message } from './fixtures'
+import { test, expect, discoveryFromPlaces, expectRanked, isoDay, message, forecastButton, openCard } from './fixtures'
 import type { Page, Route } from '@playwright/test'
 
 // #803, D1: where the pod answers rings from its places table, the browser
@@ -53,7 +53,7 @@ test('the reported link is held before any press, and runs on the counted field 
   expect(typeof published.limits.open_meteo_hourly_calls).toBe('number')
   expect(published.forecast_models.every((m) => 'domain' in m)).toBe(true)
 
-  const analyze = page.getByRole('button', { name: 'Analyze', exact: true })
+  const analyze = forecastButton(page)
   await expect(message(page, OVER_CAP)).toHaveCount(1)
   await expect(analyze).toHaveAttribute('aria-disabled', 'true')
   expect(asked).toEqual([true])
@@ -64,6 +64,7 @@ test('the reported link is held before any press, and runs on the counted field 
   expect(asked).toEqual([true])
   await page.keyboard.press('Escape')
 
+  await openCard(page, 'Where')
   await page.getByRole('checkbox', { name: 'Include unnamed peaks' }).uncheck()
   await expect(message(page, OVER_CAP)).toHaveCount(0)
   await expect(analyze).not.toHaveAttribute('aria-disabled')

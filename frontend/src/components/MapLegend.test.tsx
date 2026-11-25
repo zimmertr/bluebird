@@ -3,7 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { useId, type ComponentProps } from 'react'
 import MapLegend, { LegendSections, legendSections, type LegendInputs } from './MapLegend'
 import { render } from '../testSupport/render'
-import { rankedScale } from '../utils/colors'
+import { SCORE_MAP_SCALE, rankedScale } from '../utils/colors'
 import { SMOKE_DENSITIES } from '../utils/smoke'
 import { legendMaxCss } from '../utils/results/resultsSheet'
 import { readViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
@@ -113,6 +113,39 @@ describe('MapLegend', () => {
     // Another ranking keeps the layer's own row beside its key.
     const temp = legendSections({ ...BASE, hasColoredMarkers: true, overlays: { ...NONE, showSnow: true } }, 'id')
     expect(temp.map((s) => s.label)).toEqual(['Temperature (°F)', 'Snow depth (in)'])
+  })
+
+  // Under a lens the markers wear the score (record 0307), so the key is the
+  // score's, whatever metric the panel last ranked by.
+  it('keys the score while a lens ranks the field', () => {
+    const scored = legendSections({ ...BASE, markerScale: SCORE_MAP_SCALE, hasColoredMarkers: true, scored: true }, 'id')
+    expect(scored.map((s) => s.label)).toEqual(['Score'])
+    expect(scored[0].ramp?.bands).toBe(SCORE_MAP_SCALE.colors.length)
+    expect(scored[0].ends).toBeUndefined()
+  })
+
+  // With the field's range in hand the key is the prototype's one line (TJ,
+  // 2026-11-21): the lowest score after Fog, the highest before Bluebird.
+  it('prints the score key as the field\'s range from Fog to Bluebird', () => {
+    const inputs = { ...BASE, markerScale: SCORE_MAP_SCALE, hasColoredMarkers: true, scored: true, scoreRange: { lo: 63.6, hi: 87.2 } }
+    const sections = legendSections(inputs, 'id')
+    expect(sections[0].ends).toEqual({ low: '64', high: '87' })
+    render(<LegendSections sections={sections} />)
+    expect(document.body.textContent).toBe('Fog 6487 Bluebird')
+    // Without a lens the range keys nothing.
+    expect(legendSections({ ...inputs, scored: false, markerScale: rankedScale('temp_avg_f') }, 'id')[0].ends).toBeUndefined()
+  })
+
+  // The grid paints the metric whatever ranks (#246), so under a lens it keys
+  // in the metric's own words under the score's key, and only while it paints.
+  it('keys the grid in its metric under the score while a lens ranks', () => {
+    const scale = rankedScale('temp_avg_f')
+    const lens = { ...BASE, markerScale: SCORE_MAP_SCALE, hasColoredMarkers: true, scored: true, gridScale: scale }
+    const painted = { ...NO_GRID, gridPainted: true, gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const } }
+    const both = legendSections({ ...lens, grid: painted }, 'id')
+    expect(both.map((s) => s.label)).toEqual(['Score', 'Temperature (°F)', 'Forecast grid'])
+    expect(both[1].ramp?.bands).toBe(scale!.colors.length)
+    expect(legendSections(lens, 'id').map((s) => s.label)).toEqual(['Score'])
   })
 
   // A chip shows a letter, and the word it stands for was its title alone,

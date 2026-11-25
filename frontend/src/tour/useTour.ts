@@ -5,6 +5,7 @@ import type { DemoReport } from './demoReport'
 import type { ChartMetrics } from '../utils/chart/chartData'
 import { loadTimeSeriesChart } from '../components/ResultsPanels'
 import { cardMode, sheetKeepOut, SPOTLIGHT_PAD } from './place'
+import { PANEL_MS } from '../styles'
 
 interface Args {
   isDesktop: boolean
@@ -17,7 +18,19 @@ interface Args {
    * it asks no third party for anything.
    */
   tourLayer: { shown: boolean; show: (on: boolean) => void }
+  /**
+   * At a desk, opens the sentence bar's card a step's section stands in, or
+   * shuts it with null (record 0309): the sections are cards there, mounted
+   * only while open, so a step that lights one opens it first.
+   */
+  deskCard?: (section: DeskSection | null) => void
 }
+
+/** The panel sections a desk's sentence bar opens as cards, by their tour anchors. */
+type DeskSection = 'destinations' | 'forecast' | 'metrics'
+const DESK_SECTIONS: readonly string[] = ['destinations', 'forecast', 'metrics']
+const deskSectionOf = (anchor: string): DeskSection | null =>
+  DESK_SECTIONS.includes(anchor) ? (anchor as DeskSection) : null
 
 /**
  * What the tour hands the chart while the demonstration stands in (#850):
@@ -73,7 +86,7 @@ export function scrollParent(el: HTMLElement | null): HTMLElement | null {
  * their step is left, and the camera, the drawer and the panel's scroll
  * position are put back where the tour found them when it ends, by any route.
  */
-export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLayer }: Args) {
+export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLayer, deskCard }: Args) {
   const [steps, setSteps] = useState<readonly TourStep[]>(TOUR_STEPS)
   const [index, setIndex] = useState<number | null>(null)
   // What the reader had before the tour touched anything: the camera, the
@@ -100,7 +113,9 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     const present = TOUR_STEPS.filter(
       (s) =>
         (isDesktop || !s.deskOnly) &&
-        (s.reveal !== undefined || document.querySelector(anchorSelector(s.anchor)) !== null),
+        (s.reveal !== undefined ||
+          (isDesktop && deskCard !== undefined && deskSectionOf(s.anchor) !== null) ||
+          document.querySelector(anchorSelector(s.anchor)) !== null),
     )
     if (present.length === 0) return
     const scroller = scrollParent(document.querySelector<HTMLElement>(anchorSelector(TOUR_STEPS[0].anchor)))
@@ -127,7 +142,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
       window.history.pushState(null, '', TUTORIAL_PATH + window.location.search)
       pushed.current = true
     }
-  }, [mapRef, sidebarOpen, isDesktop])
+  }, [mapRef, sidebarOpen, isDesktop, deskCard])
   const end = useCallback(() => {
     setIndex(null)
     const saved = before.current
@@ -138,11 +153,12 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     } else if (window.location.pathname === TUTORIAL_PATH) {
       window.history.replaceState(null, '', '/' + window.location.search)
     }
+    deskCard?.(null)
     if (!saved) return
     setSidebarOpen(saved.sidebarOpen)
     if (saved.camera) mapRef.current?.setCamera(saved.camera)
     if (saved.scroller) saved.scroller.scrollTop = saved.scrollTop
-  }, [mapRef, setSidebarOpen])
+  }, [mapRef, setSidebarOpen, deskCard])
   // Back during the tour lands on the entry under the pushed one, whose path
   // is not the tour's, and ends it; the `back()` `end` itself makes finds
   // nothing left to end.
@@ -188,7 +204,8 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
     if (step === null) return
     const { drawerOpen } = stepLayout(step, isDesktop)
     if (drawerOpen !== null) setSidebarOpen(drawerOpen)
-  }, [step, isDesktop, setSidebarOpen])
+    if (isDesktop) deskCard?.(deskSectionOf(step.anchor))
+  }, [step, isDesktop, setSidebarOpen, deskCard])
 
   // One report per run, built when the results step opens and kept through
   // the marker step that follows it, since that step points at one of its
@@ -264,8 +281,9 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   // The marker step cuts to the first demonstration row and opens its popup,
   // the same framing a click on its rank in the table makes but with no
   // flight: a tour that flies reads as the app doing something, and the
-  // reader waits on it. Two frames first, so the results have collapsed and
-  // reported their height before the framing reads it. The framing is
+  // reader waits on it. Two frames first, and more while the results are
+  // still moving, so they have collapsed and reported their height before
+  // the framing reads it. The framing is
   // handed the one thing over the map it cannot know about: this card,
   // where it is a sheet along the screen's edge, as the room the card needs
   // to keep that edge (`sheetKeepOut`); the button column it finds for
@@ -275,13 +293,32 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   useEffect(() => {
     if (!showingMarker || demo === null) return
     const map = mapRef.current
+    // A desk's results collapse at the panel's speed rather than in a frame,
+    // and a popup opened mid-collapse is fitted to a map that is still
+    // growing: it stepped clear of where the chrome stood in that frame and
+    // hung past the results once they came to rest (the browser suite's tour
+    // walk, 2026-11-18). So the frames run on until the results' top has held
+    // still from one frame to the next, a few panel lengths at most.
+    const resultsTop = () => document.querySelector('[data-tour="results"]')?.getBoundingClientRect().top ?? null
+    const until = performance.now() + PANEL_MS * 3
+    let was = resultsTop()
+    const open = () => {
+      const card = cardMode(window.innerWidth) === 'sheet' ? document.querySelector('[data-tour-card]') : null
+      const box = card?.getBoundingClientRect()
+      const avoid = box ? [sheetKeepOut(box, box.height, window.innerHeight, SPOTLIGHT_PAD)] : []
+      map?.focusResult(demo.universe[0], { instant: true, avoid })
+    }
+    const settle = () => {
+      const now = resultsTop()
+      if (now === was || performance.now() > until) open()
+      else {
+        was = now
+        frame = requestAnimationFrame(settle)
+      }
+    }
     let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
-        const card = cardMode(window.innerWidth) === 'sheet' ? document.querySelector('[data-tour-card]') : null
-        const box = card?.getBoundingClientRect()
-        const avoid = box ? [sheetKeepOut(box, box.height, window.innerHeight, SPOTLIGHT_PAD)] : []
-        map?.focusResult(demo.universe[0], { instant: true, avoid })
-      })
+      was = resultsTop()
+      frame = requestAnimationFrame(settle)
     })
     return () => {
       cancelAnimationFrame(frame)
@@ -322,19 +359,10 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
      * after (#696): at rest the plot is about 68px tall at 390x844 and the
      * five-line readout 129px, so the readout stood over every line it read.
      * The Panels card after it holds the stop too, for its four stacked
-     * panels (#850).
+     * panels (#850). The hold is full screen since the foot grew a sky track
+     * (record 0333), which left the four one panel short at the drag's cap.
      */
     sheetFull: showingChart || step?.reveal === 'panels',
-    /**
-     * The Results card through Pinned hours hold a desk's results at one
-     * taller room (#850): a reader who never analyzed would reach the Panels
-     * card with a 149px chart, where four panels fall under their own floors
-     * and are not drawn, and one room from the Results card on keeps the
-     * results' top edge still (the maintainer, 2026-11-04: "I want tutorial
-     * steps 7 and 8 to have the same results area vertical size as 9, 10,
-     * and 11.").
-     */
-    resultsTall: step?.reveal === 'results' || showingChart || showingPanels,
     /** The chart's readout stands on this hour while the demonstration is up, or follows the reader. */
     chartTooltipIndex: readsMiddle && hours > 0 ? middleHour : null,
     /** What the chart draws in place of the reader's own while the demonstration is up (#850). */

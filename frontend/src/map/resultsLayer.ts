@@ -17,20 +17,29 @@ import type { DestinationResult, SortBy } from '../types'
 import type { PendingDestination } from '../utils/customList'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
 import type { Point as ScreenPoint, Rect } from '../utils/popup/popupFit'
-import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
+import {
+  LABEL_TEXT,
+  type ScoreColouring,
+  hotFilter,
+  labelFilter,
+  resultsFeatureCollection,
+  windArrowsShowing,
+} from '../utils/resultFeatures'
 import { emptyFC, setSource } from './basemap'
 import { addLayerAt } from './layerOrder'
 import type { MapController } from './controller'
 import type { DestinationCards } from './destinationCards'
 import type { MapPopups, MapTargetHit } from './mapPopups'
 import {
+  IDLE_HALO_PAINT,
+  IDLE_MARKER_PAINT,
   MARKER_LABEL_LAYOUT,
   MARKER_LABEL_PAINT,
-  MARKER_HALO_PAINT,
-  MARKER_PAINT,
-  PENDING_COLOR,
+  RANK_FILTER,
   RANK_LAYOUT,
   RANK_PAINT,
+  RESULT_HALO_PAINT,
+  RESULT_MARKER_PAINT,
   WIND_ARROW_FILL,
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
@@ -89,8 +98,9 @@ function updateResults(
   results: DestinationResult[],
   sortBy: SortBy,
   hourIndex: number | null,
+  score: ScoreColouring | null,
 ) {
-  setSource(map, 'results', resultsFeatureCollection(results, sortBy, true, hourIndex))
+  setSource(map, 'results', resultsFeatureCollection(results, sortBy, true, hourIndex, score))
 }
 
 interface ResultsDrawing {
@@ -98,6 +108,9 @@ interface ResultsDrawing {
   sortBy: SortBy
   // The hour the markers are coloured for, or null for the window aggregate.
   playbackIndex: number | null
+  // The score's colouring while a lens ranks the field, or null (absent) for
+  // the metric's. The wind's arrows are the metric's, so a lens hides them.
+  score?: ScoreColouring | null
 }
 
 export interface ResultsLayer {
@@ -128,6 +141,11 @@ export interface ResultsLayer {
    * numbers.
    */
   refreshPopups(): void
+  /**
+   * Ring this place's marker and show its label, for a row under the pointer
+   * (record 0318), or ring none.
+   */
+  setHot(key: string | null): void
   /**
    * Whether a result card stands open on this destination. A row's centring
    * asks it before it places the card again for a resized canvas (#714;
@@ -173,16 +191,19 @@ export function mountResultsLayer(
 ): ResultsLayer {
   const { controller, popups, cards } = deps
 
-  map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection })
+  // Keyed by the place, so the hover ring can be set on one feature without
+  // redrawing the source (record 0318).
+  map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection, promoteId: 'key' })
 
   // Each dot's dark outer ring, under it, so its edge reads on a light ground
-  // as the white stroke does on a dark one (`MARKER_HALO_PAINT`, #799).
-  addLayerAt(map, { id: 'results-halo', type: 'circle', source: 'results', paint: MARKER_HALO_PAINT })
+  // as the white stroke does on a dark one (#799); the accent ring while the
+  // place is hovered here or in its row.
+  addLayerAt(map, { id: 'results-halo', type: 'circle', source: 'results', paint: RESULT_HALO_PAINT })
   addLayerAt(map, {
     id: RESULT_MARKER_LAYER,
     type: 'circle',
     source: 'results',
-    paint: { ...MARKER_PAINT, 'circle-color': ['get', 'color'] },
+    paint: { ...RESULT_MARKER_PAINT, 'circle-color': ['get', 'color'] },
   })
   // Wind arrows, shown only while playback is scrubbing a wind ranking.
   // On the same source as the circles, so a scrub sets one lot of GeoJSON
@@ -212,6 +233,7 @@ export function mountResultsLayer(
     id: 'results-rank',
     type: 'symbol',
     source: 'results',
+    filter: RANK_FILTER,
     layout: { 'text-field': ['get', 'rank'], ...RANK_LAYOUT },
     paint: RANK_PAINT,
   })
@@ -219,40 +241,59 @@ export function mountResultsLayer(
     id: 'results-labels',
     type: 'symbol',
     source: 'results',
-    layout: { 'text-field': ['get', 'name'], ...MARKER_LABEL_LAYOUT },
+    filter: labelFilter(null),
+    layout: { 'text-field': LABEL_TEXT, ...MARKER_LABEL_LAYOUT },
     paint: MARKER_LABEL_PAINT,
   })
 
   // ── Pending destinations ───────────────────────────────────────
   // A pasted CSV row or searched place not yet in the displayed analysis, or
   // a destination a ring's search found whose forecast has not landed (#782):
-  // a neutral dot (`PENDING_COLOR`) so the point never vanishes. A click
+  // a small grey dot (`IDLE_MARKER_PAINT`) so the point never vanishes. A click
   // opens its card, which has no forecast yet (#832), and only while no ring
   // is drawn: a pending dot must never swallow a polygon click while you draw
   // around a just-added spot (`DRAW_TARGETS` in `utils/mapClick.ts`).
   map.addSource('pending-destinations', {
     type: 'geojson',
     data: emptyFC as FeatureCollection,
+    promoteId: 'key',
   })
   addLayerAt(map, {
     id: 'pending-destinations-halo',
     type: 'circle',
     source: 'pending-destinations',
-    paint: MARKER_HALO_PAINT,
+    paint: IDLE_HALO_PAINT,
   })
   addLayerAt(map, {
     id: PENDING_MARKER_LAYER,
     type: 'circle',
     source: 'pending-destinations',
-    paint: { ...MARKER_PAINT, 'circle-color': PENDING_COLOR },
+    paint: IDLE_MARKER_PAINT,
   })
+  // An idle dot's name shows only while it is hovered (record 0318).
   addLayerAt(map, {
     id: 'pending-destinations-labels',
     type: 'symbol',
     source: 'pending-destinations',
+    filter: hotFilter(null),
     layout: { 'text-field': ['get', 'name'], ...MARKER_LABEL_LAYOUT },
     paint: MARKER_LABEL_PAINT,
   })
+
+  // The place the pointer rests on, here or in its row, which wears the
+  // accent ring and its label.
+  let hot: string | null = null
+  function setHot(key: string | null) {
+    if (key === hot) return
+    for (const source of ['results', 'pending-destinations']) {
+      if (hot !== null) map.setFeatureState({ source, id: hot }, { hot: false })
+      if (key !== null) map.setFeatureState({ source, id: key }, { hot: true })
+    }
+    hot = key
+    map.setFilter('results-labels', labelFilter(key))
+    map.setFilter('pending-destinations-labels', hotFilter(key))
+  }
+
 
   const openResultPopup = ({ feature: f }: MapTargetHit) => {
     if (!f.properties) return false
@@ -275,7 +316,14 @@ export function mountResultsLayer(
     // anywhere else rather than a number nobody fetched.
     cards.open({ kind: 'ranked', row: row ?? featureRow(p, lat, lon), rank: p.rank }, anchor)
   }
-  popups.register({ target: 'result', layers: [RESULT_MARKER_LAYER], open: openResultPopup })
+  // A pointer over a marker rings it and tells the table which row to mark.
+  const hover = (feature: maplibregl.MapGeoJSONFeature | null) => {
+    const key = feature?.properties?.key
+    const next = typeof key === 'string' ? key : null
+    setHot(next)
+    controller.inputs.onMarkerHover(next)
+  }
+  popups.register({ target: 'result', layers: [RESULT_MARKER_LAYER], open: openResultPopup, hover })
 
   // The dots as last drawn, which a click finds its destination among.
   let pendingNow: PendingDestination[] = []
@@ -283,6 +331,7 @@ export function mountResultsLayer(
   popups.register({
     target: 'pending',
     layers: [PENDING_MARKER_LAYER],
+    hover,
     open: ({ feature: f }) => {
       const p = f.properties
       const d = p ? pendingAt(p.lat as number, p.lon as number) : undefined
@@ -293,10 +342,10 @@ export function mountResultsLayer(
 
   let arrows = false
   return {
-    update({ results, sortBy, playbackIndex }) {
-      updateResults(map, results, sortBy, playbackIndex)
+    update({ results, sortBy, playbackIndex, score = null }) {
+      updateResults(map, results, sortBy, playbackIndex, score)
       // Set only when it changes, because a scrub calls this twice a second.
-      const showing = windArrowsShowing(sortBy, playbackIndex)
+      const showing = score === null && windArrowsShowing(sortBy, playbackIndex)
       if (showing !== arrows) {
         map.setLayoutProperty('results-wind', 'visibility', showing ? 'visible' : 'none')
         arrows = showing
@@ -338,5 +387,6 @@ export function mountResultsLayer(
     placeAgain: (at, options) => cards.place(at, options),
     hasOpenCard: (at) => cards.hasOpenRanked(at),
     refreshPopups: () => cards.refresh(),
+    setHot,
   }
 }

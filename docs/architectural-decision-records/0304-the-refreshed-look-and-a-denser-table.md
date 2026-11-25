@@ -1,6 +1,6 @@
 # 0304. The app wears one bundled face, sentence-case headings and softer corners, and the results table shows more columns at a time
 
-- Status: Accepted. Amends [0142](0142-sticky-name-column.md) (a phone's Name column is capped at 34% of the sheet, not 45%, and a long name wraps to a second line)
+- Status: Accepted; the face superseded by [0324](0324-archivo-and-38px-map-tools.md). Amends [0142](0142-sticky-name-column.md) (a phone's Name column is capped at 34% of the sheet, not 45%, and a long name wraps to a second line)
 - Date: 2026-11-16
 - Decider: the maintainer (TJ), who picked the Refreshed look in #825's second lab on 2026-11-16 and asked for a table that shows more columns at a time, "especially on mobile", because Bluebird Forecast is a spreadsheet app; and who chose, the same day, a looks-only PR with today's controls and words, ahead of the two layout PRs, with the table levers two-line headers, a narrower Name on a phone, tighter rows and compact numbers; and who, on seeing the build that day, put the grouped numbers back and chose top-aligned, tighter headers
 - Issues and PRs: #825

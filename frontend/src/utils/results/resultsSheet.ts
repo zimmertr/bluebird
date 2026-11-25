@@ -18,6 +18,7 @@
 
 import { resolvePanelHeights } from '../layout'
 import { SHEET_SNAP_PX } from '../sheetDrag'
+import { clamp } from '../numbers'
 
 /** Where the map's two rows end, from the map's top edge (`MAP_ROWS`), at both widths since #714. */
 export const MAP_ROWS_PX = 88
@@ -36,18 +37,20 @@ export const MAP_ROWS_PX = 88
 export const RESTING_TOP_PX = 156
 
 /**
- * The phone's Analyze button (#696; record 0135), an extended floating action
- * button in Material's sense: 56px tall (`FAB_PX`), 16px off the map's right
- * edge and off whatever it stands on (`FAB_INSET_PX`). `FAB_STRIP_PX` is the
- * map a full sheet leaves it, the button and an inset above and below, so the
- * sheet's highest stop is that strip under the chip row.
+ * The phone's foot (record 0329): one card across the map, 16px in from each
+ * edge and off whatever it stands on (`FAB_INSET_PX`), holding the day strip
+ * and the full-width Forecast button under it. 120px tall (`FAB_PX`): 8px of
+ * padding, the days' 56px row (the weekday, the date and the 18px track each
+ * day's hours of sky stand in after a forecast, TJ 2026-11-21), 6px, the
+ * button's 40px, 8px and the card's two 1px edges, the height `MAP_FOOT.card`
+ * sets. It was 96 while the days were plain. It was the 56px floating
+ * Analyze button at the map's bottom right until then (#696; record 0135),
+ * and keeps that button's names, since everything that rode the button rides
+ * the card. `FAB_STRIP_PX`, the map a full sheet leaves it, is below, beside
+ * the corner band it includes.
  */
-export const FAB_PX = 56
+export const FAB_PX = 120
 export const FAB_INSET_PX = 16
-export const FAB_STRIP_PX = FAB_INSET_PX + FAB_PX + FAB_INSET_PX
-
-/** The gap the player keeps above the button. */
-export const FAB_GAP_PX = 8
 
 /**
  * What the legend needs to render with no scrolling: ONE card holding the
@@ -114,6 +117,14 @@ export const CORNER_MARGIN_PX = 10
 export const TRANSPORT_GAP_PX = CORNER_CONTROL_PX + 2 * CORNER_MARGIN_PX
 
 /**
+ * The map a full sheet leaves a phone's foot (record 0329): an inset under
+ * the card, the card, and the corner band over it, where the scale and the (i)
+ * stand now that the card spans the map's width, so the sheet's highest stop
+ * keeps the band clear of the chip row.
+ */
+export const FAB_STRIP_PX = FAB_INSET_PX + FAB_PX + TRANSPORT_GAP_PX
+
+/**
  * The transport's own height, in its tallest state: the axis switch appears
  * once two axes exist, and on a coarse pointer its halves and the play button
  * are a finger's 32px (record 0223). Measured 2026-10-22 at 360, 390, 402 and
@@ -132,15 +143,19 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
 /**
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
- * 71px on a coarse pointer: 12px of padding, the 20px title row, the 4px
- * gap, the 34px actions line (the mode switch and the button group, 32px
- * controls in a 1px-bordered well, record 0223, side by side on one line
- * since #687 drops their words where the bar is narrow, `BAR_LABEL`), and the
- * sheet's own 1px top border. The rule under the bar is the grip's, counted
- * in `GRIP_PX`. Measured 2026-10-22 at 360, 390, 402 and 430 wide on a coarse
- * pointer. It was 84 with 44px controls and a rule of its own, 104 when the
- * actions were links that wrapped onto a second row, and briefly 106 when
- * they were buttons that wrapped onto three.
+ * Two since record 0330, by whether Every column has widened the sheet.
+ * Widened, 112px (`SHEET_HEADER_PX`): 12px of padding, the 24px headline over
+ * its 16px subtitle, the 4px gap, the 34px actions line, the row of lenses and
+ * limits with the 6px over it, and the sheet's own 1px top border. Compact,
+ * 86px (`SHEET_HEADER_COMPACT_PX`): the same with no actions line. Measured
+ * 2026-11-21: 84.5 and 110.5 on a Mac at 500 wide, plus the border, and the
+ * compact one 85.5 in CI's Chromium at 390. The rule under the bar is the
+ * grip's, counted in `GRIP_PX`.
+ *
+ * It was 71 with the title on one line and no chip row (measured 2026-10-22
+ * at 360, 390, 402 and 430 wide on a coarse pointer), 84 with 44px controls
+ * and a rule of its own, 104 when the actions were links that wrapped onto a
+ * second row, and briefly 106 when they were buttons that wrapped onto three.
  *
  * Re-measure when the bar gains a member, because one glyph more than the
  * line holds at 360px wide wraps the group and moves this number.
@@ -152,7 +167,20 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 71
+export const SHEET_HEADER_PX = 112
+export const SHEET_HEADER_COMPACT_PX = 86
+
+/**
+ * The map's key at a phone's compact sheet's foot once a report stands
+ * (record 0333), which the compact sheet's chrome counts beside its header;
+ * a widened sheet, the chart's and the full table's room, leaves the key to
+ * the Legend chip: `h-14`, one fixed height
+ * whatever the key holds, the height of one ramp section (its 16px name, the
+ * 4px gap and the 20px strip, in 6px of padding each way and the 1px rule
+ * over it). One number because a map overlay must never change the height of
+ * the results; a second section scrolls inside it.
+ */
+export const SHEET_KEY_PX = 56
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but
@@ -182,12 +210,13 @@ export const RESTING_MAP_PX = RESTING_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_
 export const DRAGGED_MAP_PX = MAP_ROWS_PX + FAB_STRIP_PX
 
 /**
- * The room the player takes above the button: its bar and the gap under it.
+ * The room the player takes above the foot: its bar and an inset over it, the
+ * corner band under it being the strip's already (record 0329).
  * A full sheet leaves it while the reader has the player on (`draggedMapFloorPx`),
  * so a chart and its playhead stay on screen together; with the player off,
  * a phone's default, the sheet stops at the button's strip alone.
  */
-export const PLAYER_ROOM_PX = FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+export const PLAYER_ROOM_PX = TRANSPORT_HEIGHT_PX + FAB_INSET_PX
 
 /**
  * The results bar above the docked panels: the mode segment, the row count and
@@ -209,7 +238,7 @@ export const RESULTS_BAR_PX = 36
  * One drag grip as the docked panel draws it (`h-2`). The sheet's grips are
  * floored at 24 by `TAP.grip`, and this is the same control on a pointer.
  */
-export const DOCKED_GRIP_PX = 8
+const DOCKED_GRIP_PX = 8
 
 /**
  * The map floor the panel clamp takes where the results are DOCKED below the
@@ -256,9 +285,14 @@ export function dockedMapFloorPx(gripCount: number, barPx: number = RESULTS_BAR_
  */
 export const DEFAULT_PANEL_HEIGHT = 220
 
-/** The sheet's own chrome: the header bar plus each grip it renders. */
-export function sheetChromePx(gripCount: number): number {
-  return SHEET_HEADER_PX + gripCount * GRIP_PX
+/**
+ * The sheet's own chrome: the header bar plus each grip it renders. The
+ * header's estimate defaults to the widened sheet's; a compact sheet passes
+ * its own (`SHEET_HEADER_COMPACT_PX`, record 0330), and so does every floor
+ * below that is worked out from this one.
+ */
+export function sheetChromePx(gripCount: number, headerPx = SHEET_HEADER_PX): number {
+  return headerPx + gripCount * GRIP_PX
 }
 
 /**
@@ -266,8 +300,8 @@ export function sheetChromePx(gripCount: number): number {
  * sheet's chrome is part of what covers the map, so the panels inside it may
  * only have what is left.
  */
-export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
-  return DRAGGED_MAP_PX + (playerOn ? PLAYER_ROOM_PX : 0) + sheetChromePx(gripCount)
+export function draggedMapFloorPx(gripCount: number, playerOn = false, headerPx = SHEET_HEADER_PX): number {
+  return DRAGGED_MAP_PX + (playerOn ? PLAYER_ROOM_PX : 0) + sheetChromePx(gripCount, headerPx)
 }
 
 /**
@@ -278,8 +312,8 @@ export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
  * (`draggedMapFloorPx`, record 0155) and the tutorial holds the same, so full
  * screen is never a default.
  */
-export function fullScreenMapFloorPx(gripCount: number): number {
-  return sheetChromePx(gripCount)
+export function fullScreenMapFloorPx(gripCount: number, headerPx = SHEET_HEADER_PX): number {
+  return sheetChromePx(gripCount, headerPx)
 }
 
 /** Where a phone's results sheet goes when a drag on its map grip is let go. */
@@ -307,8 +341,8 @@ export function sheetTopRelease(panelPx: number, capPx: number, fullPx: number):
  * stack to sit above the sheet", and it is bigger than the docked floor because
  * the sheet's own chrome is part of what covers the map.
  */
-export function restingMapFloorPx(gripCount: number): number {
-  return RESTING_MAP_PX + sheetChromePx(gripCount)
+export function restingMapFloorPx(gripCount: number, headerPx = SHEET_HEADER_PX): number {
+  return RESTING_MAP_PX + sheetChromePx(gripCount, headerPx)
 }
 
 /**
@@ -319,13 +353,15 @@ export function sheetHeightPx({
   collapsed,
   gripCount,
   panelsPx,
+  headerPx = SHEET_HEADER_PX,
 }: {
   collapsed: boolean
   gripCount: number
   panelsPx: number
+  headerPx?: number
 }): number {
-  if (collapsed) return SHEET_HEADER_PX
-  return sheetChromePx(gripCount) + panelsPx
+  if (collapsed) return headerPx
+  return sheetChromePx(gripCount, headerPx) + panelsPx
 }
 
 /**
@@ -385,6 +421,7 @@ export function restingLiftPx({
   chartPx,
   tablePx,
   availPx,
+  headerPx = SHEET_HEADER_PX,
 }: {
   collapsed: boolean
   gripCount: number
@@ -393,14 +430,15 @@ export function restingLiftPx({
   chartPx: number
   tablePx: number
   availPx: number
+  headerPx?: number
 }): number {
   const { chart, table } = resolvePanelHeights(chartPx, tablePx, {
     chartShown,
     tableShown,
     availPx,
-    mapMinPx: restingMapFloorPx(gripCount),
+    mapMinPx: restingMapFloorPx(gripCount, headerPx),
   })
-  return sheetHeightPx({ collapsed, gripCount, panelsPx: chart + table })
+  return sheetHeightPx({ collapsed, gripCount, panelsPx: chart + table, headerPx })
 }
 
 /**
@@ -478,7 +516,7 @@ export function legendMaxCss(liftPx: number, timelineShown: boolean): string {
  * a list it opens.
  */
 export function fabBottomPx(liftPx: number, mapPx: number): number {
-  const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
+  const highest = mapPx - MAP_ROWS_PX - TRANSPORT_GAP_PX - FAB_PX
   return Math.min(liftPx + FAB_INSET_PX, highest)
 }
 
@@ -495,17 +533,15 @@ export function fabShiftPx(liftPx: number, risePx: number, mapPx: number): numbe
 }
 
 /**
- * Where a phone's scale and (i) stand: on the Analyze button's row, at its
- * left, each with its bottom on the button's bottom edge (record 0140; TJ,
- * 2026-10-14). `map.css` stands each control on the library's 10px margin
- * inside the corner band, so the band starts that margin under the button,
- * and the opened credit line, taller than the band, grows up from the same
- * edge. They were centred on the button's middle until the maintainer read
- * it on a Pixel: the credit line opened above the button's top and the
- * collapsed controls stood 6px higher than the button's foot.
+ * Where a phone's scale and (i) stand: in the corner band on the foot's top
+ * edge (record 0329), each on the library's 10px margin over the card, and
+ * the opened credit line, taller than the band, grows up from the same edge.
+ * They stood on the Analyze button's row at its left (record 0140; TJ,
+ * 2026-10-14) until the foot spanned the map's width and left no row beside
+ * it.
  */
 export function phoneCornerLiftPx(fabBottom: number): number {
-  return fabBottom - CORNER_MARGIN_PX
+  return fabBottom + FAB_PX
 }
 
 /**
@@ -517,6 +553,8 @@ export function phoneCornerLiftPx(fabBottom: number): number {
  * button stands under the sheet's dim (record 0207), so nothing above the
  * sheet needs the 164px under the rows; the sheet keeps them so it opens at
  * the height a reader knows, and taking them back is the maintainer's call.
+ * The foot has stood taller than this since its days drew a sky track
+ * (record 0333), and stands under the dim with the button.
  */
 export const CONTROLS_MAP_PX = 256
 
@@ -532,13 +570,13 @@ export function controlsSheetPx(mapPx: number): number {
 }
 
 /**
- * The player on a phone stands on the Analyze button rather than on the sheet
- * (#696): its bottom edge 8px above the button's top. Answered as the edge
- * `transportBottomPx` measures from, so the bar keeps one way of placing
- * itself.
+ * The player on a phone stands on the foot rather than on the sheet (#696),
+ * over the corner band as a desk's stands over its results (record 0329).
+ * Answered as the edge `transportBottomPx` measures from, so the bar keeps
+ * one way of placing itself.
  */
 export function transportStandPx(fabBottom: number): number {
-  return fabBottom + FAB_PX + FAB_GAP_PX - TRANSPORT_GAP_PX
+  return fabBottom + FAB_PX
 }
 
 /**
@@ -549,7 +587,7 @@ export function transportStandPx(fabBottom: number): number {
  * than standing over the chips.
  */
 export function transportFits(fabBottom: number, mapPx: number): boolean {
-  const top = fabBottom + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+  const top = fabBottom + FAB_PX + TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
   return top <= mapPx - MAP_ROWS_PX - FAB_INSET_PX
 }
 
@@ -576,4 +614,18 @@ export function transportBottomPx(liftPx: number): number {
  */
 export function mapCornerLiftPx(liftPx: number): number {
   return liftPx
+}
+
+/**
+ * A desk's results column dragged by its left edge (record 0312): no
+ * narrower than `RESULTS_COLUMN.column`'s own floor, 420px, where the
+ * compact table's columns fit (record 0325), and never so wide that the map keeps less
+ * than `COLUMN_MAP_MIN_PX`, which holds the sentence bar and the corner
+ * buttons on one row. On a window too narrow for both the column's floor
+ * wins, as the class's clamp does.
+ */
+export const COLUMN_MIN_PX = 420
+export const COLUMN_MAP_MIN_PX = 480
+export function columnWidthPx(wantPx: number, viewportPx: number): number {
+  return Math.round(clamp(wantPx, COLUMN_MIN_PX, viewportPx - COLUMN_MAP_MIN_PX))
 }

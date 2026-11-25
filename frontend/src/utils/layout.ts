@@ -155,10 +155,20 @@ export function resolveResultsMode(
 // answering it, so it wins: a segment that does nothing when pressed reads as
 // broken (the #242 review's lesson). A desktop is never held, because the
 // results are docked beside the map there and an empty chart covers nothing.
+//
+// A phone's compact sheet is held to the table outright (`tableOnly`, record
+// 0330): it draws the compact rows and no chart until Every column widens
+// it, and the saved mode comes back then.
 export function heldResultsMode(
   mode: ResultsMode,
-  { pendingOnly, pressed, isDesktop }: { pendingOnly: boolean; pressed: boolean; isDesktop: boolean },
+  {
+    pendingOnly,
+    pressed,
+    isDesktop,
+    tableOnly = false,
+  }: { pendingOnly: boolean; pressed: boolean; isDesktop: boolean; tableOnly?: boolean },
 ): ResultsMode {
+  if (tableOnly) return 'table'
   return pendingOnly && !pressed && !isDesktop ? 'table' : mode
 }
 
@@ -176,32 +186,4 @@ export function splitChartTable(
   const maxDown = Math.max(0, tableStart - floorPx) // table shrinks no further than its floor
   const d = clamp(dragUpPx, -maxDown, maxUp)
   return { chart: chartStart - d, table: tableStart + d }
-}
-
-// The room a desk's results stand in below the map's grip (#850): the chart,
-// the divider and the table in Both, the chart and its legend in Chart, the
-// table in Table. A press on the segment hands that room to the mode pressed,
-// so the results keep their height and the map does not move (the
-// maintainer, 2026-11-04: "Yes, area keeps its height").
-export function deskRoomPx(
-  mode: ResultsMode,
-  { chart, table, legend }: { chart: number; table: number; legend: number },
-  dividerPx: number,
-): number {
-  return mode === 'both' ? chart + dividerPx + table : mode === 'chart' ? chart + legend : table
-}
-
-// Both's two heights in a room handed back to it (#850): split the way Both
-// last split it, so Both to Chart and back is where the reader left it, and
-// the room less the divider shared in that ratio when the room has moved.
-// `resolvePanelHeights` applies the floors after.
-export function splitBoth(
-  roomPx: number,
-  last: { chart: number; table: number },
-  dividerPx: number,
-): { chart: number; table: number } {
-  const inner = Math.max(0, roomPx - dividerPx)
-  const sum = last.chart + last.table
-  const chart = Math.round(sum > 0 ? (inner * last.chart) / sum : inner / 2)
-  return { chart, table: inner - chart }
 }

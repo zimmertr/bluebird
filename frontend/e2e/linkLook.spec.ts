@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, resultRows, typeCell } from './fixtures'
+import { test, expect, expectRanked, resultRows, forecastButton } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // A link in the results table or a popup reads in its text's colour (#786;
@@ -6,11 +6,11 @@ import type { Locator, Page } from '@playwright/test'
 // which never hovers, a thin underline at rest in the secondary ink. Read off
 // the live page, since jsdom answers no media query and computes no hover.
 
-async function analyze(page: Page, phone: boolean) {
+async function analyze(page: Page) {
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const where = phone ? page.getByRole('main') : page.locator('aside')
-  await where.getByRole('button', { name: 'Analyze', exact: true }).click()
+  // The map's button on a phone, the sentence bar's at a desk (record 0309).
+  await forecastButton(page.getByRole('main')).click()
   await expectRanked(page)
 }
 
@@ -41,7 +41,7 @@ const paint = (page: Page, value: string) =>
 
 test('at a desk a link is its text\'s colour and underlines on hover alone', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
-  await analyze(page, false)
+  await analyze(page)
   const row = resultRows(page).nth(1)
   const name = row.getByRole('button', { name: /^Center map on / })
   const rest = await look(name)
@@ -51,10 +51,11 @@ test('at a desk a link is its text\'s colour and underlines on hover alone', asy
   await name.hover()
   await expect.poll(async () => (await look(name)).line).toBe('underline')
 
-  // The popup the row opens says it the same way, and its link-out glyph
-  // rests in a grey and takes the accent under the pointer, as its forecast
-  // section's fold does (#832).
-  await row.locator('td').nth(3).click()
+  // The popup the row's name opens says it the same way, and its link-out
+  // glyph rests in a grey and takes the accent under the pointer, as its
+  // forecast section's fold does (#832). The name, since a press on the
+  // compact row's ground opens the row in place (record 0327).
+  await name.click()
   const popup = page.locator('.maplibregl-popup')
   await expect(popup).toHaveCount(1)
   await groundLanded(page)
@@ -91,11 +92,13 @@ test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
   test('every link wears a thin underline at rest in the secondary ink', async ({ page }) => {
-    await analyze(page, true)
+    await analyze(page)
     const row = resultRows(page).nth(1)
     const name = row.getByRole('button', { name: /^Center map on / })
     expect(await look(name)).toMatchObject({ line: 'underline', decoration: await paint(page, 'var(--ui-ink-soft)') })
-    await (await typeCell(page, row)).tap()
+    // The name opens the place's card; the row's ground opens it in place on
+    // a phone's compact sheet (record 0330).
+    await name.tap()
     await groundLanded(page)
     const link = page.locator('.maplibregl-popup [data-popup-link]').first()
     await expect(link).toBeAttached()

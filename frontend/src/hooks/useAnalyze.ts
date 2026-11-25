@@ -76,6 +76,9 @@ export function useAnalyze(
   // Set only once a run has finished and committed, so a run that does not
   // finish leaves the forecasts of the report it puts back (#560).
   const heldForecastsRef = useRef<HeldForecasts | null>(null)
+  // When the held field was first fetched, as state, so the Forecast button
+  // can stop counting on it once it is too old to reuse.
+  const [heldSinceMs, setHeldSinceMs] = useState<number | null>(null)
   // Which run is current, so a lookup that answers after the next Analyze or
   // a reset lands on nothing (#673): the report it belonged to is gone.
   const runSeqRef = useRef(0)
@@ -142,6 +145,7 @@ export function useAnalyze(
     run.clearEvents()
     setFailedView(null)
     heldForecastsRef.current = null
+    setHeldSinceMs(null)
     holdFound(null)
     setAqiPartial(false)
   }
@@ -218,6 +222,7 @@ export function useAnalyze(
           onPace: run.onPace,
         })
         heldForecastsRef.current = out.held
+        setHeldSinceMs(out.held.fetchedAtMs)
         report.commit(out.response, out.field, view(), out.pending)
         const aqiFailed = out.held.aqiFailed?.size ?? 0
         setAqiPartial(aqiFailed > 0 && aqiFailed < out.field.length)
@@ -280,6 +285,8 @@ export function useAnalyze(
     analyzed: report.analyzed,
     // When the report committed, for a result card's forecast section (#832).
     analyzedAtMs: report.analyzedAtMs,
+    // When the held forecasts were first fetched, or null with none held.
+    heldSinceMs,
     analysisSeq: report.analysisSeq,
     // Moves when a run that showed partial rows is put back (#560).
     discardSeq: report.discardSeq,

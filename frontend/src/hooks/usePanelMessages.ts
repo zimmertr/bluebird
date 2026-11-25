@@ -50,6 +50,8 @@ export interface PanelMessageState {
   forecastModels: readonly ForecastModelOption[]
   polygonAreaKm2: number | null
   maxAreaKm2: number
+  /** The map's view is the search area (`searchArea`'s `view` source), so the area line asks for a zoom. */
+  viewIsArea?: boolean
   drawPointCount: number
   drawing: boolean
   destinationTypes: readonly DiscoveryType[]
@@ -296,6 +298,7 @@ export function usePanelMessages(s: PanelMessageState): PanelMessages {
     pointsNeeded,
     freezeGaps,
     maxAreaKm2: s.maxAreaKm2,
+    viewIsArea: s.viewIsArea,
     archiveDays: s.archiveDays,
     aqiForecastDays: s.aqiForecastDays,
     windowLimits: s.windowLimits,

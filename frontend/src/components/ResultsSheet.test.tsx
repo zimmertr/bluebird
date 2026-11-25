@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
-import ResultsSheet from './ResultsSheet'
+import ResultsSheet, { ResultsExpand } from './ResultsSheet'
 import { render } from '../testSupport/render'
 import { DEFAULT_FAMILY_KEY, resultsHeading } from '../metrics'
-import { LAYOUT_HOLD } from '../styles'
 
 // The panels and the bar have suites of their own. What this one is about is
 // what the sheet hands them, so both are replaced by stand-ins that keep what
@@ -109,7 +108,6 @@ function props(
     sortDesc?: boolean
     removed?: number
     isDesktop?: boolean
-    layoutMotion?: 'opening' | 'closing' | 'panes' | null
   } = {},
 ): Props {
   return {
@@ -137,7 +135,6 @@ function props(
     fire: { status: 'ready', warnings: new Map(), uncovered: new Set() },
     closure: { status: 'ready', warnings: new Map(), uncovered: new Set() },
     modelId: 'gfs_seamless',
-    layoutMotion: over.layoutMotion ?? null,
   } as unknown as Props
 }
 
@@ -159,34 +156,91 @@ describe('ResultsSheet', () => {
     expect(sheets()).toEqual(['true', 'true', 'true'])
   })
 
-  // A desk keeps the panels, collapsed, so their frames can shut at the
-  // panel's speed (record 0202); a phone's sheet drops them.
-  it('folds the panels away and keeps the bar', () => {
-    seen.panels.length = 0
+  // A desk's column goes with the chevron, bar and all, and the round button
+  // on the map's edge brings it back (record 0312); a phone's
+  // sheet keeps its bar and drops the panels.
+  it('takes a desk\'s column away on the chevron, and folds a phone\'s sheet to its bar', () => {
     const { rerender } = render(<ResultsSheet {...props({ resultsCollapsed: true })} />)
-    expect(screen.getByTestId('bar')).toBeTruthy()
-    expect(seen.panels[seen.panels.length - 1].collapsed).toBe(true)
+    expect(screen.queryByTestId('bar')).toBeNull()
+    expect(screen.queryByTestId('panels')).toBeNull()
     rerender(<ResultsSheet {...props({ resultsCollapsed: true, isDesktop: false })} />)
     expect(screen.getByTestId('bar')).toBeTruthy()
     expect(screen.queryByTestId('panels')).toBeNull()
   })
 
-  // The sheet takes the results view as one object and hands its members on
-  // as they are: the table and the chart under the panels are memoized.
-  // The desk's results stand on a layer of their own while the panel moves
-  // (record 0216), and only then.
-  it('gives a desk\'s results a layer of their own while the panel moves', () => {
-    const results = () => document.querySelector('[data-tour="results"]') as HTMLElement
+  // The map's key stands at the results' foot at either width (records 0322
+  // and 0333), and under a phone's folded sheet too, where the map is open;
+  // a phone's widened sheet is the chart's room and leaves it to the chip.
+  it('keeps a foot for the map\'s key at either width, folded or not, and none in a phone\'s widened sheet', () => {
+    const foot = () => document.querySelector('[data-legend-foot]')
     const { rerender } = render(<ResultsSheet {...props()} />)
-    expect(results().className).not.toContain(LAYOUT_HOLD.layer)
-    rerender(<ResultsSheet {...props({ layoutMotion: 'closing' })} />)
-    expect(results().className).toContain(LAYOUT_HOLD.layer)
-    rerender(<ResultsSheet {...props({ layoutMotion: 'opening' })} />)
-    expect(results().className).toContain(LAYOUT_HOLD.layer)
-    rerender(<ResultsSheet {...props({ layoutMotion: 'panes' })} />)
-    expect(results().className).not.toContain(LAYOUT_HOLD.layer)
+    expect(foot()).not.toBeNull()
+    rerender(<ResultsSheet {...props({ isDesktop: false })} />)
+    expect(foot()).not.toBeNull()
+    rerender(<ResultsSheet {...props({ isDesktop: false, resultsCollapsed: true })} />)
+    expect(foot()).not.toBeNull()
+    rerender(<ResultsSheet {...props({ isDesktop: false })} wide />)
+    expect(foot()).toBeNull()
+    rerender(<ResultsSheet {...props()} wide />)
+    expect(foot()).not.toBeNull()
   })
 
+  // The column holds the compact table, and widened over the map it holds
+  // every pane, as a phone's sheet does (record 0321).
+  it('draws a desk\'s compact column, and every pane once it is widened', () => {
+    seen.panels.length = 0
+    const { rerender } = render(<ResultsSheet {...props()} />)
+    expect(seen.panels[seen.panels.length - 1].part).toBe('column')
+    rerender(<ResultsSheet {...props()} wide />)
+    expect(seen.panels[seen.panels.length - 1].part).toBe('wide')
+  })
+
+  it('draws every pane in a phone\'s sheet', () => {
+    seen.panels.length = 0
+    render(<ResultsSheet {...props({ isDesktop: false })} />)
+    expect(seen.panels.map((p) => p.part)).toEqual(seen.panels.map(() => 'all'))
+  })
+
+  // The button on the map's edge stands only while a desk's column is away,
+  // and brings it back under the bar chevron's own name.
+  it('brings a desk\'s collapsed column back from the map\'s edge', () => {
+    const toggleCollapsed = vi.fn()
+    const { rerender } = render(<ResultsExpand isDesktop layout={{ resultsCollapsed: false, toggleCollapsed }} />)
+    expect(screen.queryByRole('button', { name: 'Expand results' })).toBeNull()
+    rerender(<ResultsExpand isDesktop={false} layout={{ resultsCollapsed: true, toggleCollapsed }} />)
+    expect(screen.queryByRole('button', { name: 'Expand results' })).toBeNull()
+    rerender(<ResultsExpand isDesktop layout={{ resultsCollapsed: true, toggleCollapsed }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Expand results' }))
+    expect(toggleCollapsed).toHaveBeenCalledTimes(1)
+  })
+
+  // A desk's column takes its width from a drag on its left edge, held
+  // between its own floor and the map's, and a double press gives the
+  // class's width back (record 0312). A phone's sheet has no such edge.
+  it('widens a desk\'s column by its left edge and puts it back on a double press', () => {
+    vi.stubGlobal('innerWidth', 1400)
+    render(<ResultsSheet {...props()} />)
+    const column = document.querySelector('[data-tour="results"]') as HTMLElement
+    column.getBoundingClientRect = () => ({ width: 450 }) as DOMRect
+    const grip = screen.getByRole('separator', { name: 'Resize results' })
+    fireEvent.pointerDown(grip, { clientX: 900, clientY: 300, pointerType: 'mouse' })
+    fireEvent.pointerMove(document, { clientX: 850, clientY: 300, pointerType: 'mouse' })
+    expect(column.style.width).toBe('500px')
+    fireEvent.pointerMove(document, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
+    expect(column.style.width).toBe('420px')
+    fireEvent.pointerUp(document, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
+    fireEvent.pointerDown(grip, { clientX: 1000, clientY: 300, pointerType: 'mouse' })
+    expect(column.style.width).toBe('')
+    vi.unstubAllGlobals()
+  })
+
+  it('draws no width grip on a phone', () => {
+    render(<ResultsSheet {...props({ isDesktop: false })} />)
+    expect(screen.queryByRole('separator', { name: 'Resize results' })).toBeNull()
+  })
+
+  // The sheet takes the results view as one object and hands its members on
+  // as they are: the table and the chart under the panels are memoized.
   it('hands the panels each member of the results view by identity', () => {
     seen.panels.length = 0
     const given = props()

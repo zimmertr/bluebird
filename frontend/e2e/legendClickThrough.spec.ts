@@ -1,4 +1,4 @@
-import { test, expect, message } from './fixtures'
+import { test, expect, message, inWhere } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // At a desk the legend is a card under its chip (#714; record 0174), as tall
@@ -36,7 +36,8 @@ test('a click under the desk legend card reaches the map', async ({ page }, test
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('/?wildfires=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
+  // In the Where card at a desk (record 0309), shut again once drawing.
+  await inWhere(page, () => page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw a loop' }).click())
   // The panel slides away rather than vanishing, so the point is read once
   // nothing but the map or the legend stands at it.
   await expect.poll(async () => (await probe(page)).hit).toBe('map')
@@ -66,14 +67,15 @@ test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is th
   await expect(legend).toBeEnabled()
   await expect(page.getByText('Active wildfires')).toHaveCount(0)
 
-  // About 20px at 360 wide, where the three chips take 316 of 336. Layers is
-  // the row's last chip, after Legend (TJ, 2026-10-18).
-  const end = await page.getByRole('button', { name: 'Layers', exact: true }).evaluate((chip) => {
-    const row = chip.parentElement!.getBoundingClientRect()
+  // Legend is the chip row's one chip since the tools moved into the column
+  // down the right edge (record 0331), so the row's middle, between the chip
+  // and the column's Layers button, is the map's.
+  const end = await legend.evaluate((chip) => {
     const right = chip.getBoundingClientRect().right
-    const x = Math.round((right + row.right) / 2)
-    const y = Math.round(row.top + row.height / 2)
-    return { free: Math.round(row.right - right), hit: !!document.elementFromPoint(x, y)?.closest('.maplibregl-canvas-container') }
+    const column = document.querySelector('button[aria-label="Layers"]')!.getBoundingClientRect()
+    const x = Math.round((right + column.left) / 2)
+    const y = Math.round(chip.getBoundingClientRect().top + chip.getBoundingClientRect().height / 2)
+    return { free: Math.round(column.left - right), hit: !!document.elementFromPoint(x, y)?.closest('.maplibregl-canvas-container') }
   })
   expect(end.free).toBeGreaterThan(10)
   expect(end.hit).toBe(true)
@@ -112,13 +114,11 @@ test('the desk legend card scrolls when its sections outgrow the map', async ({ 
 })
 
 // With the player on, the card stops above its band only where the centred
-// bar reaches under it: a map narrower than 864px (record 0261). The panel is
-// open at both widths, so the map is the window less the panel.
-for (const [width, side] of [
-  [1440, 'wide'],
-  [1024, 'narrow'],
-] as const) {
-  test(`the desk legend card clears the player only where the bar reaches under it, ${side} map`, async ({ page }) => {
+// bar reaches under it: a map narrower than 864px (record 0261). No panel
+// stands beside a desk's map since the sentence bar (record 0309), so the map
+// is the window's width, and at 1024, the narrowest desk, it is wide too.
+for (const width of [1440, 1024] as const) {
+  test(`the desk legend card clears the player only where the bar reaches under it, at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 720 })
     await page.goto('/?wildfires=1&radar=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
@@ -133,11 +133,9 @@ for (const [width, side] of [
       return { maxHeight: parseFloat(getComputedStyle(box).maxHeight), mapW: map.clientWidth, mapH: map.clientHeight }
     })
     test.info().annotations.push({ type: `legend cap ${width} px`, description: JSON.stringify(at) })
-    // The rows (88) and the gap under the chip (4), then the plain gap (32)
-    // or the player's band (112).
-    if (side === 'wide') expect(at.mapW).toBeGreaterThanOrEqual(864)
-    else expect(at.mapW).toBeLessThan(864)
-    const floor = side === 'wide' ? 32 : 112
-    expect(Math.abs(at.maxHeight - (at.mapH - 88 - 4 - floor))).toBeLessThanOrEqual(0.5)
+    // The rows (88) and the gap under the chip (4), then the plain gap (32):
+    // the player's bar does not reach under a card on a wide map.
+    expect(at.mapW).toBeGreaterThanOrEqual(864)
+    expect(Math.abs(at.maxHeight - (at.mapH - 88 - 4 - 32))).toBeLessThanOrEqual(0.5)
   })
 }

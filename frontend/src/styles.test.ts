@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT,
+  BUTTON_FORECAST_BAR,
+  BUTTON_FORECAST_QUIET,
   ACCENT_RING,
   BADGE_ACCENT,
   BADGE_STEP,
@@ -70,11 +72,13 @@ import {
   METRIC_LABEL_PITCH,
   MOTION,
   PANEL_MS,
-  DESK_PANEL,
+  RESULTS_COLUMN,
+  SENTENCE_BAR,
+  RESULTS_HEAD,
+  HOUR_STRIP,
   RESULTS_PANE,
   LAYOUT_HOLD,
   PANEL_BODY,
-  PANEL_HEADER,
   SCROLL_BARS,
   SCROLL_SHADOW,
   LINK,
@@ -95,6 +99,8 @@ import {
   MENU_GROUP,
   LAYER_GRID,
   LEGEND_GRID_STYLE,
+  LEGEND_SCORE,
+  FIGURES,
   LEGEND_GRID_STYLE_WORDS,
   LAYER_ROW,
   SHEET_ASIDE,
@@ -103,9 +109,7 @@ import {
   MENU_TRIGGER,
   MAP_CHIP_MENU,
   MAP_CHIP_SUMMARY_TEXT,
-  MAP_FAB,
-  MAP_FAB_SLOT,
-  MAP_FAB_WORDS,
+  MAP_FOOT,
   MESSAGE_BADGE,
   MESSAGE_LIST,
   BLOCKED,
@@ -149,7 +153,7 @@ import { CHEVRON_PX, EXTERNAL_LINK_PX, GRIP_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chart/chartColors'
 import { THEME_SWITCHING_CLASS } from './hooks/useTheme'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
-import { CHIP_MENU_GAP_PX } from './utils/results/resultsSheet'
+import { CHIP_MENU_GAP_PX, COLUMN_MIN_PX, FAB_PX, SHEET_KEY_PX } from './utils/results/resultsSheet'
 import { PANEL_FLOOR_PX } from './utils/layout'
 import { SCALE_MAX_WIDTH_PX } from './map/controls'
 import { MARKER_HALO, MARKER_LABEL_PAINT, MARKER_STROKE } from './map/mapStyles'
@@ -213,6 +217,7 @@ import bottomSheetSource from './components/BottomSheet.tsx?raw'
 import phoneFootSource from './components/PhoneFoot.tsx?raw'
 import mapStageSource from './components/MapStage.tsx?raw'
 import appDrawerSource from './components/AppDrawer.tsx?raw'
+import sentenceBarSource from './components/SentenceBar.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import resultsPanelsSource from './components/ResultsPanels.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
@@ -505,12 +510,14 @@ describe('the reading tier', () => {
     expect(PROSE.subtitle.replace('text-sm', 'text-xs')).toBe(TEXT.caption)
   })
 
-  // The tagline is each surface's secondary line, upright: the maintainer
-  // tried it in italics and had it put back (#801, record 0229).
-  it('keeps the tagline upright on the roles it wears', () => {
+  // The tagline is the welcome dialog's secondary line, upright: the
+  // maintainer tried it in italics and had it put back (#801, record 0229).
+  // The panel's header that wore it too went with the docked panel (record
+  // 0334).
+  it('keeps the tagline upright', () => {
     expect(TEXT.caption).not.toContain('italic')
     expect(PROSE.subtitle).not.toContain('italic')
-    expect(controlPanelSource).toContain('<p className={TEXT.caption}>Weather Window Finder</p>')
+    expect(controlPanelSource).not.toContain('Weather Window Finder')
     expect(welcomeSource).toContain('<p className={PROSE.subtitle}>Weather Window Finder</p>')
   })
 
@@ -1095,9 +1102,9 @@ describe('shared recipes', () => {
 
   it('floors an axis half at the width Radar takes', () => {
     // `Radar` at text-xs: 33.02px in Chrome on macOS, 2026-09-14, and 33.01px
-    // in Inter (record 0304), 2026-11-16, plus the
-    // half's two insets and the pixel the divider takes.
-    const RADAR_PX = 34
+    // in Inter (record 0304), 2026-11-16, and 32.45px in Archivo (record 0324),
+    // 2026-11-21, plus the half's two insets and the pixel the divider takes.
+    const RADAR_PX = 33
     const floors = [...TRANSPORT_AXIS_W.matchAll(/min-w-\[(\d+)px\]/g)].map((m) => Number(m[1]))
     const insetPx = stepPx(TRANSPORT_AXIS_ITEM, 'px')
     const tapPx = Number(TAP.action.match(/touch:min-w-(\d+)/)![1]) * 4
@@ -1318,11 +1325,12 @@ describe('shared recipes', () => {
   // one control whose job is telling eight similar things apart truncates.
   // Measured in Chrome on macOS at the panel's text-xs, 2026-09-14.
   it('leaves the model picker room for its longest label', () => {
-    // `UK Met Office`: 79.69px, and 79.85px in Inter (record 0304), 2026-11-16.
-    // `Meteo-France ARPEGE` is 130.03px (130.71px in Inter) and fits no
+    // `UK Met Office`: 79.69px, 79.85px in Inter (record 0304), 2026-11-16, and
+    // 73.47px in Archivo (record 0324), 2026-11-21, the face the app draws.
+    // `Meteo-France ARPEGE` is 130.03px (128.18px in Archivo) and fits no
     // trigger the panel can offer — it truncated at the old 144px too, and
     // shortening it is the maintainer's call, not this file's.
-    const UK_MET_OFFICE_PX = 80
+    const UK_MET_OFFICE_PX = 74
     expect(controlWPx() - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(UK_MET_OFFICE_PX)
   })
 
@@ -1332,9 +1340,10 @@ describe('shared recipes', () => {
   // leave 84px.
   it('keeps the chart metric select off the panel column', () => {
     // `Precipitation (in/hr)`, the widest option (record 0222), measured
-    // 109.03px (108.90px in Inter (record 0304), 2026-11-16); held with 8px to
-    // spare, about the margin it had at 144px.
-    const WIDEST_OPTION_PX = 109.03
+    // 109.03px (108.90px in Inter (record 0304), 2026-11-16, and 101.55px in
+    // Archivo (record 0324), 2026-11-21); held with 8px to spare, about the
+    // margin it had at 144px.
+    const WIDEST_OPTION_PX = 101.55
     const chartPx = stepPx(CHART_METRIC_W, 'w')
     expect(chartPx - 8 - selectArrowPx() - 2 - WIDEST_OPTION_PX).toBeGreaterThanOrEqual(8)
   })
@@ -1363,8 +1372,9 @@ describe('shared recipes', () => {
   // 2026-09-14); re-measure before moving either width, the gap, or the nouns.
   it('leaves the metric label room for its longest noun', () => {
     // `Freezing level` at text-xs: 78.03px in Chrome on macOS, 2026-09-14,
-    // and 78.30px in Inter (record 0304), 2026-11-16.
-    const FREEZING_LEVEL_PX = 79
+    // 78.30px in Inter (record 0304), 2026-11-16, and 73.51px in Archivo
+    // (record 0324), 2026-11-21.
+    const FREEZING_LEVEL_PX = 74
     const rem = Number(SELECT_W_AGGREGATE.match(/\[(\d+(?:\.\d+)?)rem\]/)![1])
     const dropdownPx = rem * 16
     const boxPx = (Number(METRIC_BOX_W.match(/-(\d+)$/)![1]) / 4) * 16
@@ -1391,10 +1401,11 @@ describe('shared recipes', () => {
     const PHONE_CONTENT_PX = 328
     expect(labelAt(PHONE_CONTENT_PX, 0, toggleTouchPx)).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     // The dropdown's floor: `Total`, its widest word, 27.54px at text-xs in
-    // production (Chrome on macOS, 2026-11-12) and 27.63px in Inter (record 0304), 2026-11-16,
+    // production (Chrome on macOS, 2026-11-12), 27.63px in Inter (record 0304), 2026-11-16,
+    // and 25.94px in Archivo (record 0324), 2026-11-21,
     // beside the field's 8px left
     // padding, its arrow's reserve and its 2px of border, so it never cuts off.
-    const TOTAL_PX = 27.63
+    const TOTAL_PX = 25.94
     expect(dropdownPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(TOTAL_PX)
   })
 
@@ -1429,8 +1440,9 @@ describe('shared recipes', () => {
   it('leaves every segment half room for its longest word', () => {
     // At text-xs: `Highest` 43.69px, `Current` 42.89px, `All day` 37.80px,
     // `Lowest` 39.88px, `Dates` 32.75px, `Hourly` 37.13px. In Inter (record 0304), 2026-11-16:
-    // 43.54, 42.90, 38.13, 40.63, 32.54 and 37.63px.
-    const HIGHEST_PX = 44
+    // 43.54, 42.90, 38.13, 40.63, 32.54 and 37.63px. In Archivo (record 0324),
+    // 2026-11-21: 41.21, 40.22, 35.49, 38.09, 31.60 and 35.14px.
+    const HIGHEST_PX = 42
     const insetPx = stepPx(SEGMENT_ITEM, 'px')
     const halfPx = (controlWPx() - 2 - 1) / 2
 
@@ -1600,7 +1612,7 @@ describe('shared recipes', () => {
     expect(FIELD).toContain(RADIUS.control)
   })
 
-  // The phone results sheet (#249). It is the docked panel's own fill so the
+  // The phone results sheet (#249). It is the desk column's own fill so the
   // results do not change colour with the breakpoint, it takes the map's
   // floating edge because it now stands on the map, and it rounds the surface
   // step on its top corners only — the bottom pair are off the screen. The
@@ -1939,11 +1951,12 @@ describe('tap targets', () => {
   // Remove moves nothing (TJ, 2026-11-04: no flapping between sizes). The
   // width is Remove's, the wider word, at the button's text-xs in the app's
   // face, measured in Chrome on macOS 2026-11-04: 44.95px (Add 22.48px),
-  // and again in Inter (record 0304) on 2026-11-16: 45.52px (Add 22.98px).
+  // again in Inter (record 0304) on 2026-11-16: 45.52px (Add 22.98px), and in
+  // Archivo (record 0324) on 2026-11-21: 44.84px (Add 21.78px).
   // The button spends 8px a side and its 1px edge; the rest is the word's.
   it("holds the card button's one width to the wider word", () => {
-    const REMOVE_PX = 45.52
-    const ADD_PX = 22.98
+    const REMOVE_PX = 44.84
+    const ADD_PX = 21.78
     const width = stepPx(CARD_ACTION, 'w')
     const room = width - 2 * stepPx(CARD_ACTION, 'px') - 2
     expect(width).toBe(64)
@@ -2682,35 +2695,31 @@ describe('the map rows', () => {
     expect(step(MAP_ROWS.chips, 'gap')).toBe(6)
   })
 
-  // A phone's pill leaves the 3D and locate buttons and the 8px before each
-  // at rest (#799), and takes the whole row while it is searching. A desk's is 320px
-  // either way, with no button beside it (record 0174).
-  it('stands a phone\'s pill beside a 32px round locate button, and a desk\'s alone', () => {
-    expect(step(MAP_SLOT.locate, 'size')).toBe(ROW)
-    expect(tokens(MAP_SLOT.locate)).toEqual(expect.arrayContaining(['absolute', 'right-0', 'top-0']))
-    // The 3D button's slot, one button and one gap left of the locate button.
-    expect(step(MAP_SLOT.terrain, 'size')).toBe(ROW)
-    expect(tokens(MAP_SLOT.terrain)).toEqual(expect.arrayContaining(['absolute', 'top-0']))
-    expect(step(MAP_SLOT.terrain, 'right')).toBe(ROW + GAP)
+  // A phone's bar takes the whole first row, the tools standing in a column
+  // under it (record 0331); a desk's pill is 320px, with no button beside it
+  // (record 0174).
+  it('stands a phone\'s map buttons in a column of 32px slots, under a full-width bar', () => {
+    expect(step(MAP_SLOT.tool, 'size')).toBe(ROW)
     expect(step(MAP_ROUND_BUTTON, 'size')).toBe(ROW)
     expect(step(MAP_PILL, 'h')).toBe(ROW)
-    expect(step(MAP_ROWS.pill, 'right')).toBe(2 * (ROW + GAP))
     expect(MAP_ROWS.pillWide).toMatch(/(^|\s)right-0(\s|$)/)
-    for (const pill of [MAP_ROWS.pill, MAP_ROWS.pillWide]) {
-      expect(tokens(pill)).toEqual(expect.arrayContaining(['lg:right-auto', 'lg:w-80']))
-    }
     for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON]) expect(tokens(recipe)).toContain(RADIUS.pill)
     // The class map.css keys the vendor group's margin on.
     for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
     expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
-    expect(mapRowsSource).toContain('{!desk && <div ref={onLocateSlot} className={MAP_SLOT.locate} />}')
-    expect(mapRowsSource).toContain('{!desk && <div ref={onTerrainSlot} className={MAP_SLOT.terrain} />}')
-    // A phone's compass, the chip row's last member (record 0147): no size of
-    // its own, so a hidden compass leaves the row's end to the map. A desk
-    // has none of the three slots.
-    expect(mapRowsSource).toContain('{!desk && <div ref={onCompassSlot} className={MAP_SLOT.compass} />}')
-    expect(Object.keys(MAP_SLOT)).toEqual(['locate', 'terrain', 'compass'])
-    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
+    expect(mapRowsSource).toContain('<div ref={onTerrainSlot} className={MAP_SLOT.tool} />')
+    expect(mapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.tool} />')
+    // The compass's slot has no size of its own, so a hidden compass ends
+    // the column at the locate button (record 0147). A desk has no slots.
+    expect(mapRowsSource).toContain('<div ref={onCompassSlot} className={MAP_SLOT.compass} />')
+    expect(Object.keys(MAP_SLOT)).toEqual(['tool', 'compass'])
+    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot'])
+    // The column's buttons are 12px apart, under the bar's 32px row and its 12px gap.
+    expect(step(MAP_ROWS.phoneTools, 'gap')).toBe(GAP)
+    expect(MAP_ROWS.phoneTools).toContain(MAP_EDGE.right)
+    expect(MAP_ROWS.phoneTools).toContain(`top-[calc(var(--map-edge-inset)+${(ROW + GAP) / 16}rem)]`)
+    // Under the results sheet, which stands over the column's foot.
+    expect(MAP_ROWS.phoneTools).toContain(LAYER.base)
   })
 
   // The 3D button (#799) is a map button whose glyph is a word: the round
@@ -2757,14 +2766,14 @@ describe('the map rows', () => {
     expect(tokens(MAP_CHIP)).not.toContain('font-semibold')
   })
 
-  // The summary is the one chip that gives way, by an ellipsis on its words;
-  // every other chip keeps its width, and nothing claims the row's right end.
-  it('lets the summary alone shrink, and leaves the right end empty', () => {
+  // Every chip keeps its width, and nothing claims the row's right end. The
+  // summary chip that gave way went with the sentence bar (record 0331); its
+  // truncating words are the bar's phrases now.
+  it('keeps each chip whole, and leaves the right end empty', () => {
     // The chip says nothing about shrinking; each call site says it.
     expect(MAP_CHIP).not.toMatch(/(^|\s)(flex-)?shrink(-0)?(\s|$)/)
     expect(layersPopoverSource).toMatch(/shape="chip"[\s\S]*?className="flex-shrink-0"/)
     expect(mapLegendSource).toMatch(/shape="chip"[\s\S]*?className="flex-shrink-0"/)
-    expect(mapRowsSource).toMatch(/shape="chip"[\s\S]*?className="min-w-0"/)
     expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toEqual(['min-w-0', 'truncate'])
     expect(token(MAP_CHIP, 'aria-expanded:bg')).toBe(token(ACCENT.fill, 'bg'))
     for (const recipe of [MAP_CHIP, MAP_ROWS.chips]) expect(recipe).not.toMatch(/(^|\s)(ml-auto|justify-between)(\s|$)/)
@@ -3075,58 +3084,33 @@ describe('the phone chrome\'s hit areas', () => {
     expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib\.maplibregl-compact:not\(\.maplibregl-compact-show\) \{\s*background: transparent;\s*border-width: 0;/)
   })
 
-  it('leaves the Analyze button at 56, over the floor already', () => {
-    expect(steps(MAP_FAB, /(?:^|\s)h-(\d+)(?:\s|$)/)).toBe(56)
+  it('leaves the foot\'s button at 40, over the floor already', () => {
+    expect(steps(MAP_FOOT.button, /(?:^|\s)h-(\d+)(?:\s|$)/)).toBe(40)
   })
 })
 
-// The phone's Analyze (#696; record 0135): Material's extended floating
-// action button, on the panel's primary fill and gate.
-describe('the Analyze button on a phone', () => {
+// The phone's foot (record 0329): one card across the map, the day strip
+// over the desk bar's own Forecast button at the card's width.
+describe('the foot on a phone', () => {
   const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
-  // The slot places the button and its badge together (record 0208); the
-  // button itself is the slot's box, so the badge's corner is its corner.
-  it('is 56px tall with a 16px corner, in a slot 16px off the right edge', () => {
-    expect(tokens(MAP_FAB)).toEqual(expect.arrayContaining(['relative', 'h-14', 'rounded-2xl']))
-    expect(tokens(MAP_FAB_SLOT)).toEqual(['absolute', 'right-4', LAYER.mapControls])
-    expect(MAP_FAB).not.toMatch(/(^|\s)(absolute|right-|z-)/)
-    expect(MAP_FAB).toContain(ELEVATION.overlay)
+  // 120px, the height `FAB_PX` places it by, 16px in from each edge (record 0333).
+  it('is a 120px card across the map, 16px in from each edge', () => {
+    expect(Number(MAP_FOOT.card.match(/(?:^|\s)h-(\d+)(?:\s|$)/)![1]) * 4).toBe(FAB_PX)
+    expect(tokens(MAP_FOOT.card)).toEqual(expect.arrayContaining(['absolute', 'inset-x-4', LAYER.mapControls]))
+    for (const part of tokens(SURFACE_FLOATING)) expect(tokens(MAP_FOOT.card)).toContain(part)
+    // The days take what the button leaves.
+    expect(tokens(MAP_FOOT.days)).toEqual(['min-h-0', 'flex-1'])
   })
 
-  // A press shows on the button itself (TJ, 2026-10-14), Material's way: a
-  // white state layer at 12% and the shadow dropping a step, on a mouse and a
-  // finger alike, and never on a disabled button.
-  it('shows a press with a state layer and a lower shadow', () => {
-    const t = tokens(MAP_FAB)
-    expect(t).toEqual(
-      expect.arrayContaining([
-        'after:absolute',
-        'after:inset-0',
-        `after:bg-${token(ACCENT.fill, 'text')}`,
-        'after:opacity-0',
-        'enabled:active:after:opacity-[0.12]',
-        'after:pointer-events-none',
-      ]),
-    )
-    expect(ELEVATION.raised).toBe('shadow-lg')
-    expect(t).toContain(`enabled:active:${ELEVATION.raised}`)
-    expect(t.some((c) => c.startsWith('disabled:') || c === 'active:after:opacity-[0.12]')).toBe(false)
-  })
-
-  // The primary fill, so the white label keeps record 0008's contrast; the
-  // call to action's type; the panel's grey from the call site.
-  it('wears BUTTON_PRIMARY\'s fill and the call to action\'s type', () => {
-    for (const part of [ACCENT.fill, ACCENT.fillHover, FOCUS_RING, TEXT.cta]) expect(MAP_FAB).toContain(part)
-    for (const part of [ACCENT.fill, TEXT.cta]) expect(BUTTON_PRIMARY).toContain(part)
-    expect(phoneFootSource).toContain('${MAP_FAB} ${DISABLED} ${BLOCKED}')
-  })
-
-  // Both words in one grid cell, so the width is the wider word's.
-  it('reserves the wider word\'s width by stacking both', () => {
-    expect(tokens(MAP_FAB_WORDS.cell)).toEqual(['grid', 'place-items-center', '[&>*]:col-start-1', '[&>*]:row-start-1'])
-    expect(MAP_FAB_WORDS.hidden).toBe('invisible')
-    expect(phoneFootSource).toContain('aria-hidden="true" className={MAP_FAB_WORDS.hidden}')
+  // The desk bar's button at the card's width, outlined while a press would
+  // fetch nothing new; the panel's grey from the call site; the badge's slot
+  // a positioned box of the button's size.
+  it('wears the bar\'s button at full width, in a slot the badge stands on', () => {
+    expect(MAP_FOOT.button).toBe(`${BUTTON_FORECAST_BAR} w-full`)
+    expect(MAP_FOOT.quiet).toBe(`${BUTTON_FORECAST_QUIET} w-full`)
+    expect(tokens(MAP_FOOT.slot)).toEqual(['relative', 'flex'])
+    expect(phoneFootSource).toContain('${quiet ? MAP_FOOT.quiet : MAP_FOOT.button} ${DISABLED} ${BLOCKED}')
   })
 })
 
@@ -3141,7 +3125,8 @@ describe('the bottom sheet', () => {
     // it stands, and the sheet's modality keeps it from a press, so the foot
     // neither hides it nor makes it inert (record 0207). The one inert is a
     // full-screen results sheet's, which covers the button whole (#837).
-    expect(zOf(MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1])).toBeLessThan(zOf(LAYER.popover))
+    expect(zOf(LAYER.mapControls)).toBeLessThan(zOf(LAYER.popover))
+    expect(MAP_FOOT.card).toContain(LAYER.mapControls)
     expect(phoneFootSource.match(/\binert\b/g)).toEqual(['inert'])
     expect(phoneFootSource).toContain('inert={covered}')
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
@@ -3216,10 +3201,9 @@ describe('the message badge', () => {
     // 24px plus 10px each side on touch: the 44px a finger needs, drawn by
     // nothing (`touch:before:-inset-2.5`), so the disc stays a disc.
     expect(t).toEqual(expect.arrayContaining(['touch:before:absolute', 'touch:before:-inset-2.5', "touch:before:content-['']"]))
-    expect(MESSAGE_BADGE.slot).toBe('relative')
-    // The phone's slot is the positioned box, so the badge's corner is the
-    // button's there too.
-    expect(words(MAP_FAB_SLOT)).toContain('absolute')
+    // The phone's slot is a positioned box of the button's size, so the
+    // badge's corner is the button's there too.
+    expect(words(MAP_FOOT.slot)).toContain('relative')
   })
 
   // #834: a message arriving swells the disc and spreads a ring of its own
@@ -3286,15 +3270,12 @@ describe('a blocked Analyze and the message list', () => {
     expect(MESSAGE_LIST.sheet).toBe('space-y-2 py-2')
   })
 
-  // The desk card takes the width of the slot the button and its badge share
-  // (#803, record 0233), which is the docked panel less the footer's gutters,
-  // so the 82-character over-cap sentence wraps inside it rather than running
-  // the card past the panel's right edge over the map.
-  it("stands the desk card at the Analyze slot's width, 328px at the docked panel", () => {
-    expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: slotRef,/)
-    const panelPx = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) * 4
-    const gutterPx = Number(panelFooterSource.match(/`px-(\d+) py-4 border-t \$\{PANEL_EDGE\}/)![1]) * 4
-    expect(panelPx - 2 * gutterPx).toBe(328)
+  // The desk card takes the sentence bar's span, its chips and the button
+  // (record 0309), so the 82-character over-cap sentence wraps inside it
+  // rather than every line wrapping at the button's width (#803, record 0233).
+  it("stands the desk card at the sentence bar's width", () => {
+    expect(panelFooterSource).toMatch(/anchorRef: slotRef,\s*widthRef: bar\.widthRef,/)
+    expect(sentenceBarSource).toMatch(/widthRef: groupRef/)
   })
 })
 
@@ -3347,7 +3328,9 @@ describe('the Controls sheet', () => {
     }
     for (const part of words(MOTION.slide)) expect(words(CONTROLS_SHEET.card)).toContain(part)
     expect(CONTROLS_SHEET.shut).toBe('translate-y-full')
-    expect(words(CONTROLS_SHEET.panel)).toEqual(['min-h-0', 'flex-1'])
+    // A column, the place search over the panel (record 0328).
+    expect(words(CONTROLS_SHEET.panel)).toEqual(['flex', 'min-h-0', 'flex-1', 'flex-col'])
+    expect(words(CONTROLS_SHEET.panelBody)).toEqual(['min-h-0', 'flex-1'])
   })
 
   // Its dim is the whole screen, fixed to the viewport like a menu sheet's,
@@ -3356,7 +3339,7 @@ describe('the Controls sheet', () => {
   it('dims the whole screen one layer under the card', () => {
     expect(words(CONTROLS_SHEET.scrim)).toEqual(['fixed', 'inset-0', LAYER.scrim])
     expect(zOf(LAYER.scrim)).toBeLessThan(zOf(LAYER.drawer))
-    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls, MAP_FAB_SLOT.match(/(?:^|\s)(z-\S+)/)![1]]) {
+    for (const under of [LAYER.base, LAYER.sheet, LAYER.mapControls]) {
       expect(zOf(under)).toBeLessThan(zOf(LAYER.scrim))
     }
     expect(bottomSheetSource).toContain('kept ? CONTROLS_SHEET.scrim : BOTTOM_SHEET.scrim')
@@ -3512,7 +3495,7 @@ describe('the map layer rows', () => {
   const headings = [...block.matchAll(/heading: '([^']+)'/g)].map((m) => m[1])
 
   it('found every row', () => {
-    expect(labels).toHaveLength(13)
+    expect(labels).toHaveLength(14)
   })
 
   // By what a layer changes: the map itself, a hazard on it, the weather on
@@ -3532,6 +3515,7 @@ describe('the map layer rows', () => {
       'Trail closures',
       'Rain radar',
       'Snow depth',
+      'Cloud deck',
       'Forecast grid',
       'Forecast player',
     ])
@@ -3669,7 +3653,7 @@ describe('the map legend sections', () => {
     // The metric key's label is composed, not written: `metricLabel` is what
     // every surface in the app names a metric with, and it reads the SCALE's
     // unit so playback's swap to `in/hr` relabels the strip with its bands.
-    expect(box).toContain('label: metricLabel(')
+    expect(box).toContain("label: scored ? 'Score' : metricLabel(")
   })
 
   // In the Layers menu's order (record 0249): the metric key, the base map's
@@ -3677,7 +3661,7 @@ describe('the map legend sections', () => {
   // than sorted, so the order is the source's.
   it('lists the sections in the Layers menu\'s order, the metric key first', () => {
     const at = (mark: string) => box.indexOf(mark)
-    const order = ['label: metricLabel(', "label: 'Slope angle'", ...LAYER_LABELS_IN_ORDER]
+    const order = ["label: scored ? 'Score' : metricLabel(", "label: 'Slope angle'", ...LAYER_LABELS_IN_ORDER]
     expect(order.map(at).every((i) => i >= 0)).toBe(true)
     expect(order.map(at)).toEqual([...order.map(at)].sort((a, b) => a - b))
     expect(box).not.toContain('.sort(')
@@ -3694,7 +3678,7 @@ describe('the map legend sections', () => {
   // snow key being the odd one out.
   it('builds every section from the one recipe', () => {
     expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
-    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(3)
+    expect((box.match(/\bramp: \{/g) ?? []).length).toBe(4)
   })
 })
 
@@ -4095,18 +4079,14 @@ describe('the attribution beside the scale', () => {
     expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
   })
 
-  // On a phone the credit line sits at the bottom left beside the scale, and
-  // its row stops so the line ends 8px short of the Analyze button (#696):
-  // the button's measured width, its 16px inset and the 8px clear, less the
-  // compact credit's own 10px margin inside the row. Measured 2026-10-14 at
-  // 360, 390 and 430 wide: a 120.1px button, the row ending 134.1px from the
-  // map's right edge, the line 8px short of the button.
-  it('caps a phone\'s credit row short of the Analyze button', () => {
+  // On a phone the credit line sits at the bottom left beside the scale, in
+  // the band over the foot, which spans the map (record 0329), so its row
+  // spans the map too and nothing publishes a button's width for it.
+  it('lets a phone\'s credit row span the map over the foot', () => {
     const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-left:has\(> \.maplibregl-ctrl-attrib\) \{[^}]*\}/)?.[0] ?? ''
-    const clear = Number(rule.match(/right: calc\(var\(--map-fab-w, 0px\) \+ (\d+)px\);/)?.[1])
-    expect(clear).toBe(16 + CLEAR_PX - ATTRIB_MARGIN_PX)
-    expect(MAP_FAB_SLOT.split(/\s+/)).toContain('right-4')
-    expect(mapStageSource).toContain("'--map-fab-w': `${fabPx}px`")
+    expect(rule).toMatch(/right: 0;/)
+    expect(mapStageSource).not.toContain('--map-fab-w')
+    expect(mapCss).not.toContain('--map-fab-w')
   })
 
   // Three lines at 360px wide: the corner grows up over the map, never down
@@ -4563,22 +4543,45 @@ describe('the results bar buttons', () => {
     const fits = Number(BAR_LABEL.match(/@min-\[(\d+)px\]:inline/)![1])
     expect(BAR_LABEL.startsWith('hidden ')).toBe(true)
     expect(fits).toBe(Math.ceil(MEASURED.switch + MEASURED.group + MEASURED.gap + MEASURED.digits))
-    // The docked bar at 1024 wide has 640px and keeps them; the widest phone
-    // measured, 430, has 406.
-    expect(640).toBeGreaterThanOrEqual(fits)
+    // A desk's bar stands in the results column (record 0325), its content
+    // the column less the bar's px-3 each side and the column's 1px rule: the
+    // widest column keeps the words and the narrowest shows the glyphs. The
+    // widest phone measured, 430, has 406.
+    const [, minRem, , maxRem] = RESULTS_COLUMN.column.match(/w-\[clamp\(([\d.]+)rem,(\d+)vw,([\d.]+)rem\)\]/)!
+    const content = (px: number) => px - 2 * 12 - 1
+    expect(content(Number(maxRem) * 16)).toBeGreaterThanOrEqual(fits)
+    expect(content(Number(minRem) * 16)).toBeLessThan(fits)
     expect(406).toBeLessThan(fits)
     // At a desk the menu buttons carry chevrons (record 0201), measured
-    // 2026-10-20: the docked bar at 1024 still holds a two-digit count.
+    // 2026-10-20: the column widened over the map (record 0321) at 1024 holds
+    // a two-digit count.
     const DESK_GROUP = 437.8
-    expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits / 2).toBeLessThanOrEqual(640)
+    const widePct = Number(RESULTS_COLUMN.wide.match(/w-\[min\(\d+px,(\d+)%\)\]/)![1])
+    expect(MEASURED.switch + DESK_GROUP + MEASURED.gap + MEASURED.digits / 2).toBeLessThanOrEqual(content((1024 * widePct) / 100))
+  })
+})
+
+describe('the score key', () => {
+  // One line at the prototype's 8px strip, on the swatches' edge, the ends in
+  // the figures' weight (TJ, 2026-11-21).
+  it('is one line with the strip taking the free width', () => {
+    expect(LEGEND_SCORE.row).toContain('whitespace-nowrap')
+    expect(LEGEND_SCORE.row).toContain(TEXT.control)
+    expect(stepPx(LEGEND_SCORE.strip, 'h')).toBe(8)
+    expect(LEGEND_SCORE.strip).toContain('flex-1')
+    expect(LEGEND_SCORE.strip).toContain('border')
+    expect(LEGEND_SCORE.figure).toContain(FIGURES)
   })
 })
 
 describe('the phone draw bar', () => {
-  it('floats on the map at the column inset from both sides', () => {
+  // Its right edge clears the phone's tool column (record 0331), whose
+  // 32px buttons stand at the inset with 12px before them.
+  it('floats on the map at the inset, clear of the tool column', () => {
     expect(DRAW_BAR).toContain(SURFACE_FLOATING)
     expect(DRAW_BAR).toContain(MAP_EDGE.left)
-    expect(DRAW_BAR).toContain(MAP_EDGE.right)
+    expect(DRAW_BAR).toContain(MAP_EDGE.rightOfTools)
+    expect(MAP_EDGE.rightOfTools).toBe('right-[calc(var(--map-edge-inset)+2.75rem)]')
     expect(DRAW_BAR).toContain(LAYER.base)
   })
 })
@@ -4688,9 +4691,11 @@ describe('the one menu', () => {
   // recorded"): a pill on the map, a field in the panel, a button in the
   // results bar's group. Everything else is the one menu. The segment and the
   // square came with the chart's picker (#499), and the header's round button
-  // with the theme menu (#843), each the look of what it stands beside.
+  // with the theme menu (#843), each the look of what it stands beside, and
+  // the sentence bar's phrase with the bar (record 0314), and the map tool
+  // column's round button with that column (record 0315).
   it('keeps the trigger shapes and no more', () => {
-    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'square'])
+    expect(Object.keys(MENU_TRIGGER).sort()).toEqual(['bar', 'chip', 'field', 'header', 'segment', 'slot', 'square', 'tool'])
     expect(sizes(MENU_TRIGGER.chip)).toEqual([CONTROL_SIZE])
     expect(MENU_TRIGGER.bar).toBe(ACTION_ITEM)
     expect(Object.keys(MENU_CHEVRON).sort()).toEqual(Object.keys(MENU_TRIGGER).sort())
@@ -4780,10 +4785,11 @@ describe('the one menu', () => {
 })
 
 describe('the panel frame', () => {
-  // The seam between the docked panel and the results (#697, record 0128):
-  // the panel's own structural edge, 3.07:1 on slate-800 and 3.74:1 on
-  // slate-900, where SURFACE_DIVIDER's 1.41:1 left the two one block.
-  it("closes the panel's right edge with the structural rule", () => {
+  // The structural edge (#697, record 0128), 3.07:1 on slate-800 and 3.74:1
+  // on slate-900, where SURFACE_DIVIDER's 1.41:1 left the docked panel and
+  // the results one block. Since record 0334 it edges the results column
+  // where it meets the map, and rules a desk card's heading off its body.
+  it('edges the results column and the card heading with the structural rule', () => {
     const MEASURED = { panel: 3.07, page: 3.74, wasBefore: 1.41 }
     const edge = dark(token(PANEL_EDGE, 'border'))
     expect({
@@ -4791,41 +4797,11 @@ describe('the panel frame', () => {
       page: ratio(edge, dark('page')),
       wasBefore: ratio(dark(token(SURFACE_DIVIDER, 'border')), dark('panel')),
     }).toEqual(MEASURED)
-    expect(DESK_PANEL.card).toContain(`border-r ${PANEL_EDGE}`)
-    expect(appDrawerSource).toContain('DESK_PANEL.card')
+    expect(RESULTS_COLUMN.column).toContain(`border-l ${PANEL_EDGE}`)
+    expect(SENTENCE_BAR.head).toContain(`border-b ${PANEL_EDGE}`)
     expect(appDrawerSource).not.toMatch(/SURFACE_DIVIDER/)
     expect(Math.min(MEASURED.panel, MEASURED.page)).toBeGreaterThanOrEqual(3)
     expect(MEASURED.wasBefore).toBeLessThan(3)
-  })
-
-  // 56px of header plus its rule (#687): the logo's box and its margin set
-  // the height, and the title block's padding must not outgrow it.
-  it('keeps the header at 56px, set by the logo', () => {
-    const px = (recipe: string, prefix: string) => stepPx(recipe, prefix)
-    const logo = px(PANEL_HEADER.logo, 'h') + 2 * px(PANEL_HEADER.logo, 'm')
-    expect(logo).toBe(56)
-    expect(px(PANEL_HEADER.logo, 'w')).toBe(px(PANEL_HEADER.logo, 'h'))
-    // The title (18px at leading-tight, 22.5px) and the 16px tagline line,
-    // with the block's padding above and below, fit inside the logo's 56.
-    const TITLE_AND_TAGLINE_PX = 22.5 + 16
-    expect(TITLE_AND_TAGLINE_PX + 2 * px(PANEL_HEADER.title, 'py')).toBeLessThanOrEqual(logo)
-    expect(controlPanelSource).toContain('PANEL_HEADER.logo')
-    expect(controlPanelSource).toContain('PANEL_HEADER.title')
-  })
-
-  // The round buttons centre where the logo and the title block do (#801):
-  // measured 2026-10-22, all three at 28px once the buttons stand 12px down,
-  // where at 8px the buttons' centre was 24.
-  it('centres the header buttons on the logo', () => {
-    const logo = stepPx(PANEL_HEADER.logo, 'h') + 2 * stepPx(PANEL_HEADER.logo, 'm')
-    expect(stepPx(PANEL_HEADER.actions, 'top') + stepPx(HEADER_BUTTON, 'h') / 2).toBe(logo / 2)
-    expect(PANEL_HEADER.title).toContain('justify-center')
-  })
-
-  // The name and the tagline start together at the block's left edge: the
-  // maintainer tried them centred and had them put back (#801, record 0229).
-  it('starts the title and the tagline together', () => {
-    expect(PANEL_HEADER.title.split(' ')).not.toContain('text-center')
   })
 
   // One bar style on every dark surface, and the panel body reserves its
@@ -4875,7 +4851,6 @@ describe('the panel frame', () => {
       expect(recipe).toContain('motion-reduce:transition-none')
     }
     expect(CONTROLS_SHEET.card).toContain(MOTION.slide)
-    expect(DESK_PANEL.card).toContain(MOTION.push)
     expect(appDrawerSource).not.toMatch(/(^|\s)transition-transform duration/)
     expect(analysisOverlaySource).toContain('MOTION.progress')
     expect(resultsPanelsSource).toContain('MOTION.pane')
@@ -4890,45 +4865,25 @@ describe('the panel frame', () => {
     const easing = (recipe: string) => recipe.match(/(?:^|\s)(ease-[a-z-]+)(?=\s|$)/)?.[1]
     expect(PANEL_MS).toBe(300)
     expect(duration(MOTION.menu)).toBe(150)
-    for (const recipe of [MOTION.slide, MOTION.push, MOTION.pane]) {
+    for (const recipe of [MOTION.slide, MOTION.pane]) {
       expect(duration(recipe)).toBe(PANEL_MS)
       expect(easing(recipe)).toBe('ease-in-out')
     }
     // Each names the one property it moves, so a grip's drag on a sheet's or
     // a pane's height never chases the finger.
     expect(MOTION.slide).toMatch(/(^|\s)transition-transform(\s|$)/)
-    expect(MOTION.push).toMatch(/(^|\s)transition-\[margin-left\](\s|$)/)
     expect(MOTION.pane).toMatch(/(^|\s)transition-\[grid-template-rows\](\s|$)/)
     expect(MOTION.menu).toMatch(/(^|\s)transition-\[opacity,translate\](\s|$)/)
   })
 
-  // The desk panel pushes the map's edge (record 0202): it stays in the row
-  // shut, and its margin takes back exactly its own width.
-  it('takes the desk panel out of the row by its own width', () => {
-    const width = DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)?.[1]
-    expect(width).toBe('90')
-    expect(DESK_PANEL.shut).toBe(`-ml-${width}`)
-    expect(DESK_PANEL.card).not.toMatch(/(^|\s)(absolute|fixed)(\s|$)/)
-    expect(DESK_PANEL.card).toMatch(/(^|\s)relative(\s|$)/)
-    expect(DESK_PANEL.card).toContain(LAYER.base)
-  })
-
-  // While a desk's layout moves, the map and the results hold one size
-  // (record 0202). The map's box is the window's width or height, centred on
-  // its column, so MapLibre, which keeps the centre on a resize, draws what it
-  // would at every size in between. The chart closing keeps its open width,
-  // the window less the panel.
-  it('holds the map centred on its column, and the chart at the width it had', () => {
-    expect(words(LAYOUT_HOLD.mapPush)).toEqual(expect.arrayContaining(['absolute', 'inset-y-0', 'w-screen', 'left-[calc(50%-50vw)]']))
+  // While a desk's results panes move, the map holds one size (record 0202).
+  // The map's box is the window's height, centred on its column, so
+  // MapLibre, which keeps the centre on a resize, draws what it would at
+  // every height in between.
+  it('holds the map centred on its column while the panes move', () => {
     expect(words(LAYOUT_HOLD.mapPanes)).toEqual(expect.arrayContaining(['absolute', 'inset-x-0', 'h-dvh', 'top-[calc(50%-50dvh)]']))
     expect(LAYOUT_HOLD.rest).toBe('absolute inset-0')
-    expect(LAYOUT_HOLD.table).toBe('w-screen')
-    expect(LAYOUT_HOLD.chartOpening).toBe('w-screen')
-    const panelRem = Number(DESK_PANEL.card.match(/(?:^|\s)w-(\d+)(?=\s|$)/)![1]) / 4
-    expect(LAYOUT_HOLD.chartClosing).toBe(`w-[calc(100vw-${panelRem}rem)]`)
     expect(LAYOUT_HOLD.clip).toBe('overflow-clip')
-    // What moves stands on a layer of its own while it moves (record 0216).
-    expect(LAYOUT_HOLD.layer).toBe('will-change-transform')
   })
 
   // A results pane opens to its body's height and shuts to none, and the
@@ -4943,6 +4898,37 @@ describe('the panel frame', () => {
     }
     expect(RESULTS_PANE.foot).toMatch(/(^|\s)justify-end(\s|$)/)
     expect(RESULTS_PANE.top).not.toMatch(/justify-end/)
+  })
+
+  // A desk's results stand in a column down the map's right edge (record
+  // 0312): never narrower than the table's name, score and
+  // strip need, never so wide the map is a sliver, edged on its left by the
+  // panel's rule, and on the panel's ground. Its chips fill the column, so
+  // they carry no two-row cap of their own.
+  it('stands a desk\'s results in a column of bounded width', () => {
+    const cols = RESULTS_COLUMN.column.split(' ')
+    // The prototype's proportion (record 0325): 44% of the window, 420 to 640px.
+    expect(cols).toContain('w-[clamp(26.25rem,44vw,40rem)]')
+    // A drag on its left edge stops at the class's own floor (`columnWidthPx`),
+    // and the grip stands in the column's box.
+    expect(COLUMN_MIN_PX).toBe(26.25 * 16)
+    expect(cols).toContain('relative')
+    expect(cols).toEqual(expect.arrayContaining(['flex-col', 'flex-shrink-0', 'border-l', PANEL_EDGE, 'bg-panel']))
+    expect(RESULTS_COLUMN.chips).not.toMatch(/max-h-/)
+    expect(RESULTS_COLUMN.chips.split(' ')).toEqual(expect.arrayContaining(['flex-1', 'min-h-0', 'overflow-y-auto']))
+    expect(RESULTS_COLUMN.expand.startsWith(MAP_ROUND_BUTTON)).toBe(true)
+  })
+
+  // A phone's key at the sheet's foot (record 0333) is one fixed height, the
+  // one the sheet's chrome counts, whatever it holds, and holds one ramp
+  // section: its 16px name, the 4px gap and the 20px strip inside 6px of
+  // padding each way and the 1px rule over it.
+  it('holds a phone\'s key at the one height the sheet counts', () => {
+    const foot = RESULTS_COLUMN.footPhone.split(' ')
+    expect(Number(RESULTS_COLUMN.footPhone.match(/(?:^|\s)h-(\d+)(?:\s|$)/)![1]) * 4).toBe(SHEET_KEY_PX)
+    expect(foot).toEqual(expect.arrayContaining(['flex-shrink-0', 'overflow-y-auto', 'border-t', 'py-1.5']))
+    expect(foot.some((t) => t.startsWith('max-h-') || t.startsWith('min-h-'))).toBe(false)
+    expect(1 + 2 * 6 + 16 + 4 + 20).toBeLessThanOrEqual(SHEET_KEY_PX)
   })
 
   // The chart-only legend's tallest strip (#795): two rows of 26px chips and
@@ -5011,7 +4997,10 @@ describe('the polygon row', () => {
   // Three equal buttons on the fields' edges (#687): the two button roles with
   // the inset cut to 4px and nothing else changed, because 12px a side would
   // wrap `Draw polygon` (77.4px on a Mac, 78.77px in Inter since record 0304,
-  // 2026-11-16) in a third of a 295px field.
+  // 2026-11-16, 73.04px in Archivo since record 0324) in a third of a 295px
+  // field. Since the rename to `Draw a loop` (TJ, 2026-11-21) the widest of
+  // the three labels is 64.68px in Archivo at 600, which fits a third at
+  // either inset; the row keeps the 4px one.
   it('is the two button roles at a 4px inset, three to a row', () => {
     expect(DRAW_ROW.secondary).toBe(BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '))
     expect(DRAW_ROW.accent).toBe(BUTTON_ACCENT.replace(' px-3 ', ' px-1 '))
@@ -5019,9 +5008,8 @@ describe('the polygon row', () => {
     expect(DRAW_ROW.accent).not.toBe(BUTTON_ACCENT)
     expect(DRAW_ROW.row).toContain('grid-cols-3')
     const third = (field: number) => (field - 2 * stepPx(DRAW_ROW.row, 'gap')) / 3
-    const need = (inset: number) => 78.77 + 2 * inset
+    const need = (inset: number) => 64.68 + 2 * inset
     expect(need(stepPx(DRAW_ROW.secondary, 'px'))).toBeLessThan(third(295))
-    expect(need(stepPx(BUTTON_SECONDARY, 'px'))).toBeGreaterThan(third(317))
     for (const name of ['DRAW_ROW.row', 'DRAW_ROW.secondary', 'DRAW_ROW.accent', 'DISABLED']) {
       expect(destinationsSource).toContain(name)
     }
@@ -5522,5 +5510,73 @@ describe('sheet handles and pull to refresh', () => {
 
   it('turns off overscroll on the page', () => {
     expect(indexCss).toMatch(/html,\s*body\s*\{\s*overscroll-behavior-y:\s*none;\s*\}/)
+  })
+})
+
+// Alpenglow (record 0308): the Forecast button's fill and its dark label.
+// Both themes measured here, the label against the fill (1.4.3) and the fill
+// against the surfaces it stands on (1.4.11); the light hover is the one state
+// under 3:1 on the panel and is pinned so a change to it is a re-measurement.
+describe('the alpenglow fill', () => {
+  const tok = (recipe: string, utility: string) => token(recipe, utility)
+
+  it('reads the label at AA on the fill and its hover in both themes', () => {
+    expect(tok(BUTTON_FORECAST_BAR, 'bg')).toBe('act')
+    expect(tok(BUTTON_FORECAST_BAR, 'text')).toBe('on-act')
+    expect(tok(BUTTON_FORECAST_BAR, 'hover:bg')).toBe('act-hover')
+    expect(ratio(dark('on-act'), dark('act'))).toBe(7.37)
+    expect(ratio(dark('on-act'), dark('act-hover'))).toBe(8.88)
+    expect(ratio(light('on-act'), light('act'))).toBe(4.71)
+    expect(ratio(light('on-act'), light('act-hover'))).toBe(5.33)
+  })
+
+  // Up to date wears no fill (record 0314): its words carry it, so they owe
+  // 4.5:1 on the bar's face in both themes.
+  it('draws Up to date as quiet words in an outline, readable on the bar', () => {
+    expect(BUTTON_FORECAST_QUIET).not.toMatch(/(^|\s)bg-/)
+    expect(tok(BUTTON_FORECAST_QUIET, 'text')).toBe('ink-soft')
+    expect(tok(BUTTON_FORECAST_QUIET, 'ring')).toBe('rule')
+    expect(ratio(dark('ink-soft'), dark('floating'))).toBeGreaterThanOrEqual(4.5)
+    expect(ratio(light('ink-soft'), light('floating'))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('stands the fill 3:1 on the surfaces it sits on', () => {
+    for (const ground of [dark('panel'), dark('raised'), dark('page')]) {
+      expect(contrast(dark('act'), ground)).toBeGreaterThanOrEqual(3)
+    }
+    expect(ratio(light('act'), light('panel'))).toBe(3.37)
+    expect(ratio(light('act'), light('raised'))).toBe(3.01)
+    expect(ratio(light('act'), light('page'))).toBe(3.6)
+    // The light hover lightens to gain label contrast, and pays for it here.
+    expect(ratio(light('act-hover'), light('panel'))).toBe(2.98)
+  })
+})
+
+// The results header (record 0319): a lens lit or idle is the same box, so a
+// press recolours the pill and moves nothing beside it, and every pill in the
+// header stands at the one height.
+describe('RESULTS_HEAD', () => {
+  const box = (cls: string) => cls.split(' ').filter((c) => /^(h-|px-|border$|rounded-)/.test(c))
+  it('draws a lit lens in the idle one\'s box', () => {
+    expect(box(RESULTS_HEAD.lensOn)).toEqual(box(RESULTS_HEAD.lens))
+    expect(RESULTS_HEAD.lensOn).toContain(ACCENT.fill)
+  })
+  it('sets the desk headline as large as the panel\'s own title', () => {
+    expect(RESULTS_HEAD.headline).toBe(TEXT.appTitle)
+  })
+  it('stands every pill at one height', () => {
+    for (const cls of [RESULTS_HEAD.lens, RESULTS_HEAD.lensOn, RESULTS_HEAD.limit, RESULTS_HEAD.add]) {
+      expect(cls.split(' ')).toContain('h-7')
+    }
+  })
+})
+
+// The compact strip (record 0320): each day's name stands over its block, so
+// the header row and the strip share one gap between days and one floor.
+describe('HOUR_STRIP days', () => {
+  const pick = (cls: string, re: RegExp) => cls.split(' ').filter((c) => re.test(c))
+  it('spaces the day names as the day blocks', () => {
+    expect(pick(HOUR_STRIP.dayHead, /^(gap-|w-)/)).toEqual(pick(HOUR_STRIP.days, /^(gap-|w-)/))
+    expect(pick(HOUR_STRIP.dayName, /^(flex-1|basis-0)$/)).toEqual(pick(HOUR_STRIP.day, /^(flex-1|basis-0)$/))
   })
 })

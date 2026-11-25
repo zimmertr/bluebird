@@ -13,6 +13,7 @@
 import type { FeatureCollection } from 'geojson'
 import type { DestinationResult } from '../types'
 import type { PendingDestination } from './customList'
+import { geoKey } from './points'
 
 /**
  * A clicked marker's properties read back as a row.
@@ -59,7 +60,7 @@ export function pendingFC(pending: PendingDestination[]): FeatureCollection {
       // The exact point beside the drawn one, as a ranked marker carries it:
       // a clicked feature's geometry is snapped to the tile grid, and its card
       // finds its destination by the point (#832).
-      properties: { name: d.name, lat: d.latitude, lon: d.longitude },
+      properties: { name: d.name, lat: d.latitude, lon: d.longitude, key: geoKey(d.latitude, d.longitude) },
     })),
   }
 }

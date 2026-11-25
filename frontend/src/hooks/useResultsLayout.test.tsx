@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { type ResultsLayoutInputs, ROOM_HOLD_MS, TALL_RESULTS_PX, useResultsLayout } from './useResultsLayout'
+import { type ResultsLayoutInputs, useResultsLayout } from './useResultsLayout'
 import { readViewPrefs } from '../utils/viewPrefs'
 import {
-  RESULTS_BAR_PX,
-  dockedMapFloorPx,
   draggedMapFloorPx,
   fullScreenMapFloorPx,
 } from '../utils/results/resultsSheet'
@@ -266,15 +264,21 @@ describe('useResultsLayout', () => {
       expect(result.current.tablePanelPx).toBe(table + 30)
     })
 
-    it("holds the full stop for the tutorial's Chart step, and gives the reader's drag back", () => {
+    // The tutorial's Chart and Panels cards hold the sheet at full screen,
+    // over the map's rows, which leave reach as they do under a reader's own
+    // full screen (record 0333).
+    it("holds full screen for the tutorial's Chart step, and gives the reader's drag back", () => {
       const { result, rerender, PHONE } = phone()
       act(() => result.current.chooseResultsMode('chart'))
       const full = result.current.chartPanelPx
       drag(result, 'chartGrip', -200)
       rerender({ ...PHONE, fullOverride: true })
-      expect(result.current.chartPanelPx).toBe(full)
+      expect(result.current.chartPanelPx).toBe(1000 - fullScreenMapFloorPx(1))
+      expect(result.current.chartPanelPx).toBeGreaterThan(full)
+      expect(result.current.overMapRows).toBe(true)
       rerender({ ...PHONE, fullOverride: false })
       expect(result.current.chartPanelPx).toBe(full - 200)
+      expect(result.current.overMapRows).toBe(false)
     })
   })
 
@@ -430,8 +434,10 @@ describe('useResultsLayout', () => {
       drag(result, 'chartGrip', 2000)
       expect(result.current.overMapRows).toBe(true)
       const sum = result.current.chartPanelPx + result.current.tablePanelPx
-      drag(result, 'tableGrip', -100)
-      expect(result.current.tablePanelPx).toBe(table - 100)
+      // 80 rather than 100 since the widened header grew to 112 (record
+      // 0330), which left the table 90px over its floor here.
+      drag(result, 'tableGrip', -80)
+      expect(result.current.tablePanelPx).toBe(table - 80)
       act(() => result.current.tableGrip.onReset())
       expect(result.current.overMapRows).toBe(true)
       expect(result.current.tablePanelPx).toBe(rest.table)
@@ -452,89 +458,6 @@ describe('useResultsLayout', () => {
       const { result } = renderHook(() => useResultsLayout(DESKTOP))
       drag(result, 'tableGrip', 2000)
       expect(result.current.overMapRows).toBe(false)
-    })
-  })
-
-  // The tutorial's Results card through Pinned hours hold a desk's results at
-  // one room, at least `TALL_RESULTS_PX` (#850), up to the floor a reader's
-  // own drag keeps the map at, and give the reader's heights back after.
-  describe("a desk's results under the tutorial's results cards", () => {
-    // The map a reader's drag leaves, `resolvePanelHeights`' default.
-    const DRAG_MAP_PX = 280
-    it.each([
-      ['a short desk', 700, 700 - DRAG_MAP_PX],
-      ['a tall desk', 1200, TALL_RESULTS_PX],
-    ])('stands taller on %s, and goes back after', (_, height, tall) => {
-      setViewport(height)
-      const desk = { ...DESKTOP, modeChosen: 'chart' as const, response: {} }
-      const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-        initialProps: desk,
-      })
-      const rest = result.current.chartPanelPx
-      rerender({ ...desk, tallResults: true })
-      expect(result.current.chartPanelPx).toBe(tall)
-      expect(result.current.chartPanelPx).toBeGreaterThan(rest)
-      rerender({ ...desk, tallResults: false })
-      expect(result.current.chartPanelPx).toBe(rest)
-    })
-
-    // A chart a press handed a room taller than the hold keeps that room.
-    it('leaves a chart already taller at its height', () => {
-      setViewport(1200)
-      const desk = { ...DESKTOP, modeChosen: 'both' as const, response: {} }
-      const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-        initialProps: desk,
-      })
-      act(() => result.current.tableGrip.onDragStart())
-      act(() => result.current.tableGrip.onDrag(-200))
-      act(() => result.current.tableGrip.onDragEnd())
-      act(() => result.current.chooseResultsMode('chart'))
-      const room = result.current.chartPanelPx
-      expect(room).toBeGreaterThan(TALL_RESULTS_PX)
-      rerender({ ...desk, tallResults: true })
-      expect(result.current.chartPanelPx).toBe(room)
-    })
-
-    it('leaves a phone alone, whose Panels card holds the full stop instead', () => {
-      setDesktopQuery(false)
-      const PHONE = { ...DESKTOP, isDesktop: false, modeChosen: 'chart' as const, response: {} }
-      const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-        initialProps: PHONE,
-      })
-      const before = result.current.chartPanelPx
-      rerender({ ...PHONE, tallResults: true })
-      expect(result.current.chartPanelPx).toBe(before)
-    })
-
-    // The maintainer, 2026-11-04: "I want tutorial steps 7 and 8 to have the
-    // same results area vertical size as 9, 10, and 11." The room is worked
-    // out once, from the reader's Both at 1280x720 (166, the divider and
-    // 120, so 294), and stands at 440: the table alone on Results, the chart
-    // and its legend after, and the reader's own room back at the end.
-    it('stands the table, then the chart and its legend, in one room, and gives the reader theirs back', () => {
-      setViewport(720)
-      const desk = { ...DESKTOP, modeChosen: 'both' as const, response: {} }
-      const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-        initialProps: desk,
-      })
-      expect([result.current.chartPanelPx, result.current.tablePanelPx]).toEqual([166, 120])
-      const strip = document.createElement('div')
-      strip.getBoundingClientRect = () => ({ height: 40 }) as DOMRect
-      act(() => {
-        result.current.legendRef.current = strip
-      })
-      rerender({ ...desk, restView: 'table', tallResults: true })
-      expect(result.current.resultsMode).toBe('table')
-      expect(result.current.tablePanelPx).toBe(TALL_RESULTS_PX)
-      rerender({ ...desk, restView: 'chart', tallResults: true })
-      expect(result.current.resultsMode).toBe('chart')
-      expect(result.current.chartPanelPx + 40).toBe(TALL_RESULTS_PX)
-      rerender({ ...desk, restView: null, tallResults: true })
-      expect(result.current.chartPanelPx + 40).toBe(TALL_RESULTS_PX)
-      // The reader's own room, the 294 their Both stood in, less the legend.
-      rerender({ ...desk, restView: null, tallResults: false })
-      expect(result.current.chartPanelPx).toBe(294 - 40)
-      expect(readViewPrefs().modeChosen).toBeNull()
     })
   })
 
@@ -583,15 +506,11 @@ describe('useResultsLayout', () => {
       initialProps: desk,
     })
     act(() => result.current.chooseResultsMode('both'))
-    const room = result.current.chartPanelPx + 8 + result.current.tablePanelPx
     rerender({ ...desk, restView: 'table' })
     expect(result.current.resultsMode).toBe('table')
-    // The table takes the room Both stood in.
-    expect(result.current.tablePanelPx).toBe(room)
     expect(readViewPrefs().modeChosen).toBe('both')
     rerender({ ...desk, restView: 'chart' })
     expect(result.current.resultsMode).toBe('chart')
-    expect(result.current.chartPanelPx).toBe(room)
     expect(readViewPrefs().modeChosen).toBe('both')
     rerender({ ...desk, restView: null })
     expect(result.current.resultsMode).toBe('chart')
@@ -632,7 +551,7 @@ describe('useResultsLayout', () => {
     expect(result.current.chartPanelPx).toBe(ceiling)
   })
 
-  it('raises nothing in Table, on a phone, or while the tutorial holds the room', () => {
+  it('raises nothing in Table, or on a phone', () => {
     const table = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'table' }))
     const tablePx = table.result.current.tablePanelPx
     act(() => table.result.current.raiseChart(60))
@@ -645,22 +564,13 @@ describe('useResultsLayout', () => {
     act(() => phone.result.current.raiseChart(60))
     expect(phone.result.current.chartPanelPx).toBe(phonePx)
 
-    setDesktopQuery(true)
-    const tour = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-      initialProps: { ...DESKTOP, modeChosen: 'chart', tallResults: true },
-    })
-    const heldPx = tour.result.current.chartPanelPx
-    act(() => tour.result.current.raiseChart(60))
-    expect(tour.result.current.chartPanelPx).toBe(heldPx)
-    // And the reader's own height is the one that comes back after.
-    tour.rerender({ ...DESKTOP, modeChosen: 'chart' })
-    const fresh = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'chart' }))
-    expect(tour.result.current.chartPanelPx).toBe(fresh.result.current.chartPanelPx)
   })
 
   // In Both the divider trades one panel for the other and keeps the sum.
+  // A phone's Both alone stacks the two; a desk's table stands in the column.
   it('keeps the pair its sum when the divider moves', () => {
-    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'both' }))
+    setDesktopQuery(false)
+    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both', response: {} }))
     const sum = result.current.chartPanelPx + result.current.tablePanelPx
     act(() => result.current.tableGrip.onDragStart())
     act(() => result.current.tableGrip.onDrag(40))
@@ -778,139 +688,13 @@ describe('useResultsLayout', () => {
     expect(result.current.sheetLiftPx).toBe(400)
   })
 
-  // The docked bar's MEASURED height is what the map's floor counts on a desk:
-  // beside the docked panel at 1024 it is two lines or three rather than the
-  // one the estimate counts, and the panels give up the difference rather
-  // than the map (#714).
-  it('keeps a desk map its floor under a bar taller than one line', () => {
-    setViewport(768)
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    )
-    const BAR = 85
-    const bar = document.createElement('div')
-    bar.getBoundingClientRect = () => ({ height: BAR }) as DOMRect
-    const { result, rerender } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'both' }))
-    const panels = () => result.current.chartPanelPx + result.current.tablePanelPx
-    const estimated = panels()
-    act(() => {
-      result.current.barRef.current = bar
-    })
-    rerender()
-    expect(panels()).toBe(estimated - (BAR - RESULTS_BAR_PX))
-    // What is left is the map's whole reserve: rows, legend stack and band.
-    expect(768 - BAR - 2 * 8 - panels()).toBe(dockedMapFloorPx(0) - RESULTS_BAR_PX)
-  })
-
-  // A desk's press keeps the results' height (#850; the maintainer,
-  // 2026-11-04: "Yes, area keeps its height"): the mode pressed takes the
-  // room the panes stood in, Chart's legend coming out of the chart, and Both
-  // splits it back the way it last split it.
-  describe("a desk's press on the segment", () => {
-    const desk = { ...DESKTOP, modeChosen: 'both' as const, response: {} }
-    const legendOf = (result: { current: ReturnType<typeof useResultsLayout> }, px: number) => {
-      const strip = document.createElement('div')
-      strip.getBoundingClientRect = () => ({ height: px }) as DOMRect
-      act(() => {
-        result.current.legendRef.current = strip
-      })
-    }
-
-    it('hands the room to the mode pressed and splits it back', () => {
-      const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-        initialProps: desk,
-      })
-      expect([result.current.chartPanelPx, result.current.tablePanelPx]).toEqual([220, 220])
-      const room = 220 + 8 + 220
-      act(() => result.current.chooseResultsMode('table'))
-      expect(result.current.tablePanelPx).toBe(room)
-      act(() => result.current.chooseResultsMode('chart'))
-      expect(result.current.chartPanelPx).toBe(room)
-      act(() => result.current.chooseResultsMode('both'))
-      expect([result.current.chartPanelPx, result.current.tablePanelPx]).toEqual([220, 220])
-      // A divider drag moves the split, and Both comes back to it.
-      act(() => result.current.tableGrip.onDragStart())
-      act(() => result.current.tableGrip.onDrag(40))
-      act(() => result.current.tableGrip.onDragEnd())
-      const split = [result.current.chartPanelPx, result.current.tablePanelPx]
-      expect(split).toEqual([180, 260])
-      act(() => result.current.chooseResultsMode('chart'))
-      expect(result.current.chartPanelPx).toBe(room)
-      // Chart's legend, once laid out, comes out of the chart.
-      legendOf(result, 40)
-      rerender(desk)
-      expect(result.current.chartPanelPx).toBe(room - 40)
-      act(() => result.current.chooseResultsMode('table'))
-      expect(result.current.tablePanelPx).toBe(room)
-      act(() => result.current.chooseResultsMode('both'))
-      expect([result.current.chartPanelPx, result.current.tablePanelPx]).toEqual(split)
-    })
-
-    it('shares a room that moved in the split Both last had', () => {
-      const { result } = renderHook(() => useResultsLayout(desk))
-      act(() => result.current.chooseResultsMode('table'))
-      act(() => result.current.tableGrip.onDragStart())
-      act(() => result.current.tableGrip.onDrag(-100))
-      act(() => result.current.tableGrip.onDragEnd())
-      expect(result.current.tablePanelPx).toBe(348)
-      act(() => result.current.chooseResultsMode('both'))
-      // 348 less the divider, shared 220 to 220.
-      expect([result.current.chartPanelPx, result.current.tablePanelPx]).toEqual([170, 170])
-    })
-
-    it('holds the results at their height while the panes move, and only for a press', () => {
-      vi.useFakeTimers()
-      try {
-        const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-          initialProps: { ...DESKTOP, response: null as unknown },
-        })
-        // The first report widens to Both by itself, at the opening heights,
-        // and holds nothing.
-        rerender({ ...DESKTOP, response: {}, analysisSeq: 1 })
-        expect(result.current.resultsMode).toBe('both')
-        expect([result.current.chartPanelPx, result.current.tablePanelPx]).toEqual([220, 220])
-        expect(result.current.roomHoldPx).toBeNull()
-        // The height the results stand at when the press comes.
-        const sheet = document.createElement('div')
-        sheet.getBoundingClientRect = () => ({ height: 492 }) as DOMRect
-        act(() => {
-          result.current.sheetRef.current = sheet
-        })
-        act(() => result.current.chooseResultsMode('chart'))
-        expect(result.current.roomHoldPx).toBe(492)
-        act(() => vi.advanceTimersByTime(ROOM_HOLD_MS))
-        expect(result.current.roomHoldPx).toBeNull()
-        act(() => result.current.chooseResultsMode('table'))
-        expect(result.current.roomHoldPx).not.toBeNull()
-        // The chevron lets go at once.
-        act(() => result.current.toggleCollapsed())
-        expect(result.current.roomHoldPx).toBeNull()
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it('keeps the heights through a press while the results are folded', () => {
-      const { result } = renderHook(() => useResultsLayout(desk))
-      act(() => result.current.toggleCollapsed())
-      act(() => result.current.chooseResultsMode('table'))
-      act(() => result.current.toggleCollapsed())
-      expect(result.current.tablePanelPx).toBe(220)
-    })
-
-    it('leaves a phone to size its own panes', () => {
-      setDesktopQuery(false)
-      const phone = { ...desk, isDesktop: false }
-      const { result } = renderHook(() => useResultsLayout(phone))
-      act(() => result.current.chooseResultsMode('table'))
-      const fresh = renderHook(() => useResultsLayout({ ...phone, modeChosen: 'table' }))
-      expect(result.current.tablePanelPx).toBe(fresh.result.current.tablePanelPx)
-      expect(result.current.roomHoldPx).toBeNull()
-    })
+  it('leaves a phone to size its own panes on a press', () => {
+    setDesktopQuery(false)
+    const phone = { ...DESKTOP, modeChosen: 'both' as const, response: {}, isDesktop: false }
+    const { result } = renderHook(() => useResultsLayout(phone))
+    act(() => result.current.chooseResultsMode('table'))
+    const fresh = renderHook(() => useResultsLayout({ ...phone, modeChosen: 'table' }))
+    expect(result.current.tablePanelPx).toBe(fresh.result.current.tablePanelPx)
   })
 
   // A phone's home indicator band (record 0145): the foot stands on it with

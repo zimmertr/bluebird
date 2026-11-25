@@ -1,4 +1,4 @@
-import { test, expect, resultRows, isoDay } from './fixtures'
+import { test, expect, resultRows, isoDay, forecastButton } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A tap on the chart moves the map's playhead to the hour under it (#517).
@@ -6,11 +6,13 @@ import type { Page } from '@playwright/test'
 // before its click, so on a phone a tap did nothing. The playhead is read from
 // the transport's range input, which is the map's own record of the hour.
 
-test.use({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true })
+// 844 tall, so the plot keeps 150px with the sheet lowered under its
+// Chart stop, which the taller foot moved down (record 0333).
+test.use({ viewport: { width: 360, height: 844 }, hasTouch: true, isMobile: true })
 
-// The chart at its resting height on a phone is a 27 px strip with no plot
-// band inside it, so the grip above it is dragged up first, the way a reader
-// who wants to read the chart would.
+// A phone's chart reads the hour under a finger with the player on screen,
+// so the sheet stands at its own height rather than the full stop Chart
+// lifts it to.
 async function openChart(page: Page) {
   // The Forecast player is off by default on a phone, and the switch is this
   // browser's habit rather than a link's (#864), so storage turns it on.
@@ -19,15 +21,22 @@ async function openChart(page: Page) {
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   // The map's own Analyze: a phone opens on the map, with the panel's
   // drawer closed and inert (#696).
-  await page.getByRole('main').getByRole('button', { name: 'Analyze' }).tap()
+  await forecastButton(page.getByRole('main')).tap()
   await expect(resultRows(page).first()).toBeAttached()
+  // A phone's chart waits behind Every column (record 0330).
+  await page.getByRole('button', { name: 'Every column' }).first().tap()
   await page.getByRole('button', { name: 'Show chart only' }).tap()
   const surface = page.locator('svg.recharts-surface').first()
   await expect(surface).toBeVisible()
   const grip = (await page.locator('.cursor-ns-resize').last().boundingBox())!
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
   await page.mouse.down()
-  await page.mouse.move(grip.x + grip.width / 2, 250, { steps: 10 })
+  // Chart lifts the sheet to its stop (record 0155), which leaves the player
+  // exactly its room over the foot's card (`transportFits`), so the grip
+  // brings it 24px lower to stand clear of a pixel's drift. Relative to the
+  // grip, because the stop moves with the foot's height: a fixed y of 480
+  // dragged the sheet up once the foot grew a sky track (record 0333).
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + 24, { steps: 10 })
   await page.mouse.up()
   await expect.poll(async () => (await surface.boundingBox())!.height).toBeGreaterThan(150)
   return (await surface.boundingBox())!
@@ -89,8 +98,10 @@ test.describe('on a 390 px phone', () => {
   async function analyzed(page: Page) {
     await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('main').getByRole('button', { name: 'Analyze' }).tap()
+    await forecastButton(page.getByRole('main')).tap()
     await expect(resultRows(page).first()).toBeAttached()
+    // A phone's chart waits behind Every column (record 0330).
+    await page.getByRole('button', { name: 'Every column' }).first().tap()
   }
   const sheetTop = async (page: Page) => (await page.locator('[data-tour="results"]').boundingBox())!.y
 

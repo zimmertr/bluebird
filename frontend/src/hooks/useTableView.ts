@@ -34,6 +34,10 @@ import {
   moveColumn,
   visibleColumns,
   withModelColumn,
+  withScoreColumn,
+  compactColumns,
+  labelScore,
+  SCORE_COL,
 } from '../utils/tableColumns'
 import { type ViewPrefs, writeViewPrefs } from '../utils/viewPrefs'
 
@@ -85,6 +89,10 @@ export interface TableViewInputs {
   fire: FireProximity
   /** The closure check (`useClosureProximity`), which sorts and fills the Closure column. */
   closure: ClosureProximity
+  /** A lens ranks the field, so the Score column stands after the name (record 0307). */
+  scored?: boolean
+  /** The score column's header, the lens's name (record 0333). */
+  scoreLabel?: string
 }
 
 /**
@@ -116,6 +124,8 @@ export function useTableView({
   shared,
   fire,
   closure,
+  scored = false,
+  scoreLabel = SCORE_COL.label,
 }: TableViewInputs) {
   // Which columns the table displays (null = use default narrowed set, Set = user choice).
   // The CSV export always gets the full displayedColumns set regardless.
@@ -350,11 +360,25 @@ export function useTableView({
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, sortBy, effectiveVisibleKeys, rankedFirst)
     const flags = FLAG_COLS.filter((c) => effectiveVisibleKeys.has(c.key as string))
-    return applyColumnOrder(
-      withModelColumn([...cols, ...flags], modelColumnOn, rankedFirst ? sortBy : null),
-      columnOrder,
+    return labelScore(
+      withScoreColumn(
+        applyColumnOrder(withModelColumn([...cols, ...flags], modelColumnOn, rankedFirst ? sortBy : null), columnOrder),
+        scored,
+      ),
+      scoreLabel,
     )
-  }, [pointSample, sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder, rankedFirst])
+  }, [pointSample, sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder, rankedFirst, scored, scoreLabel])
+  // The desk column's compact table (record 0320), whatever the Columns menu
+  // holds: that menu shapes the table the column's expand button opens.
+  const compactTableColumns = useMemo(
+    () => labelScore(compactColumns(sortBy, scored), scoreLabel),
+    [sortBy, scored, scoreLabel],
+  )
+  // A phone's compact rows (record 0330): the name and what ranks, no more.
+  const phoneTableColumns = useMemo(
+    () => labelScore(compactColumns(sortBy, scored, true), scoreLabel),
+    [sortBy, scored, scoreLabel],
+  )
 
   // Every column there is, in the reader's order: what the Columns picker
   // lists, and the list a move is made within.
@@ -474,6 +498,8 @@ export function useTableView({
   return {
     tableRows,
     tableColumns,
+    compactTableColumns,
+    phoneTableColumns,
     allColumns,
     pickerVisibleKeys,
     columnsAtDefault,

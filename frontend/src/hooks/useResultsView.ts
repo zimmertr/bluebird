@@ -9,6 +9,10 @@ import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { SinglePanel } from '../utils/layout'
 
 export interface ResultsViewInputs {
+  /** A lens ranks the field, so the table carries the Score column (record 0307). */
+  scored?: boolean
+  /** The score column's header, the lens's name (record 0333). */
+  scoreLabel?: string
   /** The reader has the forecast player on (`useResultsLayout`'s `playerOn`). */
   playerOn?: boolean
   /** A phone's home indicator band (`useResultsLayout`'s `safeBottomPx`). */
@@ -19,8 +23,8 @@ export interface ResultsViewInputs {
   restView?: SinglePanel | null
   /** Hold a phone's sheet at its full stop (`useResultsLayout`'s `fullOverride`). */
   fullOverride?: boolean
-  /** Hold a desk's results at one taller room (`useResultsLayout`'s `tallResults`). */
-  tallResults?: boolean
+  /** A phone's compact sheet, laid out as Table (`useResultsLayout`'s `tableOnly`, record 0330). */
+  tableOnly?: boolean
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
@@ -81,10 +85,12 @@ export interface ResultsViewInputs {
  * `chartShowing`, and the table reads the chart's comparison.
  */
 export function useResultsView({
+  scored = false,
+  scoreLabel,
   collapsedOverride = null,
   restView = null,
   fullOverride = false,
-  tallResults = false,
+  tableOnly = false,
   showResults,
   response,
   ownResponse = response,
@@ -132,7 +138,7 @@ export function useResultsView({
     collapsedOverride,
     restView,
     fullOverride,
-    tallResults,
+    tableOnly,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────
@@ -173,6 +179,8 @@ export function useResultsView({
     shared,
     fire,
     closure,
+    scored,
+    scoreLabel,
   })
 
   // Stable identities for the table's callbacks, for the reason `NO_TIMES`

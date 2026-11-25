@@ -1,16 +1,33 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
+import type { Constraints } from './utils/constraints'
 import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
+import type { ScoreColouring } from './utils/resultFeatures'
+import MapDrawBar from './components/MapDrawBar'
+import SentenceBar from './components/SentenceBar'
+import { LENS_LABEL } from './components/LensChips'
+import SearchBox from './components/SearchBox'
+import DocLinks from './components/DocLinks'
+import ThemeMenu from './components/ThemeMenu'
+import type { PanelSection } from './components/ControlPanel'
+import { useSearchArea } from './hooks/useSearchArea'
+import { forecastLabel, whenLabel, whenWord, wherePhrases } from './utils/sentenceBar'
+import { discoveryNoun } from './utils/clientAnalyze'
+import { deckPoints } from './utils/cloudSea'
+import { geoKey } from './utils/points'
+import type { CameraView } from './utils/mapView'
 import SkipLink from './components/SkipLink'
 import MapStage from './components/MapStage'
-import ResultsSheet from './components/ResultsSheet'
+import ResultsSheet, { ResultsExpand } from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
 
 // The tutorial's overlay is a chunk of its own, fetched on the first press
@@ -40,6 +57,7 @@ import { useDestinationCount } from './hooks/useDestinationCount'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
+import { DEFAULT_LENS } from './utils/score/lenses'
 import { useDestinationInputs } from './hooks/useDestinationInputs'
 import { useAnalyzeCommand } from './hooks/useAnalyzeCommand'
 import { useDrawMode } from './hooks/useDrawMode'
@@ -62,25 +80,25 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { useTheme } from './hooks/useTheme'
 import { useDrawer } from './hooks/useDrawer'
-import { useOpenOnFailure } from './hooks/useOpenOnFailure'
 import { useSafeAreaBottom } from './hooks/useSafeAreaBottom'
 import { controlsSheetPx } from './utils/results/resultsSheet'
 import { useHeldSheetPx } from './hooks/useHeldSheetPx'
 import {
   LAYER,
   SURFACE_PAGE,
+  TEXT,
 } from './styles'
 import {
   decodeLink,
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
-import { controlsSummary } from './utils/controlsSummary'
 import { buildCustomList, customListSize, pendingDestinations } from './utils/customList'
 import { analysisPoints } from './utils/model/modelDomain'
 import { actionWord, retryStands } from './utils/analyzeGate'
 import { usePanelMessages } from './hooks/usePanelMessages'
 import { glacierRowCount } from './utils/snowCeiling'
 import { useDemoMessages } from './tour/demoMessages'
+import { useHeldYoung } from './hooks/useHeldYoung'
 import { checkNoticeDue } from './utils/fireProximity'
 import {
   panelCommitCues,
@@ -149,10 +167,14 @@ export default function App() {
     panelWindowMs,
     forgetPreClamp,
   } = forecastSelection
-  const rankingKnobs = useRankingKnobs(restored, caps.maxLimit)
+  const isDesktop = useIsDesktop()
+  // Both widths open on the default lens (record 0307; a phone since record
+  // 0330, whose sheet carries the lens row).
+  const rankingKnobs = useRankingKnobs(restored, caps.maxLimit, DEFAULT_LENS)
   const {
     sortBy,
     sortDesc,
+    lens,
     rowKeys,
     constraints,
     limit,
@@ -171,12 +193,11 @@ export default function App() {
   // tour, and the tour's own start and end keep it and clear it.
   const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
-  const isDesktop = useIsDesktop()
-  const { choice: themeChoice, setChoice: setThemeChoice } = useTheme()
-  // The controls panel is docked on desktop and the Controls sheet on phones
-  // (record 0141). It starts open on a desktop and closed on a phone
-  // (`useDrawer`, #696); a close button collapses it to widen the map.
-  const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(isDesktop)
+  const { choice: themeChoice, theme, setChoice: setThemeChoice } = useTheme()
+  // The controls panel is a sentence-bar card at a desk (record 0309) and
+  // the Controls sheet on a phone (record 0141). It starts shut at both: at a
+  // desk it is open while a card is (record 0334).
+  const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer()
   // A phone's Controls sheet under a drag on its grip (record 0146): the height
   // the drag left it at, or null for its own share of the map.
   const [controlsHeld, setControlsHeld] = useHeldSheetPx(sidebarOpen)
@@ -221,6 +242,7 @@ export default function App() {
     showRadar,
     showSmoke,
     showSnow,
+    showCloud,
     showGrid,
     showContours,
     showRelief,
@@ -230,19 +252,33 @@ export default function App() {
     showTerrain,
     playerShown,
   } = overlays
+  // The card a sentence-bar chip has open at a desk, or null.
+  const [barCard, setBarCard] = useState<PanelSection | null>(null)
+  // A ring is drawn on an uncovered map: the phone's drawer shuts, and so
+  // does a desk's Where card, whose Done and Cancel the draw bar carries.
+  const uncoverMap = useCallback(() => (isDesktop ? setBarCard(null) : closeDrawer()), [isDesktop, closeDrawer])
   const drawMode = useDrawMode({
     mapRef,
     polygon,
     restoredPolygon: restored?.polygon,
-    isDesktop,
-    closeDrawer,
+    uncoverMap,
   })
   const {
     drawing,
     drawPointCount,
     finishDrawing,
   } = drawMode
-
+  // What a Forecast searches (record 0309): the drawn ring, or the map's view
+  // while none is drawn, and no ring at all with no kind to find. Handed to
+  // the gate, the count and the command where the drawn ring went; the link
+  // and the commit cues keep the drawn ring, so a pan writes no ring into a
+  // link and raises no cue.
+  const searchArea = useSearchArea({
+    mapRef,
+    drawn: polygon,
+    drawPointCount,
+    listOnly: destinationTypes.length === 0,
+  })
   function dismissWelcome() {
     setWelcomed()
     setShowWelcome(false)
@@ -256,6 +292,7 @@ export default function App() {
     setSidebarOpen,
     mapRef,
     tourLayer: { shown: overlays.showWildfires, show: overlays.setShowWildfires },
+    deskCard: setBarCard,
   })
   function startTourFromWelcome() {
     dismissWelcome()
@@ -300,10 +337,10 @@ export default function App() {
   // forecasts the counted field without asking again. A cleared ring or no
   // kind left releases a failed run's found field.
   const destinationCount = useDestinationCount({
-    polygon,
-    drawPointCount,
+    polygon: searchArea.polygon,
+    drawPointCount: searchArea.pointCount,
     drawing,
-    polygonAreaKm2: destinationInputs.polygonAreaKm2,
+    polygonAreaKm2: searchArea.areaKm2,
     maxAreaKm2: caps.maxPolygonAreaKm2,
     destinationTypes,
     includeUnnamedPeaks,
@@ -346,6 +383,20 @@ export default function App() {
     playbackIndex,
     movePlayheadTo,
   } = timeline
+
+  // ── The cloud sea (record 0310) ──────────────────────────────────────────
+  // The deck every destination in the held field carries, at the hour the
+  // player stands on, or the window's middle hour while it is off: the
+  // report's own numbers, so drawing it asks nothing of Open-Meteo. A phone
+  // draws it too (record 0337).
+  const cloudHour = playbackIndex ?? (forecastTimes.length > 0 ? Math.floor(forecastTimes.length / 2) : null)
+  const cloudDeck = useMemo(
+    () =>
+      !showCloud || cloudHour === null || shownUniverse === null || shownUniverse.length === 0
+        ? null
+        : deckPoints(shownUniverse, cloudHour),
+    [showCloud, cloudHour, shownUniverse],
+  )
 
   // ── The forecast grid (#246) ──────────────────────────────────────────────
   const gridLayer = useGridLayer({
@@ -432,6 +483,14 @@ export default function App() {
     found: pendingField,
     restoredTableSort: restored?.tableSort ?? null,
   })
+  // The markers' colouring while a lens ranks the field: the score's ramp
+  // stretched over the range the Score cells read (record 0307), memoized for
+  // the memoized map's sake.
+  const scoreRangeNow = report.scoreRange
+  const scoreColouring = useMemo<ScoreColouring | null>(
+    () => (lens !== null ? { range: scoreRangeNow } : null),
+    [lens, scoreRangeNow],
+  )
   const {
     results,
     detailSort,
@@ -450,6 +509,9 @@ export default function App() {
     comparedModels,
     sortBy,
     sortDesc,
+    // A phone writes no lens: it ranks by the metric its link already names,
+    // and a desk opens such a link on that metric too.
+    lens: isDesktop ? lens : undefined,
     rowKeys,
     constraints,
     limit,
@@ -461,6 +523,7 @@ export default function App() {
     showRadar,
     showSmoke,
     showSnow,
+    showCloud,
     showGrid,
     showContours,
     showRelief,
@@ -479,6 +542,17 @@ export default function App() {
     cameraHeld: tour.index !== null,
   })
   const { writeUrl } = urlSync
+  // Every settled move of the map: the link's camera, and the view the search
+  // area stands in for (record 0309).
+  const reportCamera = urlSync.reportView
+  const reportArea = searchArea.reportView
+  const onCameraMove = useCallback(
+    (view: CameraView, readerMove: boolean) => {
+      reportCamera(view, readerMove)
+      reportArea()
+    },
+    [reportCamera, reportArea],
+  )
 
   // Flags destinations within 10 mi of an active US wildfire; independent of the
   // map overlay toggle, which it reads only to ask a failed check again when
@@ -527,15 +601,15 @@ export default function App() {
   // Every point the analysis would forecast, which a regional model's
   // published grid is held against before Analyze (#803, W8).
   const domainPoints = useMemo(
-    () => analysisPoints(polygon, destinationTypes.length > 0, buildCustomList(csvRows, places)),
-    [polygon, destinationTypes, csvRows, places],
+    () => analysisPoints(searchArea.polygon, destinationTypes.length > 0, buildCustomList(csvRows, places)),
+    [searchArea.polygon, destinationTypes, csvRows, places],
   )
   const panelForRetry = {
     selectionKind: selection.kind,
     windowMs: panelWindowMs,
     forecastModel,
     comparedModels,
-    polygon,
+    polygon: searchArea.polygon,
     destinationTypes,
     includeUnnamedPeaks,
     pendingCount: failedView
@@ -549,8 +623,8 @@ export default function App() {
 
   const { handleAnalyze } = useAnalyzeCommand({
     selection,
-    polygon,
-    drawPointCount,
+    polygon: searchArea.polygon,
+    drawPointCount: searchArea.pointCount,
     mapRef,
     destinationTypes,
     includeUnnamedPeaks,
@@ -594,9 +668,10 @@ export default function App() {
     forecastModel,
     comparedModels,
     forecastModels: caps.forecastModels,
-    polygonAreaKm2: destinationInputs.polygonAreaKm2,
+    polygonAreaKm2: searchArea.areaKm2,
     maxAreaKm2: caps.maxPolygonAreaKm2,
-    drawPointCount,
+    viewIsArea: searchArea.source === 'view',
+    drawPointCount: searchArea.pointCount,
     drawing,
     destinationTypes,
     hasCustom: csvRows.length > 0,
@@ -653,13 +728,9 @@ export default function App() {
     analyze: handleAnalyze,
   })
 
-  // A failure at a desk reopens a panel the reader closed while the run was
-  // up (#803): the list that says what went wrong is the panel's, and a shut
-  // panel is inert, its badge and its live region with it.
-  useOpenOnFailure(failureSeq, openDrawer, isDesktop)
-  // A check or the basemap failing does the same (#834): its line opens the
-  // list, and the list is the panel's.
-  useOpenOnFailure(messages.openingSeq, openDrawer, isDesktop)
+  // A desk's messages are the sentence bar's, which is always on the map, so
+  // a failure has no shut panel to open (record 0309): the bar's own list
+  // opens itself (`PanelFooter`), as the panel's did.
 
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
@@ -670,8 +741,7 @@ export default function App() {
   // where it is, and the message list opens over the map's Analyze, where the
   // phone's badge is (`useOpenOnFailure` in `PhoneFoot`, #803).
   //
-  // Desktop is unaffected: the panel is docked there and closes only when the
-  // reader closes it.
+  // Desktop is unaffected: its card closes only when the reader closes it.
   useEffect(() => {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
     // Kept: listing `isDesktop` would close the drawer when a window crossed
@@ -699,12 +769,22 @@ export default function App() {
   const bannerPx = preview.enabled ? 32 : 0
   // The results sheet's view: its layout, the comparison chart, the table's
   // shape and file, and the table's callbacks (useResultsView).
+  // The results widened by the expand button (record 0321): a desk's column
+  // over the map, a phone's sheet from its compact rows to every column and
+  // the chart (record 0330); held wide while the tour's chart cards point at
+  // the chart in it.
+  const [resultsWide, setResultsWide] = useState(false)
+  const sheetWide = resultsWide || tour.sheetView === 'chart'
   const resultsView = useResultsView({
+    // A phone's compact sheet is the table alone (record 0330).
+    tableOnly: !isDesktop && !sheetWide,
+    // The tour's demonstration ranks by its own metric, so its table carries no score.
+    scored: demo === null && lens !== null,
+    scoreLabel: lens === null ? undefined : LENS_LABEL[lens],
     showResults: showResults || demo !== null,
     collapsedOverride: tour.sheetCollapsed,
     restView: tour.sheetView,
     fullOverride: tour.sheetFull,
-    tallResults: tour.resultsTall,
     response: shownResponse,
     // The Both widening reads the reader's own report, never the tour's (#850).
     ownResponse: response,
@@ -734,11 +814,10 @@ export default function App() {
     removeResult: removals.removeResult,
   })
   const { layout, tableView } = resultsView
-  // Which edge of a desk's layout is moving, so the map and the results
-  // hold one size while it moves (record 0202).
+  // Whether a desk's results panes are moving, so the map holds one size
+  // while they move (record 0202).
   const { motion: layoutMotion, onTransitionEnd: onLayoutMoved } = useLayoutMotion({
     isDesktop,
-    open: sidebarOpen,
     mode: layout.resultsMode,
     collapsed: layout.resultsCollapsed,
   })
@@ -757,6 +836,201 @@ export default function App() {
     setWelcomed()
     startTour()
   }, [startTour, tourWaits])
+
+
+  // One set of props for the results' two halves at a desk: the column and
+  // the chart under the map read the same report.
+  // The bounds as chips in the results header, and the pill that opens the
+  // Limits card there (record 0319), which no longer stands in the sentence.
+  // A phone has no cards: the pill opens the Controls sheet, where the
+  // Limits section stands with the rest.
+  // The desk column's foot, where the map's legend stands while the column
+  // does (record 0322).
+  const [legendHost, setLegendHost] = useState<HTMLDivElement | null>(null)
+  const toggleWide = useCallback(() => setResultsWide((w) => !w), [])
+  const { setConstraints } = rankingKnobs
+  const removeLimit = useCallback((key: keyof Constraints) => setConstraints((c) => ({ ...c, [key]: null })), [setConstraints])
+  // The Limits card hangs under the sentence bar, which the widened column
+  // stands over, so the pill narrows it first. On a phone it raises the
+  // Controls sheet at its Metrics section, as the phrases raise it at theirs.
+  const openLimits = useCallback(() => {
+    setBarCard('metrics')
+    if (!isDesktop) return openDrawer()
+    setResultsWide(false)
+  }, [isDesktop, openDrawer])
+  const limits = useMemo(() => ({ constraints, onRemove: removeLimit, onAdd: openLimits }), [constraints, removeLimit, openLimits])
+
+  const resultsSheetProps = {
+    resultsView,
+    showResults: showResults || demo !== null,
+    chartTooltipIndex: tour.chartTooltipIndex,
+    chartTour: tour.chartTour,
+    isDesktop,
+    report,
+    removals,
+    analysisSeq,
+    onLens: rankingKnobs.setLens,
+    limits,
+    wide: sheetWide,
+    onWide: toggleWide,
+    legendFootRef: setLegendHost,
+    sortBy: view.sortBy,
+    sortDesc: view.sortDesc,
+    forecastTimes,
+    playbackIndex,
+    timelineAxes,
+    movePlayheadTo,
+    fire,
+    closure,
+    pendingHeights: waitingHeights,
+    modelId: analyzed?.forecastModel ?? forecastModel,
+  }
+
+  const renderDrawer = (bar: { card: PanelSection | null; onCardClose: () => void; search?: ReactNode }) => (
+    <AppDrawer
+      open={sidebarOpen}
+      isDesktop={isDesktop}
+      sheetHeld={controlsHeld}
+      sheetRestPx={controlsSheetPx(layout.mapPx)}
+      onSheetHeld={setControlsHeld}
+      onClose={closeDrawer}
+      tourRuns={tour.index !== null}
+      themeChoice={themeChoice}
+      onThemeChoice={setThemeChoice}
+      drawMode={drawMode}
+      destinationInputs={destinationInputs}
+      forecastSelection={forecastSelection}
+      rankingKnobs={rankingKnobs}
+      chartMetrics={chartMetrics}
+      caps={caps}
+      mapRef={mapRef}
+      onPointAtSearch={setSearchPointed}
+      onPointAtMapPois={setPoisPointed}
+      onPresetListFailed={setPresetListFailed}
+      messages={shownMessages}
+      autoAnalyze={autoAnalyze}
+      capabilitiesSettled={capsApplied}
+      onAutoAnalyze={runAutoAnalyze}
+      onTutorial={tour.start}
+      tutorialWaits={tourWaits}
+      viewIsArea={searchArea.source === 'view'}
+      card={bar.card}
+      onCardClose={bar.onCardClose}
+      search={bar.search}
+    />
+  )
+
+  // The sentence bar at a desk (record 0309), and what its Forecast button says:
+  // the count ahead of a first run, and once a report holds forecasts for the
+  // same window and model, only what it does not hold yet.
+  const universeKeys = useMemo(
+    () => new Set((universe ?? []).map((r) => geoKey(r.latitude, r.longitude))),
+    [universe],
+  )
+  const ringField = destinationCount.counted()
+  // A run reuses the held forecasts only for the same window and model, and
+  // only while they are young (`forecastReuse.ts`); past either, it buys the
+  // whole field again, and the button counts it so.
+  const heldYoung = useHeldYoung(analysis.heldSinceMs)
+  const heldStillAnswers =
+    heldYoung && !commitReasons.includes('window-changed') && !commitReasons.includes('model-changed')
+  const freshInRing = ringField
+    ? ringField.found.candidates.filter((c) => !universeKeys.has(geoKey(c.latitude, c.longitude))).length
+    : null
+  const barLabel = forecastLabel({
+    count:
+      destinationCount.ringCount !== null
+        ? destinationCount.ringCount + customCount
+        : searchArea.source === 'list' && customCount > 0
+          ? customCount
+          : null,
+    fresh: response !== null && heldStillAnswers && freshInRing !== null ? freshInRing + customPendingCount : null,
+    noun: discoveryNoun(destinationTypes, customCount > 0),
+  })
+  const closeBarCard = () => setBarCard(null)
+  // A phone's phrases raise the Controls sheet, and the same phrase lowers it
+  // (record 0328); which one was pressed is held only to light it.
+  const phoneCard = useCallback(
+    (card: PanelSection | null) => {
+      setBarCard(card)
+      if (card === null) closeDrawer()
+      else openDrawer()
+    },
+    [closeDrawer, openDrawer],
+  )
+  const phoneBarNode = (
+    <SentenceBar
+      {...wherePhrases(destinationTypes, searchArea.source, customCount)}
+      when={whenLabel(selection, new Date())}
+      whenWord={whenWord(selection)}
+      card={sidebarOpen ? barCard : null}
+      onCard={phoneCard}
+      label={barLabel}
+      footer={{
+        analyzeEnabled: shownMessages.analyzeEnabled,
+        word,
+        onAnalyze: handleAnalyze,
+        messages: shownMessages,
+      }}
+      autoAnalyze={false}
+      capabilitiesSettled={capsApplied}
+      onAutoAnalyze={runAutoAnalyze}
+      phone
+    />
+  )
+  // A phone's place search, at the head of the Controls sheet now that the
+  // bar stands where its pill stood (record 0328). A pick lowers the sheet so
+  // the camera's move is seen.
+  const phoneSearch = (
+    <SearchBox
+      onSelect={(place) => {
+        mapRef.current?.flyToPlace(place, layout.sheetPadBottomPx)
+        removals.registerPlace(place)
+        closeDrawer()
+      }}
+      pointed={searchPointed}
+    />
+  )
+  const barNode = isDesktop ? (
+    <SentenceBar
+      {...wherePhrases(destinationTypes, searchArea.source, customCount)}
+      when={whenLabel(selection, new Date())}
+      whenWord={whenWord(selection)}
+      card={barCard}
+      onCard={setBarCard}
+      label={barLabel}
+      footer={{
+        analyzeEnabled: shownMessages.analyzeEnabled,
+        word,
+        onAnalyze: handleAnalyze,
+        messages: shownMessages,
+      }}
+      autoAnalyze={autoAnalyze}
+      capabilitiesSettled={capsApplied}
+      onAutoAnalyze={runAutoAnalyze}
+      trail={<ThemeMenu choice={themeChoice} onChoice={setThemeChoice} />}
+    />
+  ) : (
+    phoneBarNode
+  )
+  const cornerLinks = isDesktop ? (
+    <DocLinks onTutorial={tour.start} tutorialWaits={tourWaits} className={TEXT.caption} />
+  ) : null
+  // While a ring is drawn at a desk the draw bar hangs where the cards do,
+  // until a chip opens a card again: the Where card carries Clear as well.
+  const barCardNode = (search: ReactNode) =>
+    !isDesktop ? null : drawing && barCard === null ? (
+      <MapDrawBar
+        inline
+        drawPointCount={drawPointCount}
+        onDone={finishDrawing}
+        onCancel={drawMode.handleCancelDrawing}
+      />
+    ) : (
+      renderDrawer({ card: barCard, onCardClose: closeBarCard, search })
+    )
+  const openWhere = useCallback(() => setBarCard('destinations'), [])
+  const openWhen = useCallback(() => setBarCard('forecast'), [])
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
@@ -782,36 +1056,7 @@ export default function App() {
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
 
-      <AppDrawer
-        open={sidebarOpen}
-        isDesktop={isDesktop}
-        moving={layoutMotion === 'opening' || layoutMotion === 'closing'}
-        sheetHeld={controlsHeld}
-        sheetRestPx={controlsSheetPx(layout.mapPx)}
-        onSheetHeld={setControlsHeld}
-        onClose={closeDrawer}
-        tourRuns={tour.index !== null}
-        themeChoice={themeChoice}
-        onThemeChoice={setThemeChoice}
-        drawMode={drawMode}
-        destinationInputs={destinationInputs}
-        forecastSelection={forecastSelection}
-        rankingKnobs={rankingKnobs}
-        chartMetrics={chartMetrics}
-        caps={caps}
-        mapRef={mapRef}
-        onPointAtSearch={setSearchPointed}
-        onPointAtMapPois={setPoisPointed}
-        onPresetListFailed={setPresetListFailed}
-        messages={shownMessages}
-        onAnalyze={handleAnalyze}
-        autoAnalyze={autoAnalyze}
-        capabilitiesSettled={capsApplied}
-        onAutoAnalyze={runAutoAnalyze}
-        actionWord={word}
-        onTutorial={tour.start}
-        tutorialWaits={tourWaits}
-      />
+      {!isDesktop && renderDrawer({ card: sidebarOpen ? barCard : null, onCardClose: closeDrawer, search: phoneSearch })}
 
       {/* Map + results column. On a phone the results leave the flow and stand
           on the map as a sheet, so the column is what positions them; on
@@ -824,10 +1069,14 @@ export default function App() {
         // Focusable by script alone, for the skip link, and drawing no ring:
         // the landmark is where the keyboard lands, not a control.
         tabIndex={-1}
-        className={`flex-1 flex flex-col overflow-hidden min-w-0 focus:outline-none${isDesktop ? '' : ' relative'}`}
+        // A desk is a row: the map and its chart down the left, the results'
+        // column down the right (record 0312).
+        className={`relative flex-1 flex overflow-hidden min-w-0 focus:outline-none ${isDesktop ? 'flex-row' : 'flex-col'}`}
       >
+        <div className={isDesktop ? 'relative flex min-w-0 flex-1 flex-col' : 'contents'}>
         <MapStage
           mapRef={mapRef}
+          theme={theme}
           drawMode={drawMode}
           isDesktop={isDesktop}
           destinationInputs={destinationInputs}
@@ -847,11 +1096,9 @@ export default function App() {
           sidebarOpen={sidebarOpen}
           layoutMotion={layoutMotion}
           legendInitiallyOpen={storedView.legendOpen ?? true}
-          onOpenControls={openDrawer}
-          onCloseControls={closeDrawer}
-          controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
           messages={shownMessages}
           actionWord={word}
+          actionLabel={barLabel}
           onAnalyze={handleAnalyze}
           layersForcedOpen={tour.layersOpen}
           searchPointed={searchPointed}
@@ -861,30 +1108,33 @@ export default function App() {
           onBasemapFailed={setBasemapFailed}
           maxPolygonPoints={caps.maxPolygonPoints}
           lowerSheetFirst={resultsView.lowerSheetFirst}
+          bar={barNode}
+          barCard={barCardNode}
+          onOpenWhere={openWhere}
+          cornerLinks={cornerLinks}
+          legendHost={legendHost}
+          cloudDeck={cloudDeck}
+          scoreColouring={scoreColouring}
+          // The strip's days are the panel's, which the tour's demonstration
+          // does not use, so the tour plays its hours on the player alone.
+          dayStrip={
+            demo === null
+              ? {
+                  selection,
+                  onSelection: forecastSelection.changeSelection,
+                  band: forecastSelection.band,
+                  fresh: analyzed !== null && !commitReasons.includes('window-changed'),
+                  onModel: openWhen,
+                }
+              : null
+          }
+          onCameraMove={onCameraMove}
         />
 
-        <ResultsSheet
-          resultsView={resultsView}
-          showResults={showResults || demo !== null}
-          chartTooltipIndex={tour.chartTooltipIndex}
-          chartTour={tour.chartTour}
-          isDesktop={isDesktop}
-          report={report}
-          removals={removals}
-          analysisSeq={analysisSeq}
-          sortBy={view.sortBy}
-          sortDesc={view.sortDesc}
-          pointSample={pointSample}
-          forecastTimes={forecastTimes}
-          playbackIndex={playbackIndex}
-          timelineAxes={timelineAxes}
-          movePlayheadTo={movePlayheadTo}
-          fire={fire}
-          closure={closure}
-          pendingHeights={waitingHeights}
-          modelId={analyzed?.forecastModel ?? forecastModel}
-          layoutMotion={layoutMotion}
-        />
+        <ResultsExpand isDesktop={isDesktop} layout={layout} />
+        </div>
+
+        <ResultsSheet {...resultsSheetProps} pointSample={pointSample} />
       </main>
       </div>
     </div>

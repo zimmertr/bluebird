@@ -95,7 +95,7 @@ import type { GroundReadings } from './groundReadings'
 import { CARD_FIT_MOVE, type MapPopups } from './mapPopups'
 
 /** Where a card opens, beyond its point. */
-export interface CardOpenOptions {
+interface CardOpenOptions {
   /**
    * Where the card's point WILL stand, in the map container's pixels, for a
    * caller about to fly it there, as a table row's centring is.
@@ -115,7 +115,7 @@ export interface CardOpenOptions {
 }
 
 /** A card on the map, and the move its fit asked of the map. */
-export interface OpenedCard {
+interface OpenedCard {
   popup: Popup
   dx: number
   dy: number

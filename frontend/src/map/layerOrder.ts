@@ -42,6 +42,7 @@ import { SNOW_LAYER_ID } from '../utils/snowDepth'
  * own, which is the collision order they had before this module.
  */
 export const SLOTS = [
+  'tint',
   'ground',
   'imagery',
   'roads',
@@ -49,6 +50,7 @@ export const SLOTS = [
   'slope',
   'contours',
   'trails',
+  'cloud',
   'grid',
   'snow',
   'radar',
@@ -83,6 +85,9 @@ const withGlows = (ids: readonly string[]) => ids.flatMap((id) => [`${id}-glow`,
  * id it does not hold, so a spelling that drifts fails that module's tests.
  */
 const APP_LAYERS: Readonly<Record<AppSlot, readonly string[]>> = {
+  // The relief-led ground (record 0317), under all of Liberty's layers, whose
+  // background it shows through.
+  tint: ['ground-tint', 'ground-shade'],
   imagery: ['imagery-eox', 'imagery-usgs'],
   // The empty layer carrying Mapterhorn's credit draws nothing, and stands
   // with the ground it credits.
@@ -90,6 +95,9 @@ const APP_LAYERS: Readonly<Record<AppSlot, readonly string[]>> = {
   slope: ['slope'],
   contours: ['contours-casing', 'contours', 'contours-index'],
   trails: ['ofm-trails-casing', 'ofm-trails'],
+  // The cloud sea (record 0310) hides the ground, its lines and its trails,
+  // and stands under every overlay, label and marker.
+  cloud: ['cloud-sea'],
   grid: ['forecast-grid-fill'],
   snow: [SNOW_LAYER_ID],
   radar: radarOffsets().map(radarLayerId),

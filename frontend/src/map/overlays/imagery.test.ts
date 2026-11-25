@@ -79,6 +79,16 @@ describe('groundAbove', () => {
   it('leaves the buildings over it, since Liberty draws them over its roads', () => {
     expect(groundAbove(liberty).map((l) => l.id)).toEqual(ABOVE)
   })
+
+  // The app's ground tint stands under Liberty's background (record 0317),
+  // and is no reason to fade the water under the photos.
+  it('reads the split over Liberty\'s layers alone, with the ground tint under them', () => {
+    const tint = [
+      { id: 'ground-tint', type: 'color-relief', source: 'ground-dem' },
+      { id: 'ground-shade', type: 'hillshade', source: 'ground-dem' },
+    ]
+    expect(groundAbove([...tint, ...liberty]).map((l) => l.id)).toEqual(ABOVE)
+  })
 })
 
 describe('fadedOpacity', () => {

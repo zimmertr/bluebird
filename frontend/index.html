@@ -34,13 +34,14 @@
     <link rel="preconnect" href="https://api.open-meteo.com" crossorigin />
     <link rel="preconnect" href="https://air-quality-api.open-meteo.com" crossorigin />
 
-    <!-- The face's Latin file (record 0304), fetched beside the scripts rather
-         than once the stylesheet has been read, so the first paint draws Inter
-         and no line moves when it arrives. Vite emits the same hashed file the
-         stylesheet names. -->
+    <!-- The face's Latin file (record 0324), fetched beside the scripts rather
+         than once the stylesheet has been read, so the first paint draws
+         Archivo and no line moves when it arrives: swapped in late, it shifted
+         the first screen by 0.118 (Lighthouse, 2026-11-21). Vite emits the
+         same hashed file the stylesheet names. -->
     <link
       rel="preload"
-      href="/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2"
+      href="/node_modules/@fontsource-variable/archivo/files/archivo-latin-wght-normal.woff2"
       as="font"
       type="font/woff2"
       crossorigin

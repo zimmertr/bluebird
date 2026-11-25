@@ -1,11 +1,12 @@
-import { test, expect, resultRows, peak, destinationsAnswer } from '../fixtures'
+import { test, expect, resultRows, peak, destinationsAnswer, forecastButton } from '../fixtures'
 import type { Browser, Page } from '@playwright/test'
 
 // What a desk's layout moves cost (#786; the maintainer, 2026-10-22: Table or
 // Chart to Both "really laggy and slow", the panel's open "kind of sloppy and
-// choppy"): the panel closing and opening, and the results panes changing on
-// Table, Chart and Both, over a 200-row report with every line charted, in
-// both themes. Each move is read frame by frame from the press: how long
+// choppy"): the results panes changing on Table, Chart and Both, over a
+// 200-row report with every line charted, in
+// both themes. The docked panel and its moves went with record 0334. Each
+// move is read frame by frame from the press: how long
 // until the moving edge first moves (`startMs`), until it last moves
 // (`endMs`), how many places it stood in between (`steps`), the longest wait
 // between two frames from the press to the end (`worstMs`), and the main
@@ -38,15 +39,11 @@ interface Move {
   worstMs: number
 }
 
-// One press, read in every frame for `ms`: the panel's right edge, or the
-// results' top for a pane move.
-function press(page: Page, label: string, edge: 'panel' | 'results', ms: number): Promise<Move> {
+// One press, read in every frame for `ms`: the results' top.
+function press(page: Page, label: string, ms: number): Promise<Move> {
   return page.evaluate(
-    async ([name, which, windowMs]) => {
-      const read =
-        which === 'panel'
-          ? () => document.querySelector('aside')!.getBoundingClientRect().right
-          : () => document.querySelector('[data-tour="results"]')!.getBoundingClientRect().top
+    async ([name, windowMs]) => {
+      const read = () => document.querySelector('[data-tour="results"]')!.getBoundingClientRect().top
       const before = read()
       const t: number[] = []
       const v: number[] = []
@@ -72,7 +69,7 @@ function press(page: Page, label: string, edge: 'panel' | 'results', ms: number)
         worstMs: Math.round(Math.max(...gaps)),
       }
     },
-    [label, edge, ms] as const,
+    [label, ms] as const,
   )
 }
 
@@ -94,15 +91,15 @@ async function traced(browser: Browser, page: Page, run: () => Promise<Move>) {
   return { move, mainMs: Object.fromEntries(KINDS.map((k) => [k, Math.round(sums[k] ?? 0)])) }
 }
 
-async function sample(browser: Browser, page: Page, theme: string, label: string, edge: 'panel' | 'results', back?: string) {
+async function sample(browser: Browser, page: Page, theme: string, label: string, back?: string) {
   const moves: Move[] = []
   let mainMs: Record<string, number> = {}
   for (let i = 0; i < SAMPLES; i++) {
     if (i === SAMPLES - 1) {
-      const r = await traced(browser, page, () => press(page, label, edge, 900))
+      const r = await traced(browser, page, () => press(page, label, 900))
       moves.push(r.move)
       mainMs = r.mainMs
-    } else moves.push(await press(page, label, edge, 900))
+    } else moves.push(await press(page, label, 900))
     await page.waitForTimeout(500)
     if (back) {
       await page.locator(`button[aria-label="${back}"]`).click()
@@ -133,7 +130,7 @@ for (const theme of ['dark', 'light'] as const) {
     )
     await page.goto(`/?type=peak&limit=${DESTINATIONS}&poly=${RING}`)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+    await forecastButton(page).click()
     await expect(resultRows(page)).toHaveCount(DESTINATIONS, { timeout: 300_000 })
     await page.locator('button[aria-label="Show both chart and table"]').click()
     await expect(page.locator('[data-tour="chart"] canvas').first()).toBeVisible() // the lines' canvas (record 0256)
@@ -142,26 +139,19 @@ for (const theme of ['dark', 'light'] as const) {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_SLOWDOWN })
 
     const results = []
-    // The panel, over Both.
-    results.push(await sample(browser, page, theme, 'Close controls', 'panel', 'Open controls'))
-    await page.locator('button[aria-label="Close controls"]').click()
-    await page.waitForTimeout(900)
-    results.push(await sample(browser, page, theme, 'Open controls', 'panel', 'Close controls'))
-    await page.locator('button[aria-label="Open controls"]').click()
-    await page.waitForTimeout(900)
     // The panes, each move and its way back.
     await page.locator('button[aria-label="Show table only"]').click()
     await page.waitForTimeout(900)
-    results.push(await sample(browser, page, theme, 'Show both chart and table', 'results', 'Show table only'))
+    results.push(await sample(browser, page, theme, 'Show both chart and table', 'Show table only'))
     await page.locator('button[aria-label="Show both chart and table"]').click()
     await page.waitForTimeout(900)
-    results.push(await sample(browser, page, theme, 'Show table only', 'results', 'Show both chart and table'))
+    results.push(await sample(browser, page, theme, 'Show table only', 'Show both chart and table'))
     await page.locator('button[aria-label="Show chart only"]').click()
     await page.waitForTimeout(900)
-    results.push(await sample(browser, page, theme, 'Show both chart and table', 'results', 'Show chart only'))
+    results.push(await sample(browser, page, theme, 'Show both chart and table', 'Show chart only'))
     await page.locator('button[aria-label="Show both chart and table"]').click()
     await page.waitForTimeout(900)
-    results.push(await sample(browser, page, theme, 'Show chart only', 'results', 'Show both chart and table'))
+    results.push(await sample(browser, page, theme, 'Show chart only', 'Show both chart and table'))
     await testInfo.attach(`layout-motion-${theme}.json`, {
       body: JSON.stringify(results, null, 2),
       contentType: 'application/json',

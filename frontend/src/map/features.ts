@@ -27,6 +27,7 @@ import type { MapController } from './controller'
 import { mountDrawRing, type DrawRing } from './drawRing'
 import { mountDestinationCards } from './destinationCards'
 import { createGridHeads } from './gridHeads'
+import { mountGround, type Ground } from './ground'
 import { createGroundReadings } from './groundReadings'
 import { serveHeldTiles } from './heldTileProtocol'
 import { mountLandmarks, type LandmarkLayer } from './landmarks'
@@ -42,7 +43,8 @@ import { mountWildfires, type WildfireOverlay } from './overlays/wildfires'
 import { mountPoiPopups, type PoiPopups } from './poiPopup'
 import type { PopupBoard } from './popups'
 import { mountResultsLayer, type ResultsLayer } from './resultsLayer'
-import { mountTerrain, type TerrainLayers } from './terrain'
+import { MAPTERHORN_ATTRIBUTION, mountTerrain, type TerrainLayers } from './terrain'
+import { mountCloudSea, type CloudSeaLayer } from './cloudSea'
 
 export interface MapFeatures {
   imagery: ImageryOverlay
@@ -59,6 +61,10 @@ export interface MapFeatures {
   results: ResultsLayer
   pois: PoiPopups
   terrain: TerrainLayers
+  /** The cloud sea (record 0310), on the terrain's one load of the elevation. */
+  cloud: CloudSeaLayer
+  /** The relief-led ground under Liberty's faint roads, towns and water (record 0317). */
+  ground: Ground
 }
 
 /** The imagery's level from which the contours wear their ink for the photos: half. */
@@ -74,6 +80,7 @@ export function mountFeatures(
     ring: { current: [number, number][] }
     onPolygonChange: (polygon: GeoPolygon | null) => void
     onDrawUpdate: (count: number) => void
+    onLoopDrawn: () => void
     /** The map opened on a camera a share link named, which the 3D terrain keeps the pitch of (#864). */
     linkCamera?: boolean
   },
@@ -100,9 +107,13 @@ export function mountFeatures(
   enhanceBasemap(map)
   // After the basemap patch, which registers the icons its layers name.
   const landmarks = mountLandmarks(map, {})
+  // After every label it repaints in the dark look: the basemap's, its
+  // patched peaks and lakes, and the landmarks.
+  const ground = mountGround(map, { attribution: MAPTERHORN_ATTRIBUTION })
   // Adds nothing until a switch asks: no elevation tile and no contour code
   // on the cold load.
   const terrain = mountTerrain(map, { linkCamera: deps.linkCamera })
+  const cloud = mountCloudSea(map, () => terrain.demTiles())
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { popups: mapPopups })
   const wildfires = mountWildfires(map, { popups: mapPopups })
@@ -118,6 +129,7 @@ export function mountFeatures(
     restCursor,
     onPolygonChange: deps.onPolygonChange,
     onDrawUpdate: deps.onDrawUpdate,
+    onLoopDrawn: deps.onLoopDrawn,
   })
   // Every card that describes a place, with one reading of the ground per
   // point off the terrain rows' one elevation source (#832). A click on a
@@ -162,5 +174,7 @@ export function mountFeatures(
     results,
     pois,
     terrain,
+    cloud,
+    ground,
   }
 }

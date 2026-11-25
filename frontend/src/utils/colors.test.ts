@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   ColoredFamily,
+  SCORE_RAMP,
+  scoreColor,
+  scoreFill,
   METRIC_SCALE,
   VERDICT_RAMP,
   VERDICT_RAMP_REVERSED,
@@ -15,7 +18,7 @@ import {
 import { COLUMNS } from './tableColumns'
 import { scaleTicks } from './legendRamp'
 import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
-import { LabelledScale } from './colors'
+import { LabelledScale, SCORE_MAP_SCALE, colorOnScale, scoreScale } from './colors'
 import { FAMILY_KEYS, RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
 import { contrast, mixOver, relativeLuminance, round2 } from '../testSupport/contrast'
 import { SNOW_RAMP } from './snowDepth'
@@ -906,5 +909,42 @@ describe('hexToRgb', () => {
     expect(hexToRgb('#000000')).toEqual([0, 0, 0])
     expect(hexToRgb('#ffffff')).toEqual([255, 255, 255])
     expect(hexToRgb('#0a84c6')).toEqual([10, 132, 198])
+  })
+})
+
+describe('the score ramp', () => {
+  it('runs from fog to bluebird in each theme, darkening toward the best in light', () => {
+    expect(SCORE_RAMP.dark).toHaveLength(7)
+    expect(SCORE_RAMP.light).toHaveLength(7)
+    const lum = (hex: string) => hexToRgb(hex).reduce((a, b) => a + b, 0)
+    // The light ramp ends darker than it starts, so the best rows stand out
+    // on a pale map; the dark one ends brighter.
+    expect(lum(SCORE_RAMP.light[6])).toBeLessThan(lum(SCORE_RAMP.light[0]))
+    expect(lum(SCORE_RAMP.dark[6])).toBeGreaterThan(lum(SCORE_RAMP.dark[0]))
+  })
+
+  it('paints the ends of the field in the ends of the ramp', () => {
+    const range = { lo: 40, hi: 90 }
+    expect(scoreFill(40, range, 'dark')).toBe(SCORE_RAMP.dark[0])
+    expect(scoreFill(90, range, 'dark')).toBe(SCORE_RAMP.dark[6])
+    expect(scoreFill(90, range, 'light')).toBe(SCORE_RAMP.light[6])
+    expect(scoreColor(90, range)).toBe(`light-dark(${SCORE_RAMP.light[6]}, ${SCORE_RAMP.dark[6]})`)
+  })
+})
+
+// The score's map scale stretched over the field (record 0307): the legend's
+// ticks are the field's own scores, and a marker coloured on the scale wears
+// the colour `scoreFill` gives the same score over the same range.
+describe('scoreScale', () => {
+  it('is the plain ramp with no range, and carries the steps back onto the field’s scores', () => {
+    expect(scoreScale(null)).toBe(SCORE_MAP_SCALE)
+    expect(scoreScale({ lo: 50, hi: 100 }).thresholds).toEqual([50, 70, 78, 84, 90, 95])
+  })
+
+  it('colours a score as scoreFill does over the same range', () => {
+    const range = { lo: 40, hi: 97 }
+    for (const score of [40, 55, 70, 85, 97]) {
+      expect(colorOnScale(score, scoreScale(range))).toBe(scoreFill(score, range, 'light'))
+    }
   })
 })

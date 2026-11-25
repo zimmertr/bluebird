@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { createRef, type ReactNode } from 'react'
 import MapStage, { type MapStageProps } from './MapStage'
 import type { MapViewHandle } from './MapView'
@@ -10,6 +10,9 @@ import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { DRAGGED_MAP_PX, FAB_INSET_PX, phoneCornerLiftPx, transportStandPx } from '../utils/results/resultsSheet'
 import { LAYOUT_HOLD, MAP_EDGE } from '../styles'
 import type { Place } from '../utils/geocode'
+import type { BandLimits } from '../utils/calendar/calendar'
+
+const BAND: BandLimits = { forecastHours: 384, pastDays: 365, aqiDays: 5 }
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
 // about is what reaches it: the props of every render are kept here.
@@ -27,7 +30,9 @@ vi.mock('./MapLegend', async (original) => ({
   ),
 }))
 vi.mock('./LayersPopover', () => ({
-  default: (props: { sheet: boolean }) => <div data-testid="layers" data-sheet={String(props.sheet)} />,
+  default: (props: { sheet: boolean; tool?: boolean }) => (
+    <div data-testid="layers" data-sheet={String(props.sheet)} data-tool={String(Boolean(props.tool))} />
+  ),
 }))
 vi.mock('./TimelineTransport', () => ({
   default: (props: { liftPx: number }) => <div data-testid="transport" data-lift={String(props.liftPx)} />,
@@ -35,7 +40,7 @@ vi.mock('./TimelineTransport', () => ({
 vi.mock('./PhoneFoot', () => ({
   default: (props: {
     fabBottomPx: number
-    onFabPx: (px: number) => void
+    strip: ReactNode
     analyzeEnabled: boolean
     word: string
     onAnalyze: () => void
@@ -49,7 +54,7 @@ vi.mock('./PhoneFoot', () => ({
       data-count={String(props.messages.count)}
       data-covered={String(props.covered)}
     >
-      <button onClick={() => props.onFabPx(120)}>Fab</button>
+      {props.strip && <div data-testid="foot-strip">{props.strip}</div>}
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
         Analyze
       </button>
@@ -59,27 +64,23 @@ vi.mock('./PhoneFoot', () => ({
 vi.mock('./MapRows', () => ({
   default: (props: {
     desk: boolean
-    onOpenControls: () => void
     onSearchSelect: (place: Place) => void
     onLocateSlot: (slot: HTMLDivElement | null) => void
     onCompassSlot: (slot: HTMLDivElement | null) => void
     onTerrainSlot: (slot: HTMLDivElement | null) => void
-    controlsSummary: string
-    layers: ReactNode
+    tools: ReactNode
     legend: ReactNode
     covered: boolean
   }) => (
     <div
       data-testid="rows"
       data-desk={String(props.desk)}
-      data-summary={props.controlsSummary}
       data-covered={String(props.covered)}
     >
-      <button onClick={props.onOpenControls}>Controls</button>
       <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
       <div data-testid="terrain" ref={props.onTerrainSlot} />
       <div data-testid="locate" ref={props.onLocateSlot} />
-      {props.layers}
+      {props.tools}
       {props.legend}
       <div data-testid="compass" ref={props.onCompassSlot} />
     </div>
@@ -162,6 +163,7 @@ const DRAW: MapStageProps['drawMode'] = {
   drawPointCount: 0,
   finishDrawing: NOOP,
   handleCancelDrawing: NOOP,
+  startDrawing: NOOP,
 }
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP, removeResult: NOOP }
 const MESSAGES = panelMessages()
@@ -172,8 +174,8 @@ const LOWER_SHEET_FIRST = (then: () => void) => then()
 
 function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
+    theme: 'dark',
     layersForcedOpen: false,
-    onCloseControls: NOOP,
     mapRef: MAP_REF,
     coverage: {},
     drawMode: DRAW,
@@ -198,8 +200,6 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     onBasemapFailed: ON_BASEMAP_FAILED,
     maxPolygonPoints: MAX_POLYGON_POINTS,
     lowerSheetFirst: LOWER_SHEET_FIRST,
-    onOpenControls: NOOP,
-    controlsSummary: 'Current · NOAA GFS',
     messages: MESSAGES,
     actionWord: 'Analyze',
     onAnalyze: NOOP,
@@ -237,6 +237,7 @@ describe('MapStage', () => {
     expect(got.times).toBe(TIMELINE.forecastTimes)
     expect(got.onPolygonChange).toBe(INPUTS.setPolygon)
     expect(got.onDrawUpdate).toBe(DRAW.handleDrawUpdate)
+    expect(got.onLoopDrawn).toBe(DRAW.finishDrawing)
     expect(got.searchedPlaces).toBe(INPUTS.places)
     expect(got.popupColumns).toBe(TABLE_VIEW.tableColumns)
     expect(got.analyzedAtMs).toBe(ANALYSIS.analyzedAtMs)
@@ -261,35 +262,46 @@ describe('MapStage', () => {
   // The chip row holds Legend and Layers at both widths (#714, record 0174),
   // each handed to the rows rather than drawn beside them; their order is
   // the rows' own (MapRows.test.tsx).
-  // While a desk's layout moves the map's column clips the map it holds to
-  // one size (record 0202), and while the panel moves it stands on a layer
-  // of its own (record 0216).
-  it('clips the map\'s column while the layout moves, and gives it a layer while the panel does', () => {
+  // While a desk's results panes move the map's column clips the map it
+  // holds to one size (record 0202).
+  it('clips the map\'s column while the panes move', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const column = () => container.firstElementChild as HTMLElement
     expect(column().className).toContain('flex-1')
     expect(column().className).not.toContain(LAYOUT_HOLD.clip)
-    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
     rerender(<MapStage {...props({ layoutMotion: 'panes' })} />)
     expect(column().className).toContain(LAYOUT_HOLD.clip)
-    expect(column().className).not.toContain(LAYOUT_HOLD.layer)
-    for (const layoutMotion of ['opening', 'closing'] as const) {
-      rerender(<MapStage {...props({ layoutMotion })} />)
-      expect(column().className).toContain(LAYOUT_HOLD.clip)
-      expect(column().className).toContain(LAYOUT_HOLD.layer)
-    }
   })
 
-  it('hands the rows the Legend and Layers chips at both widths', () => {
-    const { rerender } = render(<MapStage {...props()} />)
-    for (const desk of [true, false]) {
-      rerender(<MapStage {...props({ isDesktop: desk, sidebarOpen: desk })} />)
-      const rows = screen.getByTestId('rows')
-      expect(rows.dataset.desk).toBe(String(desk))
-      const layers = screen.getByTestId('layers')
-      const legend = screen.getByTestId('legend')
-      expect(rows.contains(layers) && rows.contains(legend)).toBe(true)
-    }
+  // A phone's rows carry Legend and Layers; a desk's carry Legend, and its
+  // Layers stands in the map's tool column with the draw button (record 0315).
+  // Layers is a round tool at both widths (records 0315 and 0331): in a
+  // phone's column, which the rows hold, and in a desk's corner.
+  it('hands the rows the Legend chip at both widths, and Layers to the tool column', () => {
+    const { container, rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
+    const rows = () => screen.getByTestId('rows')
+    expect(rows().contains(screen.getByTestId('layers')) && rows().contains(screen.getByTestId('legend'))).toBe(true)
+    expect(screen.getByTestId('layers').dataset.tool).toBe('true')
+    expect(rows().contains(screen.getByRole('button', { name: 'Draw a loop' }))).toBe(true)
+    rerender(<MapStage {...props()} />)
+    expect(rows().contains(screen.getByTestId('legend'))).toBe(true)
+    const corner = container.querySelector('.map-corner')!
+    expect(corner.contains(screen.getByTestId('layers'))).toBe(true)
+    expect(screen.getByTestId('layers').dataset.tool).toBe('true')
+  })
+
+  it('draws a ring from the desk\'s tool column, and a second press lets it go', async () => {
+    const startDrawing = vi.fn()
+    const handleCancelDrawing = vi.fn()
+    const { user, rerender } = render(<MapStage {...props({ drawMode: { ...DRAW, startDrawing, handleCancelDrawing } })} />)
+    const draw = screen.getByRole('button', { name: 'Draw a loop' })
+    expect(draw.getAttribute('aria-pressed')).toBe('false')
+    await user.click(draw)
+    expect(startDrawing).toHaveBeenCalledTimes(1)
+    rerender(<MapStage {...props({ drawMode: { ...DRAW, drawing: true, startDrawing, handleCancelDrawing } })} />)
+    expect(screen.getByRole('button', { name: 'Draw a loop' }).getAttribute('aria-pressed')).toBe('true')
+    await user.click(screen.getByRole('button', { name: 'Draw a loop' }))
+    expect(handleCancelDrawing).toHaveBeenCalledTimes(1)
   })
 
   it('draws the player only while something spans time', () => {
@@ -299,7 +311,7 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 
-  // Draw polygon closes the drawer on a phone, so Done and Cancel come to the
+  // Draw a loop closes the drawer on a phone, so Done and Cancel come to the
   // map (#687). They are the panel's own two presses, the bar stands under the
   // chip row (#696), and the player steps out while it is up.
   it('puts Done and Cancel on the map while a phone draws, and the player away', async () => {
@@ -336,13 +348,6 @@ describe('MapStage', () => {
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 
-  it('reopens the controls', () => {
-    const onOpenControls = vi.fn()
-    render(<MapStage {...props({ onOpenControls })} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Controls' }))
-    expect(onOpenControls).toHaveBeenCalledOnce()
-  })
-
   // A searched place is framed for the sheet it is about to open, and only
   // then registered, which is what opens that sheet (#696).
   it('frames a searched place for the sheet it is about to open', () => {
@@ -358,12 +363,10 @@ describe('MapStage', () => {
 
   // The rows carry the summary, and Layers opens as a sheet on a phone and
   // as a joined menu at a desk.
-  it('hands the rows the summary, and Layers as a sheet on a phone only', () => {
+  it('opens Layers as a sheet on a phone only', () => {
     const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(screen.getByTestId('rows').dataset.summary).toBe('Current · NOAA GFS')
     expect(screen.getByTestId('layers').dataset.sheet).toBe('true')
     rerender(<MapStage {...props()} />)
-    expect(screen.getByTestId('rows').dataset.summary).toBe('Current · NOAA GFS')
     expect(screen.getByTestId('layers').dataset.sheet).toBe('false')
   })
 
@@ -378,6 +381,23 @@ describe('MapStage', () => {
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(legend().sections).toBe('5')
     expect(legend().sheet).toBe('true')
+  })
+
+  // The key stands at the results' foot while they do (record 0322), at a
+  // desk and on a phone alike (record 0333), and the chip leaves the map; with
+  // no foot, before a report, the chip keys the map.
+  it('draws the key into the results\' foot at either width, and no chip while it stands', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const { rerender } = render(<MapStage {...props({ legendHost: host })} />)
+    expect(screen.queryByTestId('legend')).toBeNull()
+    expect(host.childElementCount).toBeGreaterThan(0)
+    rerender(<MapStage {...props({ legendHost: host, isDesktop: false, sidebarOpen: false })} />)
+    expect(screen.queryByTestId('legend')).toBeNull()
+    expect(host.childElementCount).toBeGreaterThan(0)
+    rerender(<MapStage {...props({ legendHost: null, isDesktop: false, sidebarOpen: false })} />)
+    expect(screen.getByTestId('legend')).toBeTruthy()
+    host.remove()
   })
 
   // Whatever slot the rows hand up reaches the map, which stands its own
@@ -470,16 +490,16 @@ describe('MapStage', () => {
     expect(screen.getByTestId('foot').dataset.covered).toBe('true')
   })
 
-  // The opened credit line stops short of the button (map.css), so a phone
-  // publishes the width it measured; a desk has no button.
-  it('publishes the button\'s width on a phone', () => {
-    const { container, rerender } = render(<MapStage {...props()} />)
-    const stage = () => container.firstElementChild as HTMLElement
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('')
+  // A phone's foot holds the strip's days (record 0329), and the strip
+  // stands nowhere else on a phone; a desk's strip is its own card.
+  it('hands a phone\'s foot the strip\'s days', () => {
+    const dayStrip = { selection: { kind: 'now' } as const, onSelection: () => {}, band: BAND }
+    const { container, rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false, dayStrip })} />)
+    expect(within(screen.getByTestId('foot-strip')).getByRole('group', { name: 'Forecast day' })).toBeTruthy()
+    expect(screen.getAllByRole('group', { name: 'Forecast day' })).toHaveLength(1)
+    expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--map-fab-w')).toBe('')
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('0px')
-    fireEvent.click(screen.getByRole('button', { name: 'Fab' }))
-    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('120px')
+    expect(screen.queryByTestId('foot-strip')).toBeNull()
   })
 
   // A sheet at its highest leaves the button its strip and no room for the

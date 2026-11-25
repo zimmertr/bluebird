@@ -21,8 +21,7 @@ function inputs(over: Partial<DrawModeInputs> = {}): DrawModeInputs {
     mapRef: mapStub().ref,
     polygon: null,
     restoredPolygon: undefined,
-    isDesktop: true,
-    closeDrawer: vi.fn(),
+    uncoverMap: vi.fn(),
     ...over,
   }
 }
@@ -38,18 +37,14 @@ describe('useDrawMode', () => {
     expect(restored.result.current.drawPointCount).toBe(3)
   })
 
-  it('frames the ring on the way in, and closes the drawer on a phone only', () => {
+  it('frames the ring on the way in, and uncovers the map', () => {
     const { map, ref } = mapStub()
-    const closeDrawer = vi.fn()
-    const desk = renderHook(() => useDrawMode(inputs({ mapRef: ref, closeDrawer })))
-    act(() => desk.result.current.startDrawing())
-    expect(desk.result.current.drawing).toBe(true)
+    const uncoverMap = vi.fn()
+    const { result } = renderHook(() => useDrawMode(inputs({ mapRef: ref, uncoverMap })))
+    act(() => result.current.startDrawing())
+    expect(result.current.drawing).toBe(true)
     expect(map.framePolygon).toHaveBeenCalledTimes(1)
-    expect(closeDrawer).not.toHaveBeenCalled()
-
-    const phone = renderHook(() => useDrawMode(inputs({ mapRef: ref, closeDrawer, isDesktop: false })))
-    act(() => phone.result.current.startDrawing())
-    expect(closeDrawer).toHaveBeenCalledTimes(1)
+    expect(uncoverMap).toHaveBeenCalledTimes(1)
   })
 
   // Cancel and Escape put back the ring as it stood when the mode began (#478).

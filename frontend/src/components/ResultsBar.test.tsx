@@ -3,7 +3,8 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
-import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER, PANEL_EDGE } from '../styles'
+import { NO_CONSTRAINTS } from '../utils/constraints'
+import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL, DISABLED, MENU_CHEVRON, MENU_TRIGGER, PANEL_EDGE, RESULTS_HEAD } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
 const NOOP = () => {}
@@ -58,6 +59,58 @@ describe('ResultsBar', () => {
     render(<ResultsBar {...props({ sortDesc: true, rowCount: '5 of 5', windowTitle: 'Fri, Sep 25' })} />)
     expect(screen.getByText(/\(5 of 5\)$/).textContent).toMatch(/^Highest /)
     expect(screen.getByText('Fri, Sep 25')).toBeTruthy()
+  })
+
+  // The prototype's subtitle (record 0319): the best hours, the window and
+  // the model on one line.
+  it('runs the best hours, the window and the model together under the title', () => {
+    render(
+      <ResultsBar
+        {...props({ rowCount: '5 of 5', windowTitle: 'Fri, Sep 25', bestHours: 'Best hours mostly Fri, 1p–5p', modelLabel: 'GFS' })}
+      />,
+    )
+    expect(screen.getByText('Best hours mostly Fri, 1p–5p · Fri, Sep 25 · GFS')).toBeTruthy()
+  })
+
+  it('draws the limits row with the results, and none without them', () => {
+    const limits = { constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 }, onRemove: NOOP, onAdd: NOOP, hidden: 3 }
+    const { rerender } = render(<ResultsBar {...props({ limits })} />)
+    expect(screen.getByRole('group', { name: 'Limits' })).toBeTruthy()
+    rerender(<ResultsBar {...props({ limits, showResults: false })} />)
+    expect(screen.queryByRole('group', { name: 'Limits' })).toBeNull()
+  })
+
+  // A phone's sheet holds the lenses and the limits in one row that scrolls
+  // sideways (record 0330), each group whole in it, and the headline stands
+  // over its subtitle as a desk's does.
+  it('holds a phone\'s lenses and limits in one scrolling row', () => {
+    const limits = { constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 }, onRemove: NOOP, onAdd: NOOP, hidden: 0 }
+    render(<ResultsBar {...props({ sheet: true, limits, lens: 'bluebird', onLens: NOOP, scoreHeadline: 'Bluebird windows' })} />)
+    const lenses = screen.getByRole('group', { name: 'Lenses' })
+    const row = lenses.parentElement!
+    expect(row.className).toBe(RESULTS_HEAD.phoneRow)
+    expect(lenses.className).toBe(RESULTS_HEAD.lensesInline)
+    expect(screen.getByRole('group', { name: 'Limits' }).parentElement).toBe(row)
+    expect(screen.getByRole('group', { name: 'Limits' }).className).toBe(RESULTS_HEAD.limitsInline)
+    expect(screen.getByText('Bluebird windows').className).toContain(RESULTS_HEAD.headline)
+  })
+
+  // A desk's compact column keeps the toolbar behind its expand button, and
+  // widened it shows it (record 0321), as a phone's sheet does (record 0330).
+  it('hides the toolbar behind the expand button in a desk\'s compact column', () => {
+    const onWide = vi.fn()
+    const { rerender } = render(<ResultsBar {...props({ wide: false, onWide })} />)
+    expect(screen.queryByRole('button', { name: 'Show chart only' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Choose which columns to display' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Every column' }))
+    expect(onWide).toHaveBeenCalledTimes(1)
+    rerender(<ResultsBar {...props({ wide: true, onWide })} />)
+    expect(screen.getByRole('button', { name: 'Show chart only' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Narrow the table' }).getAttribute('aria-pressed')).toBe('true')
+    // A phone's sheet widens the same way (record 0330).
+    rerender(<ResultsBar {...props({ sheet: true, wide: false, onWide })} />)
+    expect(screen.getByRole('button', { name: 'Every column' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Show chart only' })).toBeNull()
   })
 
   // Disabled rather than removed, so the two beside it do not move.

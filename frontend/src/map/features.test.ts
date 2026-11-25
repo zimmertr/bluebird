@@ -40,6 +40,7 @@ function setup(drawing = false) {
     ring: { current: [] },
     onPolygonChange: vi.fn(),
     onDrawUpdate: vi.fn(),
+    onLoopDrawn: vi.fn(),
   })
   return { stub, features }
 }
@@ -164,9 +165,11 @@ describe('mountFeatures', () => {
     expect(Object.keys(features).sort()).toEqual(
       [
         'areaClosures',
+        'cloud',
         'drawRing',
         'fireActivity',
         'grid',
+        'ground',
         'imagery',
         'landmarks',
         'pois',
@@ -181,12 +184,13 @@ describe('mountFeatures', () => {
     )
   })
 
-  // The ground waits for a switch (#799): the cold load adds no elevation
-  // source, no relief and no contours.
+  // The Layers rows' ground waits for a switch (#799): the cold load adds no
+  // elevation of theirs. The map's own ground (record 0317) reads its tiles as
+  // served and is the one elevation source on the load.
   it('adds nothing of the ground until a switch asks for it', () => {
     const { stub } = setup()
     const added = stub.calls.filter((c) => c[0] === 'addSource').map((c) => c[1])
-    expect(added.filter((id) => /dem|contour/.test(String(id)))).toEqual([])
+    expect(added.filter((id) => /dem|contour/.test(String(id)))).toEqual(['ground-dem'])
     expect(stub.stack.filter((id) => /relief|contour/.test(id))).toEqual([])
   })
 })

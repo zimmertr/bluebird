@@ -1,4 +1,4 @@
-import { test, expect, resultRows, isoDay } from './fixtures'
+import { test, expect, resultRows, isoDay, forecastButton } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A phone's results sheet goes to full screen when its grip is dragged to the
@@ -18,14 +18,14 @@ async function dragTo(page: Page, from: { x: number; y: number }, toY: number) {
 test('the results sheet goes full screen dragged to the top, and comes back down', async ({ page }) => {
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const analyze = page.getByRole('main').getByRole('button', { name: 'Analyze' })
+  const analyze = forecastButton(page.getByRole('main'))
   await analyze.tap()
   await expect(resultRows(page).first()).toBeAttached()
 
   const sheet = page.locator('[data-tour="results"]')
   // By CSS rather than by role: under a full-screen sheet both are inert,
   // which takes them out of the accessibility tree a role query reads.
-  const controls = page.locator('button[aria-label="Open controls"]')
+  const controls = page.locator('[role="group"][aria-label="Forecast"] [data-card="forecast"]')
   const fab = page.locator('[data-tour="analyze"]')
   const resting = (await sheet.boundingBox())!
   expect(resting.y).toBeGreaterThan(300)
@@ -54,9 +54,9 @@ test('the results sheet goes full screen dragged to the top, and comes back down
   await expect.poll(async () => (await sheet.boundingBox())!.y).toBeLessThan(3)
   await expect.poll(() => onTop(controls)).toBe('sheet')
   await expect.poll(() => onTop(fab)).toBe('sheet')
-  // The rows and the Analyze button's slot, both surfaces a card keeps
-  // clear of.
-  await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(2)
+  // The rows, the tool column (record 0331) and the Analyze button's slot,
+  // each a surface a card keeps clear of.
+  await expect(page.locator('[data-map-overlay][inert]')).toHaveCount(3)
 
   // Back down to the middle: it holds there, and they come back.
   await dragTo(page, await grip(), 420)
@@ -69,7 +69,7 @@ test('the results sheet goes full screen dragged to the top, and comes back down
 test('a release short of the top falls back to the strip under the chips', async ({ page }) => {
   await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const analyze = page.getByRole('main').getByRole('button', { name: 'Analyze' })
+  const analyze = forecastButton(page.getByRole('main'))
   await analyze.tap()
   await expect(resultRows(page).first()).toBeAttached()
 
@@ -81,9 +81,9 @@ test('a release short of the top falls back to the strip under the chips', async
   // goes that much lower.
   const below = grip.y - (await sheet.boundingBox())!.y
   await dragTo(page, grip, 120 + below)
-  // The cap leaves the rows and the button's strip, 176px of map.
+  // The cap leaves the rows and the foot's strip, 268px of map (record 0329).
   const top = async () => (await sheet.boundingBox())!.y
-  await expect.poll(top).toBeGreaterThan(170)
-  expect(await top()).toBeLessThan(182)
+  await expect.poll(top).toBeGreaterThan(262)
+  expect(await top()).toBeLessThan(274)
   await expect(analyze).toBeVisible()
 })

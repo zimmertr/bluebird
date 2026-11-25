@@ -1,4 +1,4 @@
-import { memo, useId, useMemo, useRef } from 'react'
+import { memo, useCallback, useId, useMemo, useRef, useState } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { selectionState } from '../utils/chart/chartData'
@@ -10,6 +10,7 @@ import { geoKey } from '../utils/points'
 import { pendingChartRow, rankText, rowKeys } from '../utils/results/resultsCells'
 import { useChartBox } from '../hooks/useChartBox'
 import { TEXT } from '../styles'
+import { stripDays } from '../utils/score/hourStrip'
 import ResultsTableHeader from './ResultsTableHeader'
 import ResultsTableRow, { FireClock, NoteTargetsContext, type NoteTargets, PendingRow } from './ResultsTableRow'
 
@@ -41,6 +42,9 @@ interface Props {
   // the avg/min/max triplets, and no knob can change that without a new
   // analysis.
   pointSample?: boolean
+  // The range the Score cells' colour is stretched over while a lens ranks
+  // (record 0307), or null.
+  scoreRange?: { lo: number; hi: number } | null
   // Columns to display, filtered by user visibility choices. The file always
   // carries the full set via buildResultsCsv; only the screen narrows.
   columns?: ColDef[]
@@ -115,7 +119,16 @@ interface Props {
   // hours (#493, #508). Null when no row on display is short. Drawn only while
   // the Model column is, since the marks it explains ride that column.
   partialNote?: string | null
+  /**
+   * The compact table the desk's column draws (record 0320): the name's
+   * sub-line, the hours in a column of their own under the days' names, and
+   * no chart checkboxes.
+   */
+  compact?: boolean
 }
+
+const NO_DAYS: readonly string[] = []
+const NO_DAYS_TIMES: readonly number[] = []
 
 function ResultsTable({
   results,
@@ -125,6 +138,7 @@ function ResultsTable({
   detailSortDir,
   onDetailSort,
   pointSample = false,
+  scoreRange = null,
   columns,
   modelFallbackLabel,
   onFocusPending,
@@ -149,6 +163,7 @@ function ResultsTable({
   columnWidths,
   onColumnWidthsChange,
   partialNote = null,
+  compact = false,
 }: Props) {
   // Memoized because every row is memoized on it.
   const coloredGroup = useMemo(() => new Set<string>(FAMILY_KEYS[familyOf(sortBy)]), [sortBy])
@@ -169,7 +184,19 @@ function ResultsTable({
   // The leading checkbox column only appears once an analysis has returned
   // series to chart; rows without series (e.g. pinned search forecasts) render
   // an empty cell so the columns stay aligned.
-  const showChartCol = !!onToggleChart
+  const showChartCol = !!onToggleChart && !compact
+  // The compact table's one row opened in place (record 0327), by its place's
+  // key, so a re-rank keeps it open on the same place.
+  const [openedKey, setOpenedKey] = useState<string | null>(null)
+  const toggleOpen = useCallback((key: string) => setOpenedKey((open) => (open === key ? null : key)), [])
+  // The day names over the compact strip, read off the first row with a
+  // score; every row shares the field's days.
+  const dayLabels = useMemo(() => {
+    if (!compact) return NO_DAYS
+    const first = results.find((r) => r.score_lit)
+    if (!first) return NO_DAYS
+    return stripDays(first.score_hours, first.score_lit, first.score_best, first.series_times ?? times ?? NO_DAYS_TIMES).map((d) => d.label)
+  }, [compact, results, times])
 
   // Every chartable row currently in the table, for the header "select all"
   // box. Its state (all/some/none) drives both the checked mark and the
@@ -237,6 +264,7 @@ function ResultsTable({
           chartableRows={chartableRows}
           headState={headState}
           onChartRange={onChartRange}
+          dayLabels={dayLabels}
         />
         <tbody>
           <NoteTargetsContext.Provider value={noteTargets}>
@@ -269,6 +297,7 @@ function ResultsTable({
                   widths={widths}
                   coloredGroup={coloredGroup}
                   pointSample={pointSample}
+                  scoreRange={scoreRange}
                   modelFallbackLabel={modelFallbackLabel}
                   modelId={modelId}
                   times={times}
@@ -284,6 +313,9 @@ function ResultsTable({
                   chartColor={charted ? chartColor?.(row) : undefined}
                   onRemove={onRemove}
                   onFocusResult={onFocusResult}
+                  compact={compact}
+                  opened={compact && openedKey === at}
+                  onToggleOpen={compact ? toggleOpen : undefined}
                 />
               )
             })}

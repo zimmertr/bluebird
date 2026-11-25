@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { test, expect, controlsPhrase } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A phone sheet's grip and title drag it (#696; record 0146), the way the
@@ -47,18 +47,18 @@ test.describe('on a phone', () => {
   // Every sheet rises to the same ceiling, the screen's top (record 0291):
   // the Controls sheet used to stop under the chips and the Analyze button's
   // strip, the menu sheets one inset under the chips. Let go there, each
-  // stands over the search box and the Analyze button.
+  // stands over the sentence bar and the Analyze button.
   // `down` is a drag from full on the turned screen that lands clear of the
   // sheet's own height, which a release near takes: the Layers rows open at
   // the cap, 290 of 390, so 120 down would snap back to them.
   for (const [opener, name, down] of [
-    ['Open controls', 'Controls', 120],
-    ['Layers', 'Layers', 200],
+    [controlsPhrase, 'Controls', 120],
+    [(page: Page) => page.getByRole('button', { name: 'Layers', exact: true }), 'Layers', 200],
   ] as const) {
-    test(`the ${name} sheet rises to the top of the screen, over the search box and Analyze`, async ({ page }) => {
+    test(`the ${name} sheet rises to the top of the screen, over the sentence bar and Analyze`, async ({ page }) => {
       await page.goto('/')
       await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-      await page.getByRole('button', { name: opener, exact: true }).click()
+      await opener(page).click()
       const sheet = page.getByRole('dialog', { name })
       await expect(sheet).toBeVisible()
       // Once a slide has landed, so the drag starts where the sheet stands.
@@ -79,7 +79,7 @@ test.describe('on a phone', () => {
       const top = (await sheet.boundingBox())!
       expect(Math.round(top.y)).toBe(0)
       expect(Math.round(top.y + top.height)).toBe(844)
-      // What stands at the search box's and the Analyze button's places is
+      // What stands at the sentence bar's and the Analyze button's places is
       // the sheet now.
       const covered = await page.evaluate(
         (heading) => {
@@ -87,8 +87,8 @@ test.describe('on a phone', () => {
             (d) => d.querySelector('h2')?.textContent === heading,
           )!
           const fab = document.querySelector('[data-tour="analyze"]')!.getBoundingClientRect()
-          const search = document.querySelector('[aria-label="Search for a place"]')!.getBoundingClientRect()
-          return [fab, search].map((r) => card.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)))
+          const bar = document.querySelector('[role="group"][aria-label="Forecast"]')!.getBoundingClientRect()
+          return [fab, bar].map((r) => card.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)))
         },
         name,
       )
@@ -113,7 +113,7 @@ test.describe('on a phone', () => {
   test('the Controls sheet keeps its share of the screen through a turn and back', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Open controls', exact: true }).click()
+    await controlsPhrase(page).click()
     const sheet = page.getByRole('dialog', { name: 'Controls' })
     await expect.poll(async () => Math.round((await sheet.boundingBox())!.y)).toBe(256)
     const grip = (await sheet.locator(':scope > div').first().boundingBox())!
@@ -135,7 +135,7 @@ test.describe('on a phone', () => {
     await page.setViewportSize({ width: 844, height: 390 })
     await page.goto('/')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Open controls', exact: true }).click()
+    await controlsPhrase(page).click()
     const sheet = page.getByRole('dialog', { name: 'Controls' })
     await expect.poll(async () => Math.round((await sheet.boundingBox())!.y)).toBe(195)
     expect(Math.round((await sheet.boundingBox())!.height)).toBe(195)

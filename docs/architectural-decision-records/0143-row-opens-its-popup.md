@@ -1,6 +1,6 @@
 # 0143. A press on a results row opens its marker's popup, and a phone's sheet drops to its bar first
 
-- Status: Accepted
+- Status: Accepted; in the desk's compact table amended by [0327](0327-a-compact-row-opens-in-place.md)
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696, 2026-10-14; the popup's remove the same evening, and its rule that night
 - Issues and PRs: #696, #708, #336, #536

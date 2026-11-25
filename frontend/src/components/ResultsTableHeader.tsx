@@ -2,13 +2,13 @@ import { memo, useId } from 'react'
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { DestinationResult } from '../types'
-import { RANK_KEY, headerLines, isNumberColumn, type SortDir, type SortKey, type ColDef } from '../utils/tableColumns'
+import { HOURS_COL, RANK_KEY, headerLines, isNumberColumn, type SortDir, type SortKey, type ColDef } from '../utils/tableColumns'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
 import type { InsertLine } from '../utils/columnMeasure'
 import { sized } from './sizedCell'
-import { ACCENT, CHOICE_INPUT, COLUMN_GRIP, DRAG, FOCUS_RING_INSET, SCROLL_SHADOW, SR_ONLY, TABLE } from '../styles'
+import { ACCENT, CHOICE_INPUT, COLUMN_GRIP, DRAG, FOCUS_RING_INSET, HOUR_STRIP, SCROLL_SHADOW, SR_ONLY, TABLE } from '../styles'
 
 // The results table's header row and everything a press on it can do: sort
 // (by pointer or by key), move a column, resize one, and fit one to its content. Apart from the body
@@ -51,6 +51,8 @@ interface Props {
   chartableRows: DestinationResult[]
   headState: 'all' | 'some' | 'none'
   onChartRange?: (rows: DestinationResult[], selected: boolean) => void
+  /** The days' names over the compact strip. */
+  dayLabels?: readonly string[]
 }
 
 // The leading chart column's header: a "select all" box once there is
@@ -105,6 +107,8 @@ function DragOverlay({ carry, insert }: { carry: Carry; insert: InsertLine | nul
   )
 }
 
+const NO_DAYS: readonly string[] = []
+
 function ResultsTableHeader({
   columns: orderedColumns,
   detailSortKey,
@@ -118,6 +122,7 @@ function ResultsTableHeader({
   chartableRows,
   headState,
   onChartRange,
+  dayLabels = NO_DAYS,
 }: Props) {
   const widths = columnWidths ?? {}
   const drag = useColumnDrag(orderedColumns, onColumnMove)
@@ -216,7 +221,19 @@ function ResultsTableHeader({
           {showChartCol && <SelectAllCell rows={chartableRows} headState={headState} onChartRange={onChartRange} />}
           {sortHeader(RANK_KEY, '#', 'w-6')}
           {orderedColumns.map((col) =>
-            sortHeader(
+            // The compact strip's header is the days' names, one over each
+            // day's block (record 0320); nothing sorts on the hours.
+            col.key === HOURS_COL.key ? (
+              <th key={col.key} scope="col" className={TABLE.head}>
+                <span className={HOUR_STRIP.dayHead}>
+                  {dayLabels.map((label, i) => (
+                    <span key={i} className={HOUR_STRIP.dayName}>
+                      {label}
+                    </span>
+                  ))}
+                </span>
+              </th>
+            ) : sortHeader(
               col.key,
               sized(widths, col.key as string, <HeaderLabel col={col} />, 'inline'),
               // The Name header stands with its column (record 0142); sticky

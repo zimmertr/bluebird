@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { test, expect, resultRows } from './fixtures'
+import { test, expect, resultRows, forecastButton, everyColumn, narrowColumn, controlsPhrase } from './fixtures'
 
 // The guided tutorial (#536), walked the way a reader walks it. The unit
 // suites pin the steps, the placement arithmetic and the source anchors; this
@@ -92,7 +92,7 @@ async function expectSpotlightOn(page: Page, anchor: string) {
 }
 
 // A section the panel has room for stands whole inside the panel's scroll box,
-// rather than under its footer.
+// rather than under its footer, or whole on screen in a card that scrolls nothing.
 async function expectSectionInPanel(page: Page, anchor: string) {
   await expect(async () => {
     const fit = await page.evaluate((a) => {
@@ -101,8 +101,11 @@ async function expectSectionInPanel(page: Page, anchor: string) {
       while (box && !(['auto', 'scroll'].includes(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) {
         box = box.parentElement
       }
-      if (!el || !box) return null
+      if (!el) return null
       const s = el.getBoundingClientRect()
+      // A desk's card holds its one section (record 0309), and with room to
+      // spare it scrolls nothing: the section then stands whole on screen.
+      if (!box) return { fits: true, inside: s.top >= 0 && s.bottom <= innerHeight + 1 }
       const b = box.getBoundingClientRect()
       return { fits: s.height <= b.height, inside: s.top >= b.top - 1 && s.bottom <= b.bottom + 1 }
     }, anchor)
@@ -113,7 +116,8 @@ async function expectSectionInPanel(page: Page, anchor: string) {
 }
 
 // The popup stands whole in the part of the map the reader can see: above
-// the sheet, and clear of the button column, the legend and the card.
+// the sheet, and clear of the button column, the legend and the card. A
+// desk's column folds away for the card, so there is no sheet to stand above.
 async function expectPopupClear(page: Page) {
   await expect(page.locator('[data-tour="marker"]')).toBeVisible()
   await expect(async () => {
@@ -128,7 +132,7 @@ async function expectPopupClear(page: Page) {
     )
     expect(popup).not.toBeNull()
     expect(popup!.top).toBeGreaterThanOrEqual(0)
-    expect(popup!.bottom).toBeLessThanOrEqual(sheet!.top)
+    if (sheet !== null) expect(popup!.bottom).toBeLessThanOrEqual(sheet.top)
     for (const o of [...overlays, tourCard!]) expect(overlaps(popup!, o), JSON.stringify(o)).toBe(false)
   }).toPass({ timeout: 5_000 })
 }
@@ -226,7 +230,7 @@ test('walks the twelve cards from the footer link and puts the app back', async 
     if (step.anchor === 'messages') {
       // Analyze greyed under the demonstration, its list open beside the card.
       await expectDemoMessages(page, page.getByRole('group', { name: 'Messages' }))
-      await expect(page.locator('aside').getByRole('button', { name: 'Analyze', exact: true })).toHaveAttribute('aria-disabled', 'true')
+      await expect(forecastButton(page)).toHaveAttribute('aria-disabled', 'true')
       await expectSpotlightOn(page, 'messages-list')
     }
     if (step.anchor === 'layers') await expect(page.getByRole('group', { name: 'Messages' })).toHaveCount(0)
@@ -264,6 +268,12 @@ const SEGMENT = { table: 'Show table only', chart: 'Show chart only', both: 'Sho
 type Mode = keyof typeof SEGMENT
 
 async function expectMode(page: Page, mode: Mode) {
+  // A desk's compact column is the table, with the segment behind its expand
+  // button (record 0321).
+  if (mode === 'table' && (await page.getByRole('button', { name: SEGMENT.table }).count()) === 0) {
+    await expect(page.locator('[data-tour="chart"]')).toHaveCount(0)
+    return
+  }
   for (const [m, name] of Object.entries(SEGMENT)) {
     await expect(page.getByRole('button', { name }).first()).toHaveAttribute('aria-pressed', m === mode ? 'true' : 'false')
   }
@@ -329,7 +339,8 @@ test('at a desk a reader who never analyzed sees the table on Results and the ch
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await walkDeskViews(page)
   expect(await storedMode(page)).toBeUndefined()
-  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await forecastButton(page).click()
+  await everyColumn(page)
   await expectMode(page, 'chart')
 })
 
@@ -340,12 +351,17 @@ test('at a desk a reader who never analyzed sees the table on Results and the ch
 test('at a desk the Results and Chart cards switch a pressed Both to their view and store nothing', async ({ page }) => {
   await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.locator('aside').getByRole('button', { name: 'Analyze', exact: true }).click()
+  await forecastButton(page).click()
   await expect(resultRows(page)).toHaveCount(5)
+  await everyColumn(page)
   await page.getByRole('button', { name: SEGMENT.both }).first().click()
   await expectMode(page, 'both')
   expect(await storedMode(page)).toBe('both')
+  // The Tutorial link stands in the map's corner, which the widened column
+  // covers.
+  await narrowColumn(page)
   await walkDeskViews(page)
+  await everyColumn(page)
   await expectMode(page, 'chart')
   expect(await storedMode(page)).toBe('both')
 })
@@ -399,14 +415,16 @@ test.describe('on a phone with a report', () => {
   test('walks a lowered report: the Analyze light, the Layers sheet, the table and the chart', async ({ page }) => {
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+    await forecastButton(page.getByRole('main')).click()
     await expect(resultRows(page)).toHaveCount(5)
+    // A phone's chart waits behind Every column (record 0330).
+    await page.getByRole('button', { name: 'Every column' }).first().tap()
     await page.getByRole('button', { name: 'Show chart only' }).first().tap()
     await expect(resultRows(page).first()).toBeHidden()
     await page.getByRole('button', { name: 'Collapse results' }).first().tap()
     await expect(page.getByRole('button', { name: 'Expand results' }).first()).toBeVisible()
 
-    await page.getByRole('button', { name: 'Open controls' }).tap()
+    await controlsPhrase(page).tap()
     const link = page.getByRole('dialog', { name: 'Controls' }).getByRole('link', { name: 'Tutorial' })
     await link.scrollIntoViewIfNeeded()
     await link.tap()

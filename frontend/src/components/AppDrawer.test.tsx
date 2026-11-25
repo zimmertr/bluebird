@@ -9,7 +9,6 @@ import { DEFAULT_SELECTION } from '../utils/calendar/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import type { PanelMessages } from '../hooks/usePanelMessages'
-import { DESK_PANEL, LAYOUT_HOLD } from '../styles'
 
 vi.mock('./ControlPanel', () => ({
   default: (props: { pointSample: boolean; messages: PanelMessages; phone?: boolean }) => (
@@ -85,97 +84,58 @@ function drawer(open: boolean, onClose = NOOP, over: Partial<ComponentProps<type
       onPointAtMapPois={NOOP}
       onPresetListFailed={NOOP}
       messages={MESSAGES}
-      onAnalyze={NOOP}
+      card="destinations"
       autoAnalyze={false}
       capabilitiesSettled
       onAutoAnalyze={NOOP}
-      actionWord="Analyze"
       {...over}
     />
   )
 }
 
 describe('AppDrawer', () => {
-  // The theme menu at a desk (#843): in the header, beside the close button
-  // and in its box, named by the choice it holds, and a pick reaches App.
-  it('carries the theme menu beside its close button at a desk', () => {
-    const onThemeChoice = vi.fn()
-    render(drawer(true, NOOP, { onThemeChoice }))
-    const theme = screen.getByRole('button', { name: 'Theme System' })
-    const close = screen.getByRole('button', { name: 'Close controls' })
-    expect(theme.parentElement).toBe(close.parentElement)
-    expect(theme.nextElementSibling).toBe(close)
-    fireEvent.click(theme)
-    fireEvent.click(screen.getByRole('option', { name: 'Light' }))
-    expect(onThemeChoice).toHaveBeenCalledExactlyOnceWith('light')
+  // The place search heads the Where card and no other (record 0313).
+  it('heads a desk\'s Where card with the search, and no other card', () => {
+    const search = <input aria-label="Place search" />
+    const { rerender } = render(drawer(true, NOOP, { isDesktop: true, card: 'destinations', search }))
+    const where = screen.getByRole('region', { name: 'Where' })
+    expect(where.querySelector('input[aria-label="Place search"]')).not.toBeNull()
+    rerender(drawer(true, NOOP, { isDesktop: true, card: 'forecast', search }))
+    expect(screen.queryByLabelText('Place search')).toBeNull()
   })
 
-  it('names the theme menu by the choice it holds', () => {
-    render(drawer(true, NOOP, { themeChoice: 'dark' }))
-    expect(screen.getByRole('button', { name: 'Theme Dark' })).toBeTruthy()
-  })
-
-  it('closes from its own button', () => {
-    const onClose = vi.fn()
-    render(drawer(true, onClose))
-    fireEvent.click(screen.getByRole('button', { name: 'Close controls' }))
-    expect(onClose).toHaveBeenCalledOnce()
-  })
-
-  // A desk docks the panel beside the map and draws nothing behind it.
-  it('docks at a desk with no backdrop and no sheet', () => {
-    const { container } = render(drawer(true))
-    expect(container.querySelector('aside')?.previousElementSibling).toBeNull()
+  // At a desk the panel is the one card a sentence-bar chip opened (record
+  // 0309), with nothing behind it, and nothing at all with no card open
+  // (record 0334).
+  it('draws the one card at a desk, and nothing with none open', () => {
+    const { container, rerender } = render(drawer(true))
+    expect(screen.getByRole('region', { name: 'Where' })).toBeTruthy()
     expect(screen.queryByRole('dialog', { name: 'Controls' })).toBeNull()
     expect(screen.getByTestId('panel').dataset.phone).toBe('false')
+    rerender(drawer(false, NOOP, { card: null }))
+    expect(container.innerHTML).toBe('')
   })
 
-  // Shut, it stays in the row and its margin takes its width back, so the
-  // map's edge moves with the panel's both ways (record 0202).
-  it('pushes off the left edge when closed and stays mounted', () => {
-    const { container, rerender } = render(drawer(true))
-    const shut = DESK_PANEL.shut
-    expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
-    expect(container.querySelector('aside')?.className.split(' ')).not.toContain(shut)
-    rerender(drawer(false))
-    expect(container.querySelector('aside')?.className).toContain(DESK_PANEL.card)
-    expect(container.querySelector('aside')?.className.split(' ')).toContain(shut)
-    expect(screen.getByTestId('panel')).toBeTruthy()
+  it('closes the card from its own button', () => {
+    const onCardClose = vi.fn()
+    render(drawer(true, NOOP, { onCardClose }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onCardClose).toHaveBeenCalledOnce()
   })
 
-  // On a layer of its own while it moves, so a frame of the move paints none
-  // of it (record 0216), and only then.
-  it('stands on a layer of its own while it moves', () => {
-    const { container, rerender } = render(drawer(true))
-    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
-    rerender(drawer(false, NOOP, { moving: true }))
-    expect(container.querySelector('aside')?.className).toContain(LAYOUT_HOLD.layer)
-    rerender(drawer(false))
-    expect(container.querySelector('aside')?.className).not.toContain(LAYOUT_HOLD.layer)
-  })
-
-  // Off screen is not out of the Tab order: closed, the drawer kept some 45
-  // stops a keyboard walked through blind (#576).
-  it('leaves the Tab order while closed', () => {
-    const { container, rerender } = render(drawer(true))
-    expect(container.querySelector('aside')?.hasAttribute('inert')).toBe(false)
-    rerender(drawer(false))
-    expect(container.querySelector('aside')?.hasAttribute('inert')).toBe(true)
-  })
-
-  // The map's Controls button unmounts as the drawer opens, so the drawer's
-  // own Close button takes the keyboard rather than the body (#576).
+  // The chip that opened the card keeps the keyboard; when nothing holds it,
+  // the card's own Close takes it rather than the body (#576).
   it('takes the keyboard when the button that opened it goes', () => {
     const page = (open: boolean) => (
       <>
-        {drawer(open)}
-        {!open && <button>Open controls</button>}
+        {drawer(open, NOOP, { card: open ? 'destinations' : null })}
+        {!open && <button>Where</button>}
       </>
     )
     const { rerender } = render(page(false))
-    screen.getByRole('button', { name: 'Open controls' }).focus()
+    screen.getByRole('button', { name: 'Where' }).focus()
     rerender(page(true))
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close controls' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
   })
 
   // The Metrics table follows the When selection, not the report.
@@ -219,8 +179,22 @@ describe('AppDrawer', () => {
       expect(container.contains(sheet())).toBe(true)
     })
 
+    // The place search heads the sheet now that the sentence bar stands where
+    // its pill stood (record 0328), over the panel rather than in it.
+    it('heads the sheet with the place search it is handed', () => {
+      render(phone(true, NOOP, { search: <input aria-label="Search for a place" /> }))
+      const search = screen.getByRole('textbox', { name: 'Search for a place' })
+      expect(sheet().contains(search)).toBe(true)
+      expect(search.compareDocumentPosition(screen.getByTestId('panel')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
     // On a phone the menu is the Controls sheet's alone, in its title row
     // beside Done (#706), and its rows open in a sheet headed Theme (#843).
+    it('names the theme menu by the choice it holds', () => {
+      render(phone(true, NOOP, { themeChoice: 'dark' }))
+      expect(screen.getByRole('button', { name: 'Theme Dark' })).toBeTruthy()
+    })
+
     it('carries the theme menu in its title row, beside Done', () => {
       const onThemeChoice = vi.fn()
       render(drawer(true, NOOP, { isDesktop: false, sheetRestPx: 540, onThemeChoice }))
@@ -228,7 +202,6 @@ describe('AppDrawer', () => {
       const done = screen.getByRole('button', { name: 'Done' })
       expect(theme.nextElementSibling).toBe(done)
       expect(theme.getAttribute('aria-haspopup')).toBe('dialog')
-      expect(screen.queryByRole('button', { name: 'Close controls' })).toBeNull()
       fireEvent.click(theme)
       expect(screen.getByRole('dialog', { name: 'Theme' })).toBeTruthy()
       fireEvent.click(screen.getByRole('option', { name: 'Dark' }))

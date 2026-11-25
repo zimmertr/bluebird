@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { clampPanelHeight, resolvePanelHeights } from '../layout'
 import {
+  COLUMN_MAP_MIN_PX,
+  COLUMN_MIN_PX,
+  columnWidthPx,
   DEFAULT_PANEL_HEIGHT,
   DRAGGED_MAP_PX,
-  FAB_GAP_PX,
   FAB_INSET_PX,
   FAB_PX,
   FAB_STRIP_PX,
@@ -269,7 +271,8 @@ describe('the resting height', () => {
     })
     expect(chart).toBe(0)
     expect(table).toBe(120)
-    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(435)
+    // 650 less the widened header (112, record 0330), a grip and the floor.
+    expect(VIEWPORT - sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx: table })).toBe(394)
   })
 })
 
@@ -277,17 +280,18 @@ describe('the resting height', () => {
 // strip under the chip row (#696). The resting reserve above holds only until
 // the reader takes hold of a grip; this one holds however far they pull.
 describe('the drag cap', () => {
-  it('leaves the rows and the button\'s strip: 88 and 16 + 56 + 16', () => {
+  // The foot and the corner band over it (record 0329): 16 + 96 + 44.
+  it('leaves the rows and the foot\'s strip: 88 and 16 + 96 + 44', () => {
     expect(MAP_ROWS_PX).toBe(88)
-    expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + FAB_INSET_PX)
-    expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 56, 88])
-    expect(DRAGGED_MAP_PX).toBe(176)
+    expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + TRANSPORT_GAP_PX)
+    expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 120, 180])
+    expect(DRAGGED_MAP_PX).toBe(268)
   })
 
   // With the player on, a full sheet also leaves the bar its room over the
   // button, so a chart and its playhead stay on screen together.
   it('leaves the player its room while it is on, and it fits there', () => {
-    expect(PLAYER_ROOM_PX).toBe(FAB_GAP_PX + TRANSPORT_HEIGHT_PX)
+    expect(PLAYER_ROOM_PX).toBe(TRANSPORT_HEIGHT_PX + FAB_INSET_PX)
     expect(draggedMapFloorPx(2, true) - draggedMapFloorPx(2)).toBe(PLAYER_ROOM_PX)
     const mapPx = 740
     const lift = mapPx - DRAGGED_MAP_PX - PLAYER_ROOM_PX
@@ -315,10 +319,10 @@ describe('the drag cap', () => {
     const lift = (panelsPx: number) => sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx })
     const capped = lift(clampPanelHeight(table, 600, 0, VIEWPORT, draggedMapFloorPx(1)))
     expect(capped).toBe(VIEWPORT - DRAGGED_MAP_PX)
-    // The button at the sheet's edge and an inset under the rows.
+    // The foot at the sheet's edge and its corner band under the rows.
     const fab = fabBottomPx(capped, VIEWPORT)
     expect(fab).toBe(capped + FAB_INSET_PX)
-    expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+    expect(VIEWPORT - fab - FAB_PX).toBe(MAP_ROWS_PX + TRANSPORT_GAP_PX)
   })
 })
 
@@ -350,7 +354,7 @@ describe('full screen', () => {
     expect(fabShiftPx(200, 0, mapPx)).toBe(0)
     expect(fabShiftPx(200, 100, mapPx)).toBe(-100)
     expect(fabShiftPx(200, -50, mapPx)).toBe(50)
-    const highest = mapPx - MAP_ROWS_PX - FAB_INSET_PX - FAB_PX
+    const highest = mapPx - MAP_ROWS_PX - TRANSPORT_GAP_PX - FAB_PX
     expect(fabShiftPx(200, 2000, mapPx)).toBe(fabBottomPx(200, mapPx) - highest)
   })
 
@@ -370,14 +374,12 @@ describe('the Analyze button', () => {
     for (const lift of [0, 84, 300]) expect(fabBottomPx(lift, 844)).toBe(lift + FAB_INSET_PX)
   })
 
-  // The scale, the (i) and the opened credit line stand on the button's
-  // row with their bottoms on the button's bottom edge (TJ, 2026-10-14): each
-  // stands on the library's 10px margin inside the corner band, so the band
-  // starts that margin under the button.
-  it('stands the map corners on the button\'s bottom edge', () => {
+  // The scale, the (i) and the opened credit line stand in the corner band
+  // on the foot's top edge (record 0329), the card spanning the map's width.
+  it('stands the map corners on the foot\'s top edge', () => {
     const fab = 120
     expect(CORNER_MARGIN_PX).toBe(10)
-    expect(phoneCornerLiftPx(fab) + CORNER_MARGIN_PX).toBe(fab)
+    expect(phoneCornerLiftPx(fab)).toBe(fab + FAB_PX)
   })
 
   // A sheet dragged to its cap puts the button under the chip row, and no
@@ -386,15 +388,15 @@ describe('the Analyze button', () => {
     const lift = 844 - DRAGGED_MAP_PX
     expect(fabBottomPx(lift, 844)).toBe(lift + FAB_INSET_PX)
     const fab = fabBottomPx(lift + 60, 844)
-    expect(844 - fab - FAB_PX).toBe(MAP_ROWS_PX + FAB_INSET_PX)
+    expect(844 - fab - FAB_PX).toBe(MAP_ROWS_PX + TRANSPORT_GAP_PX)
   })
 
-  // The player's bottom 8px over the button's top, and off the map while
-  // that would cross the rows.
+  // The player over the corner band on the foot's top, and off the map
+  // while that would cross the rows.
   it('carries the player, which steps off when there is no room', () => {
-    expect(transportBottomPx(transportStandPx(120))).toBe(120 + FAB_PX + FAB_GAP_PX)
+    expect(transportBottomPx(transportStandPx(120))).toBe(120 + FAB_PX + TRANSPORT_GAP_PX)
     expect(transportFits(16, 844)).toBe(true)
-    const top = (fab: number) => fab + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+    const top = (fab: number) => fab + FAB_PX + TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
     const highest = 844 - MAP_ROWS_PX - FAB_INSET_PX
     expect(transportFits(highest - top(0), 844)).toBe(true)
     expect(transportFits(highest - top(0) + 1, 844)).toBe(false)
@@ -407,8 +409,8 @@ describe('the camera padding', () => {
   const defaults = { chartPx: 288, tablePx: 280 }
 
   it('is the lift the sheet reserves at 402x874', () => {
-    // The sheet's chrome plus a default-height table (71 + 24 + 280) is 375,
-    // and the resting reserve leaves 412 at this height (874 less
+    // The sheet's chrome plus a default-height table (112 + 24 + 280) is 416,
+    // and the resting reserve leaves 424 at this height (874 less
     // `RESTING_MAP_PX`), so the table stands at its own default and the lift
     // is the sheet's own height. #454's last 14px are what bought that: at a
     // 196px stack the reserve was the binding edge and the table was clamped
@@ -421,7 +423,7 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(375)
+    expect(lift).toBe(416)
     expect(874 - lift).toBeGreaterThanOrEqual(RESTING_MAP_PX)
   })
 
@@ -444,7 +446,7 @@ describe('the camera padding', () => {
       ...defaults,
     })
     expect(lift).toBe(sheetChromePx(1) + 120)
-    expect(lift).toBe(215)
+    expect(lift).toBe(256)
     expect(650 - lift).toBeLessThan(RESTING_MAP_PX)
   })
 
@@ -522,11 +524,13 @@ describe('the default panel heights', () => {
 // the button, plus the 76px the notice band on its edge used to take. The
 // band went with the message badge (record 0208) and the number stayed, so
 // the sheet opens where it did; taking the band's room back is a call of its
-// own.
+// own. The foot grew past it with the days' sky track (record 0333): the
+// sheet keeps its height, since the foot stands under its dim, and still
+// leaves the rows.
 describe('the Controls sheet', () => {
   it('leaves the rows, the button\'s strip and the room the band had above it', () => {
     expect(CONTROLS_MAP_PX).toBe(256)
-    expect(CONTROLS_MAP_PX).toBeGreaterThan(DRAGGED_MAP_PX)
+    expect(CONTROLS_MAP_PX).toBeGreaterThan(MAP_ROWS_PX)
     expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
   })
 
@@ -549,5 +553,17 @@ describe('resolveSheetLift and the safe area', () => {
     expect(resolveSheetLift({ docked: true, measuredPx: null, estimatePx: 84, footPx: 34 })).toBe(34)
     expect(resolveSheetLift({ docked: true, measuredPx: null, estimatePx: 84 })).toBe(0)
     expect(resolveSheetLift({ docked: false, measuredPx: 118, estimatePx: 84, footPx: 34 })).toBe(118)
+  })
+})
+
+describe('columnWidthPx', () => {
+  it('follows the drag between the column floor and the map floor', () => {
+    expect(columnWidthPx(500, 1400)).toBe(500)
+    expect(columnWidthPx(300, 1400)).toBe(COLUMN_MIN_PX)
+    expect(columnWidthPx(1200, 1400)).toBe(1400 - COLUMN_MAP_MIN_PX)
+  })
+
+  it('keeps the column floor on a window too narrow for both', () => {
+    expect(columnWidthPx(600, 800)).toBe(COLUMN_MIN_PX)
   })
 })

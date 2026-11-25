@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import MapCorner from './MapCorner'
 import { render } from '../testSupport/render'
-import { MAP_CORNER } from '../styles'
+import { MAP_CORNER, MAP_TOOL } from '../styles'
 import type { CornerSlots } from '../map/controls'
 
 describe('MapCorner', () => {
@@ -21,6 +21,17 @@ describe('MapCorner', () => {
     unmount()
     expect(onSlots).toHaveBeenCalledTimes(2)
     expect(onSlots).toHaveBeenLastCalledWith(null)
+  })
+
+  // The map tools stand over the library's buttons, in the column a popup
+  // keeps clear of (record 0315).
+  it('stands the tools over the compass in the column', () => {
+    const onSlots = vi.fn<(slots: CornerSlots | null) => void>()
+    const { container } = render(<MapCorner onSlots={onSlots} tools={<button>Layers</button>} />)
+    const [stack] = container.querySelectorAll('[data-map-overlay]')
+    expect(stack.children[0].className).toBe(MAP_TOOL.tools)
+    expect(stack.children[0].textContent).toBe('Layers')
+    expect(stack.children[1]).toBe(onSlots.mock.calls[0][0]!.compass)
   })
 
   // A popup keeps clear of the column and the line, rather than of the box

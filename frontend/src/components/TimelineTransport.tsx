@@ -47,6 +47,11 @@ interface Props {
   // height, or 0 wherever the results are docked below the map (#249). The bar
   // keeps the same gap either way, measured from whatever it is standing on.
   liftPx: number
+  /**
+   * At a desk the day strip hosts the bar under its row of days (record
+   * 0311), so the bar draws no card and takes no place of its own.
+   */
+  embedded?: boolean
 }
 
 /**
@@ -80,6 +85,7 @@ export default function TimelineTransport({
   scale,
   forecastLabel,
   liftPx,
+  embedded = false,
 }: Props) {
   // Radar names itself: it is a product, not a metric.
   const axisLabel = (a: TimelineAxis) => (a === 'radar' ? 'Radar' : forecastLabel)
@@ -89,7 +95,8 @@ export default function TimelineTransport({
       // `data-map-overlay`). Where the results are docked below the map the
       // bar stands inside the part of it a card can be seen in, and a card
       // hung over it lost its last rows to it.
-      data-map-overlay=""
+      // Embedded, the day strip carries the marker and the place.
+      data-map-overlay={embedded ? undefined : ''}
       // Sits directly above the attribution control, which is a licence term
       // and cannot be covered.
       //
@@ -98,14 +105,18 @@ export default function TimelineTransport({
       // scale here was the alternative and a bad trade: this box is CENTRED, so
       // every pixel left on one side costs two, and clearing a 95px scale on a
       // phone would have taken most of the bar.
-      className={`${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex w-[min(23rem,calc(100%-4rem))] items-center gap-2.5 px-3 py-2`}
+      className={
+        embedded
+          ? 'flex items-center gap-2.5'
+          : `${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex w-[min(23rem,calc(100%-4rem))] items-center gap-2.5 px-3 py-2`
+      }
       // The offset is a style rather than a class because it is derived, not
       // chosen: it is the room MapLibre's scale bar and attribution need,
       // measured from whatever the bar is standing on — the map's own bottom
       // edge where the results are docked, the top of the sheet where they
       // cover it (#249). A drag on a phone's sheet moves it with the Analyze
       // button it stands on, as a transform (`--sheet-shift`, #837).
-      style={{ bottom: transportBottomPx(liftPx), transform: 'translateY(var(--sheet-shift, 0px))' }}
+      style={embedded ? undefined : { bottom: transportBottomPx(liftPx), transform: 'translateY(var(--sheet-shift, 0px))' }}
     >
       <button
         onClick={() => onPlayingChange(!playing)}

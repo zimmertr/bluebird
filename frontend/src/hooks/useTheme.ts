@@ -50,7 +50,7 @@ const deviceLight = () => matchMedia(LIGHT_QUERY).matches
  * attribute is already right, because `public/theme.js` wrote it before the
  * stylesheet loaded; the effect agrees with it rather than racing it.
  */
-export function useTheme(): { choice: ThemeChoice; setChoice: (choice: ThemeChoice) => void } {
+export function useTheme(): { choice: ThemeChoice; theme: Theme; setChoice: (choice: ThemeChoice) => void } {
   const [choice, setChoiceState] = useState<ThemeChoice>(readThemeChoice)
   const [systemLight, setSystemLight] = useState(deviceLight)
   const theme: Theme = choice === 'system' ? (systemLight ? 'light' : 'dark') : choice
@@ -98,5 +98,5 @@ export function useTheme(): { choice: ThemeChoice; setChoice: (choice: ThemeChoi
     setChoiceState(next)
   }, [])
 
-  return { choice, setChoice }
+  return { choice, theme, setChoice }
 }

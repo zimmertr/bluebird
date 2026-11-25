@@ -1,211 +1,47 @@
-import { test, expect, expectRanked, resultRows, DESTINATION_NAMES } from './fixtures'
+import { test, expect, expectRanked, resultRows, DESTINATION_NAMES, forecastButton, everyColumn } from './fixtures'
 import type { Page } from '@playwright/test'
 
-// The desk panel pushes the map's edge (#714; record 0202): it stays in the
-// row while it is shut and its margin takes its 360px back, so the map's
-// column narrows and widens in the frames the panel moves in, over the
-// panel's 300ms both ways, and nothing is painted over anything. A press on
-// Table, Chart or Both opens and closes the results panes at the same speed.
-// Measured on the live layout, frame by frame, since jsdom lays nothing out.
-
-const PANEL_PX = 360
-const PANEL_S = '0.3s'
-
-// Every frame for `ms` after a press, read in the frame: the panel's right
-// edge, the map column's left edge and width, the results' top, and the
-// width of the map's canvas, which changes only when the map is resized.
-function framesAfter(page: Page, press: string, ms: number) {
-  return page.evaluate(
-    async ([selector, windowMs]) => {
-      const aside = document.querySelector('aside')!
-      const map = document.querySelector('main')!.firstElementChild!
-      const results = document.querySelector('[data-tour="results"]')
-      const canvas = document.querySelector('.maplibregl-canvas') as HTMLCanvasElement
-      const frames: {
-        panelRight: number
-        mapLeft: number
-        mapWidth: number
-        mapBottom: number
-        resultsTop: number
-        canvasWidth: number
-      }[] = []
-      ;(document.querySelector(selector) as HTMLElement).click()
-      const t0 = performance.now()
-      await new Promise<void>((resolve) => {
-        const tick = () => {
-          const m = map.getBoundingClientRect()
-          frames.push({
-            panelRight: aside.getBoundingClientRect().right,
-            mapLeft: m.left,
-            mapWidth: m.width,
-            mapBottom: m.bottom,
-            resultsTop: results ? results.getBoundingClientRect().top : NaN,
-            canvasWidth: canvas.width,
-          })
-          if (performance.now() - t0 < windowMs) requestAnimationFrame(tick)
-          else resolve()
-        }
-        requestAnimationFrame(tick)
-      })
-      return frames
-    },
-    [press, ms] as const,
-  )
-}
-
-const transitionOf = (page: Page) =>
-  page.locator('aside').evaluate((el) => {
-    const s = getComputedStyle(el)
-    return { property: s.transitionProperty, duration: s.transitionDuration }
-  })
+// A desk's results stand in a column right of the map, which widens over it
+// for every column and the chart (record 0321). A press on Both or Table
+// opens and shuts the chart's pane at the top of the widened column at the
+// panel speed (record 0202), with its chart drawn at its end size in every
+// moving frame (record 0216); the column itself holds still. Measured on the
+// live layout, frame by frame, since jsdom lays nothing out.
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('the desk panel pushes the map both ways at one speed', async ({ page }) => {
-  await page.goto('/')
+const column = (page: Page) => page.locator('[data-tour="results"]')
+const pane = (page: Page) => page.locator('[data-chart-pane]')
+
+async function analyzedAt(page: Page, mode: 'Show both chart and table' | 'Show chart only' | 'Show table only') {
+  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const width = page.viewportSize()!.width
+  await forecastButton(page).click()
+  await expectRanked(page)
+  // The panes stand in the widened column (record 0321).
+  await everyColumn(page)
+  await page.getByRole('button', { name: mode }).click()
+  await page.waitForTimeout(600)
+}
 
-  // Open: the panel is 360px and the map's column starts at its edge.
-  await expect(page.locator('aside')).toHaveJSProperty('offsetWidth', PANEL_PX)
-  const open = await transitionOf(page)
-  expect(open).toEqual({ property: 'margin-left', duration: PANEL_S })
-
-  const closing = await framesAfter(page, 'button[aria-label="Close controls"]', 800)
-  const shut = await transitionOf(page)
-  expect(shut).toEqual(open)
-  // In every frame the map's left edge is the panel's right edge: the panel
-  // pushes the map rather than sliding over it, and at least one frame was
-  // drawn with the panel part way out.
-  for (const f of closing) expect(Math.abs(f.mapLeft - Math.max(0, f.panelRight))).toBeLessThan(1)
-  expect(closing.some((f) => f.panelRight > 5 && f.panelRight < PANEL_PX - 5)).toBe(true)
-  const closed = closing[closing.length - 1]
-  expect(closed.panelRight).toBeLessThanOrEqual(0)
-  expect(closed.mapWidth).toBe(width)
-
-  const opening = await framesAfter(page, 'button[aria-label="Open controls"]', 800)
-  for (const f of opening) expect(Math.abs(f.mapLeft - Math.max(0, f.panelRight))).toBeLessThan(1)
-  expect(opening.some((f) => f.panelRight > 5 && f.panelRight < PANEL_PX - 5)).toBe(true)
-  const reopened = opening[opening.length - 1]
-  expect(reopened.panelRight).toBe(PANEL_PX)
-  expect(reopened.mapWidth).toBe(width - PANEL_PX)
-})
-
-// How many sizes the map's canvas took over a move: one where the move starts
-// at the size it ends at, two where it is resized once, at either end.
-const canvasSizes = (frames: { canvasWidth: number }[]) => new Set(frames.map((f) => f.canvasWidth)).size
-
-test('the map is resized once a move, not in every frame, after a move that ended late too', async ({ page }) => {
-  await page.goto('/')
-  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  // A close resizes the map at its start and an open at its end (record 0202).
-  expect(canvasSizes(await framesAfter(page, 'button[aria-label="Close controls"]', 800))).toBeLessThanOrEqual(2)
-  expect(canvasSizes(await framesAfter(page, 'button[aria-label="Open controls"]', 800))).toBeLessThanOrEqual(2)
-
-  // A close at a twentieth of its speed outlasts the hold's fallback, so its
-  // end comes after the hold has let go; the open after it is held all the
-  // same.
-  const cdp = await page.context().newCDPSession(page)
-  await cdp.send('Animation.enable')
-  await cdp.send('Animation.setPlaybackRate', { playbackRate: 0.05 })
-  const ended = page.locator('aside').evaluate(
-    (el) =>
-      new Promise<void>((resolve) =>
-        el.addEventListener('transitionend', (e) => {
-          if (e.target === el && e.propertyName === 'margin-left') resolve()
-        }),
-      ),
-  )
-  await page.getByRole('button', { name: 'Close controls' }).click()
-  await ended
-  await cdp.send('Animation.setPlaybackRate', { playbackRate: 1 })
-  expect(canvasSizes(await framesAfter(page, 'button[aria-label="Open controls"]', 800))).toBeLessThanOrEqual(2)
-})
-
-test('under a reduced-motion setting the panel moves at once', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.goto('/')
-  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  const width = page.viewportSize()!.width
-  expect((await transitionOf(page)).property).toBe('none')
-
-  const closing = await framesAfter(page, 'button[aria-label="Close controls"]', 200)
-  // The first frame after the press is already the closed layout.
-  expect(closing[0].panelRight).toBeLessThanOrEqual(0)
-  expect(closing[0].mapWidth).toBe(width)
-  const opening = await framesAfter(page, 'button[aria-label="Open controls"]', 200)
-  expect(opening[0].panelRight).toBe(PANEL_PX)
-  expect(opening[0].mapWidth).toBe(width - PANEL_PX)
-})
-
-// A shut pane keeps its body, inert, so the next press opens a frame around a
-// body already drawn (record 0216).
-const shutChart = (page: Page) => page.locator('[data-tour="results"] [inert] .recharts-wrapper')
-const shutTable = (page: Page) => page.locator('[data-tour="results"] [inert] [data-results-table]')
-
-// A press keeps the results' height (#850; the maintainer, 2026-11-04: "Yes,
-// area keeps its height"), so the panes move inside it and the map holds
-// still in every frame, on the results' top.
-test('a press on Both opens the chart pane at the panel speed, holding the map still', async ({ page }) => {
-  // Read once the press to Table has finished moving: the chart's pane is
-  // inert from the press, so its shut body says nothing about where the map
-  // stands.
-  await analyzedAt(page, 'Show table only')
-  await expect(shutChart(page)).toHaveCount(1)
-  const mapBottom = () => page.locator('main > div').first().evaluate((el) => el.getBoundingClientRect().bottom)
-  const before = await mapBottom()
-
-  const opening = await paneFramesAfter(page, 'Show both chart and table', 900)
-  for (const f of opening) {
-    expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
-    expect(Math.abs(f.mapBottom - before)).toBeLessThan(1)
-  }
-  // The chart's pane opened over more than one frame.
-  expect(partOpen(opening, 'chartFrame')).toBeGreaterThan(0)
-
-  const closing = await paneFramesAfter(page, 'Show table only', 900)
-  for (const f of closing) expect(Math.abs(f.mapBottom - before)).toBeLessThan(1)
-  expect(partOpen(closing, 'chartFrame')).toBeGreaterThan(0)
-  // The chart kept, inert, behind its shut pane.
-  await expect(shutChart(page)).toHaveCount(1)
-})
-
-
-// Every frame for `ms` after a press on a results control, read in the frame:
-// the map's foot and the results' top, the map's canvas size, the heights of
-// the chart's, the legend's and the table's frames, the chart's drawn size,
-// and whether the table is mounted.
-function paneFramesAfter(page: Page, label: string, ms: number) {
+// Every frame for `ms` after a press: the chart pane's height, the size its
+// chart is drawn at, and the column's box.
+function framesAfter(page: Page, label: string, ms: number) {
   return page.evaluate(
     async ([name, windowMs]) => {
-      const map = document.querySelector('main')!.firstElementChild!
-      const results = document.querySelector('[data-tour="results"]')!
-      const canvas = document.querySelector('.maplibregl-canvas') as HTMLCanvasElement
-      const frames: {
-        mapBottom: number
-        resultsTop: number
-        canvas: string
-        chartFrame: number
-        legendFrame: number
-        tableFrame: number
-        chartSize: string | null
-        table: boolean
-      }[] = []
-      // The collapse chevron has a twin for a folded bar; either one acts.
+      const paneEl = document.querySelector('[data-chart-pane]')!
+      const col = document.querySelector('[data-tour="results"]')!
+      const frames: { pane: number; chartSize: string | null; column: string }[] = []
       ;(document.querySelector(`button[aria-label="${name}"]`) as HTMLElement).click()
       const t0 = performance.now()
       await new Promise<void>((resolve) => {
         const tick = () => {
-          const svg = results.querySelector('.recharts-surface')
+          const svg = paneEl.querySelector('.recharts-surface')
+          const c = col.getBoundingClientRect()
           frames.push({
-            mapBottom: map.getBoundingClientRect().bottom,
-            resultsTop: results.getBoundingClientRect().top,
-            canvas: `${canvas.width}x${canvas.height}`,
-            chartFrame: results.children[1].getBoundingClientRect().height,
-            legendFrame: results.children[2].getBoundingClientRect().height,
-            tableFrame: results.children[3].getBoundingClientRect().height,
+            pane: paneEl.getBoundingClientRect().height,
             chartSize: svg ? `${svg.getAttribute('width')}x${svg.getAttribute('height')}` : null,
-            table: results.querySelector('[data-results-table]') !== null,
+            column: `${Math.round(c.left)},${Math.round(c.top)},${Math.round(c.width)},${Math.round(c.height)}`,
           })
           if (performance.now() - t0 < windowMs) requestAnimationFrame(tick)
           else resolve()
@@ -218,128 +54,44 @@ function paneFramesAfter(page: Page, label: string, ms: number) {
   )
 }
 
-// Every count of moving frames below asks for more than one paint, never for
-// a number of them: how many frames a 300ms move paints is the runner's frame
-// rate, and CI's painted two where a Mac paints fifteen (run 39684864494,
-// 2026-10-21). What the design promises is pinned per frame, and its speed by
-// `MOTION.pane` in styles.test.ts.
-const distinct = <T,>(values: T[]) => new Set(values).size
-
-async function analyzedAt(page: Page, mode: 'Show both chart and table' | 'Show chart only' | 'Show table only') {
-  await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
-  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
-  await expectRanked(page)
-  await page.getByRole('button', { name: mode }).click()
-  await page.waitForTimeout(600)
+// Frames where the pane stands part open: more than one asks for a move
+// rather than a jump, never for a count, which is the runner's frame rate
+// (run 39684864494, 2026-10-21).
+const partOpen = (frames: { pane: number }[]) => {
+  const end = frames[frames.length - 1].pane
+  return frames.filter((f) => f.pane > 0.5 && Math.abs(f.pane - end) > 0.5)
 }
 
-// Whether every pane standing part open in a frame has its body in it: the
-// data is on screen as a pane grows and as it shrinks (TJ, 2026-10-21).
-const blankFrames = (frames: { chartFrame: number; tableFrame: number; chartSize: string | null; table: boolean }[]) =>
-  frames.filter((f) => (f.chartFrame > 0.5 && f.chartSize === null) || (f.tableFrame > 0.5 && !f.table)).length
-type Frame = 'chartFrame' | 'legendFrame' | 'tableFrame'
-const partOpen = (frames: Record<Frame, number>[], key: Frame) => {
-  const end = frames[frames.length - 1][key]
-  return frames.filter((f) => f[key] > 0.5 && Math.abs(f[key] - end) > 0.5).length
-}
-
-// The chevron shuts and opens the panes through the same frames a press
-// moves, at the same speed both ways, with the chart and the table in them
-// the whole way, and the map's box holds through it, so its canvas is resized
-// where the move starts and where it ends, and in no frame between.
-test('the collapse chevron shuts and opens the results at the panel speed', async ({ page }) => {
-  await analyzedAt(page, 'Show both chart and table')
-  await expect(page.locator('[data-tour="results"] .recharts-wrapper')).toHaveCount(1)
-  const resting = await page.locator('main > div').first().evaluate((el) => el.getBoundingClientRect().bottom)
-
-  const collapsing = await paneFramesAfter(page, 'Collapse results', 900)
-  for (const f of collapsing) expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
-  expect(distinct(collapsing.map((f) => Math.round(f.mapBottom)))).toBeGreaterThan(1)
-  expect(distinct(collapsing.map((f) => f.canvas))).toBeLessThanOrEqual(3)
-  // The chart and the table stay drawn, the chart at the one size, until
-  // their frames have shut.
-  expect(partOpen(collapsing, 'chartFrame')).toBeGreaterThan(0)
-  expect(partOpen(collapsing, 'tableFrame')).toBeGreaterThan(0)
-  expect(blankFrames(collapsing)).toBe(0)
-  expect(distinct(collapsing.flatMap((f) => (f.chartSize ? [f.chartSize] : [])))).toBe(1)
-  expect(collapsing[collapsing.length - 1].chartFrame).toBe(0)
-  await expect(shutChart(page)).toHaveCount(1)
-  await expect(shutTable(page)).toHaveCount(1)
-
-  const expanding = await paneFramesAfter(page, 'Expand results', 900)
-  for (const f of expanding) expect(Math.abs(f.mapBottom - f.resultsTop)).toBeLessThan(1)
-  expect(distinct(expanding.map((f) => Math.round(f.mapBottom)))).toBeGreaterThan(1)
-  expect(distinct(expanding.map((f) => f.canvas))).toBeLessThanOrEqual(3)
-  expect(expanding[expanding.length - 1].mapBottom).toBeCloseTo(resting, 0)
-  // Both come back with their data as they open.
-  expect(partOpen(expanding, 'chartFrame')).toBeGreaterThan(0)
-  expect(partOpen(expanding, 'tableFrame')).toBeGreaterThan(0)
-  expect(blankFrames(expanding)).toBe(0)
-  await expect(page.locator('[data-tour="results"] .recharts-wrapper')).toHaveCount(1)
-  await expect(shutChart(page)).toHaveCount(0)
-  await expect(shutTable(page)).toHaveCount(0)
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
-})
-
-// An opening pane brings its data with it (TJ, 2026-10-21: "I think the data
-// should be there as it extends up"): the chart is mounted at the press and
-// drawn at the size it will stand at, and its frame uncovers it.
-test('an opening pane\'s chart is mounted and drawn at its end size in every moving frame', async ({ page }) => {
+test('a press on Both opens the chart pane in the widened column at the panel speed, its chart drawn at its end size', async ({ page }) => {
   await analyzedAt(page, 'Show table only')
-  const opening = await paneFramesAfter(page, 'Show both chart and table', 900)
+  const opening = await framesAfter(page, 'Show both chart and table', 900)
   const end = opening[opening.length - 1]
-  const moving = opening.filter((f) => f.chartFrame > 0.5 && f.chartFrame < end.chartFrame - 1)
+  expect(end.pane).toBeGreaterThan(100)
+  const moving = partOpen(opening)
   expect(moving.length).toBeGreaterThan(0)
   for (const f of moving) expect(f.chartSize).toBe(end.chartSize)
-  // The table stays mounted throughout.
-  for (const f of opening) expect(f.table).toBe(true)
+  // The column holds still while the pane inside it moves.
+  expect(new Set(opening.map((f) => f.column)).size).toBe(1)
+
+  const closing = await framesAfter(page, 'Show table only', 900)
+  expect(partOpen(closing).length).toBeGreaterThan(0)
+  expect(closing[closing.length - 1].pane).toBeLessThan(1)
+  expect(new Set(closing.map((f) => f.column)).size).toBe(1)
+  // The chart is kept, inert, behind its shut pane.
+  await expect(pane(page).locator('[inert] .recharts-wrapper')).toHaveCount(1)
 })
 
-// The results keep one height through every press (#850; the maintainer,
-// 2026-11-04: "Can we also make sure that when we switch to Chart-only the
-// vertical size of the results area doesn't change?"), which reverses the
-// chart's one size in every mode (#795): the chart grows into the table's
-// room with its legend under it, and Both splits the room back. The legend
-// is a pane of its own, which opens as the table's frame shuts and shuts as
-// it opens.
-test('the results keep one height through every press, and the chart grows into the table\'s room', async ({ page }) => {
+// The chevron takes the column and its chart away, and the round chevron on
+// the map's edge brings the column back with every row, its chart drawn again
+// once it is widened.
+test('the collapse chevron takes the column away and the map edge chevron brings it back', async ({ page }) => {
   await analyzedAt(page, 'Show both chart and table')
-  const top = await page.locator('[data-tour="results"]').evaluate((el) => el.getBoundingClientRect().top)
-  const size = await page
-    .locator('[data-tour="results"] .recharts-surface')
-    .evaluate((el) => `${el.getAttribute('width')}x${el.getAttribute('height')}`)
-  const heightOf = (drawn: string | null) => Number(drawn!.split('x')[1])
-  const end = <T,>(frames: T[]) => frames[frames.length - 1]
-  const held = (frames: { resultsTop: number }[]) => {
-    for (const f of frames) expect(Math.abs(f.resultsTop - top)).toBeLessThan(1)
-  }
-
-  const toChart = await paneFramesAfter(page, 'Show chart only', 900)
-  held(toChart)
-  expect(partOpen(toChart, 'legendFrame')).toBeGreaterThan(0)
-  expect(partOpen(toChart, 'tableFrame')).toBeGreaterThan(0)
-  expect(end(toChart).legendFrame).toBeGreaterThan(0)
-  expect(end(toChart).tableFrame).toBe(0)
-  const chartSize = end(toChart).chartSize
-  expect(heightOf(chartSize)).toBeGreaterThan(heightOf(size))
-
-  const toBoth = await paneFramesAfter(page, 'Show both chart and table', 900)
-  held(toBoth)
-  expect(partOpen(toBoth, 'legendFrame')).toBeGreaterThan(0)
-  expect(end(toBoth).legendFrame).toBe(0)
-  expect(end(toBoth).tableFrame).toBeGreaterThan(0)
-  // Split back the way Both stood.
-  expect(end(toBoth).chartSize).toBe(size)
-
-  // Table to Chart hands the chart the same room the table had.
-  const toTable = await paneFramesAfter(page, 'Show table only', 900)
-  held(toTable)
-  expect(partOpen(toTable, 'chartFrame')).toBeGreaterThan(0)
-  expect(blankFrames(toTable)).toBe(0)
-  await expect(shutChart(page)).toHaveCount(1)
-  const tableToChart = await paneFramesAfter(page, 'Show chart only', 900)
-  held(tableToChart)
-  expect(partOpen(tableToChart, 'legendFrame')).toBeGreaterThan(0)
-  expect(end(tableToChart).chartSize).toBe(chartSize)
+  await page.getByRole('button', { name: 'Collapse results' }).click()
+  await expect(column(page)).toHaveCount(0)
+  await expect(pane(page)).toHaveCount(0)
+  await page.getByRole('button', { name: 'Expand results' }).click()
+  await expect(column(page)).toBeVisible()
+  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+  await everyColumn(page)
+  await expect(pane(page).locator('.recharts-wrapper')).toHaveCount(1)
 })

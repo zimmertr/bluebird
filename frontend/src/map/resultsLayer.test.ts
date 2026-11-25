@@ -119,7 +119,15 @@ import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { mapInputs, resultRow } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
-import { MARKER_HALO_PAINT, MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
+import {
+  IDLE_HALO_PAINT,
+  IDLE_MARKER_PAINT,
+  MARKER_LABEL_PAINT,
+  RANK_FILTER,
+  RESULT_HALO_PAINT,
+  RESULT_MARKER_PAINT,
+} from './mapStyles'
+import { hotFilter, labelFilter } from '../utils/resultFeatures'
 import { POPUP_FACE } from '../styles'
 
 // A full card's size, and a map tall enough to hold one below a centred marker.
@@ -214,20 +222,34 @@ describe('mountResultsLayer', () => {
     expect(stub.layout['results-wind'].visibility).toBe('none')
   })
 
-  // The result marker and the pending dot were one recipe spelled twice, so a
-  // change to one could miss the other (#365). Both now spread MARKER_PAINT,
-  // and only the colour differs; the labels under them read one recipe too.
-  it('draws the ranked marker and the pending dot from one recipe', () => {
+  // The prototype's markers (record 0318): a ranked place is a dot in its
+  // colour, the top five a numbered pill, and a place not yet forecast a
+  // smaller grey dot; one label recipe under both.
+  it('draws the ranked markers as dots and pills, and the idle dots grey', () => {
     const { stub } = setup()
-    const ranked = stub.paint[RESULT_MARKER_LAYER]
-    const pending = stub.paint['pending-destinations-circles']
-    expect(ranked).toEqual({ ...MARKER_PAINT, 'circle-color': ['get', 'color'] })
-    expect(pending).toEqual({ ...MARKER_PAINT, 'circle-color': PENDING_COLOR })
+    expect(stub.paint[RESULT_MARKER_LAYER]).toEqual({ ...RESULT_MARKER_PAINT, 'circle-color': ['get', 'color'] })
+    expect(stub.paint['pending-destinations-circles']).toEqual(IDLE_MARKER_PAINT)
     // Each under its own dark ring, the edge a light ground reads (#799).
-    expect(stub.paint['results-halo']).toEqual(MARKER_HALO_PAINT)
-    expect(stub.paint['pending-destinations-halo']).toEqual(MARKER_HALO_PAINT)
+    expect(stub.paint['results-halo']).toEqual(RESULT_HALO_PAINT)
+    expect(stub.paint['pending-destinations-halo']).toEqual(IDLE_HALO_PAINT)
     expect(stub.paint['results-labels']).toEqual(MARKER_LABEL_PAINT)
     expect(stub.paint['pending-destinations-labels']).toEqual(MARKER_LABEL_PAINT)
+    // The rank is drawn in the top five's pills alone.
+    expect(stub.specs['results-rank']).toMatchObject({ filter: RANK_FILTER })
+  })
+
+  // One label, the first's, until a place is hovered here or in its row.
+  it('names the first marker, and the hovered one with its ring, until the pointer leaves', () => {
+    const { stub, layer } = setup()
+    expect(stub.specs['results-labels']).toMatchObject({ filter: labelFilter(null) })
+    expect(stub.specs['pending-destinations-labels']).toMatchObject({ filter: hotFilter(null) })
+    layer.setHot('47.5,-121.5')
+    expect(stub.calls).toContainEqual(['setFilter', 'results-labels', labelFilter('47.5,-121.5')])
+    expect(stub.calls).toContainEqual(['setFilter', 'pending-destinations-labels', hotFilter('47.5,-121.5')])
+    expect(stub.calls).toContainEqual(['setFeatureState', { source: 'results', id: '47.5,-121.5' }, { hot: true }])
+    layer.setHot(null)
+    expect(stub.calls).toContainEqual(['setFeatureState', { source: 'results', id: '47.5,-121.5' }, { hot: false }])
+    expect(stub.calls[stub.calls.length - 1]).toEqual(['setFilter', 'pending-destinations-labels', hotFilter(null)])
   })
 
   it('draws the rows the results table ranks, for the hour under the playhead', () => {

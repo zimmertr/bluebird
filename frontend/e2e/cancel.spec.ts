@@ -1,4 +1,4 @@
-import { test, expect, redrawRing, message, DESTINATION_NAMES, resultRows, isoDay, peak, destinationsAnswer } from './fixtures'
+import { test, expect, redrawRing, message, DESTINATION_NAMES, resultRows, isoDay, peak, destinationsAnswer, forecastButton } from './fixtures'
 import type { Page, Route } from '@playwright/test'
 
 // #560: a run that does not finish changes nothing. Ring A is analyzed, the
@@ -7,15 +7,17 @@ import type { Page, Route } from '@playwright/test'
 
 // Ring A is a right triangle with its right angle at the south-east corner.
 // The link opens the camera on its middle at a zoom where it fills part of
-// the map, so ring B can be drawn north-west of its long edge, outside it.
+// the map, so ring B can be drawn west of it, outside it.
 const RING_A = '-121.9,47.4;-121.7,47.4;-121.7,47.55'
 const VIEW = { lng: -121.767, lat: 47.45, zoom: 9 }
-// Ring B's corners as degrees from the camera's centre, each one north-west of
-// ring A's long edge.
+// Ring B's corners as degrees from the camera's centre, each one west of ring
+// A's western corner. Low and far west, because the results pane shortens the
+// map and a desk's draw bar hangs under the chip row at its middle (record
+// 0309), and a corner pressed on the bar is no corner.
 const RING_B_OFFSETS: [number, number][] = [
-  [-0.13, 0.05],
-  [-0.07, 0.05],
-  [-0.1, 0.09],
+  [-0.24, 0],
+  [-0.18, 0],
+  [-0.21, 0.04],
 ]
 
 // Ring B in canvas pixels. MapLibre's world is 512 px wide at zoom 0, and the
@@ -97,7 +99,7 @@ test('a cancelled search of a new ring leaves the last report, and the next Anal
   const popup = page.locator('.maplibregl-popup')
   await page.getByRole('button', { name: /^Center map on / }).first().click()
   await expect(popup).toHaveCount(1)
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   // The run's Cancel: the panel's Polygon row keeps a greyed one of its own.
   await page.getByRole('button', { name: 'Cancel', disabled: false }).click()
   discovery.release()
@@ -107,7 +109,7 @@ test('a cancelled search of a new ring leaves the last report, and the next Anal
   await expect(message(page, 'A new search area requires a new analysis.')).toHaveCount(1)
   await expect(popup).toHaveCount(1)
 
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expect.poll(async () => onlyRing(await rowNames(page), ringBNames(3))).toBe(true)
   await expect(message(page, 'A new search area requires a new analysis.')).toHaveCount(0)
 })
@@ -133,7 +135,7 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
 
   await redrawRing(page, await ringBPixels(page))
   holdWeather = true
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expect(page.getByText(/so far/)).toBeVisible()
   // The first batch's 50 rows are ranked, and the ten still waiting on their
   // forecasts stand above them as pending rows (#782), each with the remove
@@ -154,6 +156,6 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
   await expect(message(page, 'A new search area requires a new analysis.')).toHaveCount(1)
   await expect(popup).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   await expect.poll(async () => onlyRing(await rowNames(page), ringBNames(60))).toBe(true)
 })

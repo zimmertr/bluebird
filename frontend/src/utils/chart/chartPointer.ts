@@ -27,7 +27,7 @@ export const Y_AXIS_WIDTH_PX = 44
  * (`touch:min-h-8`), and it stands `PHONE_PICKER_INSET_PX` under the panel's
  * top with the same room under it.
  */
-export const PHONE_PICKER_PX = 32
+const PHONE_PICKER_PX = 32
 export const PHONE_PICKER_INSET_PX = 8
 
 /**
@@ -35,7 +35,7 @@ export const PHONE_PICKER_INSET_PX = 8
  * its line at the chart's 11px, 5.1px measured 2026-10-14. `PLOT_MARGIN.top`
  * is this plus 3px of air; a phone panel spends the air on the inset instead.
  */
-export const TOP_LABEL_RISE_PX = 5
+const TOP_LABEL_RISE_PX = 5
 
 /** A phone panel's margins: `PLOT_MARGIN` with its picker and the room around it on top. */
 export const PHONE_PLOT_MARGIN = {

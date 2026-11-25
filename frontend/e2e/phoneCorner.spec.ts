@@ -1,17 +1,18 @@
-import { test, expect, expectRanked } from './fixtures'
+import { test, expect, expectRanked, forecastButton } from './fixtures'
 import type { Page } from '@playwright/test'
 
-// A phone's scale, its credit's (i) and the opened credit line stand on the
-// Analyze button's row with their bottoms on the button's bottom edge (TJ,
-// 2026-10-14), and the opened line grows up from it, short of the button.
+// A phone's scale, its credit's (i) and the opened credit line stand in the
+// band over the phone's foot (record 0329), each on the library's 10px
+// margin over the card's top edge, and the opened line grows up from there
+// across the map, the card spanning the map's width under it.
 
 async function bottoms(page: Page) {
   return page.evaluate(() => {
     const at = (selector: string) => document.querySelector(selector)!.getBoundingClientRect()
-    const fab = document.querySelector('[data-tour="analyze"]')!
+    const foot = document.querySelector('[data-tour="analyze"]')!.closest('[data-map-overlay]')!
     return {
-      fab: fab.getBoundingClientRect().bottom,
-      fabLeft: fab.getBoundingClientRect().left,
+      footTop: foot.getBoundingClientRect().top,
+      mapRight: at('.maplibregl-canvas').right,
       scale: at('.maplibregl-ctrl-scale').bottom,
       button: at('.maplibregl-ctrl-attrib-button').bottom,
       credit: at('.maplibregl-ctrl-attrib').bottom,
@@ -22,29 +23,30 @@ async function bottoms(page: Page) {
 }
 
 for (const width of [360, 390]) {
-  test(`the map's corner stands on the Analyze button's bottom edge at ${width} px`, async ({ page }) => {
+  test(`the map's corner stands on the foot's top edge at ${width} px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+    await forecastButton(page.getByRole('main')).click()
     // Measured once the ranking has landed, so no pending row moves the
     // corner under the reading.
     await expectRanked(page)
 
     const folded = await bottoms(page)
     test.info().annotations.push({ type: `corner ${width} px folded`, description: JSON.stringify(folded) })
-    expect(Math.abs(folded.scale - folded.fab)).toBeLessThanOrEqual(1)
-    expect(Math.abs(folded.button - folded.fab)).toBeLessThanOrEqual(1)
+    expect(Math.abs(folded.scale - (folded.footTop - 10))).toBeLessThanOrEqual(1)
+    expect(Math.abs(folded.button - (folded.footTop - 10))).toBeLessThanOrEqual(1)
 
     await page.locator('.maplibregl-ctrl-attrib-button').click()
     await expect(page.locator('.maplibregl-ctrl-attrib.maplibregl-compact-show')).toHaveCount(1)
     const opened = await bottoms(page)
     test.info().annotations.push({ type: `corner ${width} px opened`, description: JSON.stringify(opened) })
-    expect(Math.abs(opened.credit - opened.fab)).toBeLessThanOrEqual(1)
-    // Taller than the row, so it grew up from the shared edge, and it stops
-    // 8px short of the button.
+    expect(Math.abs(opened.credit - (opened.footTop - 10))).toBeLessThanOrEqual(1)
+    // Taller than the row, so it grew up from the shared edge, and it wraps
+    // inside its own 10px margin off the map's right edge, with no button
+    // beside it to stop short of.
     expect(opened.creditTop).toBeLessThan(opened.credit - 24)
-    expect(Math.round(opened.fabLeft - opened.creditRight)).toBe(8)
+    expect(opened.mapRight - opened.creditRight).toBeGreaterThanOrEqual(9.5)
   })
 }
 

@@ -142,6 +142,22 @@ export const DESTINATION_NAMES = ['Mount Alpha', 'Beta Peak', 'Gamma Butte', 'De
 // grid (#683), and its rows would count as results.
 export const resultRows = (page: Page) => page.locator('[data-results-table] tbody tr')
 
+// The one button that runs a forecast, at either width: the phone's map
+// button reads `Analyze`, the desk's sentence bar names its spend
+// (`Forecast 247 peaks`, `Forecast 31 new`, `Up to date`, record 0309), and
+// either reads `Try again` after a transient failure.
+const FORECAST_WORD = /^(Analyze|Forecast|Forecast [\d,]+ [a-z]+|Up to date|Try again)$/
+// A phone's Controls sheet rises from the sentence bar's When phrase, which
+// stands where the Controls chip stood (record 0328).
+export const controlsPhrase = (page: Page) =>
+  page.locator('[role="group"][aria-label="Forecast"] [data-card="forecast"]')
+// Scoped to the tour's Analyze anchor, which is the phone's button itself and
+// the desk's footer around it, since a popup's Forecast fold wears the word too.
+export const forecastButton = (scope: Page | Locator) =>
+  scope
+    .getByRole('button', { name: FORECAST_WORD })
+    .and(scope.locator('button[data-tour="analyze"], [data-tour="analyze"] button'))
+
 // A row's Type cell, the one cell a click lands on that holds no link or
 // button. Found by its header rather than by a count, because the ranked
 // group stands between it and Name and is as wide as the ranking (#586).
@@ -334,19 +350,102 @@ async function placeVertices(page: Page, vertices: readonly [number, number][]) 
   await page.getByRole('button', { name: 'Done' }).click()
 }
 
-export async function drawRing(page: Page) {
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
-  await placeVertices(page, [
-    [520, 260],
-    [760, 300],
-    [620, 480],
-  ])
+// At a desk the panel's sections are cards, one at a time (record 0309):
+// Where and When open from the sentence bar's chips, and Limits from the
+// results header's Limit pill (record 0319), so it needs a report. A phone
+// keeps its Controls sheet, where this does nothing.
+export async function openCard(page: Page, name: 'Where' | 'When' | 'Limits') {
+  const bar = page.getByRole('group', { name: 'Forecast', exact: true })
+  if (!(await bar.isVisible())) return
+  const card = page.getByRole('region', { name })
+  if (await card.isVisible()) return
+  if (name === 'Limits') {
+    await page.getByRole('group', { name: 'Limits', exact: true }).getByRole('button', { name: 'Limit', exact: true }).click()
+  } else {
+    const key = { Where: 'destinations', When: 'forecast' }[name]
+    await bar.locator(`[data-card="${key}"]`).first().click()
+  }
+  await expect(card).toBeVisible()
 }
 
-// Replaces the ring on the map with a new one through Edit polygon and Clear,
-// the way a reader moves the search area after a report.
-export async function redrawRing(page: Page, vertices: readonly [number, number][]) {
-  await page.getByRole('button', { name: 'Edit polygon' }).click()
-  await page.getByRole('button', { name: 'Clear', exact: true }).click()
-  await placeVertices(page, vertices)
+// The ring's controls are in the Where card at a desk. The card is shut again
+// afterwards, so it covers none of the map a test presses.
+export async function inWhere(page: Page, act: () => Promise<void>) {
+  await openCard(page, 'Where')
+  await act()
+  const card = page.getByRole('region', { name: 'Where' })
+  if (await card.isVisible()) await card.getByRole('button', { name: 'Close' }).click()
 }
+
+export async function drawRing(page: Page) {
+  await inWhere(page, async () => {
+    await page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw a loop' }).click()
+    await placeVertices(page, [
+      [520, 260],
+      [760, 300],
+      [620, 480],
+    ])
+  })
+}
+
+// Replaces the ring on the map with a new one through Clear and Draw a loop,
+// the way a reader moves the search area after a report. Draw a loop shuts
+// the Where card at a desk, so its Done is the map's draw bar.
+export async function redrawRing(page: Page, vertices: readonly [number, number][]) {
+  await inWhere(page, async () => {
+    await page.getByRole('button', { name: 'Clear', exact: true }).last().click()
+    await page.getByRole('region', { name: 'Where' }).getByRole('button', { name: 'Draw a loop' }).click()
+    await placeVertices(page, vertices)
+  })
+}
+
+// At a desk the results stand in a column beside the map (the from-scratch
+// shell), and the first report's chart opens under the map about half a
+// second after the ranking lands (record 0202), so the map's canvas takes its
+// final size only then. A row centred before that aims at a canvas that is
+// still changing. This waits until the canvas stands against the column and
+// has held one size between two reads.
+export async function resultsOpened(page: Page) {
+  let last = ''
+  await expect
+    .poll(
+      async () => {
+        const now = await page.evaluate(() => {
+          const canvas = document.querySelector('.maplibregl-canvas')?.getBoundingClientRect()
+          const results = document.querySelector('[data-tour="results"]')?.getBoundingClientRect()
+          if (canvas === undefined || results === undefined || Math.round(canvas.right) !== Math.round(results.left)) return ''
+          return [canvas.width, canvas.height].map(Math.round).join('x')
+        })
+        const settled = now !== '' && now === last
+        last = now
+        return settled
+      },
+      { intervals: [300] },
+    )
+    .toBe(true)
+}
+
+// A desk's column draws the compact table, and keeps every column, the
+// toolbar (Table/Chart/Both, Columns, Models, Removed, Download CSV) and the
+// chart behind its expand button (record 0321). A phone has no expand
+// button, where this does nothing.
+export async function everyColumn(page: Page) {
+  if ((page.viewportSize()?.width ?? 0) < DESK_MIN_PX) return
+  const button = page.getByRole('button', { name: 'Every column', exact: true })
+  const wide = page.getByRole('button', { name: 'Narrow the table', exact: true })
+  // The button stands once the report does, so wait for one of its two names.
+  await expect(button.or(wide)).toBeVisible()
+  if (await button.isVisible()) await button.click()
+  await expect(wide).toBeVisible()
+}
+
+// The widened column stands over the map's sentence bar, its corner and its
+// tools; this narrows it again, and does nothing on a phone or a compact column.
+export async function narrowColumn(page: Page) {
+  const wide = page.getByRole('button', { name: 'Narrow the table', exact: true })
+  if (await wide.isVisible()) await wide.click()
+  await expect(page.getByRole('button', { name: 'Narrow the table', exact: true })).toHaveCount(0)
+}
+
+// `useIsDesktop`'s breakpoint.
+const DESK_MIN_PX = 1024

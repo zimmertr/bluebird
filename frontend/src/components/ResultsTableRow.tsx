@@ -1,8 +1,13 @@
-import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
+import { createContext, Fragment, memo, useContext, useEffect, useId, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import type { DestinationResult } from '../types'
+import HourStrip from './HourStrip'
+import DisclosureButton from './DisclosureButton'
+import OpenedRow from './OpenedRow'
 import {
   CLOSURE_KEY,
+  HOURS_COL,
+  SCORE_KEY,
   ELEVATION_COL,
   MODEL_KEY,
   TERRAIN_HEIGHT_MARK,
@@ -26,6 +31,9 @@ import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
 import { isPartialRow } from '../utils/model/modelCompare'
 import { geoKey } from '../utils/points'
+import { heightLabel } from '../utils/resultFeatures'
+import { bestWhen } from '../utils/score/headline'
+import { SEP } from '../metrics'
 import {
   cellColor,
   cellText,
@@ -37,7 +45,7 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/results/resultsCells'
-import { CHOICE_INPUT, FIGURES, ICON_ACTION, LINK_QUIET, SR_ONLY, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, FIGURES, ICON_ACTION, LINK_QUIET, OPENED_ROW, ROW_DISCLOSURE, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
@@ -192,9 +200,13 @@ interface NameTdProps {
   onCenter: () => void
   // The row the link out is built from (`destinationUrl`).
   link: Parameters<typeof destinationUrl>[0]
+  // The compact table's line under the name (record 0320).
+  sub?: ReactNode
 }
 
-function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps) {
+function NameTd({ cellClass, widths, label, name, onCenter, link, sub }: NameTdProps) {
+  // The compact table's name leads its two lines (record 0326).
+  const strong = sub === undefined ? '' : ` ${TABLE.nameStrong}`
   // A crag's search names its state once the outlines arrive, and the cell
   // draws again then.
   const href = destinationUrl(link, useUsStates(link.type === 'crag'))
@@ -209,7 +221,7 @@ function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps)
             // Where the keyboard lands when a restore brings the row back (`ResultsSheet`).
             data-row-name=""
             aria-label={`Center map on ${name}`}
-            className={`${LINK_QUIET} ${TABLE.nameText}`}
+            className={`${LINK_QUIET} ${TABLE.nameText}${strong}`}
           >
             {label}
           </button>
@@ -224,7 +236,27 @@ function NameTd({ cellClass, widths, label, name, onCenter, link }: NameTdProps)
           </a>
         </span>,
       )}
+      {sub}
     </td>
+  )
+}
+
+// The height and when the best four hours fall, under the compact table's
+// name (record 0320): `6,007 ft · best Sat 1p–5p`.
+function NameSub({ row }: { row: DestinationResult }) {
+  const height = heightLabel(row.elevation_ft)
+  const when = bestWhen(row.best_start_ms, row.best_end_ms)
+  if (!height && when === null) return null
+  return (
+    <span className={TABLE.nameSub}>
+      {height}
+      {height && when !== null && ` ${SEP} `}
+      {when !== null && (
+        <>
+          best <span className={TABLE.nameSubWhen}>{when}</span>
+        </>
+      )}
+    </span>
   )
 }
 
@@ -245,9 +277,14 @@ interface CellContext {
   heightPending: boolean
   // Centres the map on the row: the name button's fly-to.
   onCenter: () => void
+  // The compact table (record 0320): the name's sub-line, and the hours in
+  // a column of their own rather than beside the score.
+  compact: boolean
   // The row's own id, from `useId`, so it holds still across renders of a
   // memoized row: the hidden sentences are found by ids built from it.
   rowId: string
+  // The range the score's colour is stretched over (record 0307), or null.
+  scoreRange: { lo: number; hi: number } | null
 }
 
 // The id of a cell's hidden note.
@@ -451,9 +488,50 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   const face = key === 'name' ? 'font-medium' : key === 'type' ? '' : FIGURES
   const cellClass = `${TABLE.cell}${align} whitespace-nowrap ${face}`.trimEnd()
   if (key === 'name') {
-    return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} link={row} />
+    return (
+      <NameTd
+        cellClass={cellClass}
+        widths={ctx.widths}
+        label={display}
+        name={row.name}
+        onCenter={ctx.onCenter}
+        link={row}
+        sub={ctx.compact ? <NameSub row={row} /> : undefined}
+      />
+    )
   }
-  const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample)
+  // The compact table's strip of days (record 0320).
+  if (key === HOURS_COL.key) {
+    return (
+      <td className={TABLE.cell}>
+        <HourStrip row={row} range={ctx.scoreRange} times={ctx.times ?? NO_TIMES} />
+      </td>
+    )
+  }
+  const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample, ctx.scoreRange)
+  // The score carries its hours beside it (record 0307).
+  if (key === SCORE_KEY && ctx.compact) {
+    // The compact score on the row's ground (record 0326).
+    return (
+      <td className={cellClass}>
+        {sized(ctx.widths, key, <span className={TABLE.scoreCompact}>{display}</span>)}
+      </td>
+    )
+  }
+  if (key === SCORE_KEY) {
+    return (
+      <td className={cellClass} style={colorSty}>
+        {sized(
+          ctx.widths,
+          key,
+          <>
+            {display}
+            <HourStrip row={row} range={ctx.scoreRange} />
+          </>,
+        )}
+      </td>
+    )
+  }
   if (col.windyLayer) {
     return (
       <td className={cellClass} style={colorSty}>
@@ -488,6 +566,9 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
   )
 }
 
+// The compact strip with no grid yet draws nothing, from one empty array.
+const NO_TIMES: readonly number[] = []
+
 // The id of a row's one Windy sentence.
 const windyNoteId = (rowId: string) => `${rowId}-windy`
 
@@ -498,6 +579,8 @@ interface RowProps {
   widths: Record<string, number>
   coloredGroup: ReadonlySet<string>
   pointSample: boolean
+  /** The range the score's colour is stretched over, or null (record 0307). */
+  scoreRange?: { lo: number; hi: number } | null
   modelFallbackLabel?: string | null
   modelId?: string | null
   times?: readonly number[]
@@ -514,6 +597,11 @@ interface RowProps {
   chartColor?: string
   onRemove?: (row: DestinationResult) => void
   onFocusResult?: (row: DestinationResult) => void
+  compact?: boolean
+  /** The compact table's row opened in place (record 0327). */
+  opened?: boolean
+  /** Present in the compact table: a press on the row's ground opens it in place rather than flying the map. */
+  onToggleOpen?: (key: string) => void
 }
 
 function ResultsTableRow({
@@ -523,6 +611,7 @@ function ResultsTableRow({
   widths,
   coloredGroup,
   pointSample,
+  scoreRange = null,
   modelFallbackLabel,
   modelId,
   times,
@@ -538,6 +627,9 @@ function ResultsTableRow({
   chartColor,
   onRemove,
   onFocusResult,
+  compact = false,
+  opened = false,
+  onToggleOpen,
 }: RowProps) {
   const rowId = useId()
   const ctx: CellContext = {
@@ -556,19 +648,28 @@ function ResultsTableRow({
     heightPending,
     onCenter: () => onFocusResult?.(row),
     rowId,
+    scoreRange,
+    compact,
   }
   // A press on the row's ground opens the popup a click on its marker gives,
   // through the same fly-to the name's button takes (record 0143); a press on
   // any control in the row is that control's alone (`rowTapOpens`). A pointer
   // shortcut beside the name's button, which stays the row's way in for a
   // keyboard and a screen reader, so the row itself takes no role or focus.
+  // In the compact table the same press opens the row in place instead
+  // (record 0327), and the opened row's Show on map is the fly-to.
+  const key = geoKey(row.latitude, row.longitude)
   const openFromRow = (e: MouseEvent<HTMLTableRowElement>) => {
-    if (onFocusResult && rowTapOpens(e.target, e.currentTarget, window.getSelection()?.toString() ?? '')) onFocusResult(row)
+    if (!rowTapOpens(e.target, e.currentTarget, window.getSelection()?.toString() ?? '')) return
+    if (onToggleOpen) onToggleOpen(key)
+    else onFocusResult?.(row)
   }
   return (
+    <Fragment>
     <tr
-      data-key={geoKey(row.latitude, row.longitude)}
-      className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`}
+      data-key={key}
+      data-open={opened ? '' : undefined}
+      className={`${TABLE.row} ${onFocusResult || onToggleOpen ? TABLE.rowOpens : ''} ${opened ? OPENED_ROW.row : ''}`}
       onClick={openFromRow}
     >
       {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
@@ -579,13 +680,26 @@ function ResultsTableRow({
       {/* The filler column also holds the row's one copy of the Windy
           sentence every metric link points at, as the header's filler holds
           the sort hint: a reference resolves through aria-hidden, so the
-          links are described while the filler stays out of the tree. */}
-      <td aria-hidden="true" className="p-0">
-        <span id={windyNoteId(rowId)} className={SR_ONLY}>
+          links are described while the filler stays out of the tree. In the
+          compact table it holds the row's disclosure too, so the sentence
+          is hidden on its own there. */}
+      <td aria-hidden={onToggleOpen ? undefined : 'true'} className={onToggleOpen ? ROW_DISCLOSURE.cell : 'p-0'}>
+        {onToggleOpen && (
+          <DisclosureButton expanded={opened} onToggle={() => onToggleOpen(key)} label={`Details for ${row.name}`} />
+        )}
+        <span id={windyNoteId(rowId)} className={SR_ONLY} aria-hidden="true">
           {`Open ${row.name} on Windy. Opens in a new tab.`}
         </span>
       </td>
     </tr>
+    {opened && (
+      <tr>
+        <td colSpan={columns.length + (chartBox ? 3 : 2)} className={OPENED_ROW.cell}>
+          <OpenedRow row={row} times={times ?? NO_TIMES} onCenter={() => onFocusResult?.(row)} />
+        </td>
+      </tr>
+    )}
+    </Fragment>
   )
 }
 

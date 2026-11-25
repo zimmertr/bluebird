@@ -6,11 +6,10 @@
  * something else. The reading surfaces — the welcome and privacy dialogs, and
  * the analysis overlay card — are wide, and you read them once, carefully.
  *
- * They are not two scales. The dialog title is the panel header's title, one
- * size for both since #687 (both are the name of the surface they head), and
- * the dialog subtitle is the caption step one size up, the same recipe the
- * tagline under the app title wears, and both say "Weather Window Finder"
- * (record 0222).
+ * They are not two scales. The dialog title is `TEXT.appTitle`, the size
+ * the docked panel's header wore since #687 (both name the surface they
+ * head), and the dialog subtitle, "Weather Window Finder", is the caption step
+ * one size up (record 0222).
  * And the reading tier's small step lands exactly on the compact tier's base,
  * so the two share the 12px rung rather than running past each other. Naming
  * them as one ramp keeps a dialog from drifting into a second look.
@@ -117,7 +116,7 @@ export const TEXT = {
    * subheading; only the step moved (the maintainer's option B, 2026-10-13).
    *
    * Sentence case since the refreshed look (#825; record 0304): tracked
-   * capitals read dated beside Inter, so the heading holds its rank on size,
+   * capitals read dated beside the sans, so the heading holds its rank on size,
    * weight and the strongest ink instead. The words in the source never
    * changed; only the transform that capitalised them went.
    */
@@ -168,7 +167,7 @@ export const CONTROL_SIZE = 'text-xs'
  * Digits that line up down a column: the results table's numbers, the
  * player's hour and the analysis overlay's count (#825; record 0304). They
  * were set in the system monospace so a column of figures aligned; tabular
- * figures do the same in Inter, every digit one width, without dropping the
+ * figures do the same in the sans, every digit one width, without dropping the
  * table into a typewriter face beside the names in the sans. The coordinate
  * box stays monospace, because what it holds is pasted text a reader edits
  * character by character, not figures read down a column.
@@ -425,7 +424,7 @@ export const SURFACE_CARD =
  * The results sheet on a phone: the panel parked over the map's bottom edge
  * rather than docked below it (#249).
  *
- * The same slate-800 the docked panel wears, so the results do not change colour
+ * The same slate-800 a desk's results column wears, so the results do not change colour
  * with the breakpoint, plus the two things that say it is standing on the map:
  * the slate-600 edge every box floating over the map already carries, and the
  * surface radius on the top corners only, since the bottom pair are off the
@@ -726,9 +725,48 @@ const TRIGGER_STATE =
  * bundle — the same trap the RADIUS comment warns about, and one this change
  * fell into before the built stylesheet was read.
  */
+/**
+ * Alpenglow (record 0308): the warm light on the summits at first light, worn
+ * by the one control that spends a forecast and by nothing else, so the eye
+ * knows which press costs upstream calls. Everything else that acts wears the
+ * sky accent. The label is a dark ink rather than white, because a warm fill
+ * light enough to stand out on a dark map cannot carry a white label at 4.5:1.
+ *
+ * Dark: label 7.37:1 on the fill, the fill 6.05:1 on the panel. Light: label
+ * 4.71:1, the fill 3.37:1 on the panel and 3.01:1 on a raised surface; the
+ * light hover lightens, gaining label contrast (5.33:1) and standing 2.98:1 on
+ * the panel, the one state under 3:1. `styles.test.ts` pins every number.
+ */
+// Not exported: the Forecast button below is its only caller, and a
+// role nothing outside this file imports is one the styles suite fails.
+const ACT = {
+  fill: 'bg-act text-on-act',
+  fillHover: 'hover:bg-act-hover',
+} as const
+
 export const BUTTON_PRIMARY =
   `${TEXT.cta} ${TAP.action} w-full py-2.5 ${RADIUS.surface} transition-colors ` +
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
+
+/**
+ * The button that spends a forecast, in the map's sentence bar (record
+ * 0309): alpenglow (`ACT`, record 0308), so it is the one primary action that
+ * does not wear the sky accent, as tall as the chips beside it and as wide as
+ * its words, which name what it will forecast.
+ */
+export const BUTTON_FORECAST_BAR =
+  `${TEXT.cta} ${TAP.action} whitespace-nowrap h-10 px-4 ${RADIUS.control} transition-colors ` +
+  `${ACT.fill} ${ACT.fillHover} ${FOCUS_RING}`
+
+/**
+ * The bar's button when a press would fetch nothing new (`Up to date`,
+ * record 0314): an outline in the quiet ink, so the one warm fill on the
+ * screen means a forecast will be spent. It still takes a press, which
+ * re-ranks what is held.
+ */
+export const BUTTON_FORECAST_QUIET =
+  `${TEXT.cta} ${TAP.action} whitespace-nowrap h-10 px-4 ${RADIUS.control} transition-colors ` +
+  `text-ink-soft ring-[1.5px] ring-inset ring-rule ${ACCENT.hoverText} ${FOCUS_RING}`
 
 /**
  * The secondary action standing next to something else: Clear under the
@@ -779,11 +817,12 @@ export const BUTTON_ACCENT =
  *
  * The two button roles at a 4px inset rather than 12px, and nothing else
  * changed. In a third the cell sets the width and the label is centred in it,
- * so the inset is only the floor under the widest label, `Draw polygon`
- * (77.4px at 12px on a Mac): at 12px a side it needs 101.4px, where a third of
- * the row is 100.3px on a desktop and 93px on a 360px phone (the row is
- * 317px and 295px, less two 8px gaps), so the label would wrap; at 4px it
- * needs 85.4px and fits both. Derived from the roles rather than spelled
+ * so the inset is only the floor under the widest label, which was `Draw
+ * polygon` (77.4px at 12px on a Mac): at 12px a side it needed 101.4px, where
+ * a third of the row is 100.3px on a desktop and 93px on a 360px phone (the
+ * row is 317px and 295px, less two 8px gaps), so the label would wrap; at 4px
+ * it needed 85.4px and fit both. Since the rename to `Draw a loop` (64.68px in
+ * Archivo, TJ 2026-11-21) either inset fits. Derived from the roles rather than spelled
  * again, so the fill, the type and the tap target cannot drift from the
  * buttons everywhere else.
  */
@@ -1035,6 +1074,21 @@ export const SWATCH_RAMP =
  * rather than a chip per number, so the numbers read along one baseline on one
  * ground instead of as four dark blocks punched through a six-band scale.
  */
+/**
+ * The score's key as the prototype prints it at the column's foot (TJ,
+ * 2026-11-21): one line, `Fog 64`, the ramp, `87 Bluebird`, the field's own
+ * lowest and highest scores at its ends in the figures' weight, so the key
+ * names the range the colours were stretched over rather than ticking the
+ * thresholds between. The strip is the ramp the markers wear, on the edge
+ * every swatch wears, 8px tall as the prototype draws it and taking the
+ * line's free width.
+ */
+export const LEGEND_SCORE = {
+  row: `flex items-center gap-2 whitespace-nowrap ${TEXT.control}`,
+  figure: `font-semibold ${FIGURES}`,
+  strip: `h-2 min-w-0 flex-1 ${RADIUS.pill} border`,
+} as const
+
 export const SWATCH_RAMP_SCRIM =
   'pointer-events-none absolute inset-x-0 bottom-0 h-[11px] bg-recessed/70'
 
@@ -1103,6 +1157,16 @@ export const ICON_BUTTON = `px-1 text-ink-soft ${ACCENT.hoverText} transition-co
  * utilities are allowed here and nowhere a component spells one.
  */
 export const CARD_FOLD = `flex h-6 w-6 shrink-0 items-center justify-center ${RADIUS.control} transition-colors ${FOCUS_RING} touch:h-8 touch:w-8`
+
+/**
+ * A compact row's disclosure (TJ, 2026-11-21): the card fold's 24px box at
+ * the row's right edge in the table's filler cell, 32 under a finger, in the
+ * icon buttons' ink and their accent under a pointer.
+ */
+export const ROW_DISCLOSURE = {
+  cell: 'p-0 pr-1 text-right',
+  button: `${CARD_FOLD} ml-auto text-ink-soft ${ACCENT.hoverText}`,
+} as const
 
 /**
  * The resize handle in a card's bottom-right corner (#832, TJ 2026-11-03): a
@@ -1290,7 +1354,7 @@ export const SPINNER =
  * dialog, because a dialog is modal and a popover is not.
  */
 export const LAYER = {
-  /** Map chrome, the sticky table header, the docked panels. */
+  /** Map chrome, the sticky table header. */
   base: 'z-10',
   /**
    * The results sheet on a phone, which stands on the map rather than beside it
@@ -1743,6 +1807,11 @@ export const MAP_EDGE = {
    * (`DRAW_BAR`), which stands the same inset off both sides.
    */
   right: 'right-[var(--map-edge-inset)]',
+  /**
+   * The right edge of a box beside a phone's tool column (record 0331): the
+   * inset, the column's 32px and the 12px a finger's press keeps clear.
+   */
+  rightOfTools: 'right-[calc(var(--map-edge-inset)+2.75rem)]',
   /** The top edge the map's rows take. */
   top: 'top-[var(--map-edge-inset)]',
   /**
@@ -1768,11 +1837,11 @@ export const MAP_EDGE = {
  * off both sides, and as tall as its 32px buttons plus the box's padding:
  * 366 by 46 on a 390px phone. Its bottom is the player's (`transportBottomPx`),
  * which puts it in the band above the scale bar that the legend stack already
- * clears. Phone only: a desk keeps Done and Cancel in the docked panel beside
- * the map, where they were never out of reach.
+ * clears. Phone only: a desk hangs Done and Cancel under the sentence bar
+ * instead (`SENTENCE_BAR.drawBar`, record 0309).
  */
 export const DRAW_BAR =
-  `${SURFACE_FLOATING} ${LAYER.base} absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ` +
+  `${SURFACE_FLOATING} ${LAYER.base} absolute ${MAP_EDGE.left} ${MAP_EDGE.rightOfTools} ` +
   'flex items-center gap-2 px-3 py-1.5'
 
 /**
@@ -1818,15 +1887,21 @@ export const MAP_ROWS = {
   stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-max lg:min-w-80 flex flex-col gap-3 pointer-events-none`,
   row: `relative h-8 ${YIELD_EMPTY}`,
   /**
-   * Where the pill stands: on a phone across the row less the 3D and locate
-   * buttons and the 12px before each (`right-22`, 2 × (32 + 12)) at rest, and
-   * across the whole row while the field has the keyboard or its list is
-   * open, over the buttons. At a desk 320px either way (`lg:w-80`), with no
-   * button beside it. Raised so its results list paints over the chip row and
-   * the map.
+   * Where a phone's sentence bar stands: across the whole first row, the
+   * tools standing in a column under it (record 0331). Raised so the place
+   * search over it paints its results list over the chip row and the map.
    */
-  pill: 'absolute inset-y-0 left-0 right-22 lg:right-auto lg:w-80 z-10',
   pillWide: 'absolute inset-y-0 left-0 right-0 lg:right-auto lg:w-80 z-10',
+  /**
+   * A desk's sentence bar, and the card one of its phrases opened under the
+   * chip row, from the map's left edge now that the search is in the Where
+   * card (record 0313). No wider than the map less its two edge insets, so a
+   * narrow desk cuts the phrases' words rather than running the bar over
+   * the results column.
+   */
+  barSlot: 'w-max max-w-[calc(100cqw_-_2_*_var(--map-edge-inset))]',
+  /** The bar's own row, as tall as the card rather than a chip (record 0314). */
+  barRow: `relative ${YIELD_EMPTY}`,
   /**
    * The second row: one line of chips, 6px apart, never wrapping. The rows
    * stand 12px apart, and 3D 12px left of locate (`MAP_SLOT`), because a
@@ -1834,6 +1909,20 @@ export const MAP_ROWS = {
    * is where two presses meet without one taking the other's (record 0254).
    */
   chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
+  /**
+   * A phone's tool column (record 0331), down the map's right edge under the
+   * sentence bar: Layers, drawing a loop, search, 3D, locate and the compass,
+   * the prototype's column, each a 32px round button 12px from the next,
+   * where a finger's 44px presses meet (record 0254). The bar takes the
+   * whole first row now that no button stands beside it. A sibling of the
+   * rows rather than one of them, on the map chrome's layer under the
+   * results sheet: it runs some 300px down the map's edge, past the rows the
+   * sheet's full stop leaves clear, and the sheet stands over it there. Its
+   * menus are sheets portalled to the page, so its layer does not bound them.
+   */
+  phoneTools: `pointer-events-auto absolute ${MAP_EDGE.right} top-[calc(var(--map-edge-inset)+2.75rem)] ${LAYER.base} flex flex-col items-end gap-3`,
+  /** The place search a phone's search button opens, over the sentence bar. */
+  searchOver: 'absolute inset-y-0 left-0 right-0 z-20',
   /**
    * The draw bar on a phone (#687): under the chip row, 12px below it (88 +
    * 12), so every chip stays in reach while a ring is drawn and the foot of
@@ -1898,25 +1987,20 @@ export const MAP_ROUND_BUTTON =
 export const MAP_TERRAIN_BUTTON = `map-terrain ${MAP_ROUND_BUTTON} ${TEXT.control} font-bold`
 
 /**
- * Where a phone stands one of those buttons at a row's right end (#696): the
- * map moves its own control into the slot (`placeControl`), so the button
- * keeps the library's states and its permission prompt, and `map.css`, keyed
- * on `map-slot`, takes the library's margin off it. A desk's rows have no
- * slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
+ * Where a phone stands one of those buttons in its tool column (#696, record
+ * 0331): the map moves its own control into the slot (`placeControl`), so the
+ * button keeps the library's states and its permission prompt, and `map.css`,
+ * keyed on `map-slot`, takes the library's margin off it. A desk's rows have
+ * no slots: its buttons stand in the map's bottom-right corner (`MAP_CORNER`).
  *
- * `locate` is a 32px box at the search pill's right, and `terrain` the same
- * box 12px left of it, for the 3D button (#799), so the pill's row ends in
- * two round buttons the way a desk's column stacks them. `compass` is the
- * chip row's last member, under the locate button (record 0147), and takes no
- * room of its own: while the map is north-up the compass is hidden and the
- * slot is nothing, so the row's empty end stays the map's, about 20px at 360
- * wide. While it shows, the slot is the button's 32px and the summary chip,
- * the one member that gives way, gives it up; the button is the row's height.
+ * `tool` is the column's 32px round button, the 3D and locate buttons'.
+ * `compass` takes no room of its own: while the map is north-up the compass
+ * is hidden and the slot is nothing, so the column ends at the locate button
+ * (record 0147).
  */
 export const MAP_SLOT = {
-  locate: 'map-slot absolute right-0 top-0 size-8',
-  terrain: 'map-slot absolute right-11 top-0 size-8',
-  compass: 'map-slot ml-auto flex-shrink-0',
+  tool: 'map-slot size-8',
+  compass: 'map-slot',
 } as const
 
 /**
@@ -1942,9 +2026,29 @@ export const MAP_SLOT = {
  * draw (`SCALE_MAX_WIDTH_PX`), the bar flush at its right, so the credits
  * stay put while the bar grows and shrinks with the zoom.
  */
+/**
+ * A desk's map tools (record 0315): the column down the map's right edge
+ * that the prototype draws, Layers and drawing a ring over the compass, the
+ * 3D button, the locate button and the zoom pair. `menu` is the Layers card,
+ * opened to the column's left and growing up from the button, since the
+ * column stands at the map's foot; it scrolls inside the map's height.
+ * `draw` is the drawing button, a map button that wears the accent fill
+ * while a ring is being drawn, as the 3D button does while it is on.
+ */
+export const MAP_TOOL = {
+  tools: 'pointer-events-auto flex flex-col items-end gap-1.5 touch:gap-3',
+  // Laid over `MAP_CHIP_MENU`'s place under a chip, which the menu still
+  // wears, so the chip's offsets are cleared here rather than forked.
+  menu: 'left-auto! top-auto! mt-0! right-full bottom-0 mr-2 max-h-[calc(100cqh_-_6rem)] overflow-y-auto overscroll-contain',
+  draw:
+    `size-8 flex items-center justify-center bg-floating/95 border border-edge ${RADIUS.pill} ${ELEVATION.raised} ` +
+    `backdrop-blur-sm text-ink-strong transition-colors ${ACCENT.hoverText} ${FOCUS_RING} ` +
+    'aria-pressed:bg-accent aria-pressed:text-on-fill aria-pressed:border-accent',
+} as const
+
 export const MAP_CORNER = {
   box: `absolute right-0 bottom-[var(--map-corner-lift,0px)] flex flex-col items-end gap-2.5 pointer-events-none ${LAYER.base}`,
-  stack: 'map-corner mr-6 flex flex-col items-end gap-1.5 touch:gap-3',
+  stack: 'map-corner map-tools mr-6 flex flex-col items-end gap-1.5 touch:gap-3',
   // `leading-5` is the library's own 20px line, which the map's container
   // gives its controls and the corner, outside it, does not: without it the
   // scale shrank to 17px from the 22px box record 0162 holds it to.
@@ -2068,60 +2172,23 @@ export const MAP_CHIP_MENU = 'absolute left-0 top-full mt-1 px-2.5 py-2'
 export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate'
 
 /**
- * The button's pressed state, Material's for a floating button (TJ,
- * 2026-10-14): a state layer of the label's white at 12% over the whole
- * button, and the shadow dropping from `ELEVATION.overlay` to
- * `ELEVATION.raised` while a finger or a mouse holds it down. A run that
- * reuses every forecast it holds finishes in a frame, so a press had nothing
- * on screen to show it landed; the press itself now does, and the button is
- * never greyed after a run, since a re-run is always the reader's to make.
- * Spelled out rather than built from `ELEVATION.raised`, because Tailwind
- * cannot compile a variant on an interpolated class. `enabled:` keeps a
- * disabled button from answering a press it will not act on.
+ * The phone's foot (record 0329): one card across the map, on the chrome's
+ * floating surface and the map controls' layer, 16px in from each edge
+ * (`FAB_INSET_PX`) and 120px tall (`FAB_PX` in `resultsSheet.ts`, which
+ * places it by its bottom), holding the day strip over the full-width
+ * Forecast button, the prototype's. The button is the desk bar's own
+ * (`BUTTON_FORECAST_BAR`, outlined as `BUTTON_FORECAST_QUIET` while a press
+ * would fetch nothing new) at the card's width, in a `relative` slot so the
+ * count badge stands at its corner as a sibling, outside a blocked button's
+ * grey (record 0208). It replaced the 56px floating Analyze button at the
+ * map's bottom right (record 0135).
  */
-const MAP_FAB_PRESSED =
-  'after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-on-fill ' +
-  'after:opacity-0 after:transition-opacity enabled:active:after:opacity-[0.12] enabled:active:shadow-lg'
-
-/**
- * The phone's Analyze (#696; record 0135): an extended floating action
- * button in Material's sense, the form for a screen's one primary action. 56px
- * tall (`FAB_PX` in `resultsSheet.ts`, which places it), a 16px corner rather
- * than the capsule the chips wear, and the label in the call to action's 14px
- * semibold. The accent fill is `BUTTON_PRIMARY`'s, `ACCENT.fill` on
- * `--color-sky-650`, so the white label keeps its 4.56:1 (record 0008); the
- * call site adds `DISABLED` and `BLOCKED`, the panel's grey, because the gate
- * is the panel's. The deepest shadow, since it stands over the map and over
- * the sheet's edge alike.
- *
- * It stands in `MAP_FAB_SLOT`, which is what is placed: 16px off the map's
- * right edge on the map chrome's layer, with the button's bottom set in
- * pixels by `fabBottomPx`. The slot rather than the button, so the count
- * badge the button wears (`MESSAGE_BADGE`, record 0208) can stand at its
- * corner as a sibling, outside the button's own grey when it is blocked. The
- * button is `relative` for its pressed state's layer.
- *
- * No icon: none of `icons.tsx` says "run this" without also meaning
- * something else on the same screen (the player's triangle plays the
- * timeline), so the button is its label.
- */
-export const MAP_FAB_SLOT = `absolute right-4 ${LAYER.mapControls}`
-export const MAP_FAB =
-  `relative h-14 rounded-2xl px-5 ${ELEVATION.overlay} ` +
-  `${TEXT.cta} transition-[color,background-color,box-shadow] ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING} ` +
-  MAP_FAB_PRESSED
-
-
-/**
- * The button's words in one cell, the ones not showing kept invisible, so the
- * button is always as wide as the widest of `Analyze`, `Analyzing…` and `Try
- * again` (`ACTION_WORDS`, #736) and never resizes as a run starts, ends or
- * fails. A grid rather than a measured width: the cell is the words' own, in
- * whatever face the reader's system draws.
- */
-export const MAP_FAB_WORDS = {
-  cell: 'grid place-items-center [&>*]:col-start-1 [&>*]:row-start-1',
-  hidden: 'invisible',
+export const MAP_FOOT = {
+  card: `absolute inset-x-4 ${LAYER.mapControls} ${SURFACE_FLOATING} flex h-30 flex-col gap-1.5 p-2`,
+  days: 'min-h-0 flex-1',
+  slot: 'relative flex',
+  button: `${BUTTON_FORECAST_BAR} w-full`,
+  quiet: `${BUTTON_FORECAST_QUIET} w-full`,
 } as const
 
 /**
@@ -2163,8 +2230,6 @@ export const MAP_FAB_WORDS = {
  * keyboard on it. Under reduced motion it does not move at all.
  */
 export const MESSAGE_BADGE = {
-  /** The box the button and its badge share, which the badge's corner is placed in. */
-  slot: 'relative',
   base:
     `absolute -right-2.5 -top-2.5 flex h-6 min-w-6 items-center justify-center border-2 border-panel px-1 ${RADIUS.pill} ` +
     `${MICRO_SIZE} font-bold leading-none tabular-nums transition-colors ` +
@@ -2404,23 +2469,22 @@ export const ACTION_ITEM =
  * switch and all four buttons on one line with their words (#687); under that,
  * every control is its glyph alone and keeps the word as its accessible name,
  * as the switch's halves already did on a phone. A container rule, because the
- * bar's width is the viewport less the docked panel.
+ * bar's width is the results column's, which a reader can resize.
  *
  * 584px of the bar's content, measured 2026-10-13 at text-xs: the labelled
  * switch is 176.7px, the labelled group with `Removed (1)` showing 377.8px,
  * and the groups stand at least 16px apart (`gap-x-4`) on the folded line,
  * 570.5px; then two more digits of a Removed count, 13.4px, so a reader with
- * a hundred removals still gets one line. The bar beside the docked panel at
- * 1024 wide has 640px and keeps its words; a phone has 336px at 360 wide and
- * 406px at 430, and shows the switch and the glyphs on one line, Removed or
- * not. It replaces the switch's `sm:` viewport rule, so the bar's words come
+ * a hundred removals still gets one line. The desk column at its widest, 640px,
+ * keeps the words and at its narrowest, 420px, shows the glyphs (record
+ * 0334); a phone has 336px at 360 wide and 406px at 430, and shows the switch
+ * and the glyphs on one line, Removed or not. It replaces the switch's `sm:` viewport rule, so the bar's words come
  * and go together.
  *
  * At a desk the three menu buttons carry chevrons, which a phone's never do
- * (record 0201), and the labelled group is 437.8px, measured 2026-10-20. A
- * desk's bar is never under the 640px it has beside the docked panel at 1024,
- * which holds the line with a two-digit Removed count (637.2px); a
- * three-digit count wraps the group onto a line of its own there.
+ * (record 0201), and the labelled group is 437.8px, measured 2026-10-20. The
+ * column widened over the map (record 0321) is 983px at 1024, which holds the
+ * line with a two-digit Removed count (637.2px).
  */
 export const BAR_LABEL = 'hidden @min-[584px]:inline'
 
@@ -2667,16 +2731,14 @@ export const NOTICE_DISMISS = {
 /**
  * The three weights of rule in the app.
  *
- * `PANEL_EDGE` closes the panel: the line under the app title, the one over
- * the Analyze button, and the panel's right edge where it meets the map and
- * the results. Those are structural: the first two separate the scrolling
- * body from the fixed chrome above and below it, and the third separates the
- * panel from everything beside it, so they are the heavier weight.
+ * `PANEL_EDGE` is the structural rule: the line under a desk card's heading
+ * and the results column's left edge where it meets the map (record 0334).
+ * It separates a surface from everything beside it, so it is the heavier
+ * weight.
  *
- * The right edge was `SURFACE_DIVIDER` until #697, at 1.41:1 on slate-800,
- * which is no boundary at all between the panel and the desktop results
- * sheet, two slate-800 surfaces side by side: they read as one L-shaped
- * block. slate-500 is 3.07:1 on slate-800 and 3.74:1 on slate-900, past the
+ * The docked panel's right edge was `SURFACE_DIVIDER` until #697, at 1.41:1
+ * on slate-800, which is no boundary at all between two slate-800 surfaces
+ * side by side: they read as one L-shaped block. slate-500 is 3.07:1 on slate-800 and 3.74:1 on slate-900, past the
  * 3:1 a boundary owes under WCAG 1.4.11 when it is the only thing separating
  * two surfaces. An 8px slate-900 gutter between the two was mocked and
  * declined beside it, and so was leaving the seam alone (the maintainer,
@@ -2847,6 +2909,14 @@ export const BOTTOM_SHEET = {
    */
   opening: 'max-h-[calc(100dvh-100px)]',
   /**
+   * The most a sheet the tutorial holds open for a step opens at, half the
+   * screen, its rows scrolling under that: the tour's card stands between
+   * the control it lights and the sheet's top (`sheetBetween`), and a
+   * sheet as tall as its rows left the card no room once Layers had its
+   * fourteenth, the Cloud deck (record 0337).
+   */
+  toured: 'max-h-[50dvh]',
+  /**
    * The most any sheet stands at, the Controls sheet too: the box it stands
    * in less the status bar's band (record 0291). A percentage of that box
    * rather than a number, so a rotation clamps a held sheet to the screen it
@@ -2960,31 +3030,6 @@ export const PANEL_BODY =
   `${SCROLL_BARS} ${SCROLL_SHADOW.both}`
 
 /**
- * The panel's header: the logo and the title block beside it (#687).
- *
- * 56px plus its `PANEL_EDGE` rule, down from 81px: the logo is 40px with 8px
- * of panel around it where it was an 80px square edge to edge, and the title
- * block takes `py-2` for the `py-4` it had. The title and the tagline keep
- * their roles and sizes, so the block is 54.5px of text and padding and the
- * logo's 56px sets the height. That is 24px back to the scrolling body on
- * every screen, 9% of a 900px window spent on fixed chrome becoming 6%
- * (measured 2026-10-13: 81 to 57px). The name and the tagline start together
- * at the block's left edge, as they always have: the maintainer tried them
- * centred and had them put back (#801, record 0229).
- */
-export const PANEL_HEADER = {
-  logo: 'm-2 h-10 w-10 flex-shrink-0 object-cover',
-  title: 'flex flex-col justify-center px-3 py-2',
-  /**
-   * Where the header's round buttons stand: the theme switch and the close
-   * button, at the top right, 8px apart (#706). 12px down, so a 32px circle's
-   * centre stands at 28px, on the logo's and the title block's in the 56px
-   * header (#801).
-   */
-  actions: 'absolute top-3 right-2 z-10 flex gap-2',
-} as const
-
-/**
  * A button in a panel's header: the desk panel's close button and the theme
  * menu's trigger beside it, and the trigger again in a phone's Controls sheet
  * beside Done (#706, #843). A 32px square on either pointer, a finger's
@@ -3029,32 +3074,123 @@ export const MOTION = {
   menu: MENU_MOTION,
   /** A phone sheet rising and falling. */
   slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
-  /** The desk panel moving the map's edge as it leaves and returns (`DESK_PANEL`). */
-  push: 'transition-[margin-left] duration-300 ease-in-out motion-reduce:transition-none',
   /** A results pane opening or closing on a Table, Chart or Both press (`RESULTS_PANE`). */
   pane: 'transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none',
   /** A progress bar's fill growing to its next width. */
   progress: 'transition-all duration-300 ease-out motion-reduce:transition-none',
 } as const
 
-/** The duration `MOTION.slide`, `MOTION.push` and `MOTION.pane` share, in milliseconds. */
+/** The duration `MOTION.slide` and `MOTION.pane` share, in milliseconds. */
 export const PANEL_MS = 300
 
 /**
- * The controls panel at a desk (#714; record 0202): a column in the page's
- * row beside the map, 360px wide, that stays in the row while it is shut.
- * Shut, its left margin takes its own width back, so it slides off the left
- * edge and the map's column widens in the same frames; open, the margin
- * returns and the column narrows as the panel comes in. One property moves,
- * and the map's edge is the panel's edge in every frame, so nothing is
- * painted over anything.
+ * The results header under the headline (record 0319): the lenses as pills,
+ * the forecast bounds as chips each with its ×, and the dashed pill that
+ * opens the Limits card, the prototype's look.
  *
- * `relative` because the header's buttons stand absolutely in its top right
- * (`PANEL_HEADER.actions`). `LAYER.base` is a docked panel's layer.
+ * A lens is a toggle that ranks the field: idle it is a ruled pill in the
+ * lifted caption's ink (the soft ink reads 3.93:1 on the bar's raised fill), lit it is the accent fill, the one open-or-on state every
+ * control here wears (record 0251), where the prototype tinted it. A limit
+ * is a recessed chip, the value in the strong ink, because it is a setting
+ * the reader made rather than a choice offered. The add pill is dashed so
+ * it reads as a slot for one more.
  */
-export const DESK_PANEL = {
-  card: `relative ${LAYER.base} flex w-90 flex-shrink-0 flex-col overflow-hidden bg-panel border-r ${PANEL_EDGE} ${MOTION.push}`,
-  shut: '-ml-90',
+export const RESULTS_HEAD = {
+  lenses: 'flex max-w-full gap-1.5 overflow-x-auto',
+  /**
+   * A phone's one row of lenses and limits (record 0330), the prototype's:
+   * one line that scrolls sideways under the headline, the lenses first, so
+   * the sheet's header keeps one height however many limits stand. Each
+   * group sits in it whole (`lensesInline`, `limitsInline`).
+   */
+  phoneRow: `mt-1.5 flex items-center gap-1.5 overflow-x-auto ${SCROLL_BARS}`,
+  lensesInline: 'flex flex-none gap-1.5',
+  limitsInline: 'flex flex-none items-center gap-1.5 whitespace-nowrap',
+  lens: `inline-flex h-7 flex-none items-center rounded-full border border-rule px-2.5 ${CONTROL_SIZE} font-semibold whitespace-nowrap text-ink-mid ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`,
+  lensOn: `inline-flex h-7 flex-none items-center rounded-full border border-transparent px-2.5 ${CONTROL_SIZE} font-semibold whitespace-nowrap ${ACCENT.fill} ${FOCUS_RING}`,
+  limits: 'flex flex-wrap items-center gap-1.5',
+  limit: `inline-flex h-7 items-center gap-1 ${RADIUS.control} bg-recessed pl-2.5 pr-1 ${CONTROL_SIZE} font-medium text-ink-strong`,
+  limitRemove: `inline-flex size-5 items-center justify-center ${RADIUS.control} text-ink-mid ${ACCENT.hoverText} ${FOCUS_RING}`,
+  add: `inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-rule px-2.5 ${CONTROL_SIZE} font-semibold text-ink-mid ${ACCENT.hoverText} transition-colors ${FOCUS_RING}`,
+  hidden: CAPTION_LIFTED,
+  /**
+   * The headline over a desk's column while a lens ranks (record 0326), the
+   * prototype's 17px bold, as large as the panel's own title: it is the
+   * answer the reader came for. A phone's sheet keeps the bar's subheading,
+   * whose height its rest positions are worked out from.
+   */
+  headline: TEXT.appTitle,
+} as const
+
+/**
+ * The map's sentence bar at a desk (record 0309): the chips that say what a
+ * Forecast will search and over which hours, and the card each opens, which
+ * hangs under the bar the way the legend's card hangs under its chip, on the
+ * legend card's face, and scrolls inside what is left of the map below it.
+ */
+export const SENTENCE_BAR = {
+  /**
+   * The bar is one card (record 0314), as the prototype draws it: the name,
+   * the sentence and the button on one floating face, rather than a chip
+   * each, so it reads as one line to say rather than five controls.
+   */
+  row:
+    `pointer-events-auto flex min-w-0 max-w-full items-center gap-1 bg-floating/95 border border-edge ${RADIUS.surface} ` +
+    `${ELEVATION.raised} backdrop-blur-sm py-1.5 pl-3 pr-1.5`,
+  group: 'flex min-w-0 items-center gap-0.5',
+  /** The product's name leading the bar, set off from the sentence by a rule. */
+  brand: `flex h-7 flex-shrink-0 items-center gap-2 pr-2.5 mr-1 border-r border-rule`,
+  /** The words between the phrases, `in` and `on`, in the quiet ink. */
+  word: 'text-sm text-ink-soft whitespace-nowrap px-0.5',
+
+  logo: 'h-6 w-6 flex-shrink-0 rounded-full object-cover',
+  /**
+   * The Forecast button's slot in the bar: the badge's anchor, on the chips'
+   * own face, so a blocked button's 40 percent greys against that face rather
+   * than letting the map's labels through it.
+   */
+  forecastSlot: `relative flex ml-1.5 ${RADIUS.control} bg-floating`,
+  // A narrow map keeps the logo and the page's heading for a screen reader,
+  // and gives the name's width to the sentence.
+  name: `${TEXT.section} whitespace-nowrap leading-none @max-[52rem]:sr-only`,
+  card: `${SURFACE_CHIP_CARD.key} pointer-events-auto flex w-90 flex-col overflow-hidden max-h-[calc(100cqh-7.5rem)]`,
+  head: `flex flex-shrink-0 items-center justify-between border-b ${PANEL_EDGE} pl-4 pr-1.5 py-1.5`,
+  body: `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS}`,
+  /**
+   * The place search at the head of the Where card (record 0313): the map's
+   * pill, given the card's width and its own row above the card's body, and
+   * over it, so the list of places hangs over the sections below.
+   */
+  search: `relative z-[1] h-9 flex-shrink-0 mx-3 mt-3`,
+  /**
+   * The Where and When chips' floor: they cut their words before anything
+   * else in the bar gives, and never below the first few letters, so a
+   * narrow map shows a clipped phrase rather than an empty chip.
+   */
+  slot: 'min-w-14',
+  /**
+   * A phone's bar (record 0328): one 32px line where the search pill stood,
+   * the logo and the phrases, each phrase cutting its words, because every
+   * phone anchor (the draw bar, the compass, the sheets' and the player's
+   * room) is worked out from the two rows' fixed heights, which a wrapping
+   * bar would move. The Forecast button stays at the map's foot.
+   */
+  phoneRow:
+    `pointer-events-auto flex h-full w-full min-w-0 items-center gap-1 bg-floating/95 border border-edge ` +
+    `${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm pl-1.5 pr-0.5`,
+  phoneLogo: 'h-5 w-5 flex-shrink-0 rounded-full object-cover',
+  phoneGroup: 'flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden',
+  /**
+   * On a phone the what and where phrases keep their words, which come from a
+   * short fixed set (`Peaks`, `this view`, `your area`), and the When phrase
+   * takes the whole cut, being the long one (`Sun, Nov 22 to Mon, Nov 23`):
+   * any shrink on the short ones cut `Peaks` to `Pe…` at 500px.
+   */
+  phoneKeep: 'shrink-0',
+  /** The place search at the head of a phone's Controls sheet (record 0328). */
+  phoneSearch: 'relative z-[1] h-9 flex-shrink-0 mx-4 mt-3',
+  /** The draw bar at a desk, hung where the cards hang and as wide as one. */
+  drawBar: `${SURFACE_FLOATING} pointer-events-auto flex w-90 items-center gap-2 px-3 py-1.5`,
 } as const
 
 /**
@@ -3083,6 +3219,46 @@ export const RESULTS_PANE = {
 } as const
 
 /**
+ * A desk's results as a column down the map's right edge (record 0312):
+ * the results bar on top and the table under it, the full height of
+ * the window, edged on its left by the panel's rule. The chart stands under
+ * the map instead, where it keeps the map's width. While a chart stands
+ * alone the column's body holds its series chips (`chips`), which then fill
+ * the column rather than scrolling in two rows. `expand` is the round button
+ * on the map's right edge that brings a collapsed column back.
+ */
+export const RESULTS_COLUMN = {
+  /**
+   * The column down a desk's right edge (record 0312), at the prototype's
+   * proportion since record 0325: 44% of the window, never under 420px, where
+   * the compact table's name, score, two days of hours, wind and low fit, and
+   * never over 640px, past which the map gives up room the rows do not use.
+   */
+  column: `relative flex w-[clamp(26.25rem,44vw,40rem)] flex-shrink-0 flex-col border-l ${PANEL_EDGE} bg-panel`,
+  /**
+   * The column widened over the map by its expand button (record 0321), the
+   * prototype's: from the right edge across most of the window, every column,
+   * the toolbar and the chart, over the map on the overlay step.
+   */
+  wide: `absolute inset-y-0 right-0 ${LAYER.overlay} flex w-[min(1100px,96%)] flex-col border-l ${PANEL_EDGE} bg-panel ${ELEVATION.overlay}`,
+  chips: `${SCROLL_BARS} flex min-h-0 flex-1 flex-wrap content-start gap-1.5 overflow-y-auto px-3 py-2`,
+  /**
+   * The column's foot, where the map's key stands (record 0322), the
+   * prototype's scale under its table: ruled off the rows, a fifth of the
+   * column at most before it scrolls, and drawing nothing while it keys
+   * nothing.
+   */
+  foot: `${SCROLL_BARS} flex max-h-[20%] flex-shrink-0 flex-col gap-1 overflow-y-auto border-t border-rule px-3 py-2 empty:hidden`,
+  /**
+   * The same key at a phone sheet's foot (record 0333), at the one height
+   * `SHEET_KEY_PX` counts (`h-14`), whatever it holds, so an overlay toggled
+   * never moves the sheet; a second section scrolls inside it.
+   */
+  footPhone: `${SCROLL_BARS} flex h-14 flex-shrink-0 flex-col justify-center gap-1 overflow-y-auto border-t border-rule px-3 py-1.5`,
+  expand: `${MAP_ROUND_BUTTON} pointer-events-auto absolute right-3 top-3 ${LAYER.base} flex items-center justify-center`,
+} as const
+
+/**
  * The chart-only legend: one chip per charted line, under the plot in Chart
  * alone. At a desk it is a results pane of its own between the chart's and
  * the table's, held to the foot like the table, so Chart to Both shuts it
@@ -3099,44 +3275,20 @@ export const CHART_LEGEND = {
 } as const
 
 /**
- * What holds one size while a desk's layout moves (#714; record 0202,
- * `useLayoutMotion`), so a frame of the move shifts boxes rather than
- * resizing a map canvas or laying out a table of a thousand rows.
+ * What holds one size while a desk's results panes move (#714; record 0202,
+ * `useLayoutMotion`), so a frame of the move shifts the map's box rather than
+ * resizing its canvas.
  *
- * The map's box is the window's width while the panel moves and the window's
- * height while a pane moves, centred on the map's column, which clips it
- * (`clip`). MapLibre keeps the centre on a resize, so the map draws the way
- * it would at every width in between and is resized only where the box
- * changes: at the start of a close and the end of an open, the closed width
- * being the window's. `rest` is the box the rest of the time.
- *
- * The panes' bodies hold a width while the panel moves. The table's box takes
- * the window's, the widest it will be, so a close lays it out once at the
- * start and an open once at the end, with the spare width in its filler
- * column. The chart keeps the width it had (`chartClosing` is the window less
- * the panel), because drawing it is the costliest thing on the page, and is
- * drawn once at the end.
- *
- * While the panel moves, what moves with it stands on a layer of its own
- * (`layer`): the panel, the map's column, the results and each pane's body
- * (record 0216). A frame of the move then shifts layers the GPU already holds
- * rather than painting the panel, the table and the chart again where they
- * now stand, which was 185 ms of painting across a 300 ms close of a 200-row
- * report, and 35 ms on layers (2026-10-22). Only while it moves, because a
- * layer is a containing block for anything fixed inside it, and the table's
- * column-drag ghost is. Not while the panes move: the table stands still on
- * the screen then, the chart is cheap to paint where it now stands, and
- * lifting both onto layers at the press cost more than the frames saved.
+ * The map's box is the window's height while a pane moves, centred on the
+ * map's column, which clips it (`clip`). MapLibre keeps the centre on a
+ * resize, so the map draws the way it would at every height in between and is
+ * resized only where the box changes. `rest` is the box the rest of the time.
+ * The docked panel's width holds and layers went with the panel (record 0334).
  */
 export const LAYOUT_HOLD = {
   rest: 'absolute inset-0',
-  mapPush: 'absolute inset-y-0 left-[calc(50%-50vw)] w-screen',
   mapPanes: 'absolute inset-x-0 top-[calc(50%-50dvh)] h-dvh',
   clip: 'overflow-clip',
-  layer: 'will-change-transform',
-  table: 'w-screen',
-  chartClosing: 'w-[calc(100vw-22.5rem)]',
-  chartOpening: 'w-screen',
 } as const
 
 /**
@@ -3160,8 +3312,13 @@ export const CONTROLS_SHEET = {
     `absolute inset-x-0 bottom-0 ${LAYER.drawer} flex flex-col overflow-hidden ` +
     `bg-panel border-t border-frame rounded-t-xl ${ELEVATION.overlay} ${MOTION.slide} focus:outline-none`,
   shut: 'translate-y-full',
-  /** The panel under the sheet's top, which takes the rest and scrolls inside. */
-  panel: 'min-h-0 flex-1',
+  /**
+   * The panel under the sheet's top, which takes the rest and scrolls inside,
+   * under the place search that heads it (record 0328).
+   */
+  panel: 'flex min-h-0 flex-1 flex-col',
+  /** The panel itself under that search, the column's remaining height. */
+  panelBody: 'min-h-0 flex-1',
   /**
    * The panel's scrolling body on a phone: its own 16px at the end, the gap
    * the stack keeps above each rule, plus the home indicator band
@@ -3289,6 +3446,112 @@ export const DAY = {
   range: 'bg-range hover:bg-range-hover',
   selected: ACCENT.fill,
   today: 'ring-1 ring-inset ring-ink-soft',
+} as const
+
+/**
+ * A row's hour strip in its Score cell (record 0307): one bar per lit hour the
+ * score read, in the score's ramp, a wider gap where a night falls, and the
+ * best stretch drawn taller, so it marks itself by shape rather than by a
+ * second hue. A fixed width, so a long window's hours narrow rather than
+ * widening the column.
+ */
+export const HOUR_STRIP = {
+  strip: 'ml-2 inline-flex h-3.5 w-24 items-end gap-px align-middle',
+  hour: 'h-2 min-w-px flex-1',
+  best: 'h-3.5',
+  gap: 'ml-1',
+  /**
+   * The compact table's strip (record 0320), the prototype's: the window's
+   * lit hours as one block per day at the column's full width, every hour
+   * one height, and the best four marked by a bracket under them rather
+   * than by height, the bracket in the strong ink so it reads on any score.
+   * The day blocks share one `gap` and one width with the header's day names
+   * (`dayHead`), so each name stands over its own block. A fixed width, the
+   * prototype's (two days in about 128px, its hours flush, record 0325),
+   * because a cell asking for the table's spare width widened the table past
+   * the column, and 160px a day left Wind and Low off its edge (2026-11-21).
+   */
+  days: 'flex h-5 w-32 gap-1',
+  day: 'flex min-w-0 flex-1 basis-0',
+  cell: 'h-full min-w-px flex-1 basis-0',
+  run: 'relative flex basis-0',
+  bracket: 'pointer-events-none absolute inset-x-0 -bottom-1.5 h-[7px] rounded-b-sm border-x-2 border-b-[3px] border-ink-strong',
+  dayHead: 'flex w-32 gap-1 text-left',
+  dayName: 'min-w-0 flex-1 basis-0 truncate',
+} as const
+
+/**
+ * An opened row in the compact table (record 0327), the prototype's: the row
+ * on the raised ground, and under it, across the table, the summit against
+ * the cloud (`profile` and its marks, boxes placed in percentages), a key, the facts in two
+ * rows of four, and the row's two actions. The profile's marks are the
+ * theme's own inks: the deck in the soft ink, nights under the scrim, which
+ * darkens the ground in either theme where the panel's ground lightened it in
+ * the light one,
+ * the summit and the best four hours in the strong ink and the freezing level
+ * in the accent, dashed, as the prototype keys it.
+ */
+export const OPENED_ROW = {
+  row: 'bg-raised',
+  cell: 'bg-raised px-3 pb-3 pt-1',
+  profile: `relative h-28 overflow-hidden ${RADIUS.control} bg-recessed`,
+  night: 'absolute inset-y-0 bg-scrim/20',
+  cloud: 'absolute bg-ink-soft/45',
+  summit: 'absolute inset-x-0 h-0.5 -translate-y-1/2 bg-ink-strong',
+  freeze: 'absolute border-t-2 border-dashed border-accent',
+  best: `absolute inset-y-px border-2 border-ink-strong ${RADIUS.control}`,
+  day: `pointer-events-none absolute top-1 ${TEXT.micro}`,
+  summitTag: `pointer-events-none absolute right-1 -translate-y-full pb-0.5 ${MICRO_SIZE} font-semibold text-ink-strong`,
+  key: `mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 ${TEXT.caption}`,
+  keyItem: 'inline-flex items-center gap-1.5',
+  swatchSummit: 'h-0.5 w-4 bg-ink-strong',
+  swatchCloud: `h-2 w-4 ${RADIUS.control} bg-ink-soft/45`,
+  swatchFreeze: 'h-0 w-4 border-t-2 border-dashed border-accent',
+  // Two columns on a phone's sheet (record 0330), four from 400px of table,
+  // which a desk's column always has.
+  facts: 'mt-3 grid grid-cols-2 gap-x-4 gap-y-2 @[25rem]:grid-cols-4',
+  factLabel: `block ${TEXT.caption}`,
+  factValue: `block ${CONTROL_SIZE} font-semibold text-ink-strong ${FIGURES}`,
+  actions: 'mt-3 flex flex-wrap gap-2',
+  action: `${BUTTON_SECONDARY} inline-flex items-center gap-1.5`,
+} as const
+
+/**
+ * The day strip at a desk's map foot (record 0311): the days ahead as one row
+ * of cells, the window's days lit as the calendar lights them (`DAY`), and the
+ * forecast player under the row once a report spans hours. Placed where the
+ * player stood alone, bottom centre over the credit line (`transportBottomPx`),
+ * and wider, because sixteen days want room a scrubber did not. It keeps 4rem
+ * clear on each side, so on a narrow map beside the results' column it stops
+ * short of the corner's zoom and locate buttons.
+ */
+export const DAY_STRIP = {
+  card:
+    `${SURFACE_FLOATING} ${LAYER.base} absolute left-1/2 -translate-x-1/2 flex ` +
+    'w-[min(40rem,calc(100%-8rem))] flex-col gap-1.5 px-2 py-1.5',
+  /**
+   * The row of days. `touch-none` hands a finger's drag across it to the
+   * strip, which picks a run of days or scrubs the hours, rather than to the
+   * browser's pan, which would cancel the press part way (record 0336).
+   */
+  row: 'flex select-none touch-none',
+  /** The row a phone's foot holds (record 0329), as tall as the foot gives it. */
+  rowBare: 'flex h-full select-none touch-none',
+  day: `relative flex min-w-0 flex-1 flex-col items-center py-0.5 ${TEXT.control} ${FIGURES} cursor-pointer transition-colors ${FOCUS_RING}`,
+  weekday: `${TEXT.micro} leading-none`,
+  /**
+   * After a forecast (record 0323): each day's sky, eight blocks of three
+   * hours in the score's ramp on the recessed ground, the playhead a line in
+   * the strong ink through it with the hour on a tag over the row, and the
+   * meta row under the days, the play button, the hour and the model.
+   */
+  sky: 'relative mt-1 flex h-[18px] w-full gap-px',
+  skyCell: 'h-full min-w-0 flex-1 bg-recessed first:rounded-l-sm last:rounded-r-sm',
+  head: 'pointer-events-none absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-ink-strong',
+  headTag: `pointer-events-none absolute bottom-[calc(100%+1.75rem)] -translate-x-1/2 ${RADIUS.control} bg-ink-strong px-1.5 py-0.5 ${MICRO_SIZE} font-semibold whitespace-nowrap text-panel`,
+  meta: `flex items-center gap-2 ${TEXT.control}`,
+  metaHour: `relative ${RADIUS.control} px-1 ${CAPTION} ${FIGURES} focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-ink`,
+  model: `ml-auto ${CONTROL_SIZE} font-semibold text-ink-mid ${ACCENT.hoverText} ${FOCUS_RING}`,
 } as const
 
 /**
@@ -3435,6 +3698,24 @@ const TRIGGER_FIELD = `${FIELD_LOOK} ${TAP.height} appearance-none pr-6 relative
  */
 export const MENU_TRIGGER = {
   chip: CHIP_FACE,
+  /**
+   * A button of a desk's map tool column (record 0315), Layers among them:
+   * the map buttons' round face around a glyph (drawn as a desk column's
+   * 38px square by `.map-tools` in `map.css`, record 0324), with the one trigger's
+   * states, so it lights while its menu is out as a chip does.
+   */
+  tool:
+    `size-8 flex flex-shrink-0 items-center justify-center bg-floating/95 border border-edge ${RADIUS.pill} ` +
+    `${ELEVATION.raised} backdrop-blur-sm text-ink-strong ${TRIGGER_STATE}`,
+  /**
+   * A phrase of the map's sentence bar (record 0314): its words in the strong
+   * ink, underlined in the rule so they read as choices inside a sentence,
+   * on no face of their own because the bar is the face, and the one
+   * trigger's states, so an open phrase lights as an open chip does.
+   */
+  slot:
+    `text-sm font-semibold text-ink-strong h-8 flex items-center gap-1 px-2 border border-transparent ` +
+    `${RADIUS.control} whitespace-nowrap underline decoration-rule decoration-2 underline-offset-4 ${TRIGGER_STATE}`,
   field: TRIGGER_FIELD,
   /**
    * A field's left segment inside `CHART_PICKER`'s group (#499): the field's
@@ -3480,6 +3761,8 @@ export const MENU_TRIGGER = {
  */
 export const MENU_CHEVRON = {
   chip: '-mr-1',
+  tool: '',
+  slot: '-mr-0.5',
   bar: '-mr-0.5',
   field: ICON_ADORNMENT,
   segment: ICON_ADORNMENT,
@@ -4120,8 +4403,11 @@ export const TABLE = {
    * load-bearing rather than decorative — the rank cell's remove × appears on
    * `group-hover`, so a row that forgets it is a row that cannot be removed
    * with a pointer.
+   *
+   * `data-hot` is the same wash, set on the row whose marker the pointer
+   * rests on (record 0318), so the map and the table point at one place.
    */
-  row: 'group border-t border-rule/50 hover:bg-raised/30 transition-colors',
+  row: 'group border-t border-rule/50 hover:bg-raised/30 data-hot:bg-raised/30 transition-colors',
   /**
    * A ranked row a press opens the marker popup from (#696; record 0143):
    * the pointer says the whole row answers, where it said so over the name
@@ -4174,6 +4460,20 @@ export const TABLE = {
    * on the second, and the popup a row tap opens shows it whole.
    */
   nameText: 'min-w-0 text-left truncate max-lg:whitespace-normal max-lg:line-clamp-2',
+  /**
+   * The compact table's line under a name (record 0320): the height and when
+   * the best four hours fall, the when in the table's own ink.
+   */
+  nameSub: `block truncate ${TEXT.caption} font-sans`,
+  nameSubWhen: 'font-semibold text-ink',
+  /**
+   * The compact table's name and score (record 0326), the prototype's: the
+   * name a weight up so it leads its two lines, and the score a step larger
+   * and heavier, standing on the row's ground, since its strip beside it
+   * carries the colour the full table paints the cell with.
+   */
+  nameStrong: 'font-semibold',
+  scoreCompact: 'text-base font-semibold text-ink-strong',
   /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover

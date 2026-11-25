@@ -184,6 +184,8 @@ export function useForecastSelection(
   return {
     selection,
     changeSelection,
+    // The band the day strip is drawn over at a desk (record 0311).
+    band,
     forecastModel,
     changeForecastModel,
     comparedModels,

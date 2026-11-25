@@ -1,4 +1,4 @@
-import { test, expect, expectRanked, DESTINATION_NAMES, isoDay } from './fixtures'
+import { test, expect, expectRanked, DESTINATION_NAMES, isoDay, forecastButton, openCard, everyColumn, controlsPhrase } from './fixtures'
 import type { Locator, Page } from '@playwright/test'
 
 // Every menu at a desk is the one menu (#714, record 0201): a card 4px under
@@ -49,13 +49,13 @@ const edgeOf = (locator: Locator) => locator.evaluate((el) => getComputedStyle(e
 async function analyzed(page: Page, query = '') {
   await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55${query}`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).click()
+  await forecastButton(page).click()
   // A row is removed and the results bar measured, so not before the
   // ranking lands.
   await expectRanked(page)
 }
 
-test('the Layers chip and the results bar open their menus under themselves, lit', async ({ page }) => {
+test('the Layers tool and the results bar open their menus beside and under themselves, lit', async ({ page }) => {
   await analyzed(page)
 
   const layers = page.getByRole('button', { name: 'Layers', exact: true })
@@ -63,15 +63,22 @@ test('the Layers chip and the results bar open their menus under themselves, lit
   await layers.click()
   await expect(layers).toHaveAttribute('aria-expanded', 'true')
   const layersMenu = page.locator('[data-tour="layers-menu"]')
+  // In the map's tool column the card opens to the button's left, its foot
+  // on the button's, because the column stands at the map's foot (record 0315).
   const chip = await rect(layers)
-  expect(await standsOff(chip, await rect(layersMenu), 'below')).toBe('left')
+  const menuBox = await rect(layersMenu)
+  near(chip.left - menuBox.right, 8)
+  near(menuBox.bottom - chip.bottom, 0)
   await expect.poll(() => fillOf(layers)).not.toBe(shutFill)
   const litFill = await fillOf(layers)
   await layers.click()
   await expect(layers).toHaveAttribute('aria-expanded', 'false')
 
   // The bar's buttons: each card under its own button rather than under the
-  // group, and the button lit in the chip's own accent fill.
+  // group, and the button lit in the chip's own accent fill. They stand in
+  // the widened column (record 0321).
+  await page.getByRole('button', { name: `Remove ${DESTINATION_NAMES[0]}` }).click()
+  await everyColumn(page)
   for (const name of ['Choose which columns to display', 'Models']) {
     const button = page.getByRole('button', { name, exact: true })
     const rest = await fillOf(button)
@@ -93,8 +100,8 @@ test('the Layers chip and the results bar open their menus under themselves, lit
     await expect(button).toHaveAttribute('aria-expanded', 'false')
   }
 
-  // Removed opens the same way once a row is gone.
-  await page.getByRole('button', { name: `Remove ${DESTINATION_NAMES[0]}` }).click()
+  // Removed opens the same way once a row is gone, the row removed in the
+  // compact column before it widened.
   const removed = page.getByRole('button', { name: 'Removed (1)' })
   await removed.click()
   const box = await rect(card(page))
@@ -103,6 +110,7 @@ test('the Layers chip and the results bar open their menus under themselves, lit
 
 test('the model list takes its row and lines up with the field\'s right edge', async ({ page }) => {
   await analyzed(page)
+  await openCard(page, 'When')
   const field = page.getByRole('button', { name: /^Forecast model:/ })
   const rest = await edgeOf(field)
   await field.click()
@@ -122,6 +130,7 @@ test('the model list takes its row and lines up with the field\'s right edge', a
 
 test('the calendar stands 4px under its field at the field\'s width', async ({ page }) => {
   await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+  await openCard(page, 'When')
   const field = page.getByRole('button', { name: /^When\b/ })
   await field.click()
   await expect(page.getByRole('grid', { name: 'Forecast day' })).toBeVisible()
@@ -137,6 +146,9 @@ test('the calendar stands 4px under its field at the field\'s width', async ({ p
 test('the chart metric and an aggregate pick from the one menu', async ({ page }) => {
   // A window of days, because a single hour has no aggregate to choose.
   await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
+  // The chart stands in the widened column (record 0321).
+  await everyColumn(page)
+  await page.getByRole('button', { name: 'Show both chart and table' }).click()
 
   const metric = page.getByRole('button', { name: /^Chart metric / })
   await metric.click()
@@ -156,6 +168,7 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
 
   // The keyboard: the arrows open and walk the list, Enter picks, and the
   // keyboard is back on the field.
+  await openCard(page, 'Limits')
   const aggregate = page.getByRole('button', { name: /^Temperature aggregate / })
   const shown = aggregate.locator('span').nth(1)
   const before = (await shown.textContent())!
@@ -175,64 +188,10 @@ test('the chart metric and an aggregate pick from the one menu', async ({ page }
   await expect(aggregate).toBeFocused()
 })
 
-// A three-digit Removed count is the one thing that wraps the bar's button
-// group at a desk, beside the docked panel at 1024. The group goes to a line
-// of its own as a whole, at the line's right end, and the results stand right
-// under the taller bar rather than under the one line the floor once counted.
-test.describe('a long Removed count at 1024', () => {
-  test.use({ viewport: { width: 1024, height: 768 } })
-
-  test('wraps the button group whole onto its own line, at the right end', async ({ page }) => {
-    const ring = { cx: (-121.9 - 121.7 - 121.7) / 3, cy: (47.4 + 47.4 + 47.55) / 3 }
-    const destinations = Array.from({ length: 105 }, (_, i) => ({
-      name: `Peak ${5000 + i}`,
-      type: 'peak',
-      latitude: Number((ring.cy + (Math.floor(i / 12) - 4) * 0.003).toFixed(5)),
-      longitude: Number((ring.cx + ((i % 12) - 6) * 0.003).toFixed(5)),
-      elevation_ft: 4000 + i * 10,
-      osm_id: `node/${2000 + i}`,
-    }))
-    await page.route('**/api/destinations', (r) =>
-      r.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ destinations, total: destinations.length, total_found: null, truncated: false }),
-      }),
-    )
-    const removed = destinations
-      .slice(0, 100)
-      .map((d) => `${d.longitude},${d.latitude}`)
-      .join(';')
-    await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&removed=${removed}`)
-    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Analyze' }).click()
-    const button = page.getByRole('button', { name: 'Removed (100)' })
-    await expect(button).toBeVisible()
-
-    const parts = await button.evaluate((el) => {
-      const box = (e: Element) => e.getBoundingClientRect().toJSON() as DOMRect
-      const group = el.parentElement!
-      const row = group.parentElement!.parentElement!
-      const bar = row.closest('[data-tour="results"]')!.firstElementChild!
-      return {
-        group: box(group),
-        modes: box(row.firstElementChild!),
-        row: box(row),
-        bar: box(bar),
-        under: box(bar.nextElementSibling!),
-        map: document.querySelector('.maplibregl-canvas')!.getBoundingClientRect().toJSON() as DOMRect,
-      }
-    })
-    // Its own line, under the mode switch, and the whole group on it.
-    expect(parts.group.top).toBeGreaterThanOrEqual(parts.modes.bottom)
-    expect(parts.group.height).toBeCloseTo(parts.modes.height, 0)
-    // At the right end of the line, as it stands on one line.
-    near(parts.group.right, parts.row.right)
-    // The map ends where the bar starts, and the panels start where it ends.
-    near(parts.map.bottom, parts.bar.top)
-    near(parts.under.top, parts.bar.bottom)
-  })
-})
+// A three-digit Removed count wrapped the bar's button group beside the docked
+// panel at 1024. No panel stands beside the map since the sentence bar (record
+// 0309), so the bar has the window's width at every desk and does not wrap;
+// the test that held the wrap went with the panel.
 
 // The panel's two field menus on a phone are bottom sheets instead (record
 // 0136), headed by their labels' words, with 44px days: no card is drawn
@@ -246,7 +205,6 @@ test.describe('a long Removed count at 1024', () => {
 // to one ink for all; open, one fill for all.
 test('every trigger lights the one way while open and rests as it was after', async ({ page }) => {
   await analyzed(page, `&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
-  await page.getByRole('button', { name: 'Show both chart and table' }).click()
   const away = () => page.mouse.move(1, 1)
   const look = (l: Locator) =>
     l.evaluate((el) => {
@@ -263,19 +221,30 @@ test('every trigger lights the one way while open and rests as it was after', as
   const pick = (name: string) => async () => {
     await page.getByRole('listbox', { name }).getByRole('option').last().click()
   }
-  const triggers: [string, Locator, (() => Promise<void>) | null][] = [
-    ['Legend', page.getByRole('button', { name: 'Legend', exact: true }), null],
+  // The model picker and the calendar are in the When card at a desk, and
+  // the aggregate in the Limits card (record 0309): each opens its card first.
+  // The map's and the cards' triggers first, then the widened column's
+  // (record 0321), which stands over the map.
+  const triggers: [string, Locator, (() => Promise<void>) | null, ('When' | 'Limits')?][] = [
     ['Layers', page.getByRole('button', { name: 'Layers', exact: true }), null],
+    ['model picker', page.getByRole('button', { name: /^Forecast model:/ }), null, 'When'],
+    ['calendar', page.getByRole('button', { name: /^When\b/ }), null, 'When'],
+    ['aggregate', page.getByRole('button', { name: /^Temperature aggregate / }), pick('Temperature aggregate'), 'Limits'],
     ['Columns', page.getByRole('button', { name: 'Choose which columns to display', exact: true }), null],
     ['Models', page.getByRole('button', { name: 'Models', exact: true }), null],
-    ['model picker', page.getByRole('button', { name: /^Forecast model:/ }), null],
-    ['calendar', page.getByRole('button', { name: /^When\b/ }), null],
-    ['aggregate', page.getByRole('button', { name: /^Temperature aggregate / }), pick('Temperature aggregate')],
     ['chart metric', page.getByRole('button', { name: /^Chart metric / }), pick('Chart metric')],
   ]
   const lit = new Set<string>()
   const lifted = new Set<string>()
-  for (const [name, trigger, close] of triggers) {
+  for (const [name, trigger, close, inCard] of triggers) {
+    if (name === 'Columns') {
+      // The Limits card stands open under the sentence bar; the column
+      // widens over it.
+      await page.keyboard.press('Escape')
+      await everyColumn(page)
+      await page.getByRole('button', { name: 'Show both chart and table' }).click()
+    }
+    if (inCard) await openCard(page, inCard)
     // The legend's card stands open on a desk until it is shut.
     if ((await trigger.getAttribute('aria-expanded')) === 'true') await trigger.click()
     await away()
@@ -306,7 +275,7 @@ test.describe('on a phone', () => {
   test('the model list and the calendar open as bottom sheets', async ({ page }) => {
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Open controls' }).tap()
+    await controlsPhrase(page).tap()
 
     await page.getByRole('button', { name: /^Forecast model:/ }).tap()
     const models = page.getByRole('dialog', { name: 'Model' })
@@ -336,7 +305,7 @@ test.describe('on a phone', () => {
     await page.goto(`/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}`)
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await expect(page.locator('select')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Open controls' }).tap()
+    await controlsPhrase(page).tap()
     const field = page.getByRole('button', { name: /^Temperature aggregate / })
     await field.tap()
     const sheet = page.getByRole('dialog', { name: 'Temperature aggregate' })

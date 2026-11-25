@@ -6,7 +6,7 @@ import type { SearchBoxHandle } from './SearchBox'
 import { render } from '../testSupport/render'
 
 // The search has a suite of its own; what this one needs from it is the
-// report that the field has the keyboard, which steps the chip row aside.
+// report that the field has the keyboard, and that it gave it up.
 vi.mock('./SearchBox', () => ({
   default: (props: { onExpandedChange: (expanded: boolean) => void }) => (
     <>
@@ -15,6 +15,12 @@ vi.mock('./SearchBox', () => ({
     </>
   ),
 }))
+
+const BAR = (
+  <div role="group" aria-label="Forecast">
+    <button data-card="forecast">Sat 21</button>
+  </div>
+)
 
 function rows(over: Partial<Parameters<typeof MapRows>[0]> = {}) {
   return (
@@ -27,183 +33,118 @@ function rows(over: Partial<Parameters<typeof MapRows>[0]> = {}) {
       onCompassSlot={() => {}}
       desk={false}
       sidebarOpen={false}
-      onOpenControls={() => {}}
-      onCloseControls={() => {}}
-      controlsSummary="Current · NOAA GFS"
-      layers={<button>Layers</button>}
       legend={<button>Legend</button>}
+      bar={BAR}
+      tools={<button>Layers</button>}
       {...over}
     />
   )
 }
 
-describe('MapRows', () => {
-  // The summary chip opens the panel under the name the panel's own button
-  // carried, and reads its summary out as its description.
-  it('opens the panel from the summary chip, which carries the summary', () => {
-    const onOpenControls = vi.fn()
-    render(rows({ onOpenControls }))
-    const chip = screen.getByRole('button', { name: 'Open controls', description: 'Current · NOAA GFS' })
-    expect(chip.textContent).toBe('Current · NOAA GFS')
-    fireEvent.click(chip)
-    expect(onOpenControls).toHaveBeenCalledOnce()
-  })
-
-  // A phone's chip lowers the Controls sheet it raised, lit while it is up.
-  it('lowers a phone\'s Controls sheet from the same chip', () => {
-    const onCloseControls = vi.fn()
-    render(rows({ sidebarOpen: true, onCloseControls }))
-    const chip = screen.getByRole('button', { name: 'Open controls' })
-    expect(chip.getAttribute('aria-expanded')).toBe('true')
-    fireEvent.click(chip)
-    expect(onCloseControls).toHaveBeenCalledOnce()
-  })
-
-  // Legend before Layers, so the card open by default hangs over the map's
-  // left edge (TJ, 2026-10-18).
-  it('stands the Legend and Layers chips it is handed after the summary', () => {
+describe('MapRows on a phone', () => {
+  // Analyze is the foot's Forecast button on a phone (record 0329), never a chip.
+  it('carries the bar and the Legend chip, and no Analyze', () => {
     render(rows())
-    const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)
-    expect(names.slice(-3)).toEqual(['Open controls', 'Legend', 'Layers'])
-  })
-
-  // Analyze is the panel's at a desk and the floating button's on a phone
-  // (record 0135), never a chip.
-  it('carries no Analyze', () => {
-    render(rows())
+    expect(screen.getByRole('group', { name: 'Forecast' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Legend' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Analyz/ })).toBeNull()
   })
 
-  // While the field has the keyboard the pill takes the row and the chips
-  // step aside, kept mounted so their state survives.
-  it('hides the chips while the search is open, and brings them back', () => {
-    render(rows())
-    const chips = screen.getByRole('button', { name: 'Open controls' }).parentElement!
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
-    expect(chips.className).toBe('hidden')
-    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
-    expect(chips.className).not.toBe('hidden')
-  })
-
-  it('hands up the slot the map stands its locate button in', () => {
-    const onLocateSlot = vi.fn()
-    render(rows({ onLocateSlot }))
-    expect(onLocateSlot).toHaveBeenCalledWith(expect.any(HTMLDivElement))
-  })
-
-  // A phone's 3D button, in the search row beside the locate button (#799),
-  // and so out of the chip row.
-  it('hands up the 3D button\'s slot in the search row, before the locate button\'s', () => {
-    const onTerrainSlot = vi.fn()
-    const onLocateSlot = vi.fn()
-    render(rows({ onTerrainSlot, onLocateSlot }))
-    const slot = onTerrainSlot.mock.calls[0][0] as HTMLDivElement
-    const locate = onLocateSlot.mock.calls[0][0] as HTMLDivElement
-    expect(slot.parentElement).toBe(locate.parentElement)
-    expect(slot.nextElementSibling).toBe(locate)
-    expect(slot.parentElement).not.toBe(screen.getByRole('button', { name: 'Open controls' }).parentElement)
-  })
-
-  // A phone's compass, at the chip row's right end under the locate button
-  // (record 0147).
-  it('hands up the compass\'s slot at the end of a phone\'s chip row', () => {
-    const onCompassSlot = vi.fn()
-    render(rows({ onCompassSlot }))
-    const slot = onCompassSlot.mock.calls[0][0] as HTMLDivElement
-    expect(slot.parentElement).toBe(screen.getByRole('button', { name: 'Open controls' }).parentElement)
-    expect(slot.parentElement!.lastElementChild).toBe(slot)
-  })
-
-  // The chip stands in for the Controls sheet's Done, so it takes the
-  // keyboard when the sheet shuts under it (#576).
-  it('takes the keyboard back when a phone\'s sheet shuts', () => {
+  // The bar's When phrase takes the keyboard back when the sheet's Done goes
+  // inert under it (record 0328).
+  it('hands the keyboard to the When phrase when the sheet shuts', () => {
     const page = (open: boolean) => (
       <>
-        <div inert={!open}>
+        <aside inert={!open}>
           <button>Done</button>
-        </div>
+        </aside>
         {rows({ sidebarOpen: open })}
       </>
     )
     const { rerender } = render(page(true))
     screen.getByRole('button', { name: 'Done' }).focus()
     rerender(page(false))
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open controls' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Sat 21' }))
   })
-})
 
-// A desk's rows are the phone's (#714): the panel is docked beside the map
-// with its own Close, so the summary chip stands only while it is shut, as
-// the one way back to it from the map.
-describe('MapRows under a full-screen sheet', () => {
-  // A full-screen results sheet stands over the rows (#837): they stay where
-  // they are, mounted so the map keeps its slots, and out of reach.
+  // The tool column (record 0331): the tools it is handed, Layers first, then
+  // the search button and the 3D, locate and compass slots the map stands its
+  // own buttons in.
+  it('stands the tools, the search button and the three slots in one column', () => {
+    const onTerrainSlot = vi.fn()
+    const onLocateSlot = vi.fn()
+    const onCompassSlot = vi.fn()
+    render(rows({ onTerrainSlot, onLocateSlot, onCompassSlot }))
+    const column = screen.getByRole('button', { name: 'Search for a place' }).parentElement!
+    const terrain = onTerrainSlot.mock.calls[0][0] as HTMLDivElement
+    const locate = onLocateSlot.mock.calls[0][0] as HTMLDivElement
+    const compass = onCompassSlot.mock.calls[0][0] as HTMLDivElement
+    expect([...column.children]).toEqual([
+      screen.getByRole('button', { name: 'Layers' }),
+      screen.getByRole('button', { name: 'Search for a place' }),
+      terrain,
+      locate,
+      compass,
+    ])
+    // Not in the rows, which stand over the sheet's layer where the column stands under it.
+    expect(column.parentElement).not.toBe(screen.getByRole('button', { name: 'Legend' }).closest('[data-map-overlay]'))
+  })
+
+  // The search button opens the field over the bar, which goes once it has
+  // had the keyboard and gives it up; Escape hands the keyboard back.
+  it('opens the place search over the bar, and shuts it when the field lets go', () => {
+    render(rows())
+    const open = screen.getByRole('button', { name: 'Search for a place' })
+    expect(open.getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    fireEvent.click(open)
+    expect(open.getAttribute('aria-pressed')).toBe('true')
+    // A report that the field is shut before it was open closes nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    fireEvent.click(open)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
+    expect(document.activeElement).toBe(open)
+  })
+
+  // A full-screen results sheet stands over the rows and the column (#837):
+  // they stay where they are, mounted so the map keeps its slots, and out of reach.
   it('goes out of reach while covered, and keeps its slots', () => {
     const onLocateSlot = vi.fn()
     const { container, rerender } = render(rows({ onLocateSlot }))
-    const stack = container.firstElementChild as HTMLElement
-    expect(stack.hasAttribute('inert')).toBe(false)
+    const parts = () => [...container.children] as HTMLElement[]
+    expect(parts()).toHaveLength(2)
+    expect(parts().some((p) => p.hasAttribute('inert'))).toBe(false)
     rerender(rows({ onLocateSlot, covered: true }))
-    expect(stack.hasAttribute('inert')).toBe(true)
+    expect(parts().every((p) => p.hasAttribute('inert'))).toBe(true)
     expect(onLocateSlot).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('MapRows at a desk', () => {
-  it('offers the summary chip only while the panel is shut, and it opens the panel', () => {
-    const onOpenControls = vi.fn()
-    const { rerender } = render(rows({ desk: true, sidebarOpen: true, onOpenControls }))
-    expect(screen.queryByRole('button', { name: 'Open controls' })).toBeNull()
-    rerender(rows({ desk: true, sidebarOpen: false, onOpenControls }))
-    const chip = screen.getByRole('button', { name: 'Open controls' })
-    expect(chip.getAttribute('aria-expanded')).toBe('false')
-    fireEvent.click(chip)
-    expect(onOpenControls).toHaveBeenCalledOnce()
+  // The bar stands on its row and the card a chip opened under the chips
+  // (record 0309); the search is in the Where card (record 0313).
+  it('stands the bar and its card, with no search and no tool column', () => {
+    render(rows({ desk: true, barCard: <div>card</div> }))
+    expect(screen.getByRole('group', { name: 'Forecast' })).toBeTruthy()
+    expect(screen.getByText('card')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Search for a place' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Layers' })).toBeNull()
   })
 
-  it('keeps Legend and Layers while the panel is open', () => {
-    render(rows({ desk: true, sidebarOpen: true }))
-    const names = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)
-    expect(names.slice(-2)).toEqual(['Legend', 'Layers'])
-  })
-
-  // A desk's map buttons stand in the map's top-right corner with the zoom
-  // pair (record 0174), so its rows hand up no slot for either.
+  // A desk's map buttons stand in the map's corner (record 0174), so its rows
+  // hand up no slot for any of them.
   it('hands up no slot for the locate button, the 3D button or the compass', () => {
     const onLocateSlot = vi.fn()
     const onTerrainSlot = vi.fn()
     const onCompassSlot = vi.fn()
     render(rows({ desk: true, onLocateSlot, onTerrainSlot, onCompassSlot }))
-    expect(onLocateSlot).not.toHaveBeenCalledWith(expect.any(HTMLDivElement))
-    expect(onTerrainSlot).not.toHaveBeenCalledWith(expect.any(HTMLDivElement))
-    expect(onCompassSlot).not.toHaveBeenCalledWith(expect.any(HTMLDivElement))
-  })
-
-  // Closing the panel makes it inert under the keyboard that pressed its
-  // Close, and the chip that replaces it takes the focus (#576).
-  it('takes the keyboard when the panel it reopens closes under it', () => {
-    const page = (open: boolean) => (
-      <>
-        <aside inert={!open}>
-          <button>Close controls</button>
-        </aside>
-        {rows({ desk: true, sidebarOpen: open })}
-      </>
-    )
-    const { rerender } = render(page(true))
-    screen.getByRole('button', { name: 'Close controls' }).focus()
-    rerender(page(false))
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open controls' }))
-  })
-
-  // The reader left the focus where it was, say by pressing the map: the
-  // panel closing then leaves the page as they left it.
-  it('takes nothing when the focus was not lost', () => {
-    const { rerender } = render(rows({ desk: true, sidebarOpen: true }))
-    const layers = screen.getByRole('button', { name: 'Layers' })
-    layers.focus()
-    layers.blur()
-    rerender(rows({ desk: true, sidebarOpen: false }))
-    expect(document.activeElement).toBe(document.body)
+    expect(onLocateSlot).not.toHaveBeenCalled()
+    expect(onTerrainSlot).not.toHaveBeenCalled()
+    expect(onCompassSlot).not.toHaveBeenCalled()
   })
 })

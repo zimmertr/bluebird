@@ -2003,7 +2003,7 @@ async def test_fetch_cloud_batch_reads_the_deck_off_the_column(monkeypatch):
     assert row["cloud_deck_max_ft"] == 9372
     assert row["series"]["cloud_deck_ft"] == [9372, 9372, 9372]
     assert set(row) == {"cloud_deck_min_ft", "cloud_deck_avg_ft", "cloud_deck_max_ft", "series"}
-    assert set(row["series"]) == {"times", "cloud_deck_ft"}
+    assert set(row["series"]) == {"times", "cloud_deck_ft", "cloud_top_ft"}
 
 
 async def test_fetch_cloud_batch_is_cached_apart_from_the_weather(monkeypatch):

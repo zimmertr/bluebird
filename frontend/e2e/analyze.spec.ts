@@ -1,13 +1,14 @@
-import { test, expect, drawRing, DESTINATION_NAMES, resultRows } from './fixtures'
+import { test, expect, drawRing, DESTINATION_NAMES, resultRows, forecastButton, openCard, everyColumn } from './fixtures'
 
 test('draw a ring, analyze, and see the rows and the chart', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   // Drawn first: the types are greyed until there is a ring to search.
   await drawRing(page)
+  await openCard(page, 'Where')
   await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
 
-  const analyze = page.getByRole('button', { name: 'Analyze' })
+  const analyze = forecastButton(page)
   await expect(analyze).toBeEnabled()
   await analyze.click()
 
@@ -15,6 +16,7 @@ test('draw a ring, analyze, and see the rows and the chart', async ({ page }) =>
   await expect(rows).toHaveCount(DESTINATION_NAMES.length)
   await expect(rows.first()).toContainText(new RegExp(DESTINATION_NAMES.join('|')))
 
+  await everyColumn(page)
   await page.getByRole('button', { name: 'Show both chart and table' }).click()
   await expect(page.locator('svg.recharts-surface').first()).toBeVisible()
 })

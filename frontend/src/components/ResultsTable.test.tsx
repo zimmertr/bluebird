@@ -2,7 +2,7 @@ import { Profiler, type ComponentProps, type ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import ResultsTable from './ResultsTable'
-import { displayedColumns, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
+import { compactColumns, displayedColumns, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
 import { geoKey } from '../utils/points'
@@ -415,5 +415,90 @@ describe('a footnote mark', () => {
     expect(scrolled).toHaveBeenCalledTimes(1)
     expect(document.activeElement).toBe(note)
     expect(window.location.hash).toBe(hash)
+  })
+})
+
+// The desk column's compact table (record 0320): no chart checkboxes, the
+// days' names over the strip, and the height and best hours under the name.
+describe('compact', () => {
+  it('draws the strip under the days, the line under the name, and no checkbox', () => {
+    const sat8 = Date.parse('2026-11-21T08:00:00-08:00')
+    const times = [sat8, sat8 + 3_600_000, sat8 + 86_400_000]
+    const scored = ROWS.map((r) => ({
+      ...r,
+      score: 80,
+      score_hours: [40, 80, 90],
+      score_lit: [true, true, true],
+      score_best: [0, 2] as [number, number],
+      best_start_ms: sat8,
+      best_end_ms: sat8 + 2 * 3_600_000,
+    }))
+    render(
+      <ResultsTable
+        {...props({ results: scored, columns: compactColumns('temp_avg_f', true), times, compact: true, onToggleChart: () => {} })}
+      />,
+    )
+    const table = screen.getByRole('table')
+    expect(within(table).queryAllByRole('checkbox')).toHaveLength(0)
+    const head = within(table).getAllByRole('columnheader')
+    expect(head.some((th) => th.textContent === 'SatSun')).toBe(true)
+    expect(screen.getByText('14,411 ft · best', { exact: false }).textContent).toBe('14,411 ft · best Sat 8a–10a')
+    // The score stands on the row's ground in its own larger face (record 0326),
+    // and the name leads its two lines.
+    const score = within(table).getAllByText('80')[0]
+    expect(score.className).toBe(TABLE.scoreCompact)
+    expect(score.closest('td')!.getAttribute('style')).toBeNull()
+    expect(within(table).getAllByRole('button', { name: /^Center map on/ })[0].className).toContain(TABLE.nameStrong)
+  })
+
+  // A press on a compact row opens it in place (record 0327): its profile,
+  // facts and actions under it, the map left where it is until Show on map.
+  it('opens a row in place on a press, shuts it on a second, and flies the map only from Show on map', () => {
+    const onFocusResult = vi.fn()
+    const scored = ROWS.map((r) => ({ ...r, score: 80, score_hours: [80], score_lit: [true], score_best: [0, 1] as [number, number] }))
+    render(<ResultsTable {...props({ results: scored, columns: compactColumns('temp_avg_f', true), compact: true, onFocusResult })} />)
+    const rows = () => screen.getAllByRole('row').filter((r) => r.hasAttribute('data-key'))
+    const ground = (r: HTMLElement) => r.querySelectorAll('td')[r.querySelectorAll('td').length - 1]
+    fireEvent.click(ground(rows()[0]))
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(1)
+    expect(rows()[0].hasAttribute('data-open')).toBe(true)
+    expect(onFocusResult).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Show on map' }))
+    expect(onFocusResult).toHaveBeenCalledWith(scored[0])
+    fireEvent.click(ground(rows()[0]))
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(0)
+  })
+
+  // The row's disclosure is the way in for a keyboard (TJ, 2026-11-21): a
+  // chevron that reads expanded while the row stands open, and a press on it
+  // is its own, so it opens once rather than once for it and once for the row.
+  it('opens and shuts a compact row from its disclosure button', () => {
+    const scored = ROWS.map((r) => ({ ...r, score: 80, score_hours: [80], score_lit: [true], score_best: [0, 1] as [number, number] }))
+    render(<ResultsTable {...props({ results: scored, columns: compactColumns('temp_avg_f', true), compact: true })} />)
+    const toggle = screen.getByRole('button', { name: `Details for ${scored[0].name}` })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(toggle)
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: `Details for ${scored[0].name}` }).getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: `Details for ${scored[0].name}` }))
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(0)
+  })
+
+  // A keyboard reaches the disclosure by Tab and opens it with Enter, so the
+  // opened row's facts need no pointer (TJ, 2026-11-25).
+  it('opens a compact row from the keyboard', async () => {
+    const scored = ROWS.map((r) => ({ ...r, score: 80, score_hours: [80], score_lit: [true], score_best: [0, 1] as [number, number] }))
+    const { user } = render(<ResultsTable {...props({ results: scored, columns: compactColumns('temp_avg_f', true), compact: true })} />)
+    const toggle = screen.getByRole('button', { name: `Details for ${scored[0].name}` })
+    for (let i = 0; i < 60 && document.activeElement !== toggle; i++) await user.tab()
+    expect(document.activeElement).toBe(toggle)
+    await user.keyboard('{Enter}')
+    expect(document.querySelectorAll('[data-opened-row]')).toHaveLength(1)
+  })
+
+  // The full table opens the popup instead, so it carries no disclosure.
+  it('draws no disclosure in the full table', () => {
+    render(<ResultsTable {...props()} />)
+    expect(screen.queryAllByRole('button', { name: /^Details for / })).toHaveLength(0)
   })
 })

@@ -1,6 +1,6 @@
 # 0243. The map's own marks read on a dark ground as well as a light one
 
-- Status: Accepted. Amends 0162 (the scale bar's ends are a dark line and a light one, no longer dark alone).
+- Status: Accepted. Amends 0162 (the scale bar's ends are a dark line and a light one, no longer dark alone). Its "What does not change" half superseded by [0317](0317-the-relief-leads-the-map.md).
 - Date: 2026-10-27
 - Decider: the maintainer (TJ), on issue #799, whose acceptance criteria ask that markers, labels and the scale bar clear WCAG AA on imagery as well as on Liberty, in both themes
 - Issues and PRs: #799

@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from 'react'
+import type { ReactNode } from 'react'
 import { CHEVRON, EXTERNAL_LINK } from '../iconPaths'
 import { ICON } from '../styles'
 import { type AgeBandHours, STARBURST_INNER, starburst } from '../utils/fireActivity'
@@ -156,24 +156,6 @@ export function IconInfo({ className }: IconProps): ReactNode {
   )
 }
 
-/** The map's Controls button: three bars, the standing picture for a panel. */
-export function IconMenu({ className }: IconProps): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className={join(ICON.control, className)}
-      aria-hidden="true"
-    >
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="18" x2="21" y2="18" />
-    </svg>
-  )
-}
-
 // The sun's and the moon's marks on the 24-unit grid, drawn once: their own
 // glyphs wear them, and so does System's, smaller (#843).
 const SUN_MARKS = (
@@ -296,41 +278,6 @@ export function IconTable({ className }: IconProps): ReactNode {
 }
 
 /**
- * The forecast grid's Smooth style: one field fading across the square, the
- * way the smooth grid paints between its samples. The fade is the glyph's own
- * colour at two strengths, so it follows the control's ink in both themes.
- */
-export function IconGridSmooth({ className }: IconProps): ReactNode {
-  const id = useId()
-  return (
-    <svg viewBox="0 0 16 16" fill="none" className={join(ICON.chip, className)} aria-hidden="true">
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="currentColor" stopOpacity="1" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="0.2" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="14" height="14" rx="2" fill={`url(#${id})`} />
-    </svg>
-  )
-}
-
-/**
- * The forecast grid's Blocks style: four cells at three strengths, the way
- * the block grid paints one value per sample.
- */
-export function IconGridBlocks({ className }: IconProps): ReactNode {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className={join(ICON.chip, className)} aria-hidden="true">
-      <rect x="1" y="1" width="6.5" height="6.5" rx="1" />
-      <rect x="8.5" y="1" width="6.5" height="6.5" rx="1" opacity="0.55" />
-      <rect x="1" y="8.5" width="6.5" height="6.5" rx="1" opacity="0.55" />
-      <rect x="8.5" y="8.5" width="6.5" height="6.5" rx="1" opacity="0.2" />
-    </svg>
-  )
-}
-
-/**
  * The chart half of that switch, and a Metrics row's chart toggle (record
  * 0290), whose pressed state fills under the line: the fill is the state, so
  * the two read apart without their colour, as the star's do.
@@ -386,6 +333,31 @@ export function IconColumns({ className }: IconProps): ReactNode {
       <rect x="2" y="2" width="12" height="12" />
       <line x1="6" y1="2" x2="6" y2="14" />
       <line x1="10" y1="2" x2="10" y2="14" />
+    </svg>
+  )
+}
+
+/**
+ * The results column's expand button (record 0321): two corners pointing out
+ * while it widens the column over the map, and in while it narrows it.
+ */
+export function IconWiden({ wide, className }: IconProps & { wide: boolean }): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      {wide ? (
+        <path d="M14 2 9.5 6.5M9.5 3v3.5H13M2 14l4.5-4.5M3 9.5h3.5V13" />
+      ) : (
+        <path d="M9.5 6.5 14 2M10 2h4v4M6.5 9.5 2 14M2 10v4h4" />
+      )}
     </svg>
   )
 }
@@ -455,6 +427,44 @@ export function IconSearch({ className }: IconProps): ReactNode {
     >
       <circle cx="11" cy="11" r="7" />
       <line x1="21" y1="21" x2="16.5" y2="16.5" />
+    </svg>
+  )
+}
+
+/** Layers, the map tool column's menu of overlays (record 0315): two stacked sheets, as the prototype draws it. */
+export function IconLayers({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <path d="M12 3l9 5-9 5-9-5 9-5z" />
+      <path d="M3 13l9 5 9-5" />
+    </svg>
+  )
+}
+
+/** Drawing a ring on the map, from the tool column (record 0315): a loop of line with its starting point. */
+export function IconLoop({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <path d="M6.5 16.5c-3-3.5-1.5-10 5-10.5s9 3.5 7.5 7.5-6.5 5.5-9.5 4.5" />
+      <circle cx="7" cy="18" r="1.6" />
     </svg>
   )
 }

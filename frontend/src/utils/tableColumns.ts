@@ -80,6 +80,78 @@ export const WILDFIRE_COL: ColDef = { key: WILDFIRE_KEY, label: 'Wildfire (mi)' 
 export const CLOSURE_KEY = 'closure'
 export const CLOSURE_COL: ColDef = { key: CLOSURE_KEY, label: 'Closure' }
 
+/**
+ * The score under the reader's lens (record 0307), a whole number from 0 to
+ * 100. Not in `COLUMNS`: it stands only while a lens ranks the field, right
+ * after the name, because it is the number the order is.
+ */
+export const SCORE_KEY = 'score'
+export const SCORE_COL: ColDef = {
+  key: SCORE_KEY,
+  label: 'Score',
+  format: (v) => String(Math.round(Number(v))),
+  csv: (v) => String(Math.round(Number(v))),
+}
+
+/**
+ * The score's header named for the lens that made it (`Bluebird`, `Calm
+ * summit`), at either width and in the file (record 0333), so the number says
+ * what kind of day it scores. `Score` is the column's name only where no lens
+ * is named.
+ */
+export function labelScore(cols: readonly ColDef[], label: string): ColDef[] {
+  return cols.map((c) => (c.key === SCORE_KEY && c.label !== label ? { ...c, label } : c))
+}
+
+/** The columns with the score after the name while a lens ranks the field. */
+export function withScoreColumn(cols: readonly ColDef[], scored: boolean): ColDef[] {
+  if (!scored) return [...cols]
+  const at = cols.findIndex((c) => c.key === 'name')
+  const cut = at === -1 ? 0 : at + 1
+  return [...cols.slice(0, cut), SCORE_COL, ...cols.slice(cut)]
+}
+
+/**
+ * The hours a row's score was made from, drawn as a strip of days under the
+ * days' names (record 0320). Keyed on the row's own `score_hours`, which is
+ * not a sort key, so its header sorts nothing.
+ */
+export const HOURS_COL: ColDef = { key: 'score_hours', label: 'Hours' }
+
+/** The two values the compact table keeps beside the ranking (record 0320). */
+const COMPACT_KEYS: readonly ColDef['key'][] = ['wind_max_mph', 'temp_min_f']
+
+/**
+ * The prototype's short headers for those two in the compact table (record
+ * 0326): the full table's `Wind · Max (mph)` and `Temperature · Min (°F)` ran
+ * the column past its edge at 44% of a 1389px window. The full table behind
+ * the expand button keeps the long names, since it shows every aggregate.
+ */
+const COMPACT_LABELS: Partial<Record<ColDef['key'], string>> = {
+  wind_max_mph: 'Wind (mph)',
+  temp_min_f: 'Low (°F)',
+}
+
+/**
+ * The compact table's columns (record 0320): the name, then what ranks the
+ * field (the score and its hours while a lens ranks, the ranked metric
+ * otherwise), then the highest wind and the lowest temperature, the two a
+ * reader checks first on a summit. Every other column waits behind the
+ * column's expand button. A phone's rows stop after the ranking (record
+ * 0330), the prototype's `# name score days`, since the two values would
+ * squeeze the name to a few letters at 360px.
+ */
+export function compactColumns(sortBy: SortBy, scored: boolean, phone = false): ColDef[] {
+  const byKey = (key: ColDef['key']) => COLUMNS.find((c) => c.key === key)
+  const lead = scored ? [SCORE_COL, HOURS_COL] : [byKey(sortBy)]
+  const rest = (phone ? [] : COMPACT_KEYS).filter((k) => scored || k !== sortBy).map((k) => {
+    const col = byKey(k)
+    const label = COMPACT_LABELS[k]
+    return col && label ? { ...col, label } : col
+  })
+  return [byKey('name'), ...lead, ...rest].filter((c): c is ColDef => c !== undefined)
+}
+
 /** The two safety-flag columns, in the order they close the table. */
 export const FLAG_COLS: readonly ColDef[] = [WILDFIRE_COL, CLOSURE_COL]
 
@@ -222,7 +294,7 @@ export const TERRAIN_HEIGHT_NOTE = `${TERRAIN_HEIGHT_MARK} Elevation data is una
  * sign leads its distance, so the digits still end on one edge.
  */
 export function isNumberColumn(col: ColDef): boolean {
-  return col.key === ELEVATION_COL.key || col.key === WILDFIRE_KEY || col.unit !== undefined
+  return col.key === ELEVATION_COL.key || col.key === WILDFIRE_KEY || col.key === SCORE_KEY || col.unit !== undefined
 }
 
 /**

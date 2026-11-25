@@ -1,7 +1,7 @@
 import { DestinationResult, SortBy } from '../../types'
 import { AGGREGATE, FAMILY_KEYS, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../../metrics'
 import { cellTint } from '../results/resultsCells'
-import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from '../tableColumns'
+import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, SCORE_KEY, WILDFIRE_KEY } from '../tableColumns'
 import { ModelRow } from '../model/modelCompare'
 import { extremeHourMs, windyUrl } from '../windy'
 import { NO_VALUE_MARK, isUnavailableKey, unavailableCellText } from '../unavailableCell'
@@ -180,7 +180,10 @@ export function popupGroups(
       key === ELEVATION_COL.key ||
       key === WILDFIRE_KEY ||
       key === CLOSURE_KEY ||
-      key === MODEL_KEY
+      key === MODEL_KEY ||
+      // The lens's score belongs to no metric family (record 0307), and the
+      // card's grid is the families.
+      key === SCORE_KEY
     )
       continue
     const bucket = LEAD_KEYS.has(key) ? key : familyOf(key)

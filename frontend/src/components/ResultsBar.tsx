@@ -1,9 +1,12 @@
-import { Fragment, type RefObject } from 'react'
+import { type ComponentProps, Fragment, type RefObject } from 'react'
 import type { CompareNote } from '../hooks/useChartCompare'
-import { resultsHeading } from '../metrics'
+import { resultsHeading, SEP } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
 import type { SortBy } from '../types'
 import { MenuButton } from './Menu'
+import LensChips from './LensChips'
+import LimitChips from './LimitChips'
+import type { Lens } from '../utils/score/lenses'
 import {
   IconChart,
   IconChartTable,
@@ -13,6 +16,7 @@ import {
   IconModels,
   IconRestore,
   IconTable,
+  IconWiden,
 } from './icons'
 import {
   ACCENT,
@@ -26,6 +30,7 @@ import {
   DISABLED,
   ICON_BUTTON,
   PANEL_EDGE,
+  RESULTS_HEAD,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
@@ -82,13 +87,32 @@ interface ResultsBarProps {
   compareWait: string | null
   /** Why a compared model has no rows, when the chart cannot say it. */
   compareNotes: readonly CompareNote[]
+  /** The lens the field ranks by, or null, and its setter (record 0307). Absent: no lens row. */
+  lens?: Lens | null
+  onLens?: (lens: Lens | null) => void
+  /** The headline that stands for the title while a lens ranks the field. */
+  scoreHeadline?: string | null
+  /** When the best hours mostly fall, and the model, beside the window (record 0319). */
+  bestHours?: string | null
+  modelLabel?: string | null
+  /** The bounds as chips under the lenses, and the pill that adds one (record 0319). Absent: no row. */
+  limits?: ComponentProps<typeof LimitChips>
+  /**
+   * A desk's column (record 0321): false while it draws the compact table,
+   * when the bar keeps its title, lenses and limits and hides the toolbar
+   * behind the expand button; true while it is widened over the map with
+   * every column, the toolbar and the chart. Absent on a phone, which has no
+   * expand button.
+   */
+  wide?: boolean
+  onWide?: () => void
 }
 
 /**
  * Shared header bar for all results views. A container query, not
- * a viewport one: the bar's width is the viewport minus the docked
- * sidebar, so a viewport breakpoint would fold it on a window that
- * never changed size. Wide, everything sits on one line; narrow,
+ * a viewport one: at a desk the bar's width is the results column's,
+ * which a reader resizes, so a viewport breakpoint would fold it on a
+ * window that never changed size. Wide, everything sits on one line; narrow,
  * it folds to exactly two — the title row (which keeps the
  * collapse chevron) and the actions row — never a vertical stack
  * (#242 review). The fold sits at the 896px container step;
@@ -124,7 +148,20 @@ export default function ResultsBar({
   onDownloadCsv,
   compareWait,
   compareNotes,
+  lens = null,
+  onLens,
+  scoreHeadline = null,
+  bestHours = null,
+  modelLabel = null,
+  limits,
+  wide,
+  onWide,
 }: ResultsBarProps) {
+  // The toolbar stands unless a desk's column is compact (record 0321).
+  const toolbar = wide !== false
+  // The line under the headline: the best hours, the window and the model,
+  // the prototype's subtitle (record 0319).
+  const subtitle = windowTitle === null ? null : [bestHours, windowTitle, modelLabel].filter((p) => p !== null).join(` ${SEP} `)
   // The bar's buttons, in order, each present under its own condition, so the
   // group can put one divider between each two that stand.
   //
@@ -221,6 +258,9 @@ export default function ResultsBar({
       ),
     },
   ].filter((action) => action !== false)
+  // A desk's column leaves to the right (record 0312), so its
+  // chevron points there; a phone's sheet folds down.
+  const sideways = sheet ? undefined : '-rotate-90'
   return (
     // At a desk the bar is the results' top, where they meet the map, so it
     // wears the edge the panel wears where it meets the map (record 0220). It
@@ -230,7 +270,7 @@ export default function ResultsBar({
       ref={barRef}
       className={`@container flex-shrink-0 px-3 py-1.5 bg-raised ${sheet ? '' : `border-t ${PANEL_EDGE}`}`}
     >
-      <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
+      <div className="flex flex-col gap-1 @6xl:flex-row @6xl:items-center @6xl:gap-2">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           {/* Before the first analysis the title is the same ranked
               phrase the sidebar has selected, with a zero count —
@@ -238,13 +278,34 @@ export default function ResultsBar({
               the same before and after and the zero says nothing has
               been ranked yet. The window timestamp joins once a
               report exists (windowTitle below). */}
-          <span className={`${TEXT.subheading} min-w-0 truncate`}>
-            {resultsHeading(sortBy, sortDesc, pointSample, rowCount, pendingCount)}
+          {/* The headline over its subtitle, the prototype's two lines, so
+              neither cuts the other short (record 0319), on a phone's sheet
+              too since record 0330. */}
+          <div className="flex min-w-0 flex-1 flex-col">
+          <span
+            className={`${lens !== null && scoreHeadline !== null ? RESULTS_HEAD.headline : TEXT.subheading} min-w-0 truncate`}
+          >
+            {lens !== null && scoreHeadline !== null
+              ? scoreHeadline
+              : resultsHeading(sortBy, sortDesc, pointSample, rowCount, pendingCount)}
           </span>
-          {windowTitle !== null && (
+          {subtitle !== null && (
             <span className={`${CAPTION_LIFTED} truncate`}>
-              {windowTitle}
+              {subtitle}
             </span>
+          )}
+          </div>
+          {/* The expand button, at the title row's end before the chevron
+              (record 0321). */}
+          {wide !== undefined && onWide && showResults && (
+            <button
+              onClick={onWide}
+              aria-label={wide ? 'Narrow the table' : 'Every column'}
+              aria-pressed={wide}
+              className={`${ICON_BUTTON} ml-auto flex-shrink-0`}
+            >
+              <IconWiden wide={wide} />
+            </button>
           )}
           {/* The chevron rides the title row when the bar is folded so
               collapsing never needs the second row; its wide twin sits
@@ -252,9 +313,9 @@ export default function ResultsBar({
           <button
             onClick={toggleCollapsed}
             aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-            className={`${ICON_BUTTON} ml-auto @4xl:hidden`}
+            className={`${ICON_BUTTON} ${wide !== undefined && onWide && showResults ? '' : 'ml-auto'} ${toolbar ? '@6xl:hidden' : ''}`}
           >
-            <IconChevron up={resultsCollapsed} />
+            <IconChevron up={resultsCollapsed} className={sideways} />
           </button>
         </div>
         {/* Two groups: the mode switch at the left and the buttons at the
@@ -264,7 +325,8 @@ export default function ResultsBar({
             spans the bar and the groups stand at its two ends, at least 16px
             apart (gap-x-4): at 360px the two glyph groups leave the line 19px,
             which 24 would have wrapped. */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 @4xl:gap-x-6">
+        {toolbar && (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 @6xl:gap-x-6">
           {/* Mode switch: table, chart, or both — fluid width, since
               three icon-plus-label halves cannot fit the panel's
               144px column (SEGMENT_FLUID exists because this shipped
@@ -318,7 +380,7 @@ export default function ResultsBar({
               after it. */}
           {/* At the row's right end. On one line `justify-between` stands it
               there already; where a three-digit Removed count wraps it onto a
-              line of its own (beside the docked panel at 1024, #714) the
+              line of its own (in a narrow column, #714) the
               margin keeps it there rather than at the line's start. Not before
               a report, where it is the row's only member. */}
           <div className={`flex items-center gap-2 ${showResults ? 'ml-auto' : ''}`}>
@@ -336,13 +398,34 @@ export default function ResultsBar({
             <button
               onClick={toggleCollapsed}
               aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-              className={`${ICON_BUTTON} hidden @4xl:flex`}
+              className={`${ICON_BUTTON} hidden @6xl:flex`}
             >
-              <IconChevron up={resultsCollapsed} />
+              <IconChevron up={resultsCollapsed} className={sideways} />
             </button>
           </div>
         </div>
+        )}
       </div>
+      {/* The lenses, a row of their own under the title and the buttons:
+          they rank the field, which is the bar's whole subject. */}
+      {/* A phone's sheet holds both in one row that scrolls sideways
+          (record 0330), so its header keeps one height. */}
+      {sheet && (onLens || limits) && showResults && (
+        <div className={RESULTS_HEAD.phoneRow}>
+          {onLens && <LensChips lens={lens} onLens={onLens} inline />}
+          {limits && <LimitChips {...limits} inline />}
+        </div>
+      )}
+      {!sheet && onLens && showResults && (
+        <div className="mt-1.5 flex">
+          <LensChips lens={lens} onLens={onLens} />
+        </div>
+      )}
+      {!sheet && limits && showResults && (
+        <div className="mt-1.5">
+          <LimitChips {...limits} />
+        </div>
+      )}
       {/* One line under the bar, never beside a control in it: the
           wait is about the whole comparison, where every member of the
           row above is about one thing the reader can press. */}

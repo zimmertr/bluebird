@@ -485,6 +485,16 @@ class HourlySeries(BaseModel):
             "answered nothing for this location."
         ),
     )
+    cloud_top_ft: list[float | None] | None = Field(
+        default=None,
+        description=(
+            "Top of the lowest cloud layer, feet above sea level: where the "
+            "column dries out again above `cloud_deck_ft`. Equal to "
+            "`cloud_deck_ft` in a dry column. Null at every archive hour, and "
+            "null as a whole when the cloud request answered nothing for this "
+            "location."
+        ),
+    )
 
 
 class DestinationResult(BaseModel):

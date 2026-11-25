@@ -1,24 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useOpenOnFailure } from '../hooks/useOpenOnFailure'
 import type { PanelMessages } from '../hooks/usePanelMessages'
-import { BLOCKED, DISABLED, MAP_FAB, MAP_FAB_SLOT, MAP_FAB_WORDS } from '../styles'
-import { ACTION_WORDS, type ActionWord } from '../utils/analyzeGate'
+import { BLOCKED, DISABLED, MAP_FOOT } from '../styles'
+import type { ActionWord } from '../utils/analyzeGate'
+import { UP_TO_DATE } from '../utils/sentenceBar'
 import MessageBadge, { MessageRegion } from './MessageBadge'
 import MessageList from './MessageList'
 
 interface PhoneFootProps {
-  /** Where the button's bottom edge stands (`fabBottomPx`), which `MapStage` works out from the sheet's lift. */
+  /** Where the foot's bottom edge stands (`fabBottomPx`), which `MapStage` works out from the sheet's lift. */
   fabBottomPx: number
-  /**
-   * Receives the button's width when it is measured: the wider word's in the
-   * phone's own face, which the opened credit line stops short of (map.css).
-   */
-  onFabPx: (px: number) => void
+  /** The day strip's days (`DayStrip` bare), over the button, or null. */
+  strip?: ReactNode
   /** The panel's Analyze gate (`analyzeGateFor`), which the button shares. */
   analyzeEnabled: boolean
   /** What the button reads (#736, `actionWord`), the same word as the panel's. */
   word: ActionWord
+  /** What the button says while the word is Analyze (`forecastLabel`), as the desk's bar does (record 0328). */
+  label?: string
   /** The panel's Analyze command itself, never a second path to it. */
   onAnalyze: () => void
   /** The panel's messages (`usePanelMessages`): the badge's count and colour, and the sheet's rows. */
@@ -28,10 +28,11 @@ interface PhoneFootProps {
 }
 
 /**
- * The foot of a phone's map (#696): the Analyze button at the bottom right
- * (record 0135), Material's extended floating action button, wearing the
- * message badge at its corner (record 0208), which opens the panel's
- * messages as a bottom sheet headed Messages.
+ * The foot of a phone's map (record 0329): one card across the map holding
+ * the day strip and the full-width Forecast button under it, the button
+ * wearing the message badge at its corner (record 0208), which opens the
+ * panel's messages as a bottom sheet headed Messages. It was a floating
+ * Analyze button at the bottom right until then (record 0135).
  *
  * One thing moves the button and nothing else: the results sheet, whose top
  * edge it rides. No sheet moves the button or changes it: every phone sheet
@@ -42,27 +43,15 @@ interface PhoneFootProps {
  */
 export default function PhoneFoot({
   fabBottomPx,
-  onFabPx,
+  strip = null,
   analyzeEnabled,
   word,
+  label,
   onAnalyze,
   messages,
   covered = false,
 }: PhoneFootProps) {
-  // The button's width is the widest word's whichever it reads, so it moves
-  // only with the face, the size or the zoom; observed for those. It is
-  // mounted for as long as the foot is, so a ref is enough.
   const buttonRef = useRef<HTMLButtonElement | null>(null)
-  useEffect(() => {
-    const button = buttonRef.current
-    if (!button) return
-    const report = () => onFabPx(button.getBoundingClientRect().width)
-    report()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(report)
-    observer.observe(button)
-    return () => observer.disconnect()
-  }, [onFabPx])
   // A run disables the button under the finger that pressed it, and the
   // overlay's Cancel holds the focus meanwhile; when the run ends the focus
   // comes back here, as it does to the panel's Analyze (#576).
@@ -87,6 +76,8 @@ export default function PhoneFoot({
   useOpenOnFailure(messages.failureSeq, openSheet)
   useOpenOnFailure(messages.openingSeq, openSheet)
   const toggle = () => setOpen((o) => !o)
+  const shown = label !== undefined && word === 'Analyze' ? label : word
+  const quiet = shown === UP_TO_DATE
 
   return (
     <>
@@ -96,40 +87,35 @@ export default function PhoneFoot({
         // `data-map-overlay`), so a card a tap opens never hangs its foot
         // behind the one Analyze a phone has.
         data-map-overlay=""
-        className={MAP_FAB_SLOT}
+        className={MAP_FOOT.card}
         // A drag on the results sheet moves the button with it, as a
         // transform (`--sheet-shift`, #837); a full-screen sheet covers it,
         // and nothing under the sheet takes a press or the keyboard.
         style={{ bottom: fabBottomPx, transform: 'translateY(var(--sheet-shift, 0px))' }}
         inert={covered}
       >
-        <button
-          ref={buttonRef}
-          onClick={blocked ? toggle : onAnalyze}
-          disabled={!analyzeEnabled && !blocked}
-          aria-disabled={blocked || undefined}
-          className={`${MAP_FAB} ${DISABLED} ${BLOCKED}`}
-          // The tour's Analyze step (#536): a phone's one Analyze is this.
-          data-tour="analyze"
-        >
-          {/* Every word in one cell, so the button is the widest one's width
-              whichever it reads; the others are invisible and unread. */}
-          <span className={MAP_FAB_WORDS.cell}>
-            <span>{word}</span>
-            {ACTION_WORDS.filter((w) => w !== word).map((w) => (
-              <span key={w} aria-hidden="true" className={MAP_FAB_WORDS.hidden}>
-                {w}
-              </span>
-            ))}
-          </span>
-        </button>
-        <MessageBadge
-          count={count}
-          worst={messages.worst}
-          open={open}
-          onPress={toggle}
-          arrivalSeq={messages.arrivalSeq}
-        />
+        {strip && <div className={MAP_FOOT.days}>{strip}</div>}
+        <div className={MAP_FOOT.slot}>
+          <button
+            ref={buttonRef}
+            onClick={blocked ? toggle : onAnalyze}
+            disabled={!analyzeEnabled && !blocked}
+            aria-disabled={blocked || undefined}
+            // Outlined while a press would fetch nothing new, as the desk's is.
+            className={`${quiet ? MAP_FOOT.quiet : MAP_FOOT.button} ${DISABLED} ${BLOCKED}`}
+            // The tour's Analyze step (#536): a phone's one Analyze is this.
+            data-tour="analyze"
+          >
+            {shown}
+          </button>
+          <MessageBadge
+            count={count}
+            worst={messages.worst}
+            open={open}
+            onPress={toggle}
+            arrivalSeq={messages.arrivalSeq}
+          />
+        </div>
         <MessageRegion messages={messages.messages} />
       </div>
       {open && (

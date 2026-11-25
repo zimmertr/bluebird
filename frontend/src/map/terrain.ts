@@ -22,8 +22,10 @@
  * while off the way the other three do.
  *
  * Every colour and number here is this module's (`value-hex` and
- * `map-paint-named` list it as an owner). The map stays light in both
- * themes, so each colour is one value for both.
+ * `map-paint-named` list it as an owner). Each colour is one value for
+ * both themes: these rows add to the ground, which carries each theme's look
+ * itself (`ground.ts`, record 0317), and a brown shadow and a brown contour
+ * read on its dark slate as on its light greens.
  */
 import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'

@@ -1350,6 +1350,11 @@ export interface components {
              */
             cloud_deck_ft: (number | null)[] | null;
             /**
+             * Cloud Top Ft
+             * @description Top of the lowest cloud layer, feet above sea level: where the column dries out again above `cloud_deck_ft`. Equal to `cloud_deck_ft` in a dry column. Null at every archive hour, and null as a whole when the cloud request answered nothing for this location.
+             */
+            cloud_top_ft: (number | null)[] | null;
+            /**
              * Freeze Ft
              * @description Freezing level, feet above sea level. Null at every hour for the models that do not publish the variable; see `freeze_avg_ft` on the result.
              */

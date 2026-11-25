@@ -458,6 +458,31 @@ describe('mountMapPopups cursor', () => {
     expect(stub.canvas.style.cursor).toBe('pointer')
   })
 
+  // The result markers' ring follows the pointer (record 0318): a hover
+  // target is told the feature it rests on, once per change, and null as it
+  // leaves, by the move or out of the map.
+  it('tells a hover target what the pointer rests on, once per change', () => {
+    const { stub, register, move } = setup()
+    const hover = vi.fn()
+    register('result', ['marker'], { hover })
+    const a: StubFeature = { layer: { id: 'marker' }, id: 'a' }
+    stub.setUnder([a])
+    move()
+    move()
+    expect(hover.mock.calls).toEqual([[a]])
+    stub.setUnder([{ layer: { id: 'marker' }, id: 'b' }])
+    move()
+    expect(hover).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'b' }))
+    stub.setUnder([])
+    move()
+    expect(hover).toHaveBeenLastCalledWith(null)
+    stub.setUnder([a])
+    move()
+    stub.fire('mouseout')
+    expect(hover).toHaveBeenLastCalledWith(null)
+    expect(hover).toHaveBeenCalledTimes(5)
+  })
+
   it('leaves the cursor alone while a target holds it', () => {
     let held = true
     const { stub, register, under, move } = setup({ drawing: true })

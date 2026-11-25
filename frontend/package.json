@@ -14,7 +14,7 @@
     "check:api": "npm --prefix tools/api-types ci --ignore-scripts && npm --prefix tools/api-types run check"
   },
   "dependencies": {
-    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/archivo": "^5.3.0",
     "@mapbox/vector-tile": "^3.0.0",
     "lz-string": "^1.5.0",
     "maplibre-contour": "^0.1.1",

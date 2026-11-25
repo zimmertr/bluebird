@@ -19,6 +19,8 @@ export interface UrlSyncInputs {
   /** The ranking and its direction. */
   sortBy: ShareableState['sortBy']
   sortDesc: boolean
+  /** The lens the field ranks by, or null for the metric (record 0307). */
+  lens: ShareableState['lens']
   /** The aggregate each metric row's dropdown holds. */
   rowKeys: ShareableState['rowKeys']
   /** The forecast bounds. */
@@ -36,6 +38,7 @@ export interface UrlSyncInputs {
   showRadar: boolean
   showSmoke: boolean
   showSnow: boolean
+  showCloud: boolean
   showGrid: boolean
   showContours: boolean
   showRelief: boolean
@@ -95,6 +98,7 @@ export function useUrlSync({
   comparedModels,
   sortBy,
   sortDesc,
+  lens,
   rowKeys,
   constraints,
   limit,
@@ -106,6 +110,7 @@ export function useUrlSync({
   showRadar,
   showSmoke,
   showSnow,
+  showCloud,
   showGrid,
   showContours,
   showRelief,
@@ -196,6 +201,7 @@ export function useUrlSync({
         compareModels: comparedModels,
         sortBy,
         sortDesc,
+        lens,
         rowKeys,
         constraints,
         limit,
@@ -207,6 +213,7 @@ export function useUrlSync({
         showRadar,
         showSmoke,
         showSnow,
+        showCloud,
         showGrid,
         showContours,
         showRelief,
@@ -236,6 +243,7 @@ export function useUrlSync({
     comparedModels,
     sortBy,
     sortDesc,
+    lens,
     rowKeys,
     constraints,
     limit,
@@ -247,6 +255,7 @@ export function useUrlSync({
     showRadar,
     showSmoke,
     showSnow,
+    showCloud,
     showGrid,
     showContours,
     showRelief,

@@ -204,6 +204,16 @@ describe('the codec table against the links it wrote before', () => {
     expect(out).toMatchObject({ sortDesc: true, limit: 50, showSnow: true })
   })
 
+  // The cloud sea is on until turned off (record 0310): a link names it only
+  // when it is off, and an older link, which never names it, opens with it on.
+  it('writes nocloud only for a cloud sea turned off', () => {
+    expect(encodeState({ ...dateless, showCloud: false }, DEFAULT_MODEL)).toContain('nocloud=1')
+    expect(encodeState({ ...dateless, showCloud: true }, DEFAULT_MODEL)).not.toContain('nocloud')
+    expect(decodeState('nocloud=1')?.showCloud).toBe(false)
+    expect(decodeState('nocloud=0')?.showCloud).toBeUndefined()
+    expect(decodeState('snowdepth=1')?.showCloud).toBeUndefined()
+  })
+
   // #864, by the maintainer's word (2026-11-04): no old key is read and no
   // old name is an alias. The three habits are the browser's now, and the
   // three renamed keys answer only to their new spelling.
@@ -256,6 +266,7 @@ describe('the codec table', () => {
       'type',
       'sort',
       'desc',
+      'lens',
       'aqi',
       'clouddeck',
       'freeze',
@@ -298,6 +309,7 @@ describe('the codec table', () => {
       'radar',
       'smoke',
       'snowdepth',
+      'nocloud',
       'topo',
       'relief',
       'slope',
@@ -485,5 +497,21 @@ describe('a pasted list too long for a link', () => {
     expect(customCsvTooLong(state(rows(1_400), PRESET_LISTS[0].id))).toBe(false)
     expect(customCsvTooLong(state(''))).toBe(false)
     expect(customCsvTooLong(state('  \n'))).toBe(false)
+  })
+})
+
+describe('the lens param (record 0307)', () => {
+  const lensParam = URL_PARAMS.find((row) => row.key === 'lens')!
+  const base = { sortBy: 'aqi_avg', sortDesc: false } as const
+
+  it('writes a lens off the default, and metric for a ranking by sort', () => {
+    expect(lensParam.encode?.({ ...base, lens: 'calm' } as never)).toBe('calm')
+    expect(lensParam.encode?.({ ...base, lens: null } as never)).toBe('metric')
+    expect(lensParam.encode?.({ ...base, lens: 'bluebird' } as never)).toBeNull()
+  })
+
+  it('writes the default lens beside a written sort, and nothing for a state with no lens', () => {
+    expect(lensParam.encode?.({ sortBy: 'wind_avg_mph', sortDesc: false, lens: 'bluebird' } as never)).toBe('bluebird')
+    expect(lensParam.encode?.({ sortBy: 'wind_avg_mph', sortDesc: true } as never)).toBeNull()
   })
 })

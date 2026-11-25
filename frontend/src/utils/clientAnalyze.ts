@@ -235,11 +235,26 @@ export function alignAqi(
 export function alignCloud(
   timesMs: readonly number[],
   cloudSeries: CloudSeries | null,
+  key: 'cloud_deck_ft' | 'cloud_top_ft' = 'cloud_deck_ft',
 ): (number | null)[] | null {
-  if (!cloudSeries) return null
-  const deck = new Map<number, number | null>()
-  cloudSeries.times.forEach((t, i) => deck.set(t, cloudSeries.cloud_deck_ft[i] ?? null))
-  return timesMs.map((t) => deck.get(t) ?? null)
+  const column = cloudSeries?.[key]
+  if (!cloudSeries || !column) return null
+  const lookup = new Map<number, number | null>()
+  cloudSeries.times.forEach((t, i) => lookup.set(t, column[i] ?? null))
+  return timesMs.map((t) => lookup.get(t) ?? null)
+}
+
+/** The two cloud columns of a row's series, each present only when aligned. */
+function cloudColumns(
+  timesMs: readonly number[],
+  cloudSeries: CloudSeries | null,
+): Pick<HourlySeries, 'cloud_deck_ft' | 'cloud_top_ft'> {
+  const deck = alignCloud(timesMs, cloudSeries)
+  const top = alignCloud(timesMs, cloudSeries, 'cloud_top_ft')
+  return {
+    ...(deck !== null ? { cloud_deck_ft: deck } : {}),
+    ...(top !== null ? { cloud_top_ft: top } : {}),
+  }
 }
 
 /** A row's cloud aggregates and hourly arrays, or their absence. */
@@ -266,9 +281,8 @@ export function withCloud(
 ): DestinationResult {
   const next: DestinationResult = { ...row, ...cloudFields(cloud) }
   if (row.series) {
-    const { cloud_deck_ft: _d, ...rest } = row.series
-    const aligned = alignCloud(times, cloud?.series ?? null)
-    next.series = aligned === null ? rest : { ...rest, cloud_deck_ft: aligned }
+    const { cloud_deck_ft: _d, cloud_top_ft: _t, ...rest } = row.series
+    next.series = { ...rest, ...cloudColumns(times, cloud?.series ?? null) }
   }
   return next
 }
@@ -336,7 +350,6 @@ export function assemble(
     const { series: wxSeries, ...aggregates } = wx
     let series: HourlySeries | null = null
     if (wxSeries) {
-      const aligned = alignCloud(wxSeries.times, cloud?.series ?? null)
       series = {
         precip_in: wxSeries.precip_in,
         temp_f: wxSeries.temp_f,
@@ -346,7 +359,7 @@ export function assemble(
         aqi: alignAqi(wxSeries.times, aqi?.series ?? null),
         // Absent rather than a column of nulls when the cloud column was
         // never fetched, which is the server's shape too.
-        ...(aligned !== null ? { cloud_deck_ft: aligned } : {}),
+        ...cloudColumns(wxSeries.times, cloud?.series ?? null),
         // Present only on the browser path, which is the only one that asks
         // Open-Meteo for it. Spread rather than assigned so a row from a
         // response without it carries no key at all, rather than an explicit

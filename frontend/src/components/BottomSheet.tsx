@@ -104,7 +104,7 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
     const card = panelRef.current!
     const shape = card.className
     const share = card.style.getPropertyValue(SHARE_VAR)
-    card.className = menuCard(null, aside)
+    card.className = menuCard(null, aside, tourAnchor !== undefined)
     card.style.removeProperty(SHARE_VAR)
     const px = card.offsetHeight
     card.className = shape
@@ -146,7 +146,7 @@ export default function BottomSheet({ heading, onClose, children, outside, tourA
         className={
           kept
             ? `${CONTROLS_SHEET.card} ${BOTTOM_SHEET.ceiling}${heldClass(held)} ${open ? '' : CONTROLS_SHEET.shut}`
-            : menuCard(held, aside)
+            : menuCard(held, aside, tourAnchor !== undefined)
         }
         style={heightStyle(held, kept?.restPx)}
         data-tour={tourAnchor}
@@ -182,8 +182,8 @@ function heldClass(held: SheetHeight | null): string {
  * share of the room the screen now gives it, and a full sheet stays full,
  * its grip never past the screen's top.
  */
-function menuCard(held: SheetHeight | null, aside: boolean): string {
-  const fit = held === null ? BOTTOM_SHEET.opening : BOTTOM_SHEET.ceiling
+function menuCard(held: SheetHeight | null, aside: boolean, toured = false): string {
+  const fit = held !== null ? BOTTOM_SHEET.ceiling : toured ? BOTTOM_SHEET.toured : BOTTOM_SHEET.opening
   return `${BOTTOM_SHEET.card} ${fit}${heldClass(held)}${aside ? ` ${SHEET_ASIDE.card}` : ''}`
 }
 

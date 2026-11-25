@@ -55,14 +55,21 @@ describe('the tutorial steps', () => {
 
   it('marks every anchor on exactly one control in one component', () => {
     for (const step of TOUR_STEPS) {
-      // The one anchor with a home per width (record 0141): the footer at a
-      // desk, the map's button on a phone, where the footer draws none.
+      // The one anchor with a home per width (record 0141): the sentence
+      // bar's button at a desk, the map's button on a phone.
       if (step.anchor === 'analyze') {
-        expect(occurrences('analyze')).toEqual(['PhoneFoot.tsx'])
-        expect(panelFooterSource).toContain(`${TOUR_ATTR}={phone ? undefined : 'analyze'}`)
+        expect(occurrences('analyze')).toEqual(['PanelFooter.tsx', 'PhoneFoot.tsx'])
         continue
       }
-      expect(occurrences(step.anchor), step.anchor).toHaveLength(1)
+      // The Layers button is one of two elements by width, the chip on the
+      // map's rows or the round tool in a desk's column (record 0315), so its
+      // anchor is written on each arm of the one choice.
+      if (step.anchor === 'layers') {
+        expect(occurrences('layers')).toEqual(['LayersPopover.tsx', 'LayersPopover.tsx'])
+        expect(layersPopoverSource).toMatch(/const button = tool \? \(/)
+      } else {
+        expect(occurrences(step.anchor), step.anchor).toHaveLength(1)
+      }
       for (const frame of step.frames ?? []) expect(occurrences(frame), frame).toHaveLength(1)
       if (step.keepClear) expect(occurrences(step.keepClear), step.keepClear).toHaveLength(1)
     }
