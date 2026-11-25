@@ -58,6 +58,7 @@ Then open `http://localhost:8000`.
 | [Architecture](docs/ARCHITECTURE.md) | How it is built and how it deploys |
 | [Development](docs/DEVELOPMENT.md) | Hot-reload setup and the test suites |
 | [Traffic](docs/TRAFFIC.md) | Rate limiting and the budgets protecting the upstream APIs |
+| [Reliability](docs/RELIABILITY.md) | What can fail, how often it does, and what keeps an analysis working when it does |
 | [CI/CD](docs/CICD.md) | The pipeline from merge to production, with diagrams |
 | [Styles](docs/STYLES.md) | The design system: roles, what enforces them, and the measured numbers |
 | [Contributing](CONTRIBUTING.md) | How this project accepts work: one maintainer, an issue first for anything large |

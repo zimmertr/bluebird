@@ -24,6 +24,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How the service is built, and the Kubernetes deployment |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Hot-reload setup and the test/lint commands. The only copy: the Development commands section below points here rather than restating them |
 | [`docs/TRAFFIC.md`](docs/TRAFFIC.md) | How requests reach the pod and what the pod calls out to: Cloudflare, rate limits, upstream budgets |
+| [`docs/RELIABILITY.md`](docs/RELIABILITY.md) | The reliability targets, the failure inventory with its measurements, and the mitigation for each failure; keep its numbers dated |
 | [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
 | [`docs/STYLES.md`](docs/STYLES.md) | The design system: roles, enforcement, measured numbers; keep it current like CICD.md |
 | [`docs/architectural-decision-records/`](docs/architectural-decision-records/README.md) | One file per design decision: context, decision, evidence, date, decider. The README is the index |
