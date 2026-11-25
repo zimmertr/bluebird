@@ -3,6 +3,7 @@ import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
 import { BASEMAP_FAILED_NOTE } from './basemapFailure'
 import { PRESET_LIST_FAILED_NOTE } from './presetLists'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
+import { type FailingLayer, LAYER_FAILURES } from './layerFailures'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
 import { BLOCKER_SEVERITY, blockerKey, listPhrase, noticeKey, type FooterMessage } from './notices'
@@ -56,6 +57,9 @@ export const LIST_OPENING_KEYS: ReadonlySet<string> = new Set([
   'closure:unavailable',
   'map:style',
   'list:failed',
+  // A map layer that is on and failing (record 0344): no change of the
+  // reader's caused it either, and an empty layer looks like a quiet one.
+  ...LAYER_FAILURES.map((f) => f.key),
 ])
 
 // One sentence for the AQI warning over a report and for the blocker that
@@ -196,6 +200,8 @@ export interface PanelMessageInputs {
   closureCheckFailed: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
+  /** The pod's map layers that are on and failing (record 0344). Absent reads as none. */
+  failingLayers?: ReadonlySet<FailingLayer>
   /** The preset list last picked beside List search did not arrive (#838). */
   presetListFailed: boolean
   /** The pasted list is too long for a link to carry (`customCsvTooLong`, #864). Absent reads as not. */
@@ -402,6 +408,14 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     ...(p.basemapFailed
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
       : []),
+    // Each pod layer that is on and failing (record 0344), in the sentence
+    // its fetch throws, so an empty layer no longer reads as a quiet one.
+    // A warning: the layer is missing, and nothing else is wrong.
+    ...LAYER_FAILURES.filter((f) => f.layers.some((layer) => p.failingLayers?.has(layer))).map((f) => ({
+      key: f.key,
+      text: f.text,
+      severity: 'warn' as const,
+    })),
     // A list picked beside List search that did not arrive (#838; record
     // 0263): the reader asked for rows and the box stayed as it was, so the
     // line opens the list the way the map's does. Gone when the next pick

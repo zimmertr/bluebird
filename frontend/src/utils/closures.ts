@@ -118,6 +118,13 @@ export function closureQueryUrl(bbox: BBox, kind: ClosureKind, detail: FireDetai
 }
 
 /**
+ * What a failed fetch of this layer says: thrown to the layer, and shown in
+ * the Analyze button's messages while the layer is on and failing (record
+ * 0344, `utils/layerFailures.ts`).
+ */
+export const CLOSURE_DATA_UNAVAILABLE = 'Closure data unavailable. Try again later.'
+
+/**
  * Fetch one closure layer intersecting `bbox`.
  *
  * The same contract as `fetchWildfires`: `signal` drops a stale request when
@@ -134,7 +141,7 @@ export async function fetchClosures(
   const res = await apiFetch(closureQueryUrl(bbox, kind, detail), { signal })
   return overlayFeatures<ClosureResponse>(
     res,
-    'Closure data unavailable. Try again later.',
+    CLOSURE_DATA_UNAVAILABLE,
     'Closure data could not be read.',
   )
 }

@@ -31,7 +31,7 @@ const STYLE_LAYERS = [
   { id: 'road_label', type: 'symbol' },
 ]
 
-function setup(drawing = false) {
+function setup(drawing = false, onLayerFailing?: (layer: string, failing: boolean) => void) {
   const stub = stubMap({ styleLayers: STYLE_LAYERS })
   const controller = createMapController(mapInputs({ drawing, onCameraMove: vi.fn() }))
   const features = mountFeatures(stub.map, {
@@ -40,6 +40,7 @@ function setup(drawing = false) {
     ring: { current: [] },
     onPolygonChange: vi.fn(),
     onDrawUpdate: vi.fn(),
+    onLayerFailing,
   })
   return { stub, features }
 }
@@ -189,4 +190,20 @@ describe('mountFeatures', () => {
     expect(added.filter((id) => /dem|contour/.test(String(id)))).toEqual([])
     expect(stub.stack.filter((id) => /relief|contour/.test(id))).toEqual([])
   })
+
+  // Record 0344: each pod layer reports its failure under its own name.
+  it('names the layer that is failing, and clears it when the layer goes off', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const onLayerFailing = vi.fn()
+    const { features } = setup(false, onLayerFailing)
+    features.wildfires.update({ show: true })
+    features.smoke.update({ show: true })
+    await vi.waitFor(() => expect(onLayerFailing).toHaveBeenCalledWith('wildfires', true))
+    await vi.waitFor(() => expect(onLayerFailing).toHaveBeenCalledWith('smoke', true))
+    features.wildfires.update({ show: false })
+    expect(onLayerFailing).toHaveBeenLastCalledWith('wildfires', false)
+    warn.mockRestore()
+  })
 })
+

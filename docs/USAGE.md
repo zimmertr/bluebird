@@ -259,6 +259,13 @@ again. Eight are credited in their own section of the map's legend, and the thre
 | **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
+If **Active wildfires**, **Fire activity**, **Smoke** or either closure layer is
+on and can't load, the messages on **Analyze** say so, for example
+`Wildfire data unavailable. Try again later.`, and the list opens to show you.
+So an empty layer means there's nothing there, not a feed that's down. The line
+goes as soon as the layer loads again, or when you switch it off. The trailhead
+and crag markers do the same with `Map destinations unavailable. Try again later.`
+
 **Topographic** draws contour lines and **Shaded relief** shading, both from
 one elevation model, under the trails, the peaks and every name on the map.
 The contours are in feet, like every height in the app. They start 1,000 feet

@@ -4,6 +4,7 @@ import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
+import { type FailingLayer, NO_FAILING_LAYERS } from './layerFailures'
 import { archiveSeamPhrase } from './calendar/calendar'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { NOUN } from '../metrics'
@@ -359,9 +360,44 @@ describe('panelMessages', () => {
   // #834: the lines whose arrival opens the list are the two checks and the
   // basemap, by the keys this module gives them, and nothing else.
   describe('the lines that open the list', () => {
-    it('are the keys the check, basemap and preset list failures carry', () => {
-      const failing = keys({ wildfireCheckFailed: true, closureCheckFailed: true, basemapFailed: true, presetListFailed: true })
+    it('are the keys the check, basemap, preset list and layer failures carry', () => {
+      const failing = keys({
+        wildfireCheckFailed: true,
+        closureCheckFailed: true,
+        basemapFailed: true,
+        presetListFailed: true,
+        failingLayers: new Set<FailingLayer>(['wildfires', 'area-closures', 'trail-closures', 'fire-activity', 'smoke', 'landmarks']),
+      })
       expect([...LIST_OPENING_KEYS].sort()).toEqual([...failing].sort())
+    })
+  })
+
+  // Record 0344: a layer that is on and failing says so in the sentence its
+  // fetch throws, rather than drawing nothing.
+  describe('the layer lines', () => {
+    it('says each failing layer in its own approved sentence, as a warning', () => {
+      expect(only({ failingLayers: new Set<FailingLayer>(['wildfires']) })).toEqual({
+        key: 'layer:wildfires',
+        text: 'Wildfire data unavailable. Try again later.',
+        severity: 'warn',
+      })
+      expect(only({ failingLayers: new Set<FailingLayer>(['fire-activity']) }).text).toBe(
+        'Fire activity data unavailable. Try again later.',
+      )
+      expect(only({ failingLayers: new Set<FailingLayer>(['smoke']) }).text).toBe('Smoke data unavailable. Try again later.')
+      expect(only({ failingLayers: new Set<FailingLayer>(['landmarks']) }).text).toBe(
+        'Map destinations unavailable. Try again later.',
+      )
+    })
+
+    it('says the closures once, whichever of the two layers is failing', () => {
+      const closures = { key: 'layer:closures', text: 'Closure data unavailable. Try again later.', severity: 'warn' }
+      expect(only({ failingLayers: new Set<FailingLayer>(['trail-closures']) })).toEqual(closures)
+      expect(panelMessages(inputs({ failingLayers: new Set<FailingLayer>(['area-closures', 'trail-closures']) }))).toEqual([closures])
+    })
+
+    it('says nothing with no layer failing', () => {
+      expect(panelMessages(inputs({ failingLayers: NO_FAILING_LAYERS }))).toEqual([])
     })
   })
 

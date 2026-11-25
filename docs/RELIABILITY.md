@@ -262,7 +262,7 @@ Ranked by how much failure each removes for the work it takes. The ones in this 
 | 7 | **The Database in the Pod** - a database that stops answering is skipped for 30 s, every read has a statement timeout, the connection has a connect timeout and keepalives, every `psycopg.Error` on a read path takes the fallback, and discovery has one deadline of about 20 s | 5 s added to every request while the database is down; a hang on a half-open connection; 222 s worst-case discovery |
 | 8 | **Discovery in the Browser** (built) - a 15 s deadline and one retry in place of 110 s and none, and the pod named rather than OpenStreetMap when the edge answers `502` or `530` | A dead pod read as "OpenStreetMap is not available" |
 | 9 | **The Map Without Its Tile Host** - the style, glyphs and sprites in the app's own assets, a timed retry, the ring tool mounted without the remote style | An OpenFreeMap outage stopping you drawing |
-| 10 | **The Overlays Say When They Fail** - each layer's approved "unavailable" sentence shown in the message list rather than only logged | "No fires" and "the fire feed is down" looking the same |
+| 10 | **The Overlays Say When They Fail** (built) - each layer's approved "unavailable" sentence shown in the message list rather than only logged | "No fires" and "the fire feed is down" looking the same |
 | 11 | **The Page Survives the Pod** - a service worker with an off switch, and the page's headers ready for static hosting | A returning visitor losing the site with the house |
 | 12 | **Proving It** - a browser-suite spec per failure above: a host that hangs, refuses or answers nulls, with the run still landing inside its target | Every promise above quietly regressing |
 

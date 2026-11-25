@@ -50,7 +50,8 @@ export interface LandmarkLayer {
 export function mountLandmarks(
   map: maplibregl.Map,
   // `online` is where the browser's `online` is heard; the window when absent.
-  deps: { online?: EventTarget | null },
+  // `onFailing` hears the layer start and stop failing (record 0344).
+  deps: { online?: EventTarget | null; onFailing?: (failing: boolean) => void },
 ): LandmarkLayer {
   const iconOr = (id: string) => (map.hasImage(id) ? id : FALLBACK_ICON)
 
@@ -90,7 +91,7 @@ export function mountLandmarks(
   // A failed fetch is asked again when the browser comes back online, and no
   // sooner than the pod's Retry-After (`recovery.ts`, #580). No timer: a pan
   // already asks again.
-  const recovery = overlayRecovery(() => void refresh(), { online: deps.online })
+  const recovery = overlayRecovery(() => void refresh(), { online: deps.online, onFailing: deps.onFailing })
 
   async function refresh() {
     // Below the floor the layers draw nothing, so a fetch would buy markers
