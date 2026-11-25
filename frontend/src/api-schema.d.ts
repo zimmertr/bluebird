@@ -755,6 +755,11 @@ export interface components {
          */
         ConfigResponse: {
             preview: components["schemas"]["PreviewConfig"];
+            /**
+             * Service Worker
+             * @description Whether the web app keeps a service worker that serves the page it last loaded while this deployment cannot be reached. Off unless the deployment turns it on; turning it off removes the worker from each browser on its next load.
+             */
+            service_worker: boolean;
         };
         /**
          * Coverage

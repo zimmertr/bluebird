@@ -35,6 +35,14 @@ class ConfigResponse(BaseModel):
     """
 
     preview: PreviewConfig
+    service_worker: bool = Field(
+        description=(
+            "Whether the web app keeps a service worker that serves the page it "
+            "last loaded while this deployment cannot be reached. Off unless the "
+            "deployment turns it on; turning it off removes the worker from each "
+            "browser on its next load."
+        )
+    )
 
 
 def _truthy(value: str | None) -> bool:
@@ -54,5 +62,8 @@ async def config() -> ConfigResponse:
             enabled=enabled,
             pr=os.environ.get("PREVIEW_PR") if enabled else None,
             commit=os.environ.get("PREVIEW_COMMIT") if enabled else None,
-        )
+        ),
+        # Off by default (record 0349): the worker stores the page in the
+        # browser, which the privacy page must say before it ships on.
+        service_worker=_truthy(os.environ.get("SERVICE_WORKER")),
     )
