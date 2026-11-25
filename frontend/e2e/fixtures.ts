@@ -90,6 +90,12 @@ function hourlyBodies(url: URL, inputs: Record<string, unknown[]>, units: Record
   })
 }
 
+// Open-Meteo's forecast and air-quality answers, for a spec that serves them
+// from a host of its own, the way a deployment's mirror would (record 0345).
+export const answerWeather = (r: Route) =>
+  r.fulfill(json(hourlyBodies(new URL(r.request().url()), WEATHER_INPUTS, isCloud(r) ? CLOUD_UNITS : WEATHER_UNITS)))
+export const answerAirQuality = (r: Route) => r.fulfill(json(hourlyBodies(new URL(r.request().url()), AQI_INPUTS, {})))
+
 // The instant every page's clock starts at. `page.clock.install` starts the
 // page's Date here and lets it run on in real time, with timers, intervals,
 // animation frames and `performance` firing as they would (setFixedTime would
@@ -242,15 +248,10 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('https://tiles.mapterhorn.com/**', answer(demTile))
   await page.route('https://basemap.nationalmap.gov/**', answer(blankTile))
   await page.route('https://tiles.maps.eox.at/**', answer(blankTile))
-  const weather = answer((r) =>
-    r.fulfill(json(hourlyBodies(new URL(r.request().url()), WEATHER_INPUTS, isCloud(r) ? CLOUD_UNITS : WEATHER_UNITS))),
-  )
+  const weather = answer(answerWeather)
   await page.route('https://api.open-meteo.com/**', weather)
   await page.route('https://archive-api.open-meteo.com/**', weather)
-  await page.route(
-    'https://air-quality-api.open-meteo.com/**',
-    answer((r) => r.fulfill(json(hourlyBodies(new URL(r.request().url()), AQI_INPUTS, {})))),
-  )
+  await page.route('https://air-quality-api.open-meteo.com/**', answer(answerAirQuality))
   // The pod answers these six from its database, or from Overpass, NIFC,
   // NOAA, the Forest Service and FIRMS on a deployment without one, and the
   // image under test has none, so they are stubbed too. /api/capabilities and
