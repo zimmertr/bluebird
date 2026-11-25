@@ -40,7 +40,9 @@ router = APIRouter()
 # both answer well inside the edge's limit. Overpass is the only part that
 # comes near it, and on 2026-09-30 overpass-api.de answered 93% of its
 # successes inside 15 s (`osm/mirrors.py`), so 20 s keeps those and stops
-# waiting on the rest. The table answers a ring in milliseconds.
+# waiting on the rest. The table answers a ring in milliseconds. The
+# browser's `DISCOVERY_DEADLINE_MS` is this plus two seconds for the trip, so
+# it never gives up on a search this deadline still allows (record 0346).
 DISCOVERY_DEADLINE_S = 20.0
 
 

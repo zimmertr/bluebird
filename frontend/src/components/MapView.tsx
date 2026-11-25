@@ -37,6 +37,7 @@ import { createCentring } from '../map/centring'
 import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
 import { type BaseOpacity, opacityOf } from '../utils/baseMapOpacity'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid/forecastGrid'
+import type { FailingLayer } from '../utils/layerFailures'
 
 /** Where the map stands, enough to put it back (#536). */
 /** A rectangle in viewport pixels, the shape `getBoundingClientRect` answers. */
@@ -233,6 +234,11 @@ interface Props {
   // the note below Analyze (#580). A state setter, so stable: the watch is
   // registered once, with the map, and keeps the one it was handed.
   onBasemapFailed: (failed: boolean) => void
+  // Whether each pod layer is on and failing (`utils/layerFailures.ts`), for
+  // the Analyze button's messages (record 0344). Stable, for the same reason:
+  // the layers are mounted once, with the map, and keep the one they were
+  // handed.
+  onLayerFailing: (layer: FailingLayer, failing: boolean) => void
   // The most positions a ring may carry (`limits.max_polygon_points`): the draw
   // tool places no point past it (#619).
   maxPolygonPoints: number
@@ -315,6 +321,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       restoredView,
       onCameraMove,
       onBasemapFailed,
+      onLayerFailing,
       maxPolygonPoints,
       lowerSheetFirst,
       locateSlot,
@@ -747,6 +754,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           onPolygonChange,
           onDrawUpdate,
           linkCamera: restoredView !== null,
+          onLayerFailing,
         })
 
         if (pendingSearchRef.current) {

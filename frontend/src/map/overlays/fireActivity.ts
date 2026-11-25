@@ -77,6 +77,8 @@ export function mountFireActivity(
     online?: EventTarget | null
     /** The clock the bands are read against; `Date.now` when absent. */
     now?: () => number
+    /** Hears the layer start and stop failing (record 0344). */
+    onFailing?: (failing: boolean) => void
   },
 ): FireActivityOverlay {
   const now = deps.now ?? Date.now
@@ -140,7 +142,7 @@ export function mountFireActivity(
   // A failed fetch is asked again when the browser comes back online, and no
   // sooner than the pod's Retry-After (`recovery.ts`, #580). No timer: a pan
   // already asks again.
-  const recovery = overlayRecovery(() => void refresh(), { online: deps.online })
+  const recovery = overlayRecovery(() => void refresh(), { online: deps.online, onFailing: deps.onFailing })
 
   function draw() {
     if (held === null) return

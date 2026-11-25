@@ -8,6 +8,7 @@ import { analyzedView, type RecordedFacts } from '../utils/analysisSnapshot'
 import { type Discovered, runAnalysisPipeline } from '../utils/analysisPipeline'
 import { placeRows } from '../utils/clientAnalyze'
 import { answered } from '../utils/elevationLookup'
+import { snowFilled, withSnowOf } from '../utils/snowHistory'
 import type { AnalyzedView } from './analyzeTypes'
 import type { HeldForecasts } from '../utils/forecastReuse'
 import { AQI_LIMIT_DAYS, SelectionKind } from '../utils/calendar/calendar'
@@ -246,10 +247,17 @@ export function useAnalyze(
         out.late?.then(
           (patch) => {
             if (runSeqRef.current !== runSeq) return
-            report.patch(patch.rows, view())
             const held = heldForecastsRef.current
+            // The patch was built from the rows as they committed, so a snow
+            // depth that landed since rides over onto it (record 0341).
+            const now = new Map((held?.rows ?? []).map((r) => [geoKey(r.latitude, r.longitude), r]))
+            const rows = patch.rows.map((r) => {
+              const current = now.get(geoKey(r.latitude, r.longitude))
+              return current ? withSnowOf(r, current) : r
+            })
+            report.patch(rows, view())
             if (held) {
-              const swap = new Map(patch.rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+              const swap = new Map(rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
               heldForecastsRef.current = {
                 ...held,
                 rows: held.rows.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r),
@@ -260,6 +268,25 @@ export function useAnalyze(
           () => {
             if (runSeqRef.current === runSeq) report.settleHeights()
           },
+        )
+        // The snow depth came too late for the commit (record 0341): it
+        // fills the committed rows, and the held field a later run reuses,
+        // unless another run or a reset has replaced both. A failure leaves
+        // the columns N/A.
+        out.lateSnow?.then(
+          (snow) => {
+            const held = heldForecastsRef.current
+            if (runSeqRef.current !== runSeq || !held) return
+            const rows = snowFilled(held.rows, snow)
+            if (!rows.length) return
+            report.fill(rows, view())
+            const swap = new Map(rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+            heldForecastsRef.current = {
+              ...held,
+              rows: held.rows.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r),
+            }
+          },
+          () => {},
         )
       },
       {

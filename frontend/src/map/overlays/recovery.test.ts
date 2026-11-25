@@ -105,6 +105,30 @@ describe('overlayRecovery', () => {
   })
 })
 
+// Record 0344: how a layer's failure reaches the Analyze button's messages.
+describe('overlayRecovery onFailing', () => {
+  it('says once when the layer starts failing and once when it stops', () => {
+    const onFailing = vi.fn()
+    const recovery = overlayRecovery(vi.fn(), { online: null, onFailing })
+    recovery.failed(null)
+    recovery.failed(30)
+    expect(onFailing.mock.calls).toEqual([[true]])
+    recovery.succeeded()
+    recovery.succeeded()
+    expect(onFailing.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('stops failing when the layer is switched off, and says nothing for a layer that never failed', () => {
+    const onFailing = vi.fn()
+    const recovery = overlayRecovery(vi.fn(), { online: null, onFailing })
+    recovery.stop()
+    expect(onFailing).not.toHaveBeenCalled()
+    recovery.failed(null)
+    recovery.stop()
+    expect(onFailing.mock.calls).toEqual([[true], [false]])
+  })
+})
+
 describe('retryAfterOf', () => {
   it('reads the seconds a failed fetch carried, and nothing else', () => {
     expect(retryAfterOf(Object.assign(new Error('x'), { retryAfterS: 60 }))).toBe(60)

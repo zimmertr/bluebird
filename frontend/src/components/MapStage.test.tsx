@@ -168,6 +168,7 @@ const MESSAGES = panelMessages()
 const MAP_REF = createRef<MapViewHandle>()
 const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
 const ON_BASEMAP_FAILED = (_failed: boolean) => {}
+const ON_LAYER_FAILING = (_layer: string, _failing: boolean) => {}
 const LOWER_SHEET_FIRST = (then: () => void) => then()
 
 function props(over: Partial<MapStageProps> = {}): MapStageProps {
@@ -196,6 +197,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     urlSync: URL_SYNC,
     restoredView: null,
     onBasemapFailed: ON_BASEMAP_FAILED,
+    onLayerFailing: ON_LAYER_FAILING,
     maxPolygonPoints: MAX_POLYGON_POINTS,
     lowerSheetFirst: LOWER_SHEET_FIRST,
     onOpenControls: NOOP,
@@ -253,6 +255,7 @@ describe('MapStage', () => {
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
+    expect(got.onLayerFailing).toBe(ON_LAYER_FAILING)
     // A tap on the map that opens a card lowers a phone's sheet through the
     // results view's own callback (TJ, 2026-11-04).
     expect(got.lowerSheetFirst).toBe(LOWER_SHEET_FIRST)

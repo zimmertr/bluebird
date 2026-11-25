@@ -1,6 +1,7 @@
 import { useCallback, useId, useRef, useState, type ComponentProps, type RefObject } from 'react'
 import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
+import type { FailingLayer } from '../utils/layerFailures'
 import TimelineTransport from './TimelineTransport'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
@@ -135,6 +136,8 @@ export interface MapStageProps {
   restoredView: CameraView | null
   /** Reports whether the basemap style is failing to load; a state setter. */
   onBasemapFailed: (failed: boolean) => void
+  /** Reports each pod layer starting and stopping failing (record 0344); a `useCallback`. */
+  onLayerFailing: (layer: FailingLayer, failing: boolean) => void
   /** The most positions a drawn ring may carry, from /api/capabilities. */
   maxPolygonPoints: number
   /**
@@ -183,6 +186,7 @@ export default function MapStage({
   urlSync,
   restoredView,
   onBasemapFailed,
+  onLayerFailing,
   maxPolygonPoints,
   lowerSheetFirst,
 }: MapStageProps) {
@@ -385,6 +389,7 @@ export default function MapStage({
           restoredView={restoredView}
           onCameraMove={urlSync.reportView}
           onBasemapFailed={onBasemapFailed}
+          onLayerFailing={onLayerFailing}
           maxPolygonPoints={maxPolygonPoints}
           lowerSheetFirst={lowerSheetFirst}
           locateSlot={locateSlot}

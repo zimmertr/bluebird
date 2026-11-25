@@ -191,6 +191,13 @@ export function fireActivityQueryUrl(bbox: BBox): string {
 }
 
 /**
+ * What a failed fetch of this layer says: thrown to the layer, and shown in
+ * the Analyze button's messages while the layer is on and failing (record
+ * 0344, `utils/layerFailures.ts`).
+ */
+export const FIRE_ACTIVITY_DATA_UNAVAILABLE = 'Fire activity data unavailable. Try again later.'
+
+/**
  * Fetch the detections inside `bbox`.
  *
  * `signal` lets a stale request be aborted when the reader pans again. A 429
@@ -203,7 +210,7 @@ export async function fetchFireActivity(bbox: BBox, signal: AbortSignal): Promis
   // for the reason `fetchWildfires` gives.
   return overlayFeatures<FireActivityResponse>(
     res,
-    'Fire activity data unavailable. Try again later.',
+    FIRE_ACTIVITY_DATA_UNAVAILABLE,
     'Fire activity data could not be read.',
   )
 }

@@ -54,7 +54,8 @@ export interface WildfireOverlay {
 export function mountWildfires(
   map: maplibregl.Map,
   // `online` is where the browser's `online` is heard; the window when absent.
-  deps: { popups: MapPopups; online?: EventTarget | null },
+  // `onFailing` hears the layer start and stop failing (record 0344).
+  deps: { popups: MapPopups; online?: EventTarget | null; onFailing?: (failing: boolean) => void },
 ): WildfireOverlay {
   // Over the closed areas and under the closed trails, the drawing UI and the
   // result markers (`layerOrder.ts`). Data is populated on demand by `update`;
@@ -97,15 +98,15 @@ export function mountWildfires(
 
   // The fetch that runs while the overlay is on: perimeters for the current
   // viewport, re-fetched (debounced) as the reader pans and zooms.
-  // Best-effort: a failed fetch just leaves the overlay empty and never
-  // disrupts the map or an analysis.
+  // Best-effort: a failed fetch leaves the overlay empty and never disrupts
+  // the map or an analysis, and says so through `onFailing` (record 0344).
   let showing = false
   let abort: AbortController | null = null
   let debounce: ReturnType<typeof setTimeout> | undefined
   // A failed fetch is asked again when the browser comes back online, and no
   // sooner than the pod's Retry-After (`recovery.ts`, #580). No timer: a pan
   // already asks again.
-  const recovery = overlayRecovery(() => void refresh(), { online: deps.online })
+  const recovery = overlayRecovery(() => void refresh(), { online: deps.online, onFailing: deps.onFailing })
 
   async function refresh() {
     abort?.abort()

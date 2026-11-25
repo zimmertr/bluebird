@@ -21,6 +21,7 @@
 import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import type { GeoPolygon } from '../types'
+import type { FailingLayer } from '../utils/layerFailures'
 import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
@@ -76,9 +77,12 @@ export function mountFeatures(
     onDrawUpdate: (count: number) => void
     /** The map opened on a camera a share link named, which the 3D terrain keeps the pitch of (#864). */
     linkCamera?: boolean
+    /** Hears each pod layer start and stop failing, for the Analyze button's messages (record 0344). */
+    onLayerFailing?: (layer: FailingLayer, failing: boolean) => void
   },
 ): MapFeatures {
   const { controller, popups } = deps
+  const failing = (layer: FailingLayer) => (on: boolean) => deps.onLayerFailing?.(layer, on)
   // The cursor the map falls back to with nothing interactive under the
   // pointer. A crosshair means the next click places a point, so it belongs
   // to draw mode alone; outside it the default hand says the map is
@@ -99,16 +103,16 @@ export function mountFeatures(
   const imagery = mountImagery(map)
   enhanceBasemap(map)
   // After the basemap patch, which registers the icons its layers name.
-  const landmarks = mountLandmarks(map, {})
+  const landmarks = mountLandmarks(map, { onFailing: failing('landmarks') })
   // Adds nothing until a switch asks: no elevation tile and no contour code
   // on the cold load.
   const terrain = mountTerrain(map, { linkCamera: deps.linkCamera })
   const grid = mountForecastGrid(map)
-  const smoke = mountSmoke(map, { popups: mapPopups })
-  const wildfires = mountWildfires(map, { popups: mapPopups })
-  const areaClosures = mountClosures(map, 'area', { popups: mapPopups })
-  const trailClosures = mountClosures(map, 'trail', { popups: mapPopups })
-  const fireActivity = mountFireActivity(map, { popups: mapPopups })
+  const smoke = mountSmoke(map, { popups: mapPopups, onFailing: failing('smoke') })
+  const wildfires = mountWildfires(map, { popups: mapPopups, onFailing: failing('wildfires') })
+  const areaClosures = mountClosures(map, 'area', { popups: mapPopups, onFailing: failing('area-closures') })
+  const trailClosures = mountClosures(map, 'trail', { popups: mapPopups, onFailing: failing('trail-closures') })
+  const fireActivity = mountFireActivity(map, { popups: mapPopups, onFailing: failing('fire-activity') })
   const snow = mountSnow(map, { popups: mapPopups })
   const radar = mountRadar(map, { popups: mapPopups })
   const drawRing = mountDrawRing(map, {

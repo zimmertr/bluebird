@@ -74,3 +74,58 @@ export function withSnowDepth(
   }
   return next
 }
+
+/**
+ * The snow depth answer that came after the report committed (record 0341):
+ * the depths by `geoKey`, or null when the request failed, and the grid the
+ * rows' series are drawn on.
+ */
+export interface LateSnow {
+  depths: ReadonlyMap<string, SnowDepthAtPoint> | null
+  times: readonly number[]
+}
+
+/**
+ * The rows a late snow depth answer fills in, each through `withSnowDepth`.
+ * Only the rows it has a depth for: a failed request fills nothing, so the
+ * columns stay N/A, and a row the run did not ask about keeps what it has.
+ */
+export function snowFilled(rows: readonly DestinationResult[], late: LateSnow): DestinationResult[] {
+  const { depths, times } = late
+  if (!depths) return []
+  const out: DestinationResult[] = []
+  for (const r of rows) {
+    const at = depths.get(geoKey(r.latitude, r.longitude))
+    if (at) out.push(withSnowDepth(r, at, times))
+  }
+  return out
+}
+
+/**
+ * `row` wearing the snow depth `from` carries, for a row rebuilt from a copy
+ * taken before the depth landed (an elevation lookup's patch, record 0341).
+ * The depth is the coordinate's and not the height's, so it carries over as
+ * it stands. The same object when the two already agree, so a patch that
+ * changes nothing about the depth redraws nothing more.
+ */
+export function withSnowOf(row: DestinationResult, from: DestinationResult): DestinationResult {
+  const sameSeries = (row.series?.snow_depth_in ?? null) === (from.series?.snow_depth_in ?? null)
+  if (
+    row.snow_depth_avg_in === from.snow_depth_avg_in &&
+    row.snow_depth_min_in === from.snow_depth_min_in &&
+    row.snow_depth_max_in === from.snow_depth_max_in &&
+    (sameSeries || !row.series)
+  ) {
+    return row
+  }
+  const next: DestinationResult = {
+    ...row,
+    snow_depth_avg_in: from.snow_depth_avg_in,
+    snow_depth_min_in: from.snow_depth_min_in,
+    snow_depth_max_in: from.snow_depth_max_in,
+  }
+  if (row.series && from.series?.snow_depth_in) {
+    next.series = { ...row.series, snow_depth_in: from.series.snow_depth_in }
+  }
+  return next
+}

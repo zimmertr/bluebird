@@ -140,6 +140,13 @@ export function isRateLimited(err: unknown): boolean {
 }
 
 /**
+ * What a failed fetch of this layer says: thrown to the layer, and shown in
+ * the Analyze button's messages while the layer is on and failing (record
+ * 0344, `utils/layerFailures.ts`).
+ */
+export const WILDFIRE_DATA_UNAVAILABLE = 'Wildfire data unavailable. Try again later.'
+
+/**
  * Fetch active wildfire perimeters intersecting `bbox`.
  *
  * `signal` lets a stale in-flight request be aborted when the user pans again.
@@ -155,7 +162,7 @@ export async function fetchWildfires(
   const res = await apiFetch(wildfireQueryUrl(bbox, detail), { signal })
   const data = await overlayFeatures<WildfireResponse>(
     res,
-    'Wildfire data unavailable. Try again later.',
+    WILDFIRE_DATA_UNAVAILABLE,
     'Wildfire data could not be read.',
   )
   // The response also carries `fetched_at`, the age of the server's snapshot.

@@ -30,6 +30,8 @@ export function mountSmoke(
     popups: MapPopups
     /** Where the browser's `online` is heard; the window when absent. */
     online?: EventTarget | null
+    /** Hears the layer start and stop failing (record 0344). */
+    onFailing?: (failing: boolean) => void
   },
 ): SmokeOverlay {
   // One source, three fills, because opacity is the whole encoding and a single
@@ -86,7 +88,7 @@ export function mountSmoke(
   // online (`recovery.ts`), so an outage ends without a toggle (#580).
   let showing = false
   let abort: AbortController | null = null
-  const recovery = overlayRecovery(load, { timed: true, online: deps.online })
+  const recovery = overlayRecovery(load, { timed: true, online: deps.online, onFailing: deps.onFailing })
 
   function load() {
     abort?.abort()

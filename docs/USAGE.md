@@ -197,6 +197,9 @@ there now. Its dropdown picks the average, the shallowest day or the deepest,
 and opens on the deepest. On the chart its line stops at today. On a glaciated
 summit the number is years of old snow, not this winter's, though it keeps its
 place in the ranking. [DATA.md](DATA.md#the-snow-depth-on-a-row) has the rest.
+However, the table never waits long for it. If the snow depth hasn't come back
+a few seconds after the forecasts have, the table shows up with it reading
+`N/A`, and the numbers fill in when they arrive.
 
 **The cloud deck is in every analysis**, like every other metric, so you can
 rank by it or bound it at any time without analyzing again. The deck is the height where cloud forms
@@ -255,6 +258,13 @@ again. Eight are credited in their own section of the map's legend, and the thre
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | The contiguous states, Alaska, Hawaii, Puerto Rico and Guam |
 | **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
+
+If **Active wildfires**, **Fire activity**, **Smoke** or either closure layer is
+on and can't load, the messages on **Analyze** say so, for example
+`Wildfire data unavailable. Try again later.`, and the list opens to show you.
+So an empty layer means there's nothing there, not a feed that's down. The line
+goes as soon as the layer loads again, or when you switch it off. The trailhead
+and crag markers do the same with `Map destinations unavailable. Try again later.`
 
 **Topographic** draws contour lines and **Shaded relief** shading, both from
 one elevation model, under the trails, the peaks and every name on the map.

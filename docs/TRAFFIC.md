@@ -48,6 +48,15 @@ flowchart LR
   (autoscaled between 3 and 10 replicas; the canary adds one pod through its
   analysis steps and a full set at promotion).
 
+When the pod or the tunnel is down, Cloudflare answers for it, with a `502`
+or a `530` and a page of its own rather than the app's JSON `error` object. So
+the browser reads a `502` or `530` without that object as Bluebird Forecast
+being offline, and asks a ring's `POST /api/destinations` once more after it,
+or after 22 seconds with no answer at all, before it gives up. However, a
+`502` the pod wrote itself keeps its own sentence and is not asked again,
+because the pod has already tried both of its sources behind it. Record:
+[0343](architectural-decision-records/0343-discovery-fifteen-seconds-and-one-retry.md)
+
 There is deliberately **no Envoy/Istio rate limiting layer**. Istio still has
 no first-class rate-limit API; the mechanism is a raw `EnvoyFilter` wrapping
 `envoy.filters.http.local_ratelimit`, which is per-pod (same imprecision as
@@ -540,7 +549,7 @@ self-hosted instance would keep the defect.
 | Everything outside `/assets/`: the document, the legal pages, `/docs`, `swagger-ui/`, the icons, `/api/*`, and errors | `no-cache` | Always revalidate. The document names the hashed chunks, so a stale one asks for files the new image does not hold. Starlette answers `If-None-Match` and `If-Modified-Since` with a `304` and no body, so the cost is one small round trip per page load. The unhashed files change with a version bump and need the same rule. |
 | A response under `/assets/` with a status below 400 | `public, max-age=31536000, immutable` | The file name carries the content hash, so the URL never changes meaning. |
 | An error under `/assets/` | `no-cache` | A cached `404` for a year outlasts the release that would have corrected it. |
-| `GET /api/capabilities` | `public, max-age=60` | Every visitor fetches it once on load, and it answers the same bytes to all of them until a deploy changes a constant ([#337](https://github.com/zimmertr/bluebird/issues/337)). Staleness costs nothing: the numbers only bound what a client offers, the server enforces the real ones on every request, and a client that cannot fetch it at all falls back to compiled constants ([#152](https://github.com/zimmertr/bluebird/issues/152)). |
+| `GET /api/capabilities` | `public, max-age=60` | Every visitor fetches it once on load, and it answers the same bytes to all of them until a deploy changes a constant ([#337](https://github.com/zimmertr/bluebird/issues/337)). Staleness costs nothing: the numbers only bound what a client offers, the server enforces the real ones on every request, and a client that cannot fetch it at all falls back to compiled constants ([#152](https://github.com/zimmertr/bluebird/issues/152)). The browser gives each ask 5 seconds and asks twice before it falls back, so a hung pod holds a shared link for 10 seconds at most. |
 
 `no-cache` fixes the next page load and nothing before it. A tab that loaded
 the old document still asks for the old chunk names when it first reaches a

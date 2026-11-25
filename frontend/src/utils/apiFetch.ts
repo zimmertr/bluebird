@@ -68,8 +68,16 @@ export const API_DEADLINE_MS = 110_000
  * a controller of its own rather than `AbortSignal.timeout` composed with the
  * caller's signal, because that composition cannot be undone once the
  * response has started.
+ *
+ * `deadlineMs` is `API_DEADLINE_MS` unless the caller has a shorter promise
+ * to keep: a call the page waits on before it can do anything (capabilities, a
+ * ring's discovery) gives up sooner and asks once more (records 0342, 0343).
  */
-export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+export async function apiFetch(
+  path: string,
+  init?: RequestInit,
+  deadlineMs: number = API_DEADLINE_MS,
+): Promise<Response> {
   const controller = new AbortController()
   const caller = init?.signal ?? null
   const forward = () => controller.abort(caller?.reason)
@@ -77,7 +85,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   else caller?.addEventListener('abort', forward, { once: true })
   const deadline = setTimeout(
     () => controller.abort(new DOMException('No answer from the API.', 'TimeoutError')),
-    API_DEADLINE_MS,
+    deadlineMs,
   )
   try {
     return await fetch(path, { ...init, signal: controller.signal })
@@ -145,8 +153,8 @@ export type OverlayFailure = Error & { rateLimited?: boolean; retryAfterS?: numb
  * caller of this shows it: both swallow their failure and fall back. A caller
  * that has to *read* a status uses `apiFetch` and keeps its own handling.
  */
-export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await apiFetch(path, init)
+export async function apiJson<T>(path: string, init?: RequestInit, deadlineMs?: number): Promise<T> {
+  const res = await apiFetch(path, init, deadlineMs)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return (await res.json()) as T
 }
@@ -163,11 +171,66 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 export function postDestinations(
   body: DestinationsRequest,
   signal?: AbortSignal,
+  deadlineMs?: number,
 ): Promise<Response> {
-  return apiFetch('/api/destinations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  })
+  return apiFetch(
+    '/api/destinations',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    },
+    deadlineMs,
+  )
+}
+
+/**
+ * How long a ring's discovery has to start answering (record 0343). The pod
+ * answers it from its places table in well under a second (0.41 s at the
+ * 99th percentile over 30 days, 2026-11-25), so this much is a pod or a
+ * tunnel that is not answering rather than a slow search. It is the pod's own
+ * discovery deadline (`DISCOVERY_DEADLINE_S` in `routes/destinations.py`, 20
+ * s, which bounds a search the table cannot answer and Overpass must) plus two
+ * seconds for the trip, so the browser never gives up on, and asks again
+ * behind, a search the pod is still allowed to finish. With the one retry it
+ * holds an Analyze for 44 s at most where 110 s held it before.
+ */
+export const DISCOVERY_DEADLINE_MS = 22_000
+
+// What the edge answers when the origin did not: a bad or no answer from it
+// (502), none at all within its own patience (503, 504), or no tunnel to it
+// (Cloudflare's 530). Worth one more try when the body is the edge's own.
+const EDGE_RETRY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504, 530])
+
+/**
+ * Whether a failure body is the pod's own: every failure it writes carries an
+ * `error` object with its `code` and `retryable` (`error_codes.py`), and a
+ * page the edge put in its place does not.
+ */
+export function isOwnError(body: unknown): boolean {
+  const error = (body as { error?: { code?: unknown; retryable?: unknown } } | null)?.error
+  return typeof error?.code === 'string' && typeof error?.retryable === 'boolean'
+}
+
+/**
+ * `POST /api/destinations` for a ring an analysis is about to forecast
+ * (record 0343): `DISCOVERY_DEADLINE_MS` to start answering, and one more
+ * ask, at once, when the first got no answer at all (`ApiUnreachable`, a
+ * timeout among them) or the edge answered for an origin that did not. An
+ * answer the pod wrote itself is kept whatever its status: it already tried
+ * what it could behind it, and a second ask would spend the same again.
+ */
+export async function discoverDestinations(body: DestinationsRequest, signal?: AbortSignal): Promise<Response> {
+  const ask = () => postDestinations(body, signal, DISCOVERY_DEADLINE_MS)
+  let res: Response
+  try {
+    res = await ask()
+  } catch (e) {
+    if (e instanceof ApiUnreachable) return ask()
+    throw e
+  }
+  if (!EDGE_RETRY_STATUSES.has(res.status)) return res
+  if (isOwnError(await res.clone().json().catch(() => null))) return res
+  return ask()
 }
