@@ -225,7 +225,7 @@ jobs:
     # renaming either strands PRs on a phantom "Expected" check that never
     # reports.
     name: Docker Build
-    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@09f6b632a2fb0f0692df46b92cb04cc664a833a1 # v3.1.4
+    uses: zimmertr/yggdrasil/.github/workflows/docker-build.yml@47059cdc3da02c837181fbb16cd5d8647dd968d8 # v3.1.5
     permissions:
       contents: read
       pull-requests: write # the sticky scan comments
@@ -267,7 +267,7 @@ jobs:
   lighthouse:
     name: Lighthouse
     needs: docker-build
-    uses: zimmertr/yggdrasil/.github/workflows/lighthouse.yml@09f6b632a2fb0f0692df46b92cb04cc664a833a1 # v3.1.4
+    uses: zimmertr/yggdrasil/.github/workflows/lighthouse.yml@47059cdc3da02c837181fbb16cd5d8647dd968d8 # v3.1.5
     permissions:
       contents: read
     with:
@@ -280,7 +280,7 @@ jobs:
   # version with a known High or Critical vulnerability. Decision record 0306.
   dependency-review:
     name: Dependency Review
-    uses: zimmertr/yggdrasil/.github/workflows/dependency-review.yml@09f6b632a2fb0f0692df46b92cb04cc664a833a1 # v3.1.4
+    uses: zimmertr/yggdrasil/.github/workflows/dependency-review.yml@47059cdc3da02c837181fbb16cd5d8647dd968d8 # v3.1.5
     permissions:
       contents: read
 
